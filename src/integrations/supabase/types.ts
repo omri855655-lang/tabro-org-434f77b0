@@ -312,6 +312,36 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_stopwatch: {
+        Row: {
+          accumulated_seconds: number
+          current_date_str: string
+          id: string
+          running: boolean
+          started_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accumulated_seconds?: number
+          current_date_str?: string
+          id?: string
+          running?: boolean
+          started_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accumulated_seconds?: number
+          current_date_str?: string
+          id?: string
+          running?: boolean
+          started_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mental_coaching_sessions: {
         Row: {
           created_at: string

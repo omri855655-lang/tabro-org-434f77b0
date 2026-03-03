@@ -11,6 +11,7 @@ import { startSilentAudio } from "./iosSilentAudio";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { DeeplyMusicPlayer } from "./DeeplyMusicPlayer";
+import { useDailyStopwatch } from "@/hooks/useDailyStopwatch";
 
 // Background themes
 const BG_THEMES = [
@@ -87,6 +88,7 @@ const ACTIVE_COLOR_MAP: Record<string, string> = {
 const DeeplyDashboard = () => {
   const { activePresetId, isPlaying, isRendering, toggle } = useAudioEngine();
   const { user } = useAuth();
+  const { stopwatchTime, isStopwatchRunning, toggleStopwatch, resetStopwatch } = useDailyStopwatch();
 
   // Sound category
   const [activeCategory, setActiveCategory] = useState<string>("focus");
@@ -104,60 +106,7 @@ const DeeplyDashboard = () => {
   const [isBreak, setIsBreak] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Stopwatch — persistent daily stopwatch
-  const [isStopwatchRunning, setIsStopwatchRunning] = useState(() => {
-    const saved = localStorage.getItem("deeply-stopwatch-state");
-    if (saved) {
-      const state = JSON.parse(saved);
-      // Check if same day
-      const savedDate = new Date(state.date).toDateString();
-      if (savedDate === new Date().toDateString()) return state.running;
-    }
-    return false;
-  });
-  const [stopwatchTime, setStopwatchTime] = useState(() => {
-    const saved = localStorage.getItem("deeply-stopwatch-state");
-    if (saved) {
-      const state = JSON.parse(saved);
-      const savedDate = new Date(state.date).toDateString();
-      if (savedDate !== new Date().toDateString()) {
-        // New day — log yesterday's session if significant
-        if (state.accumulated > 60) {
-          const oldSessions = JSON.parse(localStorage.getItem("deeply-sessions") || "[]");
-          oldSessions.unshift({
-            id: Date.now().toString(),
-            type: "stopwatch",
-            duration: Math.round(state.accumulated / 60),
-            frequency: "none",
-            timestamp: state.date,
-          });
-          localStorage.setItem("deeply-sessions", JSON.stringify(oldSessions));
-        }
-        localStorage.removeItem("deeply-stopwatch-state");
-        return 0;
-      }
-      // Same day — restore accumulated + elapsed since startedAt
-      let total = state.accumulated || 0;
-      if (state.running && state.startedAt) {
-        total += Math.floor((Date.now() - state.startedAt) / 1000);
-      }
-      return total;
-    }
-    return 0;
-  });
-  const stopwatchRef = useRef<NodeJS.Timeout | null>(null);
-  const stopwatchStartedAtRef = useRef<number | null>((() => {
-    try {
-      const saved = localStorage.getItem("deeply-stopwatch-state");
-      if (saved) {
-        const state = JSON.parse(saved);
-        if (new Date(state.date).toDateString() === new Date().toDateString() && state.running) {
-          return state.startedAt as number;
-        }
-      }
-    } catch {}
-    return null;
-  })());
+  // Stopwatch now handled by useDailyStopwatch hook
 
   // AI Chat
   const [showAiChat, setShowAiChat] = useState(false);
@@ -276,82 +225,7 @@ const DeeplyDashboard = () => {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [isTimerRunning, timeLeft, isBreak, timerPreset, activePresetId]);
 
-  // Stopwatch logic — persistent
-  useEffect(() => {
-    if (isStopwatchRunning) {
-      if (!stopwatchStartedAtRef.current) {
-        stopwatchStartedAtRef.current = Date.now();
-      }
-      stopwatchRef.current = setInterval(() => {
-        const startedAt = stopwatchStartedAtRef.current!;
-        const saved = localStorage.getItem("deeply-stopwatch-state");
-        const accumulated = saved ? JSON.parse(saved).accumulated || 0 : 0;
-        setStopwatchTime(accumulated + Math.floor((Date.now() - startedAt) / 1000));
-      }, 1000);
-    } else {
-      if (stopwatchRef.current) clearInterval(stopwatchRef.current);
-    }
-    return () => { if (stopwatchRef.current) clearInterval(stopwatchRef.current); };
-  }, [isStopwatchRunning]);
-
-  // Persist stopwatch state
-  useEffect(() => {
-    const saved = localStorage.getItem("deeply-stopwatch-state");
-    const prevAccumulated = saved ? JSON.parse(saved).accumulated || 0 : 0;
-
-    if (isStopwatchRunning) {
-      localStorage.setItem("deeply-stopwatch-state", JSON.stringify({
-        running: true,
-        accumulated: prevAccumulated,
-        startedAt: stopwatchStartedAtRef.current,
-        date: new Date().toISOString(),
-      }));
-    } else if (stopwatchTime > 0) {
-      stopwatchStartedAtRef.current = null;
-      localStorage.setItem("deeply-stopwatch-state", JSON.stringify({
-        running: false,
-        accumulated: stopwatchTime,
-        startedAt: null,
-        date: new Date().toISOString(),
-      }));
-    }
-  }, [isStopwatchRunning, stopwatchTime]);
-
-  // Auto-reset at midnight
-  useEffect(() => {
-    const checkMidnight = () => {
-      const saved = localStorage.getItem("deeply-stopwatch-state");
-      if (saved) {
-        const state = JSON.parse(saved);
-        if (new Date(state.date).toDateString() !== new Date().toDateString()) {
-          // Log yesterday's session
-          if (state.accumulated > 60 || (state.running && state.startedAt)) {
-            let total = state.accumulated || 0;
-            if (state.running && state.startedAt) {
-              total += Math.floor((Date.now() - state.startedAt) / 1000);
-            }
-            if (total > 60) {
-              const log: SessionLog = {
-                id: Date.now().toString(),
-                type: "stopwatch",
-                duration: Math.round(total / 60),
-                frequency: activePresetId || "none",
-                timestamp: state.date,
-              };
-              setSessions(prev => [log, ...prev]);
-            }
-          }
-          // Reset
-          setStopwatchTime(0);
-          setIsStopwatchRunning(false);
-          stopwatchStartedAtRef.current = null;
-          localStorage.removeItem("deeply-stopwatch-state");
-        }
-      }
-    };
-    const interval = setInterval(checkMidnight, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, [activePresetId]);
+  // Stopwatch logic now handled by useDailyStopwatch hook
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600);
@@ -1010,20 +884,11 @@ const DeeplyDashboard = () => {
                   {formatTime(stopwatchTime)}
                 </div>
                 <p className="text-xs opacity-60 mb-4">
-                  {isStopwatchRunning ? "⏱️ רץ... (נשמר אוטומטית)" : stopwatchTime > 0 ? "⏸️ מושהה — ימשיך מכאן" : "לחץ התחל — מתאפס בחצות"}
+                  {isStopwatchRunning ? "⏱️ רץ... (מסונכרן בין מכשירים)" : stopwatchTime > 0 ? "⏸️ מושהה — ימשיך מכאן" : "לחץ התחל — מתאפס בחצות"}
                 </p>
                 <div className="flex gap-2 justify-center">
                   <Button
-                    onClick={() => {
-                      if (!isStopwatchRunning) {
-                        // Starting — set startedAt
-                        stopwatchStartedAtRef.current = Date.now();
-                      } else {
-                        // Pausing — save accumulated
-                        stopwatchStartedAtRef.current = null;
-                      }
-                      setIsStopwatchRunning(!isStopwatchRunning);
-                    }}
+                    onClick={toggleStopwatch}
                     className={`rounded-full px-6 ${isStopwatchRunning ? "bg-red-500/20 text-red-300 hover:bg-red-500/30" : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"}`}
                     variant="ghost"
                   >
@@ -1033,21 +898,18 @@ const DeeplyDashboard = () => {
                     variant="ghost"
                     size="icon"
                     onClick={() => {
+                      const totalSeconds = resetStopwatch();
                       // Log stopwatch session if time > 60 seconds
-                      if (stopwatchTime > 60) {
+                      if (totalSeconds > 60) {
                         const log: SessionLog = {
                           id: Date.now().toString(),
                           type: "stopwatch",
-                          duration: Math.round(stopwatchTime / 60),
+                          duration: Math.round(totalSeconds / 60),
                           frequency: activePresetId || "none",
                           timestamp: new Date(),
                         };
                         setSessions(prev => [log, ...prev]);
                       }
-                      setIsStopwatchRunning(false);
-                      setStopwatchTime(0);
-                      stopwatchStartedAtRef.current = null;
-                      localStorage.removeItem("deeply-stopwatch-state");
                     }}
                     className="opacity-40 hover:opacity-100"
                   >
