@@ -149,6 +149,33 @@ export type Database = {
         }
         Relationships: []
       }
+      checked_items: {
+        Row: {
+          checked_at: string
+          created_at: string
+          id: string
+          notes: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       course_lessons: {
         Row: {
           completed: boolean | null
