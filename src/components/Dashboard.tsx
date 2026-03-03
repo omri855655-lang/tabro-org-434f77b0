@@ -7,6 +7,7 @@ import { BookOpen, Tv, CheckCircle, Clock, Eye, TrendingUp, LayoutGrid } from 'l
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import TasksDashboards from '@/components/dashboard/TasksDashboards';
 import ProductivityDashboard from '@/components/dashboard/ProductivityDashboard';
+import CheckedItemsArchive from '@/components/CheckedItemsArchive';
 
 interface Stats {
   totalBooks: number;
@@ -168,6 +169,9 @@ const Dashboard = () => {
 
       {/* Tasks Dashboards */}
       <TasksDashboards />
+
+      {/* Checked Items Archive */}
+      <CheckedItemsArchive />
 
       {/* Productivity Dashboard */}
       <ProductivityDashboard />
