@@ -312,6 +312,7 @@ export type Database = {
           show_in_dashboard: boolean
           sort_order: number
           statuses: Json
+          theme: string
           updated_at: string
           user_id: string
         }
@@ -323,6 +324,7 @@ export type Database = {
           show_in_dashboard?: boolean
           sort_order?: number
           statuses?: Json
+          theme?: string
           updated_at?: string
           user_id: string
         }
@@ -334,6 +336,7 @@ export type Database = {
           show_in_dashboard?: boolean
           sort_order?: number
           statuses?: Json
+          theme?: string
           updated_at?: string
           user_id?: string
         }
