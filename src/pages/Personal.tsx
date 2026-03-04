@@ -40,7 +40,7 @@ const Personal = () => {
   const [isDark, setIsDark] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sharedSheets, setSharedSheets] = useState<SharedSheet[]>([]);
-  const { boards: customBoards } = useCustomBoards();
+  const { boards: customBoards, updateBoard } = useCustomBoards();
   const { isTabVisible } = useUserPreferences();
   const { t, dir } = useLanguage();
 
