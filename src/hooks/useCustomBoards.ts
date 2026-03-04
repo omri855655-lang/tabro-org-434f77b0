@@ -39,6 +39,7 @@ export function useCustomBoards() {
       setBoards(data.map((b: any) => ({
         ...b,
         statuses: Array.isArray(b.statuses) ? b.statuses : JSON.parse(b.statuses || "[]"),
+        theme: b.theme || "default",
       })));
     }
     setLoading(false);
