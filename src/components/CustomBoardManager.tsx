@@ -172,7 +172,7 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
   const [newTitle, setNewTitle] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<BoardItem>>({});
-  const [viewMode, setViewMode] = useState<"table" | "kanban">(statuses.length >= 3 ? "kanban" : "table");
+  const [viewMode, setViewMode] = useState<"table" | "kanban" | "list" | "cards" | "timeline" | "compact">(statuses.length >= 3 ? "kanban" : "table");
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const themeStyles = getThemeStyles(theme);
 
