@@ -165,7 +165,7 @@ const KanbanColumn = ({
 };
 
 /* ───────── Main Component ───────── */
-const CustomBoardManager = ({ boardId, boardName, statuses }: CustomBoardManagerProps) => {
+const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", onThemeChange }: CustomBoardManagerProps) => {
   const { user } = useAuth();
   const [items, setItems] = useState<BoardItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,6 +174,7 @@ const CustomBoardManager = ({ boardId, boardName, statuses }: CustomBoardManager
   const [editValues, setEditValues] = useState<Partial<BoardItem>>({});
   const [viewMode, setViewMode] = useState<"table" | "kanban">(statuses.length >= 3 ? "kanban" : "table");
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const themeStyles = getThemeStyles(theme);
 
   const fetchItems = useCallback(async () => {
     if (!user) return;
