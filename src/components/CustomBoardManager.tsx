@@ -24,7 +24,69 @@ interface CustomBoardManagerProps {
   boardId: string;
   boardName: string;
   statuses: string[];
+  theme?: BoardTheme;
+  onThemeChange?: (theme: BoardTheme) => void;
 }
+
+/* ───────── Theme Styles ───────── */
+const getThemeStyles = (theme: BoardTheme) => {
+  switch (theme) {
+    case "colorful":
+      return {
+        columnBorder: "border-2 border-blue-400/50",
+        columnBorderOver: "border-blue-500 bg-blue-50/30 dark:bg-blue-950/20",
+        columnHeader: "bg-gradient-to-l from-blue-100 to-purple-100 dark:from-blue-900/40 dark:to-purple-900/40 text-blue-800 dark:text-blue-200",
+        card: "border-blue-200/60 dark:border-blue-700/40 bg-card shadow-md hover:shadow-lg transition-shadow",
+        tableHeader: "bg-gradient-to-l from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30",
+        wrapper: "",
+      };
+    case "minimal":
+      return {
+        columnBorder: "border border-border/50",
+        columnBorderOver: "border-foreground/30 bg-muted/10",
+        columnHeader: "bg-transparent border-b border-border/50",
+        card: "border-border/30 bg-transparent shadow-none hover:bg-muted/20 transition-colors",
+        tableHeader: "bg-transparent",
+        wrapper: "",
+      };
+    case "gradient":
+      return {
+        columnBorder: "border-0 bg-gradient-to-b from-primary/5 to-primary/10 rounded-xl",
+        columnBorderOver: "from-primary/10 to-primary/20",
+        columnHeader: "bg-primary/10 text-primary font-bold",
+        card: "border-primary/20 bg-card/80 backdrop-blur-sm shadow-lg hover:scale-[1.02] transition-transform",
+        tableHeader: "bg-primary/5",
+        wrapper: "bg-gradient-to-br from-primary/5 via-transparent to-accent/5 rounded-xl p-3",
+      };
+    case "dark":
+      return {
+        columnBorder: "border-2 border-zinc-700 bg-zinc-900/50 dark:bg-zinc-900/80",
+        columnBorderOver: "border-zinc-500 bg-zinc-800/60",
+        columnHeader: "bg-zinc-800 text-zinc-100 dark:bg-zinc-800",
+        card: "border-zinc-700 bg-zinc-800/80 text-zinc-100 shadow-md dark:bg-zinc-800/90",
+        tableHeader: "bg-zinc-800 text-zinc-200",
+        wrapper: "bg-zinc-900/30 dark:bg-zinc-900/60 rounded-xl p-3",
+      };
+    case "pastel":
+      return {
+        columnBorder: "border-2 border-pink-200/60 bg-pink-50/20 dark:border-pink-800/40 dark:bg-pink-950/10",
+        columnBorderOver: "border-pink-300 bg-pink-50/40 dark:bg-pink-950/20",
+        columnHeader: "bg-gradient-to-l from-pink-100 to-amber-100 dark:from-pink-900/30 dark:to-amber-900/30 text-pink-700 dark:text-pink-300",
+        card: "border-pink-200/50 dark:border-pink-800/30 bg-white/80 dark:bg-card shadow-sm",
+        tableHeader: "bg-gradient-to-l from-pink-50 to-amber-50 dark:from-pink-950/20 dark:to-amber-950/20",
+        wrapper: "bg-gradient-to-br from-pink-50/30 to-amber-50/30 dark:from-pink-950/10 dark:to-amber-950/10 rounded-xl p-3",
+      };
+    default:
+      return {
+        columnBorder: "border-2 border-border bg-muted/20",
+        columnBorderOver: "border-primary bg-primary/5",
+        columnHeader: "bg-muted/40",
+        card: "border bg-card shadow-sm",
+        tableHeader: "",
+        wrapper: "",
+      };
+  }
+};
 
 /* ───────── Kanban Column ───────── */
 const KanbanColumn = ({
