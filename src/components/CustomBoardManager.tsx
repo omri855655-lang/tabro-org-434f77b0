@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Edit2, Check, X, LayoutGrid, List, Palette } from "lucide-react";
+import { Plus, Trash2, Edit2, Check, X, LayoutGrid, List, Palette, Grid3X3, Clock, AlignJustify, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { type BoardTheme, BOARD_THEMES } from "@/hooks/useCustomBoards";
@@ -172,7 +172,7 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
   const [newTitle, setNewTitle] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<BoardItem>>({});
-  const [viewMode, setViewMode] = useState<"table" | "kanban">(statuses.length >= 3 ? "kanban" : "table");
+  const [viewMode, setViewMode] = useState<"table" | "kanban" | "list" | "cards" | "timeline" | "compact">(statuses.length >= 3 ? "kanban" : "table");
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const themeStyles = getThemeStyles(theme);
 
@@ -261,24 +261,24 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
               </PopoverContent>
             </Popover>
           )}
-          <div className="flex gap-1 border rounded-lg p-0.5">
-          <Button
-            size="sm"
-            variant={viewMode === "table" ? "default" : "ghost"}
-            className="h-7 gap-1 text-xs"
-            onClick={() => setViewMode("table")}
-          >
-            <List className="h-3.5 w-3.5" />
-            טבלה
+          <div className="flex gap-1 border rounded-lg p-0.5 flex-wrap">
+          <Button size="sm" variant={viewMode === "table" ? "default" : "ghost"} className="h-7 gap-1 text-xs" onClick={() => setViewMode("table")}>
+            <List className="h-3.5 w-3.5" />טבלה
           </Button>
-          <Button
-            size="sm"
-            variant={viewMode === "kanban" ? "default" : "ghost"}
-            className="h-7 gap-1 text-xs"
-            onClick={() => setViewMode("kanban")}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            קנבן
+          <Button size="sm" variant={viewMode === "kanban" ? "default" : "ghost"} className="h-7 gap-1 text-xs" onClick={() => setViewMode("kanban")}>
+            <LayoutGrid className="h-3.5 w-3.5" />קנבן
+          </Button>
+          <Button size="sm" variant={viewMode === "list" ? "default" : "ghost"} className="h-7 gap-1 text-xs" onClick={() => setViewMode("list")}>
+            <AlignJustify className="h-3.5 w-3.5" />רשימה
+          </Button>
+          <Button size="sm" variant={viewMode === "cards" ? "default" : "ghost"} className="h-7 gap-1 text-xs" onClick={() => setViewMode("cards")}>
+            <CreditCard className="h-3.5 w-3.5" />כרטיסים
+          </Button>
+          <Button size="sm" variant={viewMode === "timeline" ? "default" : "ghost"} className="h-7 gap-1 text-xs" onClick={() => setViewMode("timeline")}>
+            <Clock className="h-3.5 w-3.5" />ציר זמן
+          </Button>
+          <Button size="sm" variant={viewMode === "compact" ? "default" : "ghost"} className="h-7 gap-1 text-xs" onClick={() => setViewMode("compact")}>
+            <Grid3X3 className="h-3.5 w-3.5" />קומפקט
           </Button>
           </div>
           </div>
@@ -328,7 +328,7 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
       )}
 
       {/* Kanban View */}
-      {viewMode === "kanban" ? (
+      {viewMode === "kanban" && (
         <div className={`flex gap-3 overflow-x-auto pb-2 ${themeStyles.wrapper}`}>
           {statuses.map((status) => (
             <KanbanColumn
@@ -344,8 +344,10 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
             />
           ))}
         </div>
-      ) : (
-        /* Table View */
+      )}
+
+      {/* Table View */}
+      {viewMode === "table" && (
         <Card>
           <CardContent className="p-0">
             <Table>
@@ -368,35 +370,20 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
                   <TableRow key={item.id}>
                     <TableCell>
                       {editingId === item.id ? (
-                        <Input
-                          value={editValues.title || ""}
-                          onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
-                          className="h-8"
-                        />
+                        <Input value={editValues.title || ""} onChange={(e) => setEditValues({ ...editValues, title: e.target.value })} className="h-8" />
                       ) : item.title}
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={item.status}
-                        onValueChange={(val) => updateItem(item.id, { status: val })}
-                      >
-                        <SelectTrigger className="h-8 w-[120px]">
-                          <SelectValue />
-                        </SelectTrigger>
+                      <Select value={item.status} onValueChange={(val) => updateItem(item.id, { status: val })}>
+                        <SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {statuses.map((s) => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
+                          {statuses.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </TableCell>
                     <TableCell>
                       {editingId === item.id ? (
-                        <Textarea
-                          value={editValues.notes || ""}
-                          onChange={(e) => setEditValues({ ...editValues, notes: e.target.value })}
-                          className="h-8 min-h-[32px]"
-                        />
+                        <Textarea value={editValues.notes || ""} onChange={(e) => setEditValues({ ...editValues, notes: e.target.value })} className="h-8 min-h-[32px]" />
                       ) : (
                         <span className="text-sm text-muted-foreground">{item.notes || "-"}</span>
                       )}
@@ -405,25 +392,13 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
                       <div className="flex gap-1">
                         {editingId === item.id ? (
                           <>
-                            <Button size="icon" variant="ghost" className="h-7 w-7"
-                              onClick={() => updateItem(item.id, editValues)}>
-                              <Check className="h-3 w-3" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7"
-                              onClick={() => setEditingId(null)}>
-                              <X className="h-3 w-3" />
-                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateItem(item.id, editValues)}><Check className="h-3 w-3" /></Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(null)}><X className="h-3 w-3" /></Button>
                           </>
                         ) : (
                           <>
-                            <Button size="icon" variant="ghost" className="h-7 w-7"
-                              onClick={() => startEdit(item)}>
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                              onClick={() => deleteItem(item.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(item)}><Edit2 className="h-3 w-3" /></Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
                           </>
                         )}
                       </div>
@@ -434,6 +409,124 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* List View - Simple checklist style */}
+      {viewMode === "list" && (
+        <div className={`space-y-1 ${themeStyles.wrapper}`}>
+          {items.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">אין פריטים עדיין</p>
+          ) : items.map((item) => (
+            <div key={item.id} className={`flex items-center gap-3 p-3 rounded-lg border ${themeStyles.card}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm truncate">{item.title}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${themeStyles.columnHeader}`}>
+                    {item.status}
+                  </span>
+                </div>
+                {item.notes && <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.notes}</p>}
+              </div>
+              <Select value={item.status} onValueChange={(val) => updateItem(item.id, { status: val })}>
+                <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {statuses.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-0.5 shrink-0">
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEdit(item)}><Edit2 className="h-3 w-3" /></Button>
+                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Cards Grid View */}
+      {viewMode === "cards" && (
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 ${themeStyles.wrapper}`}>
+          {items.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8 col-span-full">אין פריטים עדיין</p>
+          ) : items.map((item) => (
+            <Card key={item.id} className={`${themeStyles.card} overflow-hidden`}>
+              <div className={`px-3 py-1.5 text-[11px] font-semibold ${themeStyles.columnHeader}`}>
+                {item.status}
+              </div>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold text-sm leading-tight">{item.title}</h3>
+                  <div className="flex gap-0.5 shrink-0">
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEdit(item)}><Edit2 className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                </div>
+                {item.notes && <p className="text-xs text-muted-foreground line-clamp-3">{item.notes}</p>}
+                <Select value={item.status} onValueChange={(val) => updateItem(item.id, { status: val })}>
+                  <SelectTrigger className="h-7 text-xs w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">{new Date(item.created_at).toLocaleDateString("he-IL")}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Timeline View */}
+      {viewMode === "timeline" && (
+        <div className={`relative pr-6 space-y-0 ${themeStyles.wrapper}`}>
+          <div className="absolute right-2 top-0 bottom-0 w-0.5 bg-border" />
+          {items.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">אין פריטים עדיין</p>
+          ) : items.map((item, idx) => (
+            <div key={item.id} className="relative flex items-start gap-3 pb-4">
+              <div className="absolute right-[3px] top-2 w-3 h-3 rounded-full bg-primary border-2 border-background z-10" />
+              <div className={`flex-1 p-3 rounded-lg border ${themeStyles.card}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{item.title}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${themeStyles.columnHeader}`}>
+                        {item.status}
+                      </span>
+                    </div>
+                    {item.notes && <p className="text-xs text-muted-foreground mt-1">{item.notes}</p>}
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {new Date(item.created_at).toLocaleDateString("he-IL")} • {new Date(item.created_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="flex gap-0.5 shrink-0">
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEdit(item)}><Edit2 className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Compact View - Dense rows */}
+      {viewMode === "compact" && (
+        <div className={`border rounded-lg overflow-hidden ${themeStyles.wrapper}`}>
+          {items.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">אין פריטים עדיין</p>
+          ) : items.map((item, idx) => (
+            <div key={item.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${idx !== items.length - 1 ? "border-b" : ""} hover:bg-muted/30 transition-colors`}>
+              <span className="font-medium flex-1 truncate">{item.title}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${themeStyles.columnHeader}`}>
+                {item.status}
+              </span>
+              {item.notes && <span className="text-muted-foreground truncate max-w-[120px] hidden sm:inline">{item.notes}</span>}
+              <div className="flex gap-0.5 shrink-0">
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => startEdit(item)}><Edit2 className="h-2.5 w-2.5" /></Button>
+                <Button size="icon" variant="ghost" className="h-5 w-5 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-2.5 w-2.5" /></Button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
