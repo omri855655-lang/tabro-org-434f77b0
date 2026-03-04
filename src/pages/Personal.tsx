@@ -330,6 +330,8 @@ const Personal = () => {
               boardId={board.id}
               boardName={board.name}
               statuses={board.statuses}
+              theme={board.theme}
+              onThemeChange={(newTheme) => updateBoard(board.id, { theme: newTheme } as any)}
             />
           </TabsContent>
         ))}
