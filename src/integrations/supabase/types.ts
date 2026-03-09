@@ -264,30 +264,39 @@ export type Database = {
       }
       custom_board_items: {
         Row: {
+          archived: boolean
           board_id: string
+          category: string | null
           created_at: string
           id: string
           notes: string | null
+          sheet_name: string | null
           status: string | null
           title: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          archived?: boolean
           board_id: string
+          category?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          sheet_name?: string | null
           status?: string | null
           title: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          archived?: boolean
           board_id?: string
+          category?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          sheet_name?: string | null
           status?: string | null
           title?: string
           updated_at?: string
