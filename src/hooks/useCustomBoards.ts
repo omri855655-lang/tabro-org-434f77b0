@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
-export type BoardTheme = "default" | "colorful" | "minimal" | "gradient" | "dark" | "pastel";
+export type BoardTheme = "default" | "colorful" | "minimal" | "gradient" | "dark" | "pastel" | "ocean" | "forest" | "sunset" | "notion" | "trello" | "glass";
 
 export const BOARD_THEMES: { value: BoardTheme; label: string; description: string }[] = [
   { value: "default", label: "קלאסי", description: "עיצוב רגיל" },
@@ -11,6 +11,12 @@ export const BOARD_THEMES: { value: BoardTheme; label: string; description: stri
   { value: "gradient", label: "גרדיאנט", description: "רקע עם מעברי צבע" },
   { value: "dark", label: "כהה", description: "גוונים כהים" },
   { value: "pastel", label: "פסטל", description: "צבעי פסטל רכים" },
+  { value: "ocean", label: "אוקיינוס", description: "גווני כחול ותכלת" },
+  { value: "forest", label: "יער", description: "גווני ירוק טבעיים" },
+  { value: "sunset", label: "שקיעה", description: "כתום וורוד חם" },
+  { value: "notion", label: "Notion", description: "סגנון נוטיון נקי" },
+  { value: "trello", label: "Trello", description: "סגנון טרלו" },
+  { value: "glass", label: "זכוכית", description: "אפקט שקיפות" },
 ];
 
 export interface CustomBoard {
