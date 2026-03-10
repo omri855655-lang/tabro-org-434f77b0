@@ -24,7 +24,7 @@ import { getHolidaysForDate } from "@/data/holidays";
 interface AggregatedTask {
   id: string;
   title: string;
-  source: "work" | "personal" | "project" | "recurring" | "show";
+  source: "work" | "personal" | "project" | "recurring" | "show" | "course";
   overdue: boolean;
   urgent: boolean;
   status: string;
