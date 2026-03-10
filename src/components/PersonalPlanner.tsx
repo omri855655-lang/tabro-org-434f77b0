@@ -140,9 +140,19 @@ const PersonalPlanner = () => {
         .eq("archived", false);
       if (data) setCustomBoardItems(data);
     };
+    const fetchCourseLessons = async () => {
+      const { data } = await supabase
+        .from("course_lessons")
+        .select("*, courses(title, status)")
+        .eq("user_id", user.id)
+        .eq("completed", false)
+        .order("sort_order", { ascending: true });
+      if (data) setCourseLessons(data);
+    };
     fetchProjects();
     fetchShows();
     fetchBoardItems();
+    fetchCourseLessons();
   }, [user]);
 
   // Aggregate all tasks
