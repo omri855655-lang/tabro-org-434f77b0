@@ -258,12 +258,37 @@ const PersonalPlanner = () => {
         );
     }
 
+    // Courses - show next uncompleted lesson per active course
+    if (showCoursesInPlanner) {
+      // Group by course, pick first uncompleted lesson per course
+      const courseMap = new Map<string, any>();
+      courseLessons.forEach((lesson: any) => {
+        if (!lesson.courses || lesson.courses.status === 'הושלם') return;
+        if (!courseMap.has(lesson.course_id)) {
+          courseMap.set(lesson.course_id, lesson);
+        }
+      });
+      courseMap.forEach((lesson: any) => {
+        tasks.push({
+          id: lesson.id,
+          title: `📚 ${lesson.courses?.title || "קורס"}: ${lesson.title}`,
+          source: "course",
+          overdue: lesson.scheduled_date ? new Date(lesson.scheduled_date) < new Date() : false,
+          urgent: false,
+          status: "שיעור הבא",
+          plannedEnd: lesson.scheduled_date || "",
+          createdAt: lesson.created_at,
+          category: "קורס",
+        });
+      });
+    }
+
     return tasks.sort((a, b) => {
       if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
       if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
-  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds]);
+  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds, courseLessons, showCoursesInPlanner]);
 
   // Filtered tasks based on active filters
   const filteredTasks = useMemo(() => {
