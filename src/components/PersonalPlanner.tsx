@@ -320,7 +320,7 @@ const PersonalPlanner = () => {
       }
 
       // If only status filters are active (no source filters), check all
-      const hasSourceFilter = ["work", "personal", "project", "recurring", "shows_series", "shows_movies"].some(f => activeFilters.has(f as TaskFilter));
+      const hasSourceFilter = ["work", "personal", "project", "recurring", "shows_series", "shows_movies", "courses"].some(f => activeFilters.has(f as TaskFilter));
       if (!hasSourceFilter) return false;
 
       return false;
