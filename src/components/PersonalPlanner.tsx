@@ -4,6 +4,7 @@ import { useTasks, Task } from "@/hooks/useTasks";
 import { useCalendarEvents, CalendarEvent, getCategoryColor } from "@/hooks/useCalendarEvents";
 import { useCustomCategories, COLOR_PALETTE, CustomCategory } from "@/hooks/useCustomCategories";
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
+import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval, getDay } from "date-fns";
 import { he } from "date-fns/locale";
@@ -13,9 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getHolidaysForDate } from "@/data/holidays";
 
 interface AggregatedTask {
