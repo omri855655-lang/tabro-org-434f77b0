@@ -1405,6 +1405,32 @@ const PersonalPlanner = () => {
                 </div>
               )}
             </div>
+
+            {/* Courses toggle */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showCourses"
+                  checked={showCoursesInPlanner}
+                  onCheckedChange={(c) => setShowCoursesInPlanner(!!c)}
+                />
+                <label htmlFor="showCourses" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
+                  📚 הצג קורסים (שיעור הבא)
+                </label>
+              </div>
+              {showCoursesInPlanner && (
+                <div className="flex gap-1 mr-5">
+                  <Button
+                    variant={activeFilters.has("courses") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("courses")}
+                  >
+                    🎓 רק קורסים
+                  </Button>
+                </div>
+              )}
+            </div>
           </CollapsibleContent>
         </Collapsible>
 
