@@ -104,7 +104,7 @@ const DeeplyDashboard = () => {
   const [timeLeft, setTimeLeft] = useState(TIMER_PRESETS[0].work * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isBreak, setIsBreak] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Stopwatch now handled by useDailyStopwatch hook
 

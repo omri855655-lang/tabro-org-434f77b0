@@ -24,7 +24,7 @@ import { getHolidaysForDate } from "@/data/holidays";
 interface AggregatedTask {
   id: string;
   title: string;
-  source: "work" | "personal" | "project" | "recurring" | "show";
+  source: "work" | "personal" | "project" | "recurring" | "show" | "course";
   overdue: boolean;
   urgent: boolean;
   status: string;
@@ -34,7 +34,7 @@ interface AggregatedTask {
   showType?: string;
 }
 
-type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies";
+type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies" | "courses";
 
 
 type ViewMode = "day" | "week" | "month" | "year";
@@ -64,6 +64,8 @@ const PersonalPlanner = () => {
   const [activeFilters, setActiveFilters] = useState<Set<TaskFilter>>(new Set(["all"]));
   const [customBoardItems, setCustomBoardItems] = useState<any[]>([]);
   const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
+  const [courseLessons, setCourseLessons] = useState<any[]>([]);
+  const [showCoursesInPlanner, setShowCoursesInPlanner] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
@@ -138,9 +140,19 @@ const PersonalPlanner = () => {
         .eq("archived", false);
       if (data) setCustomBoardItems(data);
     };
+    const fetchCourseLessons = async () => {
+      const { data } = await supabase
+        .from("course_lessons")
+        .select("*, courses(title, status)")
+        .eq("user_id", user.id)
+        .eq("completed", false)
+        .order("sort_order", { ascending: true });
+      if (data) setCourseLessons(data);
+    };
     fetchProjects();
     fetchShows();
     fetchBoardItems();
+    fetchCourseLessons();
   }, [user]);
 
   // Aggregate all tasks
@@ -246,12 +258,37 @@ const PersonalPlanner = () => {
         );
     }
 
+    // Courses - show next uncompleted lesson per active course
+    if (showCoursesInPlanner) {
+      // Group by course, pick first uncompleted lesson per course
+      const courseMap = new Map<string, any>();
+      courseLessons.forEach((lesson: any) => {
+        if (!lesson.courses || lesson.courses.status === 'הושלם') return;
+        if (!courseMap.has(lesson.course_id)) {
+          courseMap.set(lesson.course_id, lesson);
+        }
+      });
+      courseMap.forEach((lesson: any) => {
+        tasks.push({
+          id: lesson.id,
+          title: `📚 ${lesson.courses?.title || "קורס"}: ${lesson.title}`,
+          source: "course",
+          overdue: lesson.scheduled_date ? new Date(lesson.scheduled_date) < new Date() : false,
+          urgent: false,
+          status: "שיעור הבא",
+          plannedEnd: lesson.scheduled_date || "",
+          createdAt: lesson.created_at,
+          category: "קורס",
+        });
+      });
+    }
+
     return tasks.sort((a, b) => {
       if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
       if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
-  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds]);
+  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds, courseLessons, showCoursesInPlanner]);
 
   // Filtered tasks based on active filters
   const filteredTasks = useMemo(() => {
@@ -268,6 +305,7 @@ const PersonalPlanner = () => {
       if (activeFilters.has("recurring") && task.source === "recurring") return true;
       if (activeFilters.has("shows_series") && task.source === "show" && task.showType === "סדרה") return true;
       if (activeFilters.has("shows_movies") && task.source === "show" && task.showType === "סרט") return true;
+      if (activeFilters.has("courses") && task.source === "course") return true;
 
       // Status filters
       if (activeFilters.has("overdue") && task.overdue) return true;
@@ -282,7 +320,7 @@ const PersonalPlanner = () => {
       }
 
       // If only status filters are active (no source filters), check all
-      const hasSourceFilter = ["work", "personal", "project", "recurring", "shows_series", "shows_movies"].some(f => activeFilters.has(f as TaskFilter));
+      const hasSourceFilter = ["work", "personal", "project", "recurring", "shows_series", "shows_movies", "courses"].some(f => activeFilters.has(f as TaskFilter));
       if (!hasSourceFilter) return false;
 
       return false;
@@ -874,6 +912,7 @@ const PersonalPlanner = () => {
       case "project": return "פרויקט";
       case "recurring": return "יומי";
       case "show": return "צפייה";
+      case "course": return "קורס";
       default: return source;
     }
   };
@@ -885,6 +924,7 @@ const PersonalPlanner = () => {
       case "project": return "bg-cyan-100 dark:bg-cyan-900/30 border-cyan-300";
       case "recurring": return "bg-green-100 dark:bg-green-900/30 border-green-300";
       case "show": return "bg-pink-100 dark:bg-pink-900/30 border-pink-300";
+      case "course": return "bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300";
       default: return "bg-muted border-border";
     }
   };
@@ -1365,6 +1405,32 @@ const PersonalPlanner = () => {
                 </div>
               )}
             </div>
+
+            {/* Courses toggle */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showCourses"
+                  checked={showCoursesInPlanner}
+                  onCheckedChange={(c) => setShowCoursesInPlanner(!!c)}
+                />
+                <label htmlFor="showCourses" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
+                  📚 הצג קורסים (שיעור הבא)
+                </label>
+              </div>
+              {showCoursesInPlanner && (
+                <div className="flex gap-1 mr-5">
+                  <Button
+                    variant={activeFilters.has("courses") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("courses")}
+                  >
+                    🎓 רק קורסים
+                  </Button>
+                </div>
+              )}
+            </div>
           </CollapsibleContent>
         </Collapsible>
 
@@ -1383,7 +1449,7 @@ const PersonalPlanner = () => {
               >
                 <div className="flex items-center gap-1 mb-1">
                   <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : "bg-cyan-200 text-cyan-800"}`}>
+                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : task.source === "course" ? "bg-indigo-200 text-indigo-800" : "bg-cyan-200 text-cyan-800"}`}>
                     {getSourceLabel(task.source)}
                   </span>
                   {task.source === "recurring" && <RotateCcw className="h-3 w-3 text-green-600" />}
