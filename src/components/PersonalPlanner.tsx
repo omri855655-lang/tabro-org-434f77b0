@@ -34,7 +34,7 @@ interface AggregatedTask {
   showType?: string;
 }
 
-type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies";
+type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies" | "courses";
 
 
 type ViewMode = "day" | "week" | "month" | "year";
