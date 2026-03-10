@@ -764,6 +764,8 @@ export type Database = {
       }
       shows: {
         Row: {
+          air_date: string | null
+          category: string | null
           created_at: string
           current_episode: number | null
           current_season: number | null
@@ -776,6 +778,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          air_date?: string | null
+          category?: string | null
           created_at?: string
           current_episode?: number | null
           current_season?: number | null
@@ -788,6 +792,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          air_date?: string | null
+          category?: string | null
           created_at?: string
           current_episode?: number | null
           current_season?: number | null

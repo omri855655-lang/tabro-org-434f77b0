@@ -4,6 +4,7 @@ import { useTasks, Task } from "@/hooks/useTasks";
 import { useCalendarEvents, CalendarEvent, getCategoryColor } from "@/hooks/useCalendarEvents";
 import { useCustomCategories, COLOR_PALETTE, CustomCategory } from "@/hooks/useCustomCategories";
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
+import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval, getDay } from "date-fns";
 import { he } from "date-fns/locale";
@@ -13,22 +14,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getHolidaysForDate } from "@/data/holidays";
 
 interface AggregatedTask {
   id: string;
   title: string;
-  source: "work" | "personal" | "project" | "recurring";
+  source: "work" | "personal" | "project" | "recurring" | "show";
   overdue: boolean;
   urgent: boolean;
   status: string;
   plannedEnd: string;
   createdAt: string;
   category: string;
+  showType?: string;
 }
+
+type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies";
+
 
 type ViewMode = "day" | "week" | "month" | "year";
 
@@ -45,12 +52,18 @@ const PersonalPlanner = () => {
   const { tasks: recurringTasks, isTaskDueToday, isTaskCompletedToday } = useRecurringTasks();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor } = useCustomCategories();
+  const { boards: customBoards } = useCustomBoards();
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [newCatColor, setNewCatColor] = useState("#3b82f6");
 
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [shows, setShows] = useState<any[]>([]);
+  const [showShowsInPlanner, setShowShowsInPlanner] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<Set<TaskFilter>>(new Set(["all"]));
+  const [customBoardItems, setCustomBoardItems] = useState<any[]>([]);
+  const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
@@ -98,7 +111,7 @@ const PersonalPlanner = () => {
 
   
 
-  // Fetch project tasks
+  // Fetch project tasks & shows
   useEffect(() => {
     if (!user) return;
     const fetchProjects = async () => {
@@ -109,7 +122,25 @@ const PersonalPlanner = () => {
         .eq("completed", false);
       if (data) setProjectTasks(data);
     };
+    const fetchShows = async () => {
+      const { data } = await supabase
+        .from("shows")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["בצפייה", "לצפות"]);
+      if (data) setShows(data);
+    };
+    const fetchBoardItems = async () => {
+      const { data } = await supabase
+        .from("custom_board_items")
+        .select("*, custom_boards(name)")
+        .eq("user_id", user.id)
+        .eq("archived", false);
+      if (data) setCustomBoardItems(data);
+    };
     fetchProjects();
+    fetchShows();
+    fetchBoardItems();
   }, [user]);
 
   // Aggregate all tasks
@@ -178,12 +209,102 @@ const PersonalPlanner = () => {
         })
       );
 
+    // Shows (only if enabled)
+    if (showShowsInPlanner) {
+      shows.forEach((s: any) =>
+        tasks.push({
+          id: s.id,
+          title: s.title,
+          source: "show",
+          overdue: false,
+          urgent: false,
+          status: s.status || "לצפות",
+          plannedEnd: "",
+          createdAt: s.created_at,
+          category: s.type === "סרט" ? "סרט" : "סדרה",
+          showType: s.type,
+        })
+      );
+    }
+
+    // Custom board items (only selected boards)
+    if (selectedBoardIds.size > 0) {
+      customBoardItems
+        .filter((item: any) => selectedBoardIds.has(item.board_id) && item.status !== "הושלם")
+        .forEach((item: any) =>
+          tasks.push({
+            id: item.id,
+            title: item.title,
+            source: "personal",
+            overdue: false,
+            urgent: false,
+            status: item.status || "לביצוע",
+            plannedEnd: "",
+            createdAt: item.created_at,
+            category: item.custom_boards?.name || "דשבורד",
+          })
+        );
+    }
+
     return tasks.sort((a, b) => {
       if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
       if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
-  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday]);
+  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds]);
+
+  // Filtered tasks based on active filters
+  const filteredTasks = useMemo(() => {
+    if (activeFilters.has("all") && activeFilters.size === 1) return allTasks;
+
+    const today = new Date();
+    const weekFromNow = addDays(today, 7);
+
+    return allTasks.filter((task) => {
+      // Source filters
+      if (activeFilters.has("work") && task.source === "work") return true;
+      if (activeFilters.has("personal") && task.source === "personal") return true;
+      if (activeFilters.has("project") && task.source === "project") return true;
+      if (activeFilters.has("recurring") && task.source === "recurring") return true;
+      if (activeFilters.has("shows_series") && task.source === "show" && task.showType === "סדרה") return true;
+      if (activeFilters.has("shows_movies") && task.source === "show" && task.showType === "סרט") return true;
+
+      // Status filters
+      if (activeFilters.has("overdue") && task.overdue) return true;
+      if (activeFilters.has("urgent") && task.urgent) return true;
+      if (activeFilters.has("today") && task.plannedEnd) {
+        const end = new Date(task.plannedEnd);
+        if (isSameDay(end, today)) return true;
+      }
+      if (activeFilters.has("week") && task.plannedEnd) {
+        const end = new Date(task.plannedEnd);
+        if (end <= weekFromNow && end >= today) return true;
+      }
+
+      // If only status filters are active (no source filters), check all
+      const hasSourceFilter = ["work", "personal", "project", "recurring", "shows_series", "shows_movies"].some(f => activeFilters.has(f as TaskFilter));
+      if (!hasSourceFilter) return false;
+
+      return false;
+    });
+  }, [allTasks, activeFilters]);
+
+  const toggleFilter = (filter: TaskFilter) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (filter === "all") {
+        return new Set(["all"]);
+      }
+      next.delete("all");
+      if (next.has(filter)) {
+        next.delete(filter);
+      } else {
+        next.add(filter);
+      }
+      if (next.size === 0) return new Set(["all"]);
+      return next;
+    });
+  };
 
   // Calendar date ranges
   const dateRange = useMemo(() => {
@@ -752,6 +873,7 @@ const PersonalPlanner = () => {
       case "personal": return "אישי";
       case "project": return "פרויקט";
       case "recurring": return "יומי";
+      case "show": return "צפייה";
       default: return source;
     }
   };
@@ -762,6 +884,7 @@ const PersonalPlanner = () => {
       case "personal": return "bg-purple-100 dark:bg-purple-900/30 border-purple-300";
       case "project": return "bg-cyan-100 dark:bg-cyan-900/30 border-cyan-300";
       case "recurring": return "bg-green-100 dark:bg-green-900/30 border-green-300";
+      case "show": return "bg-pink-100 dark:bg-pink-900/30 border-pink-300";
       default: return "bg-muted border-border";
     }
   };
@@ -1120,14 +1243,134 @@ const PersonalPlanner = () => {
   return (
     <div className="flex h-full" dir="rtl">
       {/* Right sidebar - Task list */}
-      <div className="w-72 border-l border-border flex flex-col bg-card flex-shrink-0">
+      <div className="w-80 border-l border-border flex flex-col bg-card flex-shrink-0">
         <div className="p-3 border-b border-border">
-          <h3 className="font-bold text-sm mb-2">משימות פתוחות ({allTasks.length})</h3>
-          <p className="text-xs text-muted-foreground">גרור משימה ללוח ומתח לפי השעות</p>
+          <h3 className="font-bold text-sm mb-1">משימות ({filteredTasks.length}/{allTasks.length})</h3>
+          <p className="text-[10px] text-muted-foreground">גרור משימה ללוח ומתח לפי השעות</p>
         </div>
+
+        {/* Filters */}
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-1.5 text-xs h-8 rounded-none border-b border-border">
+              <Filter className="h-3.5 w-3.5" />
+              סינון {activeFilters.has("all") ? "" : `(${activeFilters.size})`}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="border-b border-border p-2 space-y-2">
+            {/* Source filters */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-muted-foreground">לפי מקור:</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { key: "all" as TaskFilter, label: "הכל" },
+                  { key: "personal" as TaskFilter, label: "אישי" },
+                  { key: "work" as TaskFilter, label: "עבודה" },
+                  { key: "project" as TaskFilter, label: "פרויקט" },
+                  { key: "recurring" as TaskFilter, label: "יומי" },
+                ]).map(({ key, label }) => (
+                  <Button
+                    key={key}
+                    variant={activeFilters.has(key) ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => toggleFilter(key)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Status filters */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-muted-foreground">לפי סטטוס:</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { key: "overdue" as TaskFilter, label: "חריגה בתאריך", icon: <AlertTriangle className="h-3 w-3" /> },
+                  { key: "today" as TaskFilter, label: "היום" },
+                  { key: "week" as TaskFilter, label: "השבוע הקרוב" },
+                  { key: "urgent" as TaskFilter, label: "דחוף", icon: <Flame className="h-3 w-3" /> },
+                ]).map(({ key, label, icon }) => (
+                  <Button
+                    key={key}
+                    variant={activeFilters.has(key) ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter(key)}
+                  >
+                    {icon}
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom boards */}
+            {customBoards.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-muted-foreground">דשבורדים:</p>
+                <div className="flex flex-wrap gap-1">
+                  {customBoards.map(board => (
+                    <Button
+                      key={board.id}
+                      variant={selectedBoardIds.has(board.id) ? "default" : "outline"}
+                      size="sm"
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => setSelectedBoardIds(prev => {
+                        const next = new Set(prev);
+                        next.has(board.id) ? next.delete(board.id) : next.add(board.id);
+                        return next;
+                      })}
+                    >
+                      {board.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Shows toggle */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showShows"
+                  checked={showShowsInPlanner}
+                  onCheckedChange={(c) => setShowShowsInPlanner(!!c)}
+                />
+                <label htmlFor="showShows" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
+                  הצג סדרות/סרטים
+                </label>
+              </div>
+              {showShowsInPlanner && (
+                <div className="flex gap-1 mr-5">
+                  <Button
+                    variant={activeFilters.has("shows_series") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("shows_series")}
+                  >
+                    <Tv className="h-3 w-3" />
+                    סדרות
+                  </Button>
+                  <Button
+                    variant={activeFilters.has("shows_movies") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("shows_movies")}
+                  >
+                    <Film className="h-3 w-3" />
+                    סרטים
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1.5">
-            {allTasks.map((task) => (
+            {filteredTasks.map((task) => (
               <div
                 key={`${task.source}-${task.id}`}
                 draggable
@@ -1140,10 +1383,11 @@ const PersonalPlanner = () => {
               >
                 <div className="flex items-center gap-1 mb-1">
                   <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : "bg-cyan-200 text-cyan-800"}`}>
+                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : "bg-cyan-200 text-cyan-800"}`}>
                     {getSourceLabel(task.source)}
                   </span>
                   {task.source === "recurring" && <RotateCcw className="h-3 w-3 text-green-600" />}
+                  {task.source === "show" && (task.showType === "סרט" ? <Film className="h-3 w-3 text-pink-600" /> : <Tv className="h-3 w-3 text-pink-600" />)}
                   {task.urgent && <Flame className="h-3 w-3 text-destructive" />}
                   {task.overdue && <AlertTriangle className="h-3 w-3 text-amber-500" />}
                 </div>
@@ -1156,9 +1400,9 @@ const PersonalPlanner = () => {
                 )}
               </div>
             ))}
-            {allTasks.length === 0 && (
+            {filteredTasks.length === 0 && (
               <div className="text-center text-muted-foreground text-sm py-8">
-                אין משימות פתוחות
+                {activeFilters.has("all") ? "אין משימות פתוחות" : "אין משימות לפי הסינון"}
               </div>
             )}
           </div>
