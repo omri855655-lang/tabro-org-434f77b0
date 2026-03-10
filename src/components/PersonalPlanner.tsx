@@ -1241,14 +1241,134 @@ const PersonalPlanner = () => {
   return (
     <div className="flex h-full" dir="rtl">
       {/* Right sidebar - Task list */}
-      <div className="w-72 border-l border-border flex flex-col bg-card flex-shrink-0">
+      <div className="w-80 border-l border-border flex flex-col bg-card flex-shrink-0">
         <div className="p-3 border-b border-border">
-          <h3 className="font-bold text-sm mb-2">משימות פתוחות ({allTasks.length})</h3>
-          <p className="text-xs text-muted-foreground">גרור משימה ללוח ומתח לפי השעות</p>
+          <h3 className="font-bold text-sm mb-1">משימות ({filteredTasks.length}/{allTasks.length})</h3>
+          <p className="text-[10px] text-muted-foreground">גרור משימה ללוח ומתח לפי השעות</p>
         </div>
+
+        {/* Filters */}
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-1.5 text-xs h-8 rounded-none border-b border-border">
+              <Filter className="h-3.5 w-3.5" />
+              סינון {activeFilters.has("all") ? "" : `(${activeFilters.size})`}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="border-b border-border p-2 space-y-2">
+            {/* Source filters */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-muted-foreground">לפי מקור:</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { key: "all" as TaskFilter, label: "הכל" },
+                  { key: "personal" as TaskFilter, label: "אישי" },
+                  { key: "work" as TaskFilter, label: "עבודה" },
+                  { key: "project" as TaskFilter, label: "פרויקט" },
+                  { key: "recurring" as TaskFilter, label: "יומי" },
+                ]).map(({ key, label }) => (
+                  <Button
+                    key={key}
+                    variant={activeFilters.has(key) ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => toggleFilter(key)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Status filters */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-muted-foreground">לפי סטטוס:</p>
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { key: "overdue" as TaskFilter, label: "חריגה בתאריך", icon: <AlertTriangle className="h-3 w-3" /> },
+                  { key: "today" as TaskFilter, label: "היום" },
+                  { key: "week" as TaskFilter, label: "השבוע הקרוב" },
+                  { key: "urgent" as TaskFilter, label: "דחוף", icon: <Flame className="h-3 w-3" /> },
+                ]).map(({ key, label, icon }) => (
+                  <Button
+                    key={key}
+                    variant={activeFilters.has(key) ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter(key)}
+                  >
+                    {icon}
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom boards */}
+            {customBoards.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-muted-foreground">דשבורדים:</p>
+                <div className="flex flex-wrap gap-1">
+                  {customBoards.map(board => (
+                    <Button
+                      key={board.id}
+                      variant={selectedBoardIds.has(board.id) ? "default" : "outline"}
+                      size="sm"
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => setSelectedBoardIds(prev => {
+                        const next = new Set(prev);
+                        next.has(board.id) ? next.delete(board.id) : next.add(board.id);
+                        return next;
+                      })}
+                    >
+                      {board.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Shows toggle */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showShows"
+                  checked={showShowsInPlanner}
+                  onCheckedChange={(c) => setShowShowsInPlanner(!!c)}
+                />
+                <label htmlFor="showShows" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
+                  הצג סדרות/סרטים
+                </label>
+              </div>
+              {showShowsInPlanner && (
+                <div className="flex gap-1 mr-5">
+                  <Button
+                    variant={activeFilters.has("shows_series") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("shows_series")}
+                  >
+                    <Tv className="h-3 w-3" />
+                    סדרות
+                  </Button>
+                  <Button
+                    variant={activeFilters.has("shows_movies") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("shows_movies")}
+                  >
+                    <Film className="h-3 w-3" />
+                    סרטים
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1.5">
-            {allTasks.map((task) => (
+            {filteredTasks.map((task) => (
               <div
                 key={`${task.source}-${task.id}`}
                 draggable
@@ -1261,10 +1381,11 @@ const PersonalPlanner = () => {
               >
                 <div className="flex items-center gap-1 mb-1">
                   <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : "bg-cyan-200 text-cyan-800"}`}>
+                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : "bg-cyan-200 text-cyan-800"}`}>
                     {getSourceLabel(task.source)}
                   </span>
                   {task.source === "recurring" && <RotateCcw className="h-3 w-3 text-green-600" />}
+                  {task.source === "show" && (task.showType === "סרט" ? <Film className="h-3 w-3 text-pink-600" /> : <Tv className="h-3 w-3 text-pink-600" />)}
                   {task.urgent && <Flame className="h-3 w-3 text-destructive" />}
                   {task.overdue && <AlertTriangle className="h-3 w-3 text-amber-500" />}
                 </div>
@@ -1277,9 +1398,9 @@ const PersonalPlanner = () => {
                 )}
               </div>
             ))}
-            {allTasks.length === 0 && (
+            {filteredTasks.length === 0 && (
               <div className="text-center text-muted-foreground text-sm py-8">
-                אין משימות פתוחות
+                {activeFilters.has("all") ? "אין משימות פתוחות" : "אין משימות לפי הסינון"}
               </div>
             )}
           </div>
