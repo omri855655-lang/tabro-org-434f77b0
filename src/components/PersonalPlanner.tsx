@@ -1570,7 +1570,7 @@ const PersonalPlanner = () => {
               >
                 <div className="flex items-center gap-1 mb-1">
                   <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : task.source === "course" ? "bg-indigo-200 text-indigo-800" : "bg-cyan-200 text-cyan-800"}`}>
+                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : task.source === "course" ? "bg-indigo-200 text-indigo-800" : task.source === "podcast" ? "bg-amber-200 text-amber-800" : task.source === "book" ? "bg-emerald-200 text-emerald-800" : "bg-cyan-200 text-cyan-800"}`}>
                     {getSourceLabel(task.source)}
                   </span>
                   {task.source === "recurring" && <RotateCcw className="h-3 w-3 text-green-600" />}
