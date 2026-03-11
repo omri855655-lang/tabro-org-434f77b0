@@ -66,6 +66,10 @@ const PersonalPlanner = () => {
   const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
   const [courseLessons, setCourseLessons] = useState<any[]>([]);
   const [showCoursesInPlanner, setShowCoursesInPlanner] = useState(true);
+  const [podcasts, setPodcasts] = useState<any[]>([]);
+  const [showPodcastsInPlanner, setShowPodcastsInPlanner] = useState(false);
+  const [books, setBooks] = useState<any[]>([]);
+  const [showBooksInPlanner, setShowBooksInPlanner] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
