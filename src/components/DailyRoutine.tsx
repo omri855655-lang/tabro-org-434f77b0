@@ -66,7 +66,7 @@ const DailyRoutine = () => {
     title: "",
     description: "",
     frequency: "daily" as "daily" | "weekly" | "monthly",
-    dayOfWeek: 0,
+    dayOfWeek: -1,
     dayOfMonth: 1,
   });
 
@@ -83,7 +83,7 @@ const DailyRoutine = () => {
       title: newTask.title,
       description: newTask.description || undefined,
       frequency: newTask.frequency,
-      dayOfWeek: newTask.frequency === "weekly" ? newTask.dayOfWeek : undefined,
+      dayOfWeek: newTask.frequency === "weekly" ? (newTask.dayOfWeek === -1 ? undefined : newTask.dayOfWeek) : undefined,
       dayOfMonth: newTask.frequency === "monthly" ? newTask.dayOfMonth : undefined,
     });
 
@@ -91,7 +91,7 @@ const DailyRoutine = () => {
       title: "",
       description: "",
       frequency: "daily",
-      dayOfWeek: 0,
+      dayOfWeek: -1,
       dayOfMonth: 1,
     });
     setAddDialogOpen(false);
@@ -252,6 +252,8 @@ const DailyRoutine = () => {
                       <TableCell>
                         {task.frequency === "weekly" && task.dayOfWeek !== null
                           ? DAYS_OF_WEEK.find((d) => d.value === task.dayOfWeek)?.label
+                          : task.frequency === "weekly" && task.dayOfWeek === null
+                          ? "גמיש"
                           : task.frequency === "monthly" && task.dayOfMonth !== null
                           ? `${task.dayOfMonth} בחודש`
                           : "-"}
@@ -480,6 +482,7 @@ const DailyRoutine = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="-1">גמיש - בכל יום עד שמושלם</SelectItem>
                     {DAYS_OF_WEEK.map((day) => (
                       <SelectItem key={day.value} value={String(day.value)}>
                         {day.label}

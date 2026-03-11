@@ -24,7 +24,7 @@ import { getHolidaysForDate } from "@/data/holidays";
 interface AggregatedTask {
   id: string;
   title: string;
-  source: "work" | "personal" | "project" | "recurring" | "show" | "course";
+  source: "work" | "personal" | "project" | "recurring" | "show" | "course" | "podcast" | "book";
   overdue: boolean;
   urgent: boolean;
   status: string;
@@ -34,7 +34,7 @@ interface AggregatedTask {
   showType?: string;
 }
 
-type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies" | "courses";
+type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies" | "courses" | "podcasts" | "books";
 
 
 type ViewMode = "day" | "week" | "month" | "year";
@@ -66,6 +66,10 @@ const PersonalPlanner = () => {
   const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(new Set());
   const [courseLessons, setCourseLessons] = useState<any[]>([]);
   const [showCoursesInPlanner, setShowCoursesInPlanner] = useState(true);
+  const [podcasts, setPodcasts] = useState<any[]>([]);
+  const [showPodcastsInPlanner, setShowPodcastsInPlanner] = useState(false);
+  const [books, setBooks] = useState<any[]>([]);
+  const [showBooksInPlanner, setShowBooksInPlanner] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
@@ -149,10 +153,28 @@ const PersonalPlanner = () => {
         .order("sort_order", { ascending: true });
       if (data) setCourseLessons(data);
     };
+    const fetchPodcasts = async () => {
+      const { data } = await supabase
+        .from("podcasts")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["להאזין", "מאזין"]);
+      if (data) setPodcasts(data);
+    };
+    const fetchBooks = async () => {
+      const { data } = await supabase
+        .from("books")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["לקרוא", "קורא"]);
+      if (data) setBooks(data);
+    };
     fetchProjects();
     fetchShows();
     fetchBoardItems();
     fetchCourseLessons();
+    fetchPodcasts();
+    fetchBooks();
   }, [user]);
 
   // Aggregate all tasks
@@ -260,7 +282,6 @@ const PersonalPlanner = () => {
 
     // Courses - show next uncompleted lesson per active course
     if (showCoursesInPlanner) {
-      // Group by course, pick first uncompleted lesson per course
       const courseMap = new Map<string, any>();
       courseLessons.forEach((lesson: any) => {
         if (!lesson.courses || lesson.courses.status === 'הושלם') return;
@@ -283,12 +304,46 @@ const PersonalPlanner = () => {
       });
     }
 
+    // Podcasts
+    if (showPodcastsInPlanner) {
+      podcasts.forEach((p: any) =>
+        tasks.push({
+          id: p.id,
+          title: `🎧 ${p.title}${p.host ? ` - ${p.host}` : ""}`,
+          source: "podcast",
+          overdue: false,
+          urgent: false,
+          status: p.status || "להאזין",
+          plannedEnd: "",
+          createdAt: p.created_at,
+          category: "פודקאסט",
+        })
+      );
+    }
+
+    // Books
+    if (showBooksInPlanner) {
+      books.forEach((b: any) =>
+        tasks.push({
+          id: b.id,
+          title: `📖 ${b.title}${b.author ? ` - ${b.author}` : ""}`,
+          source: "book",
+          overdue: false,
+          urgent: false,
+          status: b.status || "לקרוא",
+          plannedEnd: "",
+          createdAt: b.created_at,
+          category: "ספר",
+        })
+      );
+    }
+
     return tasks.sort((a, b) => {
       if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
       if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
-  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds, courseLessons, showCoursesInPlanner]);
+  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds, courseLessons, showCoursesInPlanner, podcasts, showPodcastsInPlanner, books, showBooksInPlanner]);
 
   // Filtered tasks based on active filters
   const filteredTasks = useMemo(() => {
@@ -297,33 +352,43 @@ const PersonalPlanner = () => {
     const today = new Date();
     const weekFromNow = addDays(today, 7);
 
+    // Separate source filters from status filters
+    const sourceFilters = ["work", "personal", "project", "recurring", "shows_series", "shows_movies", "courses", "podcasts", "books"].filter(f => activeFilters.has(f as TaskFilter));
+    const statusFilters = ["overdue", "urgent", "today", "week"].filter(f => activeFilters.has(f as TaskFilter));
+
     return allTasks.filter((task) => {
-      // Source filters
-      if (activeFilters.has("work") && task.source === "work") return true;
-      if (activeFilters.has("personal") && task.source === "personal") return true;
-      if (activeFilters.has("project") && task.source === "project") return true;
-      if (activeFilters.has("recurring") && task.source === "recurring") return true;
-      if (activeFilters.has("shows_series") && task.source === "show" && task.showType === "סדרה") return true;
-      if (activeFilters.has("shows_movies") && task.source === "show" && task.showType === "סרט") return true;
-      if (activeFilters.has("courses") && task.source === "course") return true;
-
-      // Status filters
-      if (activeFilters.has("overdue") && task.overdue) return true;
-      if (activeFilters.has("urgent") && task.urgent) return true;
-      if (activeFilters.has("today") && task.plannedEnd) {
-        const end = new Date(task.plannedEnd);
-        if (isSameDay(end, today)) return true;
-      }
-      if (activeFilters.has("week") && task.plannedEnd) {
-        const end = new Date(task.plannedEnd);
-        if (end <= weekFromNow && end >= today) return true;
+      // Check source match (if any source filters active)
+      let sourceMatch = true;
+      if (sourceFilters.length > 0) {
+        sourceMatch = false;
+        if (activeFilters.has("work") && task.source === "work") sourceMatch = true;
+        if (activeFilters.has("personal") && task.source === "personal") sourceMatch = true;
+        if (activeFilters.has("project") && task.source === "project") sourceMatch = true;
+        if (activeFilters.has("recurring") && task.source === "recurring") sourceMatch = true;
+        if (activeFilters.has("shows_series") && task.source === "show" && task.showType === "סדרה") sourceMatch = true;
+        if (activeFilters.has("shows_movies") && task.source === "show" && task.showType === "סרט") sourceMatch = true;
+        if (activeFilters.has("courses") && task.source === "course") sourceMatch = true;
+        if (activeFilters.has("podcasts") && task.source === "podcast") sourceMatch = true;
+        if (activeFilters.has("books") && task.source === "book") sourceMatch = true;
       }
 
-      // If only status filters are active (no source filters), check all
-      const hasSourceFilter = ["work", "personal", "project", "recurring", "shows_series", "shows_movies", "courses"].some(f => activeFilters.has(f as TaskFilter));
-      if (!hasSourceFilter) return false;
+      // Check status match (if any status filters active) - AND with source
+      let statusMatch = true;
+      if (statusFilters.length > 0) {
+        statusMatch = false;
+        if (activeFilters.has("overdue") && task.overdue) statusMatch = true;
+        if (activeFilters.has("urgent") && task.urgent) statusMatch = true;
+        if (activeFilters.has("today") && task.plannedEnd) {
+          if (isSameDay(new Date(task.plannedEnd), today)) statusMatch = true;
+        }
+        if (activeFilters.has("week") && task.plannedEnd) {
+          const end = new Date(task.plannedEnd);
+          if (end <= weekFromNow && end >= today) statusMatch = true;
+        }
+      }
 
-      return false;
+      // AND: must match both source AND status
+      return sourceMatch && statusMatch;
     });
   }, [allTasks, activeFilters]);
 
@@ -913,6 +978,8 @@ const PersonalPlanner = () => {
       case "recurring": return "יומי";
       case "show": return "צפייה";
       case "course": return "קורס";
+      case "podcast": return "פודקאסט";
+      case "book": return "ספר";
       default: return source;
     }
   };
@@ -925,6 +992,8 @@ const PersonalPlanner = () => {
       case "recurring": return "bg-green-100 dark:bg-green-900/30 border-green-300";
       case "show": return "bg-pink-100 dark:bg-pink-900/30 border-pink-300";
       case "course": return "bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300";
+      case "podcast": return "bg-amber-100 dark:bg-amber-900/30 border-amber-300";
+      case "book": return "bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300";
       default: return "bg-muted border-border";
     }
   };
@@ -1431,6 +1500,58 @@ const PersonalPlanner = () => {
                 </div>
               )}
             </div>
+
+            {/* Podcasts toggle */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showPodcasts"
+                  checked={showPodcastsInPlanner}
+                  onCheckedChange={(c) => setShowPodcastsInPlanner(!!c)}
+                />
+                <label htmlFor="showPodcasts" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
+                  🎧 הצג פודקאסטים
+                </label>
+              </div>
+              {showPodcastsInPlanner && (
+                <div className="flex gap-1 mr-5">
+                  <Button
+                    variant={activeFilters.has("podcasts") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("podcasts")}
+                  >
+                    🎧 רק פודקאסטים
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Books toggle */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showBooks"
+                  checked={showBooksInPlanner}
+                  onCheckedChange={(c) => setShowBooksInPlanner(!!c)}
+                />
+                <label htmlFor="showBooks" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
+                  📖 הצג ספרים
+                </label>
+              </div>
+              {showBooksInPlanner && (
+                <div className="flex gap-1 mr-5">
+                  <Button
+                    variant={activeFilters.has("books") ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2 gap-0.5"
+                    onClick={() => toggleFilter("books")}
+                  >
+                    📖 רק ספרים
+                  </Button>
+                </div>
+              )}
+            </div>
           </CollapsibleContent>
         </Collapsible>
 
@@ -1449,7 +1570,7 @@ const PersonalPlanner = () => {
               >
                 <div className="flex items-center gap-1 mb-1">
                   <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : task.source === "course" ? "bg-indigo-200 text-indigo-800" : "bg-cyan-200 text-cyan-800"}`}>
+                  <span className={`text-[10px] px-1.5 rounded-full font-medium ${task.source === "work" ? "bg-orange-200 text-orange-800" : task.source === "personal" ? "bg-purple-200 text-purple-800" : task.source === "recurring" ? "bg-green-200 text-green-800" : task.source === "show" ? "bg-pink-200 text-pink-800" : task.source === "course" ? "bg-indigo-200 text-indigo-800" : task.source === "podcast" ? "bg-amber-200 text-amber-800" : task.source === "book" ? "bg-emerald-200 text-emerald-800" : "bg-cyan-200 text-cyan-800"}`}>
                     {getSourceLabel(task.source)}
                   </span>
                   {task.source === "recurring" && <RotateCcw className="h-3 w-3 text-green-600" />}
