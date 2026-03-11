@@ -153,10 +153,28 @@ const PersonalPlanner = () => {
         .order("sort_order", { ascending: true });
       if (data) setCourseLessons(data);
     };
+    const fetchPodcasts = async () => {
+      const { data } = await supabase
+        .from("podcasts")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["להאזין", "מאזין"]);
+      if (data) setPodcasts(data);
+    };
+    const fetchBooks = async () => {
+      const { data } = await supabase
+        .from("books")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["לקרוא", "קורא"]);
+      if (data) setBooks(data);
+    };
     fetchProjects();
     fetchShows();
     fetchBoardItems();
     fetchCourseLessons();
+    fetchPodcasts();
+    fetchBooks();
   }, [user]);
 
   // Aggregate all tasks
