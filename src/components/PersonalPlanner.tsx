@@ -352,33 +352,43 @@ const PersonalPlanner = () => {
     const today = new Date();
     const weekFromNow = addDays(today, 7);
 
+    // Separate source filters from status filters
+    const sourceFilters = ["work", "personal", "project", "recurring", "shows_series", "shows_movies", "courses", "podcasts", "books"].filter(f => activeFilters.has(f as TaskFilter));
+    const statusFilters = ["overdue", "urgent", "today", "week"].filter(f => activeFilters.has(f as TaskFilter));
+
     return allTasks.filter((task) => {
-      // Source filters
-      if (activeFilters.has("work") && task.source === "work") return true;
-      if (activeFilters.has("personal") && task.source === "personal") return true;
-      if (activeFilters.has("project") && task.source === "project") return true;
-      if (activeFilters.has("recurring") && task.source === "recurring") return true;
-      if (activeFilters.has("shows_series") && task.source === "show" && task.showType === "סדרה") return true;
-      if (activeFilters.has("shows_movies") && task.source === "show" && task.showType === "סרט") return true;
-      if (activeFilters.has("courses") && task.source === "course") return true;
-
-      // Status filters
-      if (activeFilters.has("overdue") && task.overdue) return true;
-      if (activeFilters.has("urgent") && task.urgent) return true;
-      if (activeFilters.has("today") && task.plannedEnd) {
-        const end = new Date(task.plannedEnd);
-        if (isSameDay(end, today)) return true;
-      }
-      if (activeFilters.has("week") && task.plannedEnd) {
-        const end = new Date(task.plannedEnd);
-        if (end <= weekFromNow && end >= today) return true;
+      // Check source match (if any source filters active)
+      let sourceMatch = true;
+      if (sourceFilters.length > 0) {
+        sourceMatch = false;
+        if (activeFilters.has("work") && task.source === "work") sourceMatch = true;
+        if (activeFilters.has("personal") && task.source === "personal") sourceMatch = true;
+        if (activeFilters.has("project") && task.source === "project") sourceMatch = true;
+        if (activeFilters.has("recurring") && task.source === "recurring") sourceMatch = true;
+        if (activeFilters.has("shows_series") && task.source === "show" && task.showType === "סדרה") sourceMatch = true;
+        if (activeFilters.has("shows_movies") && task.source === "show" && task.showType === "סרט") sourceMatch = true;
+        if (activeFilters.has("courses") && task.source === "course") sourceMatch = true;
+        if (activeFilters.has("podcasts") && task.source === "podcast") sourceMatch = true;
+        if (activeFilters.has("books") && task.source === "book") sourceMatch = true;
       }
 
-      // If only status filters are active (no source filters), check all
-      const hasSourceFilter = ["work", "personal", "project", "recurring", "shows_series", "shows_movies", "courses"].some(f => activeFilters.has(f as TaskFilter));
-      if (!hasSourceFilter) return false;
+      // Check status match (if any status filters active) - AND with source
+      let statusMatch = true;
+      if (statusFilters.length > 0) {
+        statusMatch = false;
+        if (activeFilters.has("overdue") && task.overdue) statusMatch = true;
+        if (activeFilters.has("urgent") && task.urgent) statusMatch = true;
+        if (activeFilters.has("today") && task.plannedEnd) {
+          if (isSameDay(new Date(task.plannedEnd), today)) statusMatch = true;
+        }
+        if (activeFilters.has("week") && task.plannedEnd) {
+          const end = new Date(task.plannedEnd);
+          if (end <= weekFromNow && end >= today) statusMatch = true;
+        }
+      }
 
-      return false;
+      // AND: must match both source AND status
+      return sourceMatch && statusMatch;
     });
   }, [allTasks, activeFilters]);
 
