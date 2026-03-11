@@ -66,7 +66,7 @@ const DailyRoutine = () => {
     title: "",
     description: "",
     frequency: "daily" as "daily" | "weekly" | "monthly",
-    dayOfWeek: 0,
+    dayOfWeek: -1,
     dayOfMonth: 1,
   });
 
