@@ -978,6 +978,8 @@ const PersonalPlanner = () => {
       case "recurring": return "יומי";
       case "show": return "צפייה";
       case "course": return "קורס";
+      case "podcast": return "פודקאסט";
+      case "book": return "ספר";
       default: return source;
     }
   };
@@ -990,6 +992,8 @@ const PersonalPlanner = () => {
       case "recurring": return "bg-green-100 dark:bg-green-900/30 border-green-300";
       case "show": return "bg-pink-100 dark:bg-pink-900/30 border-pink-300";
       case "course": return "bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300";
+      case "podcast": return "bg-amber-100 dark:bg-amber-900/30 border-amber-300";
+      case "book": return "bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300";
       default: return "bg-muted border-border";
     }
   };
