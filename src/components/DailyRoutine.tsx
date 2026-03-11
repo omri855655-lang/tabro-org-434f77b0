@@ -83,7 +83,7 @@ const DailyRoutine = () => {
       title: newTask.title,
       description: newTask.description || undefined,
       frequency: newTask.frequency,
-      dayOfWeek: newTask.frequency === "weekly" ? newTask.dayOfWeek : undefined,
+      dayOfWeek: newTask.frequency === "weekly" ? (newTask.dayOfWeek === -1 ? undefined : newTask.dayOfWeek) : undefined,
       dayOfMonth: newTask.frequency === "monthly" ? newTask.dayOfMonth : undefined,
     });
 
