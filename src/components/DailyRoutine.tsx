@@ -100,8 +100,16 @@ const DailyRoutine = () => {
       title: newTask.title,
       description: newTask.description || undefined,
       frequency: newTask.frequency,
-      dayOfWeek: newTask.frequency === "weekly" ? (newTask.dayOfWeek === -1 ? undefined : newTask.dayOfWeek) : undefined,
-      dayOfMonth: newTask.frequency === "monthly" ? newTask.dayOfMonth : undefined,
+      dayOfWeek: newTask.frequency === "weekly"
+        ? (newTask.dayOfWeek === -1 ? undefined : newTask.dayOfWeek)
+        : newTask.frequency === "yearly" && newTask.dayOfMonth !== -1
+        ? newTask.yearMonth // store month in dayOfWeek for yearly
+        : undefined,
+      dayOfMonth: newTask.frequency === "monthly"
+        ? (newTask.dayOfMonth === -1 ? undefined : newTask.dayOfMonth)
+        : newTask.frequency === "yearly"
+        ? (newTask.dayOfMonth === -1 ? undefined : newTask.dayOfMonth)
+        : undefined,
     });
 
     setNewTask({
@@ -109,7 +117,8 @@ const DailyRoutine = () => {
       description: "",
       frequency: "daily",
       dayOfWeek: -1,
-      dayOfMonth: 1,
+      dayOfMonth: -1,
+      yearMonth: 0,
     });
     setAddDialogOpen(false);
   };
