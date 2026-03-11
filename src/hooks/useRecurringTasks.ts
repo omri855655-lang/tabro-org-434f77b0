@@ -277,14 +277,34 @@ export function useRecurringTasks() {
       );
       if (completedToday) return true;
 
-      // For flexible weekly tasks (no fixed day), check if completed any day this week
       const task = tasks.find(t => t.id === taskId);
-      if (task?.frequency === "weekly" && task.dayOfWeek === null) {
+      if (!task) return false;
+
+      // For flexible weekly tasks, check if completed this week
+      if (task.frequency === "weekly" && task.dayOfWeek === null) {
         const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay()); // Sunday
+        weekStart.setDate(today.getDate() - today.getDay());
         const weekStartStr = weekStart.toISOString().split("T")[0];
         return completions.some(
           (c) => c.recurringTaskId === taskId && c.completedDate >= weekStartStr && c.completedDate <= todayStr
+        );
+      }
+
+      // For flexible monthly tasks, check if completed this month
+      if (task.frequency === "monthly" && task.dayOfMonth === null) {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthStartStr = monthStart.toISOString().split("T")[0];
+        return completions.some(
+          (c) => c.recurringTaskId === taskId && c.completedDate >= monthStartStr && c.completedDate <= todayStr
+        );
+      }
+
+      // For flexible yearly tasks, check if completed this year
+      if (task.frequency === "yearly" && task.dayOfMonth === null && task.dayOfWeek === null) {
+        const yearStart = new Date(today.getFullYear(), 0, 1);
+        const yearStartStr = yearStart.toISOString().split("T")[0];
+        return completions.some(
+          (c) => c.recurringTaskId === taskId && c.completedDate >= yearStartStr && c.completedDate <= todayStr
         );
       }
 
