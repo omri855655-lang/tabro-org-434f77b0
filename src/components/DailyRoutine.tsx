@@ -81,9 +81,10 @@ const DailyRoutine = () => {
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
-    frequency: "daily" as "daily" | "weekly" | "monthly",
+    frequency: "daily" as "daily" | "weekly" | "monthly" | "yearly",
     dayOfWeek: -1,
-    dayOfMonth: 1,
+    dayOfMonth: -1,
+    yearMonth: 0,
   });
 
   const todayDate = new Date().toISOString().split("T")[0];
