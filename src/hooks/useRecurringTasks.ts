@@ -246,16 +246,21 @@ export function useRecurringTasks() {
     const today = new Date();
     const dayOfWeek = today.getDay();
     const dayOfMonth = today.getDate();
+    const month = today.getMonth();
 
     switch (task.frequency) {
       case "daily":
         return true;
       case "weekly":
-        // If no fixed day, it's flexible - due every day until completed this week
-        if (task.dayOfWeek === null) return true;
+        if (task.dayOfWeek === null) return true; // flexible
         return task.dayOfWeek === dayOfWeek;
       case "monthly":
+        if (task.dayOfMonth === null) return true; // flexible
         return task.dayOfMonth === dayOfMonth;
+      case "yearly":
+        if (task.dayOfMonth === null && task.dayOfWeek === null) return true; // flexible
+        // For yearly: dayOfWeek stores month (0-11), dayOfMonth stores day
+        return task.dayOfWeek === month && task.dayOfMonth === dayOfMonth;
       default:
         return false;
     }
