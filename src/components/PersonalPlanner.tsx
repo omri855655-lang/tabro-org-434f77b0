@@ -24,7 +24,7 @@ import { getHolidaysForDate } from "@/data/holidays";
 interface AggregatedTask {
   id: string;
   title: string;
-  source: "work" | "personal" | "project" | "recurring" | "show" | "course";
+  source: "work" | "personal" | "project" | "recurring" | "show" | "course" | "podcast" | "book";
   overdue: boolean;
   urgent: boolean;
   status: string;
@@ -34,7 +34,7 @@ interface AggregatedTask {
   showType?: string;
 }
 
-type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies" | "courses";
+type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies" | "courses" | "podcasts" | "books";
 
 
 type ViewMode = "day" | "week" | "month" | "year";
