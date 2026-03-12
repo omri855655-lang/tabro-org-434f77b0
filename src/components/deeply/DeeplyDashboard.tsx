@@ -185,6 +185,32 @@ const DeeplyDashboard = () => {
   useEffect(() => { localStorage.setItem("deeply-roadmap", JSON.stringify(roadmapChecks)); }, [roadmapChecks]);
   useEffect(() => { localStorage.setItem("deeply-sessions", JSON.stringify(sessions)); }, [sessions]);
   useEffect(() => { localStorage.setItem("deeply-bg-theme", bgTheme); }, [bgTheme]);
+  useEffect(() => { localStorage.setItem("deeply-custom-yt", JSON.stringify(customYtVideos)); }, [customYtVideos]);
+
+  const extractYouTubeId = (url: string): string | null => {
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
+  };
+
+  const addCustomYtVideo = (categoryId: string) => {
+    const videoId = extractYouTubeId(addYtUrl);
+    if (!videoId) return;
+    const title = addYtTitle.trim() || "סרטון מותאם";
+    setCustomYtVideos(prev => ({
+      ...prev,
+      [categoryId]: [...(prev[categoryId] || []), { id: videoId, title }],
+    }));
+    setAddYtUrl("");
+    setAddYtTitle("");
+    setAddYtTarget(null);
+  };
+
+  const removeCustomYtVideo = (categoryId: string, videoId: string) => {
+    setCustomYtVideos(prev => ({
+      ...prev,
+      [categoryId]: (prev[categoryId] || []).filter(v => v.id !== videoId),
+    }));
+  };
 
   // Play completion sound
   const playCompletionSound = () => {
