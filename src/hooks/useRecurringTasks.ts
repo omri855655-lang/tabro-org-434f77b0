@@ -7,9 +7,9 @@ export interface RecurringTask {
   id: string;
   title: string;
   description: string | null;
-  frequency: "daily" | "weekly" | "monthly" | "yearly";
-  dayOfWeek: number | null; // 0-6 for weekly tasks
-  dayOfMonth: number | null; // 1-31 for monthly/yearly tasks (for yearly, also used as month via dayOfWeek as month index 0-11)
+  frequency: "daily" | "weekly" | "monthly" | "yearly" | "thrice_weekly";
+  dayOfWeek: number | null; // 0-6 for weekly tasks, bitmask for thrice_weekly (bit 0=Sun, bit 1=Mon, etc.)
+  dayOfMonth: number | null; // 1-31 for monthly/yearly tasks
   createdAt: string;
 }
 
@@ -111,7 +111,7 @@ export function useRecurringTasks() {
     async (task: {
       title: string;
       description?: string;
-      frequency: "daily" | "weekly" | "monthly" | "yearly";
+      frequency: "daily" | "weekly" | "monthly" | "yearly" | "thrice_weekly";
       dayOfWeek?: number;
       dayOfMonth?: number;
     }) => {
@@ -251,6 +251,10 @@ export function useRecurringTasks() {
     switch (task.frequency) {
       case "daily":
         return true;
+      case "thrice_weekly":
+        if (task.dayOfWeek === null) return true;
+        // dayOfWeek is a bitmask: bit 0=Sun, bit 1=Mon, etc.
+        return (task.dayOfWeek & (1 << dayOfWeek)) !== 0;
       case "weekly":
         if (task.dayOfWeek === null) return true; // flexible
         return task.dayOfWeek === dayOfWeek;
@@ -365,6 +369,11 @@ export function useRecurringTasks() {
         switch (task.frequency) {
           case "daily":
             isDue = true;
+            break;
+          case "thrice_weekly":
+            if (task.dayOfWeek !== null) {
+              isDue = (task.dayOfWeek & (1 << dayOfWeek)) !== 0;
+            }
             break;
           case "weekly":
             if (task.dayOfWeek === null) {

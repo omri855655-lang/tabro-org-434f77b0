@@ -138,6 +138,15 @@ const DeeplyDashboard = () => {
   const [expandedMotivation, setExpandedMotivation] = useState<string | null>(null);
   const [activeYouTube, setActiveYouTube] = useState<string | null>(null);
   const [activeYtCat, setActiveYtCat] = useState("yt-classical");
+  
+  // Custom YouTube videos per category
+  const [customYtVideos, setCustomYtVideos] = useState<Record<string, { id: string; title: string }[]>>(() => {
+    const saved = localStorage.getItem("deeply-custom-yt");
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [addYtUrl, setAddYtUrl] = useState("");
+  const [addYtTitle, setAddYtTitle] = useState("");
+  const [addYtTarget, setAddYtTarget] = useState<string | null>(null);
 
   // Sessions
   const [sessions, setSessions] = useState<SessionLog[]>(() => {
@@ -176,6 +185,32 @@ const DeeplyDashboard = () => {
   useEffect(() => { localStorage.setItem("deeply-roadmap", JSON.stringify(roadmapChecks)); }, [roadmapChecks]);
   useEffect(() => { localStorage.setItem("deeply-sessions", JSON.stringify(sessions)); }, [sessions]);
   useEffect(() => { localStorage.setItem("deeply-bg-theme", bgTheme); }, [bgTheme]);
+  useEffect(() => { localStorage.setItem("deeply-custom-yt", JSON.stringify(customYtVideos)); }, [customYtVideos]);
+
+  const extractYouTubeId = (url: string): string | null => {
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
+  };
+
+  const addCustomYtVideo = (categoryId: string) => {
+    const videoId = extractYouTubeId(addYtUrl);
+    if (!videoId) return;
+    const title = addYtTitle.trim() || "סרטון מותאם";
+    setCustomYtVideos(prev => ({
+      ...prev,
+      [categoryId]: [...(prev[categoryId] || []), { id: videoId, title }],
+    }));
+    setAddYtUrl("");
+    setAddYtTitle("");
+    setAddYtTarget(null);
+  };
+
+  const removeCustomYtVideo = (categoryId: string, videoId: string) => {
+    setCustomYtVideos(prev => ({
+      ...prev,
+      [categoryId]: (prev[categoryId] || []).filter(v => v.id !== videoId),
+    }));
+  };
 
   // Play completion sound
   const playCompletionSound = () => {
@@ -636,6 +671,12 @@ const DeeplyDashboard = () => {
                     { id: "vbYMHBclJYo", title: "Dark Intense Music", desc: "אנרגיה חשוכה — להתגבר על כל מכשול" },
                   ],
                 },
+                {
+                  id: "yt-my-videos",
+                  label: "📌 הסרטונים שלי",
+                  color: "emerald",
+                  videos: [] as { id: string; title: string; desc: string }[],
+                },
               ];
 
               const activeCatData = ytCategories.find(c => c.id === activeYtCat);
@@ -654,54 +695,128 @@ const DeeplyDashboard = () => {
                 violet: "from-violet-500 to-violet-700",
               };
 
+              // Merge custom videos into active category
+              const customVideosForCat = customYtVideos[activeYtCat] || [];
+              const allVideos = activeCatData
+                ? [
+                    ...activeCatData.videos,
+                    ...customVideosForCat.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" })),
+                  ]
+                : [];
+
               return (
                 <>
                   <div className="flex gap-1.5 flex-wrap">
-                    {ytCategories.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setActiveYtCat(cat.id)}
-                        className={`px-3 py-1.5 rounded-full text-xs transition-all ${
-                          activeYtCat === cat.id
-                            ? `${catColorMap[cat.color]} border`
-                            : "bg-white/5 text-[#e8e8ed]/50 hover:bg-white/10"
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
+                    {ytCategories.map(cat => {
+                      const customCount = (customYtVideos[cat.id] || []).length;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setActiveYtCat(cat.id)}
+                          className={`px-3 py-1.5 rounded-full text-xs transition-all ${
+                            activeYtCat === cat.id
+                              ? `${catColorMap[cat.color]} border`
+                              : "bg-white/5 text-[#e8e8ed]/50 hover:bg-white/10"
+                          }`}
+                        >
+                          {cat.label}{customCount > 0 ? ` +${customCount}` : ""}
+                        </button>
+                      );
+                    })}
                   </div>
                   {activeCatData && (
-                    <div className="grid sm:grid-cols-2 gap-2">
-                      {activeCatData.videos.map(v => (
-                        <div key={v.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
-                            activeYouTube === v.id
-                              ? `${catColorMap[activeCatData.color]} border`
-                              : "bg-white/5 border border-transparent hover:bg-white/10"
-                          }`}>
-                          <button
-                            onClick={() => handleYouTubeToggle(v.id)}
-                            className={`w-9 h-9 rounded-lg bg-gradient-to-br ${catGradMap[activeCatData.color]} flex items-center justify-center flex-shrink-0`}
+                    <>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {allVideos.map(v => {
+                          const isCustom = customVideosForCat.some(cv => cv.id === v.id);
+                          return (
+                            <div key={v.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
+                                activeYouTube === v.id
+                                  ? `${catColorMap[activeCatData.color]} border`
+                                  : "bg-white/5 border border-transparent hover:bg-white/10"
+                              }`}>
+                              <button
+                                onClick={() => handleYouTubeToggle(v.id)}
+                                className={`w-9 h-9 rounded-lg bg-gradient-to-br ${catGradMap[activeCatData.color]} flex items-center justify-center flex-shrink-0`}
+                              >
+                                {activeYouTube === v.id ? <Pause className="h-4 w-4 text-white" /> : <Play className="h-4 w-4 text-white" />}
+                              </button>
+                              <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleYouTubeToggle(v.id)}>
+                                <p className="text-sm font-medium text-[#e8e8ed] truncate">{v.title}</p>
+                                <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {isCustom && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); removeCustomYtVideo(activeYtCat, v.id); }}
+                                    className="text-red-400/50 hover:text-red-400 transition-colors"
+                                    title="הסר סרטון"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <a
+                                  href={`https://www.youtube.com/watch?v=${v.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors"
+                                  title="פתח ב-YouTube"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Add custom video */}
+                      {addYtTarget === activeYtCat ? (
+                        <div className="flex gap-2 items-end flex-wrap">
+                          <input
+                            type="text"
+                            placeholder="קישור YouTube..."
+                            value={addYtUrl}
+                            onChange={(e) => setAddYtUrl(e.target.value)}
+                            className="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30"
+                            dir="ltr"
+                          />
+                          <input
+                            type="text"
+                            placeholder="שם (אופציונלי)"
+                            value={addYtTitle}
+                            onChange={(e) => setAddYtTitle(e.target.value)}
+                            className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30"
+                            dir="rtl"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => addCustomYtVideo(activeYtCat)}
+                            className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]"
+                            variant="ghost"
                           >
-                            {activeYouTube === v.id ? <Pause className="h-4 w-4 text-white" /> : <Play className="h-4 w-4 text-white" />}
-                          </button>
-                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleYouTubeToggle(v.id)}>
-                            <p className="text-sm font-medium text-[#e8e8ed] truncate">{v.title}</p>
-                            <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
-                          </div>
-                          <a
-                            href={`https://www.youtube.com/watch?v=${v.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors flex-shrink-0"
-                            title="פתח ב-YouTube (עובד ברקע עם Premium)"
+                            <Plus className="h-4 w-4 ml-1" />
+                            הוסף
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setAddYtTarget(null)}
+                            className="text-[#e8e8ed]/50 hover:text-[#e8e8ed]"
                           >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
+                            ביטול
+                          </Button>
                         </div>
-                      ))}
-                    </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddYtTarget(activeYtCat)}
+                          className="flex items-center gap-2 text-xs text-[#e8e8ed]/40 hover:text-[#e8e8ed]/70 transition-colors"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          הוסף סרטון מותאם אישית
+                        </button>
+                      )}
+                    </>
                   )}
                 </>
               );
@@ -740,27 +855,53 @@ const DeeplyDashboard = () => {
                 { id: "-NPrh21ym74", title: "Study With Me — 4 שעות יום חורפי 🌧️", desc: "אח ומוזיקה רגועה בהפסקות" },
                 { id: "zyE92Ufl9G4", title: "Study With Me — 7 שעות מרתון 🎄", desc: "סשן ארוך עם Pomodoro 50/10" },
               ];
+              const customStudy = customYtVideos["study-with-me"] || [];
+              const allStudy = [...studyVideos, ...customStudy.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
               return (
-                <div className="grid sm:grid-cols-2 gap-2">
-                  {studyVideos.map(v => (
-                    <div key={v.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
-                        activeYouTube === v.id
-                          ? "bg-amber-500/20 border border-amber-500/30"
-                          : "bg-white/5 border border-transparent hover:bg-white/10"
-                      }`}>
-                      <button onClick={() => handleYouTubeToggle(v.id)} className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center flex-shrink-0">
-                        {activeYouTube === v.id ? <Pause className="h-4 w-4 text-white" /> : <Play className="h-4 w-4 text-white" />}
-                      </button>
-                      <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleYouTubeToggle(v.id)}>
-                        <p className="text-sm font-medium text-[#e8e8ed] truncate">{v.title}</p>
-                        <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
-                      </div>
-                      <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors flex-shrink-0" title="פתח ב-YouTube">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
+                <>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {allStudy.map(v => {
+                      const isCustom = customStudy.some(cv => cv.id === v.id);
+                      return (
+                        <div key={v.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
+                            activeYouTube === v.id
+                              ? "bg-amber-500/20 border border-amber-500/30"
+                              : "bg-white/5 border border-transparent hover:bg-white/10"
+                          }`}>
+                          <button onClick={() => handleYouTubeToggle(v.id)} className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center flex-shrink-0">
+                            {activeYouTube === v.id ? <Pause className="h-4 w-4 text-white" /> : <Play className="h-4 w-4 text-white" />}
+                          </button>
+                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleYouTubeToggle(v.id)}>
+                            <p className="text-sm font-medium text-[#e8e8ed] truncate">{v.title}</p>
+                            <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {isCustom && (
+                              <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("study-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title="הסר">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors" title="פתח ב-YouTube">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {addYtTarget === "study-with-me" ? (
+                    <div className="flex gap-2 items-end flex-wrap">
+                      <input type="text" placeholder="קישור YouTube..." value={addYtUrl} onChange={(e) => setAddYtUrl(e.target.value)} className="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="ltr" />
+                      <input type="text" placeholder="שם (אופציונלי)" value={addYtTitle} onChange={(e) => setAddYtTitle(e.target.value)} className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="rtl" />
+                      <Button size="sm" onClick={() => addCustomYtVideo("study-with-me")} className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]" variant="ghost"><Plus className="h-4 w-4 ml-1" />הוסף</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setAddYtTarget(null)} className="text-[#e8e8ed]/50 hover:text-[#e8e8ed]">ביטול</Button>
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    <button onClick={() => setAddYtTarget("study-with-me")} className="flex items-center gap-2 text-xs text-[#e8e8ed]/40 hover:text-[#e8e8ed]/70 transition-colors">
+                      <Plus className="h-3.5 w-3.5" />הוסף סרטון מותאם אישית
+                    </button>
+                  )}
+                </>
               );
             })()}
           </CardContent>
@@ -784,27 +925,53 @@ const DeeplyDashboard = () => {
                 { id: "CdVH0Ff0zWI", title: "פינת קריאה ביום גשום 🌧️", desc: "גשם רך ואח — ללא פרסומות" },
                 { id: "rIHYNwXWP80", title: "בקתה עם גשם ואח — 8 שעות 🏕️", desc: "רעמים ואח לקריאה ארוכה" },
               ];
+              const customRead = customYtVideos["read-with-me"] || [];
+              const allRead = [...readVideos, ...customRead.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
               return (
-                <div className="grid sm:grid-cols-2 gap-2">
-                  {readVideos.map(v => (
-                    <div key={v.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
-                        activeYouTube === v.id
-                          ? "bg-emerald-500/20 border border-emerald-500/30"
-                          : "bg-white/5 border border-transparent hover:bg-white/10"
-                      }`}>
-                      <button onClick={() => handleYouTubeToggle(v.id)} className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center flex-shrink-0">
-                        {activeYouTube === v.id ? <Pause className="h-4 w-4 text-white" /> : <Play className="h-4 w-4 text-white" />}
-                      </button>
-                      <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleYouTubeToggle(v.id)}>
-                        <p className="text-sm font-medium text-[#e8e8ed] truncate">{v.title}</p>
-                        <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
-                      </div>
-                      <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors flex-shrink-0" title="פתח ב-YouTube">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
+                <>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {allRead.map(v => {
+                      const isCustom = customRead.some(cv => cv.id === v.id);
+                      return (
+                        <div key={v.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
+                            activeYouTube === v.id
+                              ? "bg-emerald-500/20 border border-emerald-500/30"
+                              : "bg-white/5 border border-transparent hover:bg-white/10"
+                          }`}>
+                          <button onClick={() => handleYouTubeToggle(v.id)} className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center flex-shrink-0">
+                            {activeYouTube === v.id ? <Pause className="h-4 w-4 text-white" /> : <Play className="h-4 w-4 text-white" />}
+                          </button>
+                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleYouTubeToggle(v.id)}>
+                            <p className="text-sm font-medium text-[#e8e8ed] truncate">{v.title}</p>
+                            <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {isCustom && (
+                              <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("read-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title="הסר">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors" title="פתח ב-YouTube">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {addYtTarget === "read-with-me" ? (
+                    <div className="flex gap-2 items-end flex-wrap">
+                      <input type="text" placeholder="קישור YouTube..." value={addYtUrl} onChange={(e) => setAddYtUrl(e.target.value)} className="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="ltr" />
+                      <input type="text" placeholder="שם (אופציונלי)" value={addYtTitle} onChange={(e) => setAddYtTitle(e.target.value)} className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="rtl" />
+                      <Button size="sm" onClick={() => addCustomYtVideo("read-with-me")} className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]" variant="ghost"><Plus className="h-4 w-4 ml-1" />הוסף</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setAddYtTarget(null)} className="text-[#e8e8ed]/50 hover:text-[#e8e8ed]">ביטול</Button>
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    <button onClick={() => setAddYtTarget("read-with-me")} className="flex items-center gap-2 text-xs text-[#e8e8ed]/40 hover:text-[#e8e8ed]/70 transition-colors">
+                      <Plus className="h-3.5 w-3.5" />הוסף סרטון מותאם אישית
+                    </button>
+                  )}
+                </>
               );
             })()}
           </CardContent>

@@ -43,6 +43,7 @@ const DAYS_OF_WEEK = [
 
 const FREQUENCY_LABELS: Record<string, string> = {
   daily: "יומי",
+  thrice_weekly: "3 פעמים בשבוע",
   weekly: "שבועי",
   monthly: "חודשי",
   yearly: "שנתי",
@@ -81,7 +82,7 @@ const DailyRoutine = () => {
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
-    frequency: "daily" as "daily" | "weekly" | "monthly" | "yearly",
+    frequency: "daily" as "daily" | "weekly" | "monthly" | "yearly" | "thrice_weekly",
     dayOfWeek: -1,
     dayOfMonth: -1,
     yearMonth: 0,
@@ -100,7 +101,9 @@ const DailyRoutine = () => {
       title: newTask.title,
       description: newTask.description || undefined,
       frequency: newTask.frequency,
-      dayOfWeek: newTask.frequency === "weekly"
+      dayOfWeek: newTask.frequency === "thrice_weekly"
+        ? (newTask.dayOfWeek > 0 ? newTask.dayOfWeek : undefined)
+        : newTask.frequency === "weekly"
         ? (newTask.dayOfWeek === -1 ? undefined : newTask.dayOfWeek)
         : newTask.frequency === "yearly" && newTask.dayOfMonth !== -1
         ? newTask.yearMonth // store month in dayOfWeek for yearly
@@ -214,9 +217,11 @@ const DailyRoutine = () => {
                     </div>
                     <span
                       className={cn(
-                        "text-xs px-2 py-1 rounded",
+                         "text-xs px-2 py-1 rounded",
                         task.frequency === "daily"
                           ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                          : task.frequency === "thrice_weekly"
+                          ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400"
                           : task.frequency === "weekly"
                           ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
                           : task.frequency === "yearly"
@@ -269,6 +274,8 @@ const DailyRoutine = () => {
                             "text-xs px-2 py-1 rounded",
                             task.frequency === "daily"
                               ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                              : task.frequency === "thrice_weekly"
+                              ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400"
                               : task.frequency === "weekly"
                               ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
                               : task.frequency === "yearly"
@@ -280,7 +287,9 @@ const DailyRoutine = () => {
                         </span>
                       </TableCell>
                       <TableCell>
-                        {task.frequency === "weekly" && task.dayOfWeek !== null
+                        {task.frequency === "thrice_weekly" && task.dayOfWeek !== null
+                          ? DAYS_OF_WEEK.filter(d => (task.dayOfWeek! & (1 << d.value)) !== 0).map(d => d.label).join(", ")
+                          : task.frequency === "weekly" && task.dayOfWeek !== null
                           ? DAYS_OF_WEEK.find((d) => d.value === task.dayOfWeek)?.label
                           : task.frequency === "weekly" && task.dayOfWeek === null
                           ? "גמיש"
@@ -332,6 +341,8 @@ const DailyRoutine = () => {
                             "text-xs px-2 py-0.5 rounded",
                             task.frequency === "daily"
                               ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                              : task.frequency === "thrice_weekly"
+                              ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400"
                               : task.frequency === "weekly"
                               ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
                               : task.frequency === "yearly"
@@ -496,7 +507,7 @@ const DailyRoutine = () => {
               <Select
                 value={newTask.frequency}
                 onValueChange={(v) =>
-                  setNewTask({ ...newTask, frequency: v as any })
+                  setNewTask({ ...newTask, frequency: v as any, dayOfWeek: v === "thrice_weekly" ? 0 : -1, dayOfMonth: -1 })
                 }
               >
                 <SelectTrigger>
@@ -504,12 +515,45 @@ const DailyRoutine = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="daily">יומי - כל יום</SelectItem>
+                  <SelectItem value="thrice_weekly">3 פעמים בשבוע</SelectItem>
                   <SelectItem value="weekly">שבועי - פעם בשבוע</SelectItem>
                   <SelectItem value="monthly">חודשי - פעם בחודש</SelectItem>
                   <SelectItem value="yearly">שנתי - פעם בשנה</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {newTask.frequency === "thrice_weekly" && (
+              <div>
+                <label className="text-sm font-medium">באילו ימים? (בחר 3)</label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {DAYS_OF_WEEK.map((day) => {
+                    const isSelected = (newTask.dayOfWeek & (1 << day.value)) !== 0;
+                    const selectedCount = DAYS_OF_WEEK.filter(d => (newTask.dayOfWeek & (1 << d.value)) !== 0).length;
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setNewTask({ ...newTask, dayOfWeek: newTask.dayOfWeek & ~(1 << day.value) });
+                          } else if (selectedCount < 3) {
+                            setNewTask({ ...newTask, dayOfWeek: newTask.dayOfWeek | (1 << day.value) });
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-sm border transition-colors",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted border-border hover:bg-accent"
+                        )}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {newTask.frequency === "weekly" && (
               <div>
                 <label className="text-sm font-medium">באיזה יום?</label>
