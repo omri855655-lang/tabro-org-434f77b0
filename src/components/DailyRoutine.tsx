@@ -82,7 +82,7 @@ const DailyRoutine = () => {
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
-    frequency: "daily" as "daily" | "weekly" | "monthly" | "yearly",
+    frequency: "daily" as "daily" | "weekly" | "monthly" | "yearly" | "thrice_weekly",
     dayOfWeek: -1,
     dayOfMonth: -1,
     yearMonth: 0,
