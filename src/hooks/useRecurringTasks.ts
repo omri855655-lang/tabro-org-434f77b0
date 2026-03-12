@@ -370,6 +370,11 @@ export function useRecurringTasks() {
           case "daily":
             isDue = true;
             break;
+          case "thrice_weekly":
+            if (task.dayOfWeek !== null) {
+              isDue = (task.dayOfWeek & (1 << dayOfWeek)) !== 0;
+            }
+            break;
           case "weekly":
             if (task.dayOfWeek === null) {
               // Flexible: count once per week (check Sunday)
