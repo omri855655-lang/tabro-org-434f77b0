@@ -522,6 +522,38 @@ const DailyRoutine = () => {
                 </SelectContent>
               </Select>
             </div>
+            {newTask.frequency === "thrice_weekly" && (
+              <div>
+                <label className="text-sm font-medium">באילו ימים? (בחר 3)</label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {DAYS_OF_WEEK.map((day) => {
+                    const isSelected = (newTask.dayOfWeek & (1 << day.value)) !== 0;
+                    const selectedCount = DAYS_OF_WEEK.filter(d => (newTask.dayOfWeek & (1 << d.value)) !== 0).length;
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setNewTask({ ...newTask, dayOfWeek: newTask.dayOfWeek & ~(1 << day.value) });
+                          } else if (selectedCount < 3) {
+                            setNewTask({ ...newTask, dayOfWeek: newTask.dayOfWeek | (1 << day.value) });
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-sm border transition-colors",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted border-border hover:bg-accent"
+                        )}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {newTask.frequency === "weekly" && (
               <div>
                 <label className="text-sm font-medium">באיזה יום?</label>
