@@ -101,7 +101,9 @@ const DailyRoutine = () => {
       title: newTask.title,
       description: newTask.description || undefined,
       frequency: newTask.frequency,
-      dayOfWeek: newTask.frequency === "weekly"
+      dayOfWeek: newTask.frequency === "thrice_weekly"
+        ? (newTask.dayOfWeek > 0 ? newTask.dayOfWeek : undefined)
+        : newTask.frequency === "weekly"
         ? (newTask.dayOfWeek === -1 ? undefined : newTask.dayOfWeek)
         : newTask.frequency === "yearly" && newTask.dayOfMonth !== -1
         ? newTask.yearMonth // store month in dayOfWeek for yearly
