@@ -291,7 +291,8 @@ const Personal = () => {
               title={`משימות עבודה (${shared.owner_email})`}
               taskType="work"
               readOnly={shared.permission === "view"}
-              showYearSelector={true}
+              showYearSelector={false}
+              fixedSheetName={shared.sheet_name}
             />
           </TabsContent>
         ))}
