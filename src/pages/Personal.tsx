@@ -141,7 +141,21 @@ const Personal = () => {
     navigate("/");
   };
 
-  if (loading) {
+  // Compute ordered tabs based on saved order
+  const orderedTabs = useMemo(() => {
+    if (tabOrder.length === 0) return STATIC_TABS;
+    const ordered: TabDef[] = [];
+    for (const id of tabOrder) {
+      const tab = STATIC_TABS.find(t => t.id === id);
+      if (tab) ordered.push(tab);
+    }
+    // Add any new tabs not in saved order
+    for (const tab of STATIC_TABS) {
+      if (!ordered.find(t => t.id === tab.id)) ordered.push(tab);
+    }
+    return ordered;
+  }, [tabOrder]);
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">{t("loading")}</div>
