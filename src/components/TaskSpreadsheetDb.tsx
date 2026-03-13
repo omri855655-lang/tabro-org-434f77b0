@@ -54,14 +54,15 @@ const statusOrder: Record<string, number> = {
 
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
-const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false }: TaskSpreadsheetDbProps) => {
+const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName }: TaskSpreadsheetDbProps) => {
   const { user } = useAuth();
   const currentYear = String(new Date().getFullYear());
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [sheetsLoading, setSheetsLoading] = useState(true);
   // null means "all sheets", a string means specific sheet
-  const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
-  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, selectedSheet);
+  const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName ?? null);
+  const effectiveSheet = fixedSheetName ?? selectedSheet;
+  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: string; field: keyof Task } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
