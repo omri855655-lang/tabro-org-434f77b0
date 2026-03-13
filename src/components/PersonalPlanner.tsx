@@ -1163,7 +1163,9 @@ const PersonalPlanner = () => {
                       const height = isResizing && resizePreviewHeight !== null
                         ? resizePreviewHeight
                         : (duration / 60) * currentHourHeight;
-                      const top = (startMin / 60) * currentHourHeight;
+                      const top = isResizing && resizePreviewTop !== null
+                        ? resizePreviewTop
+                        : (startMin / 60) * currentHourHeight;
 
                       // Only side-by-side for truly overlapping events
                       const evStart = new Date(event.startTime);
