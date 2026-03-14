@@ -55,7 +55,7 @@ const statusOrder: Record<string, number> = {
 
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
-const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName }: TaskSpreadsheetDbProps) => {
+const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId }: TaskSpreadsheetDbProps) => {
   const { user } = useAuth();
   const currentYear = String(new Date().getFullYear());
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
@@ -63,7 +63,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   // null means "all sheets", a string means specific sheet
   const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName ?? null);
   const effectiveSheet = fixedSheetName ?? selectedSheet;
-  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet);
+  const effectiveOwnerId = taskType === "work" ? (fixedSheetOwnerId ?? user?.id) : undefined;
+  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: string; field: keyof Task } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
