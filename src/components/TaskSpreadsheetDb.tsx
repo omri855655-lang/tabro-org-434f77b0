@@ -32,6 +32,7 @@ interface TaskSpreadsheetDbProps {
   readOnly?: boolean;
   showYearSelector?: boolean;
   fixedSheetName?: string;
+  fixedSheetOwnerId?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -54,7 +55,7 @@ const statusOrder: Record<string, number> = {
 
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
-const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName }: TaskSpreadsheetDbProps) => {
+const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId }: TaskSpreadsheetDbProps) => {
   const { user } = useAuth();
   const currentYear = String(new Date().getFullYear());
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
@@ -62,7 +63,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   // null means "all sheets", a string means specific sheet
   const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName ?? null);
   const effectiveSheet = fixedSheetName ?? selectedSheet;
-  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet);
+  const effectiveOwnerId = taskType === "work" ? (fixedSheetOwnerId ?? user?.id) : undefined;
+  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: string; field: keyof Task } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -268,7 +270,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
   const handleAddTask = async () => {
     // When adding a task, use selected sheet or current year if showing all
-    await addTask(selectedSheet ?? currentYear);
+    const defaultResponsible = taskType === "work" && user?.email ? user.email : "";
+    await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
   };
 
   const handleDeleteTask = async () => {
@@ -486,7 +489,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       const { data } = await supabase
         .from("tasks")
         .select("category, responsible, updated_at")
-        .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
 
       if (data) {

@@ -23,6 +23,7 @@ export interface DbTask {
 
 export interface Task {
   id: string;
+  userId: string;
   description: string;
   category: string;
   responsible: string;
@@ -40,6 +41,7 @@ export interface Task {
 
 const mapDbTaskToTask = (dbTask: DbTask & { urgent?: boolean }): Task => ({
   id: dbTask.id,
+  userId: dbTask.user_id,
   description: dbTask.description,
   category: dbTask.category || "",
   responsible: dbTask.responsible || "",
@@ -55,7 +57,12 @@ const mapDbTaskToTask = (dbTask: DbTask & { urgent?: boolean }): Task => ({
   updatedAt: dbTask.updated_at,
 });
 
-const mapTaskToDbInsert = (task: Partial<Task>, userId: string, taskType: "personal" | "work", sheetName: string) => ({
+const mapTaskToDbInsert = (
+  task: Partial<Task>,
+  userId: string,
+  taskType: "personal" | "work",
+  sheetName: string
+) => ({
   user_id: userId,
   description: task.description || "",
   category: task.category || null,
@@ -71,14 +78,17 @@ const mapTaskToDbInsert = (task: Partial<Task>, userId: string, taskType: "perso
   sheet_name: sheetName,
 });
 
-export function useTasks(taskType: "personal" | "work", sheetName?: string | null) {
+export function useTasks(
+  taskType: "personal" | "work",
+  sheetName?: string | null,
+  ownerId?: string
+) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTasks = useCallback(async () => {
-    // Personal tasks require login; work tasks are meant to be public-read
-    if (!user && taskType === "personal") {
+    if (!user) {
       setTasks([]);
       setLoading(false);
       return;
@@ -93,27 +103,25 @@ export function useTasks(taskType: "personal" | "work", sheetName?: string | nul
         .eq("task_type", taskType)
         .order("created_at", { ascending: true });
 
-      // Only filter by sheet_name if it's specified (not null/undefined)
       if (sheetName !== null && sheetName !== undefined) {
         query = query.eq("sheet_name", sheetName);
       }
 
-      if (taskType === "personal" && user) {
+      if (ownerId) {
+        query = query.eq("user_id", ownerId);
+      } else if (taskType === "personal") {
         query = query.eq("user_id", user.id);
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
 
-      // Recalculate overdue status based on current date
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const mappedTasks = (data as unknown as DbTask[]).map((dbTask) => {
         const task = mapDbTaskToTask(dbTask);
-        
-        // Calculate overdue: only if planned_end exists, date has PASSED, and status is not "בוצע"
+
         if (task.plannedEnd && task.status !== "בוצע") {
           const plannedDate = new Date(task.plannedEnd);
           plannedDate.setHours(0, 0, 0, 0);
@@ -121,7 +129,7 @@ export function useTasks(taskType: "personal" | "work", sheetName?: string | nul
         } else {
           task.overdue = false;
         }
-        
+
         return task;
       });
 
@@ -132,132 +140,135 @@ export function useTasks(taskType: "personal" | "work", sheetName?: string | nul
     } finally {
       setLoading(false);
     }
-  }, [user, taskType, sheetName]);
+  }, [user, taskType, sheetName, ownerId]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
-  const addTask = useCallback(async (targetSheetName?: string): Promise<Task | null> => {
-    if (!user) return null;
+  const addTask = useCallback(
+    async (targetSheetName?: string, initialValues?: Partial<Task>): Promise<Task | null> => {
+      if (!user) return null;
 
-    const taskSheetName = targetSheetName ?? sheetName ?? String(new Date().getFullYear());
-    
-    const newDbTask = mapTaskToDbInsert(
-      {
-        description: "",
-        category: "",
-        responsible: "",
-        status: "טרם החל",
-        statusNotes: "",
-        progress: "",
-        plannedEnd: "",
-        overdue: false,
-        urgent: false,
-        archived: false,
-        sheetName: taskSheetName,
-      },
-      user.id,
-      taskType,
-      taskSheetName
-    );
+      const taskSheetName = targetSheetName ?? sheetName ?? String(new Date().getFullYear());
+      const insertOwnerId = ownerId ?? user.id;
 
-    try {
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert([newDbTask])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const newTask = mapDbTaskToTask(data as unknown as DbTask);
-      setTasks((prev) => [...prev, newTask]);
-      return newTask;
-    } catch (error: any) {
-      console.error("Error adding task:", error);
-      toast.error("שגיאה בהוספת משימה");
-      return null;
-    }
-  }, [user, taskType, sheetName]);
-
-  const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
-    if (!user) return;
-
-    // Find the current task to calculate overdue status
-    const currentTask = tasks.find(t => t.id === taskId);
-    
-    const dbUpdates: Record<string, any> = {};
-    if (updates.description !== undefined) dbUpdates.description = updates.description;
-    if (updates.category !== undefined) dbUpdates.category = updates.category || null;
-    if (updates.responsible !== undefined) dbUpdates.responsible = updates.responsible || null;
-    if (updates.status !== undefined) dbUpdates.status = updates.status;
-    if (updates.statusNotes !== undefined) dbUpdates.status_notes = updates.statusNotes || null;
-    if (updates.progress !== undefined) dbUpdates.progress = updates.progress || null;
-    if (updates.plannedEnd !== undefined) dbUpdates.planned_end = updates.plannedEnd || null;
-    if (updates.overdue !== undefined) dbUpdates.overdue = updates.overdue;
-    if (updates.urgent !== undefined) dbUpdates.urgent = updates.urgent;
-    if (updates.archived !== undefined) dbUpdates.archived = updates.archived;
-
-    // Recalculate overdue when plannedEnd or status changes
-    const newPlannedEnd = updates.plannedEnd !== undefined ? updates.plannedEnd : currentTask?.plannedEnd;
-    const newStatus = updates.status !== undefined ? updates.status : currentTask?.status;
-    
-    if (newPlannedEnd && newStatus !== "בוצע") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const plannedDate = new Date(newPlannedEnd);
-      plannedDate.setHours(0, 0, 0, 0);
-      dbUpdates.overdue = plannedDate < today;
-      updates.overdue = dbUpdates.overdue;
-    } else if (newStatus === "בוצע") {
-      // Completed tasks are not overdue
-      dbUpdates.overdue = false;
-      updates.overdue = false;
-    } else if (!newPlannedEnd) {
-      // No due date = not overdue
-      dbUpdates.overdue = false;
-      updates.overdue = false;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("tasks")
-        .update(dbUpdates)
-        .eq("id", taskId)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
-
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === taskId ? { ...task, ...updates } : task
-        )
+      const newDbTask = mapTaskToDbInsert(
+        {
+          description: "",
+          category: "",
+          responsible: "",
+          status: "טרם החל",
+          statusNotes: "",
+          progress: "",
+          plannedEnd: "",
+          overdue: false,
+          urgent: false,
+          archived: false,
+          ...initialValues,
+        },
+        insertOwnerId,
+        taskType,
+        taskSheetName
       );
-    } catch (error: any) {
-      console.error("Error updating task:", error);
-      toast.error("שגיאה בעדכון משימה");
-    }
-  }, [user, tasks]);
 
-  const deleteTask = useCallback(async (taskId: string) => {
-    if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from("tasks")
+          .insert([newDbTask])
+          .select()
+          .single();
 
-    try {
-      const { error } = await supabase
-        .from("tasks")
-        .delete()
-        .eq("id", taskId)
-        .eq("user_id", user.id);
+        if (error) throw error;
 
-      if (error) throw error;
+        const newTask = mapDbTaskToTask(data as unknown as DbTask);
+        setTasks((prev) => [...prev, newTask]);
+        return newTask;
+      } catch (error: any) {
+        console.error("Error adding task:", error);
+        toast.error("שגיאה בהוספת משימה");
+        return null;
+      }
+    },
+    [user, taskType, sheetName, ownerId]
+  );
 
-      setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    } catch (error: any) {
-      console.error("Error deleting task:", error);
-      toast.error("שגיאה במחיקת משימה");
-    }
-  }, [user]);
+  const updateTask = useCallback(
+    async (taskId: string, updates: Partial<Task>) => {
+      if (!user) return;
+
+      const currentTask = tasks.find((t) => t.id === taskId);
+
+      const dbUpdates: Record<string, any> = {};
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.category !== undefined) dbUpdates.category = updates.category || null;
+      if (updates.responsible !== undefined) dbUpdates.responsible = updates.responsible || null;
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
+      if (updates.statusNotes !== undefined) dbUpdates.status_notes = updates.statusNotes || null;
+      if (updates.progress !== undefined) dbUpdates.progress = updates.progress || null;
+      if (updates.plannedEnd !== undefined) dbUpdates.planned_end = updates.plannedEnd || null;
+      if (updates.overdue !== undefined) dbUpdates.overdue = updates.overdue;
+      if (updates.urgent !== undefined) dbUpdates.urgent = updates.urgent;
+      if (updates.archived !== undefined) dbUpdates.archived = updates.archived;
+
+      const newPlannedEnd = updates.plannedEnd !== undefined ? updates.plannedEnd : currentTask?.plannedEnd;
+      const newStatus = updates.status !== undefined ? updates.status : currentTask?.status;
+
+      if (newPlannedEnd && newStatus !== "בוצע") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const plannedDate = new Date(newPlannedEnd);
+        plannedDate.setHours(0, 0, 0, 0);
+        dbUpdates.overdue = plannedDate < today;
+        updates.overdue = dbUpdates.overdue;
+      } else if (newStatus === "בוצע" || !newPlannedEnd) {
+        dbUpdates.overdue = false;
+        updates.overdue = false;
+      }
+
+      try {
+        let query = supabase.from("tasks").update(dbUpdates).eq("id", taskId);
+        if (ownerId) query = query.eq("user_id", ownerId);
+        const { data, error } = await query.select("id").maybeSingle();
+
+        if (error) throw error;
+        if (!data) {
+          toast.error("אין הרשאה לעדכן את המשימה");
+          return;
+        }
+
+        setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task)));
+      } catch (error: any) {
+        console.error("Error updating task:", error);
+        toast.error("שגיאה בעדכון משימה");
+      }
+    },
+    [user, tasks, ownerId]
+  );
+
+  const deleteTask = useCallback(
+    async (taskId: string) => {
+      if (!user) return;
+
+      try {
+        let query = supabase.from("tasks").delete().eq("id", taskId);
+        if (ownerId) query = query.eq("user_id", ownerId);
+        const { data, error } = await query.select("id").maybeSingle();
+
+        if (error) throw error;
+        if (!data) {
+          toast.error("אין הרשאה למחוק את המשימה");
+          return;
+        }
+
+        setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      } catch (error: any) {
+        console.error("Error deleting task:", error);
+        toast.error("שגיאה במחיקת משימה");
+      }
+    },
+    [user, ownerId]
+  );
 
   return {
     tasks,

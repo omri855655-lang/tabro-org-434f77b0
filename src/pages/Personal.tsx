@@ -30,6 +30,7 @@ import { toast } from "sonner";
 interface SharedSheet {
   sheet_id: string;
   sheet_name: string;
+  owner_id: string;
   owner_email: string;
   permission: string;
 }
@@ -76,10 +77,11 @@ const Personal = () => {
   const fetchSharedSheets = useCallback(async () => {
     if (!user) return;
     try {
+      const normalizedEmail = (user.email || "").trim().toLowerCase();
       const { data, error } = await supabase
         .from("task_sheet_collaborators")
         .select("sheet_id, permission, invited_email")
-        .or(`user_id.eq.${user.id},invited_email.eq.${user.email}`);
+        .or(`user_id.eq.${user.id},invited_email.eq.${normalizedEmail}`);
 
       if (error) throw error;
       if (!data || data.length === 0) return;
@@ -111,6 +113,7 @@ const Personal = () => {
         sharedResults.push({
           sheet_id: sheet.id,
           sheet_name: sheet.sheet_name,
+          owner_id: sheet.user_id,
           owner_email: ownerProfile?.display_name || sheet.user_id.slice(0, 8),
           permission: collab?.permission || "view",
         });
@@ -291,6 +294,7 @@ const Personal = () => {
               readOnly={shared.permission === "view"}
               showYearSelector={false}
               fixedSheetName={shared.sheet_name}
+              fixedSheetOwnerId={shared.owner_id}
             />
           </TabsContent>
         ))}
