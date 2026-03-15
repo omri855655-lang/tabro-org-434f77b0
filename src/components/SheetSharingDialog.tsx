@@ -232,9 +232,14 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm truncate" dir="ltr">
-                        {collab.invited_email}
-                      </span>
+                      <div className="min-w-0 leading-tight">
+                        <div className="text-sm truncate">
+                          {collab.invited_display_name || collab.invited_email.split("@")[0]}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate" dir="ltr">
+                          @{collab.invited_username || collab.invited_email.split("@")[0]} · {collab.invited_email}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Select
