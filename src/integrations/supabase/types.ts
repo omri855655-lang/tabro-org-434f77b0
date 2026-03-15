@@ -1116,6 +1116,30 @@ export type Database = {
         Args: { _sheet_id: string; _user_id: string }
         Returns: boolean
       }
+      share_sheet_with_email: {
+        Args: {
+          _invited_email: string
+          _permission?: string
+          _sheet_id: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          invited_by: string
+          invited_display_name: string | null
+          invited_email: string
+          invited_username: string | null
+          permission: string
+          sheet_id: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "task_sheet_collaborators"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
