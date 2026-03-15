@@ -134,6 +134,28 @@ const Personal = () => {
     fetchSharedSheets();
   }, [user, loading, navigate, fetchSharedSheets]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`shared-sheets-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_sheet_collaborators" },
+        () => fetchSharedSheets()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_sheets" },
+        () => fetchSharedSheets()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchSharedSheets]);
+
   const toggleTheme = () => {
     setIsDark(!isDark);
     document.documentElement.classList.toggle("dark");
