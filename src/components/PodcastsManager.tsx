@@ -200,6 +200,7 @@ const PodcastsManager = () => {
               <TableHead className="text-right">מגיש/ה</TableHead>
               <TableHead className="text-right">סטטוס</TableHead>
               <TableHead className="text-right">הערות</TableHead>
+              <TableHead className="text-right">שינוי סטטוס</TableHead>
               <TableHead className="text-right">נוצר</TableHead>
               <TableHead className="text-right">עודכן</TableHead>
               <TableHead className="w-[50px]"></TableHead>
