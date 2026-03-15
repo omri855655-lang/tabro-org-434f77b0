@@ -32,6 +32,7 @@ interface SharedSheet {
   sheet_name: string;
   owner_id: string;
   owner_email: string;
+  owner_display_name: string;
   permission: string;
   task_type: string;
 }
