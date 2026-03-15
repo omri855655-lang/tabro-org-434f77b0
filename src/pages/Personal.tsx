@@ -436,6 +436,10 @@ const Personal = () => {
           <ChallengesManager />
         </TabsContent>
 
+        <TabsContent value="sharing" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <SharingManagement />
+        </TabsContent>
+
         {customBoards.map((board) => (
           <TabsContent key={`board-${board.id}`} value={`board-${board.id}`} className="flex-1 min-h-0 overflow-auto m-0 p-0">
             <CustomBoardManager
