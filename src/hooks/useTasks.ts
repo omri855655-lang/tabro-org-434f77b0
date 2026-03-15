@@ -60,6 +60,9 @@ const mapDbTaskToTask = (dbTask: DbTask & { urgent?: boolean }): Task => ({
   urgent: dbTask.urgent || false,
   sheetName: dbTask.sheet_name || String(new Date().getFullYear()),
   archived: dbTask.archived || false,
+  creatorEmail: dbTask.creator_email || "",
+  creatorName: dbTask.creator_name || "",
+  creatorUsername: dbTask.creator_username || "",
   createdAt: dbTask.created_at,
   updatedAt: dbTask.updated_at,
 });
