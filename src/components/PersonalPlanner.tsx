@@ -97,6 +97,7 @@ const PersonalPlanner = () => {
   const [resizingEvent, setResizingEvent] = useState<{ eventId: string; startY: number; originalEndTime: string; edge: "top" | "bottom"; originalStartTime: string } | null>(null);
   const [resizePreviewHeight, setResizePreviewHeight] = useState<number | null>(null);
   const [resizePreviewTop, setResizePreviewTop] = useState<number | null>(null);
+  const [resizeTimeTooltip, setResizeTimeTooltip] = useState<{ startTime: string; endTime: string; x: number; y: number } | null>(null);
 
   // Drag-to-create state (drag from sidebar and stretch across hours)
   const [dragCreateState, setDragCreateState] = useState<{
