@@ -930,8 +930,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             <thead className="sticky top-0 z-10">
               <tr className="bg-muted">
                 {taskHeaders.filter((_, i) => {
-                  // Hide "נוצר על ידי" column (index 9) when not a shared sheet
-                  if (i === 9 && !isSharedSheet) return false;
+                  // Hide "נוצר על ידי" column (index 9) when not a shared sheet or when hidden
+                  if (i === 9 && (!isSharedSheet || hideCreatorInfo)) return false;
                   return true;
                 }).map((header, i) => (
                   <th
