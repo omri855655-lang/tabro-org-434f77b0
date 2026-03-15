@@ -1223,7 +1223,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       <SheetSharingDialog
         open={sharingDialogOpen}
         onOpenChange={setSharingDialogOpen}
-        sheetName={selectedSheet ?? currentYear}
+        sheetName={selectedSheet ?? MAIN_SHEET_NAME}
         taskType={taskType}
         availableSheets={availableSheets}
       />

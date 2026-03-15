@@ -234,7 +234,7 @@ const SettingsPanel = () => {
               <Button onClick={handleAddBoard} className="w-full gap-2"><Plus className="h-4 w-4" />צור קטגוריה</Button>
             </div>
           ) : (
-            <Button variant="outline" onClick={() => setShowAddBoard(true)} className="w-full gap-2"><Plus className="h-4 w-4" />הוסף דשבורד חדש</Button>
+            <Button variant="outline" onClick={() => setShowAddBoard(true)} className="w-full gap-2"><Plus className="h-4 w-4" />הוסף קטגוריית רשימות/דשבורד חדש</Button>
           )}
         </CardContent>
       </Card>

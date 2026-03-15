@@ -349,7 +349,7 @@ const Personal = () => {
                   disabled={!canMoveActiveLeft}
                   title="הזז שמאלה"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
@@ -359,7 +359,7 @@ const Personal = () => {
                   disabled={!canMoveActiveRight}
                   title="הזז ימינה"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             )}
