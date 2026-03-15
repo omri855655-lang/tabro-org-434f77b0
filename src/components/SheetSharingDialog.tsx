@@ -119,35 +119,35 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
 
   const fetchSheetAndCollaborators = async (options?: { silent?: boolean }) => {
     if (!user) return;
-    setLoading(true);
+    if (!options?.silent) setLoading(true);
 
-    const id = await ensureSheet(selectedShareSheet);
-    if (!id) {
-      setCollaborators([]);
-      setSheetId(null);
+    try {
+      const id = await ensureSheet(selectedShareSheet);
+      if (!id) {
+        setCollaborators([]);
+        setSheetId(null);
+        if (!options?.silent) toast.error("שגיאה בפתיחת גליון לשיתוף");
+        return;
+      }
+
+      setSheetId(id);
+
+      const { data: collabData, error: collabError } = await supabase
+        .from("task_sheet_collaborators")
+        .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
+        .eq("sheet_id", id)
+        .order("created_at", { ascending: true });
+
+      if (collabError) {
+        console.error("Error fetching collaborators:", collabError);
+        if (!options?.silent) toast.error("שגיאה בטעינת שותפים: " + collabError.message);
+        return;
+      }
+
+      setCollaborators((collabData || []) as Collaborator[]);
+    } finally {
       setLoading(false);
-      if (!options?.silent) toast.error("שגיאה בפתיחת גליון לשיתוף");
-      return;
     }
-
-    setSheetId(id);
-
-    const { data: collabData, error: collabError } = await supabase
-      .from("task_sheet_collaborators")
-      .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
-      .eq("sheet_id", id)
-      .eq("invited_by", user.id)
-      .order("created_at", { ascending: true });
-
-    if (collabError) {
-      console.error("Error fetching collaborators:", collabError);
-      setLoading(false);
-      if (!options?.silent) toast.error("שגיאה בטעינת שותפים");
-      return;
-    }
-
-    setCollaborators((collabData || []) as Collaborator[]);
-    setLoading(false);
   };
 
   const logActivity = async (action: string, targetEmail: string, sheetNames: string[]) => {
