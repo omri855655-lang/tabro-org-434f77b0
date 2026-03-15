@@ -739,8 +739,31 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
   return (
     <div className="flex flex-col h-full bg-background" dir="rtl">
-      {/* Sheet Selector */}
-      {showYearSelector && (
+      {/* Shared sheet collapse toggle */}
+      {isSharedSheet && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSharedCollapsed(!sharedCollapsed)}
+            className="gap-1"
+          >
+            {sharedCollapsed ? "▸" : "▾"}
+            <span className="text-sm font-medium">{title}</span>
+          </Button>
+          {ownerDisplayName && (
+            <span className="text-xs text-muted-foreground">משותף מ: {ownerDisplayName}</span>
+          )}
+          <span className={cn(
+            "text-xs px-2 py-0.5 rounded-full",
+            readOnly ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+          )}>
+            {readOnly ? "צפייה בלבד" : "עריכה"}
+          </span>
+        </div>
+      )}
+      {isSharedSheet && sharedCollapsed ? null : (
+        <>
         <div className="flex items-center gap-2">
           <div className="flex-1">
             <YearSelector 
