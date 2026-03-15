@@ -61,6 +61,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [sharedCollapsed, setSharedCollapsed] = useState(false);
   const { user } = useAuth();
   const currentYear = String(new Date().getFullYear());
+  const MAIN_SHEET_NAME = "ראשי";
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [sheetsLoading, setSheetsLoading] = useState(true);
   // null means "all sheets", a string means specific sheet
@@ -85,6 +86,21 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [mentalTask, setMentalTask] = useState<Task | null>(null);
   const [sharingDialogOpen, setSharingDialogOpen] = useState(false);
 
+  const compareSheetNames = useCallback((a: string, b: string) => {
+    if (a === MAIN_SHEET_NAME && b !== MAIN_SHEET_NAME) return -1;
+    if (b === MAIN_SHEET_NAME && a !== MAIN_SHEET_NAME) return 1;
+
+    const aNum = parseInt(a, 10);
+    const bNum = parseInt(b, 10);
+    const aIsNum = !isNaN(aNum);
+    const bIsNum = !isNaN(bNum);
+
+    if (aIsNum && bIsNum) return aNum - bNum;
+    if (aIsNum) return -1;
+    if (bIsNum) return 1;
+    return a.localeCompare(b, "he");
+  }, []);
+
   // Fetch available sheets from the task_sheets table (persisted)
   const fetchAvailableSheets = useCallback(async () => {
     if (!user || !showYearSelector) {
@@ -101,36 +117,24 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
       if (error) throw error;
 
-      // Get unique sheet names
-      const sheetNames = [...new Set(data?.map((s) => s.sheet_name) || [])].filter(Boolean) as string[];
+      const sheetNames = [...new Set(data?.map((s) => s.sheet_name?.trim()) || [])].filter(Boolean) as string[];
 
-      // Always include current year if not present
+      if (!sheetNames.includes(MAIN_SHEET_NAME)) {
+        sheetNames.push(MAIN_SHEET_NAME);
+      }
+
       if (!sheetNames.includes(currentYear)) {
         sheetNames.push(currentYear);
       }
 
-      // Sort: numbers first (ascending), then text (alphabetically)
-      setAvailableSheets(
-        sheetNames.sort((a, b) => {
-          const aNum = parseInt(a, 10);
-          const bNum = parseInt(b, 10);
-          const aIsNum = !isNaN(aNum);
-          const bIsNum = !isNaN(bNum);
-
-          if (aIsNum && bIsNum) return aNum - bNum;
-          if (aIsNum) return -1;
-          if (bIsNum) return 1;
-          return a.localeCompare(b, "he");
-        })
-      );
+      setAvailableSheets(sheetNames.sort(compareSheetNames));
     } catch (error) {
       console.error("Error fetching sheets:", error);
-      // Fallback to current year
-      setAvailableSheets([currentYear]);
+      setAvailableSheets([MAIN_SHEET_NAME, currentYear]);
     } finally {
       setSheetsLoading(false);
     }
-  }, [user, showYearSelector, taskType, currentYear]);
+  }, [user, showYearSelector, taskType, currentYear, compareSheetNames]);
 
   useEffect(() => {
     fetchAvailableSheets();
