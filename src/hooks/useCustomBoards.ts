@@ -80,5 +80,23 @@ export function useCustomBoards() {
     await fetchBoards();
   };
 
-  return { boards, loading, addBoard, deleteBoard, updateBoard, refetch: fetchBoards };
+  const reorderBoards = async (orderedBoardIds: string[]) => {
+    if (!user) return;
+
+    const updates = orderedBoardIds.map((id, index) =>
+      supabase
+        .from("custom_boards")
+        .update({ sort_order: index })
+        .eq("id", id)
+        .eq("user_id", user.id)
+    );
+
+    const results = await Promise.all(updates);
+    const failed = results.find((r) => r.error);
+    if (failed?.error) throw failed.error;
+
+    await fetchBoards();
+  };
+
+  return { boards, loading, addBoard, deleteBoard, updateBoard, reorderBoards, refetch: fetchBoards };
 }
