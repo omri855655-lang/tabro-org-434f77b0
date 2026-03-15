@@ -56,7 +56,9 @@ const statusOrder: Record<string, number> = {
 
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
-const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId }: TaskSpreadsheetDbProps) => {
+const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
+  const isSharedSheet = !!fixedSheetOwnerId;
+  const [sharedCollapsed, setSharedCollapsed] = useState(false);
   const { user } = useAuth();
   const currentYear = String(new Date().getFullYear());
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
