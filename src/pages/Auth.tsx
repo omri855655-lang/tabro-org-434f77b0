@@ -62,6 +62,20 @@ const Auth = () => {
       return;
     }
 
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+
+    if (mode === "signup") {
+      if (normalizedFirstName.length < 2) {
+        toast.error("שם פרטי חייב להכיל לפחות 2 תווים");
+        return;
+      }
+      if (normalizedLastName.length < 2) {
+        toast.error("שם משפחה חייב להכיל לפחות 2 תווים");
+        return;
+      }
+    }
+
     setIsLoading(true);
 
     if (mode === "signup") {
