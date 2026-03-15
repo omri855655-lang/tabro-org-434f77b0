@@ -265,14 +265,14 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
       }
 
       if (succeededSheetNames.length === 0) {
-        throw new Error("לא הצלחנו להוסיף שותף לאף גליון");
+        throw new Error(`נכשל בשמירה: ${failedReasons[0] || "לא הצלחנו להוסיף שותף לאף גליון"}`);
       }
 
       await logActivity("added_collaborator", normalizedEmail, succeededSheetNames);
       await fetchSheetAndCollaborators({ silent: true });
 
       if (failedSheets.length > 0) {
-        toast.warning(`נשמר חלקית. נכשל בגליונות: ${failedSheets.join(", ")}`);
+        toast.warning(`נשמר חלקית. נכשל בגליונות: ${failedSheets.join(", ")}${failedReasons[0] ? ` | ${failedReasons[0]}` : ""}`);
       }
 
       toast.success(

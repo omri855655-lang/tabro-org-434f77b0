@@ -203,6 +203,7 @@ const SettingsPanel = () => {
                   else if (v === "todo") { setNewBoardStatuses("לביצוע,הושלם"); setNewBoardDashboard(true); }
                   else if (v === "shopping") { setNewBoardStatuses("לקנות,נקנה"); setNewBoardDashboard(false); }
                   else if (v === "tracking") { setNewBoardStatuses("לצפות,צופה,נצפה"); setNewBoardDashboard(false); }
+                  else if (v === "learning-reading") { setNewBoardStatuses("לקריאה,בלמידה,הושלם"); setNewBoardDashboard(false); }
                   else if (v === "kanban") { setNewBoardStatuses("לביצוע,בתהליך,בבדיקה,הושלם"); setNewBoardDashboard(true); }
                   else { setNewBoardStatuses("לביצוע,בתהליך,הושלם"); setNewBoardDashboard(false); }
                 }}>
@@ -212,6 +213,7 @@ const SettingsPanel = () => {
                     <SelectItem value="todo">✅ רשימת To-Do (צ'קבוקסים)</SelectItem>
                     <SelectItem value="shopping">🛒 רשימת קניות</SelectItem>
                     <SelectItem value="tracking">📚 קטגוריית רשימות (כמו ספרים/פודקאסטים)</SelectItem>
+                    <SelectItem value="learning-reading">📖 רשימת למידה/קריאה</SelectItem>
                     <SelectItem value="kanban">📊 קנבן (לביצוע → בבדיקה → הושלם)</SelectItem>
                     <SelectItem value="custom">⚙️ מותאם אישית</SelectItem>
                   </SelectContent>

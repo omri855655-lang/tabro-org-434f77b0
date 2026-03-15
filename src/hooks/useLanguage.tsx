@@ -185,7 +185,7 @@ const translations = {
     podcasts: "Podcasts",
     dailyRoutine: "Daily Routine",
     projects: "Projects",
-    courses: "Courses",
+    courses: "Lists",
     planner: "Planner",
     deeply: "Deeply",
     settings: "Settings",
