@@ -203,22 +203,42 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
         targetSheets = [{ id: sheetId, name: selectedShareSheet }];
       }
 
-      // Write via secured backend function
+      // Direct INSERT with upsert + verification
       const succeededSheetNames: string[] = [];
       const failedSheets: string[] = [];
 
       for (const sheet of targetSheets) {
-        const { error: rpcError } = await supabase.rpc(
-          "share_sheet_with_email" as any,
-          {
-            _sheet_id: sheet.id,
-            _invited_email: normalizedEmail,
-            _permission: permission,
-          } as any
-        );
+        // Direct INSERT (upsert on sheet_id + invited_email via unique constraint)
+        const { data: insertedRow, error: insertError } = await supabase
+          .from("task_sheet_collaborators")
+          .upsert(
+            {
+              sheet_id: sheet.id,
+              invited_email: normalizedEmail,
+              permission,
+              invited_by: user.id,
+            },
+            { onConflict: "sheet_id,invited_email" }
+          )
+          .select("id")
+          .maybeSingle();
 
-        if (rpcError) {
-          console.error("share_sheet_with_email error:", rpcError);
+        if (insertError) {
+          console.error("INSERT collaborator error:", insertError);
+          failedSheets.push(sheet.name);
+          continue;
+        }
+
+        // Verify the row actually exists
+        const { data: verifyRow } = await supabase
+          .from("task_sheet_collaborators")
+          .select("id")
+          .eq("sheet_id", sheet.id)
+          .eq("invited_email", normalizedEmail)
+          .maybeSingle();
+
+        if (!verifyRow) {
+          console.error("Verification failed: row not found after INSERT for sheet", sheet.name);
           failedSheets.push(sheet.name);
           continue;
         }
