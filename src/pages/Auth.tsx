@@ -80,11 +80,18 @@ const Auth = () => {
 
     if (mode === "signup") {
       const { supabase } = await import("@/integrations/supabase/client");
+      const username = parsed.data.email.split("@")[0].toLowerCase();
       const { data, error } = await supabase.auth.signUp({
         email: parsed.data.email,
         password: parsed.data.password,
         options: {
           emailRedirectTo: window.location.origin + "/personal",
+          data: {
+            first_name: normalizedFirstName,
+            last_name: normalizedLastName,
+            username,
+            display_name: `${normalizedFirstName} ${normalizedLastName}`,
+          },
         },
       });
       setIsLoading(false);
