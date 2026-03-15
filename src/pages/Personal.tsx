@@ -103,17 +103,36 @@ const Personal = () => {
 
       if (sheetsError) throw sheetsError;
 
-      // We'll show sheets that are NOT owned by the current user
+      const ownerIds = [...new Set((sheets || []).filter(s => s.user_id !== user.id).map(s => s.user_id))];
+      
+      // Fetch owner profiles
+      let ownerProfiles: Record<string, { display_name: string | null; email: string }> = {};
+      if (ownerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, username")
+          .in("user_id", ownerIds);
+        
+        for (const p of profiles || []) {
+          ownerProfiles[p.user_id] = { 
+            display_name: p.display_name || p.username || null, 
+            email: p.username || "" 
+          };
+        }
+      }
+
       const sharedResults: SharedSheet[] = [];
       for (const sheet of sheets || []) {
         if (sheet.user_id === user.id) continue;
 
         const collab = data.find((d) => d.sheet_id === sheet.id);
+        const ownerInfo = ownerProfiles[sheet.user_id];
         sharedResults.push({
           sheet_id: sheet.id,
           sheet_name: sheet.sheet_name,
           owner_id: sheet.user_id,
-          owner_email: sheet.user_id.slice(0, 8),
+          owner_email: ownerInfo?.email || sheet.user_id.slice(0, 8),
+          owner_display_name: ownerInfo?.display_name || ownerInfo?.email || sheet.user_id.slice(0, 8),
           permission: collab?.permission || "view",
           task_type: sheet.task_type,
         });
