@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -39,40 +40,78 @@ interface SheetSharingDialogProps {
 }
 
 const emailSchema = z.string().trim().email("אימייל לא תקין").max(255);
+const MAIN_SHEET_NAME = "ראשי";
 
 const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, availableSheets = [] }: SheetSharingDialogProps) => {
   const { user } = useAuth();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [newEmail, setNewEmail] = useState("");
   const [permission, setPermission] = useState<"view" | "edit">("view");
+  const [shareToAllSheets, setShareToAllSheets] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [sheetId, setSheetId] = useState<string | null>(null);
-  const [selectedShareSheet, setSelectedShareSheet] = useState<string>(sheetName);
+  const [selectedShareSheet, setSelectedShareSheet] = useState<string>(sheetName || MAIN_SHEET_NAME);
+
+  const selectableSheets = useMemo(() => {
+    const normalized = [MAIN_SHEET_NAME, ...availableSheets, sheetName]
+      .map((s) => (s || "").trim())
+      .filter(Boolean);
+
+    return [...new Set(normalized)].sort((a, b) => {
+      if (a === MAIN_SHEET_NAME && b !== MAIN_SHEET_NAME) return -1;
+      if (b === MAIN_SHEET_NAME && a !== MAIN_SHEET_NAME) return 1;
+
+      const aNum = Number(a);
+      const bNum = Number(b);
+      const aIsNum = !Number.isNaN(aNum);
+      const bIsNum = !Number.isNaN(bNum);
+
+      if (aIsNum && bIsNum) return aNum - bNum;
+      if (aIsNum) return -1;
+      if (bIsNum) return 1;
+      return a.localeCompare(b, "he");
+    });
+  }, [availableSheets, sheetName]);
 
   useEffect(() => {
-    setSelectedShareSheet(sheetName);
+    const initial = (sheetName || MAIN_SHEET_NAME).trim();
+    setSelectedShareSheet(initial || MAIN_SHEET_NAME);
   }, [sheetName]);
 
   useEffect(() => {
-    if (open && user) {
-      fetchSheetAndCollaborators();
+    if (!open || !user) return;
+
+    if (!selectableSheets.includes(selectedShareSheet)) {
+      setSelectedShareSheet(selectableSheets[0] || MAIN_SHEET_NAME);
+      return;
     }
-  }, [open, user, selectedShareSheet]);
+
+    fetchSheetAndCollaborators();
+  }, [open, user, selectedShareSheet, selectableSheets]);
 
   const fetchSheetAndCollaborators = async () => {
     if (!user) return;
     setLoading(true);
 
-    // Ensure sheet exists
-    await supabase.from("task_sheets").upsert(
-      { user_id: user.id, task_type: taskType, sheet_name: selectedShareSheet },
+    const normalizedSheetName = (selectedShareSheet || MAIN_SHEET_NAME).trim();
+
+    const { error: ensureSheetError } = await supabase.from("task_sheets").upsert(
+      { user_id: user.id, task_type: taskType, sheet_name: normalizedSheetName },
       { onConflict: "user_id,task_type,sheet_name" }
     );
+
+    if (ensureSheetError) {
+      setCollaborators([]);
+      setLoading(false);
+      toast.error("שגיאה בפתיחת גליון לשיתוף");
+      return;
+    }
 
     const { data: sheetData, error: sheetError } = await supabase
       .from("task_sheets")
       .select("id")
-      .eq("sheet_name", selectedShareSheet)
+      .eq("sheet_name", normalizedSheetName)
       .eq("task_type", taskType)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -81,6 +120,7 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
 
     if (sheetError || !sheetData) {
       setCollaborators([]);
+      setSheetId(null);
       setLoading(false);
       return;
     }
@@ -104,7 +144,7 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
   };
 
   const addCollaborator = async () => {
-    if (!user || !sheetId) return;
+    if (!user) return;
 
     const parsed = emailSchema.safeParse(newEmail);
     if (!parsed.success) {
@@ -112,48 +152,76 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
       return;
     }
 
-    if (parsed.data === user.email) {
+    const normalizedEmail = parsed.data.toLowerCase();
+
+    if (normalizedEmail === (user.email || "").toLowerCase()) {
       toast.error("לא ניתן לשתף עם עצמך");
       return;
     }
 
-    if (collaborators.some((c) => c.invited_email.toLowerCase() === parsed.data.toLowerCase())) {
-      toast.error("המשתמש כבר משותף");
-      return;
-    }
+    setSaving(true);
 
-    const { data: upserted, error } = await supabase
-      .from("task_sheet_collaborators")
-      .upsert(
-        {
-          sheet_id: sheetId,
-          invited_email: parsed.data.toLowerCase(),
-          permission,
-          invited_by: user.id,
-        },
-        { onConflict: "sheet_id,invited_email" }
-      )
-      .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
-      .single();
+    try {
+      let targetSheets: Array<{ id: string; sheet_name: string }> = [];
 
-    if (error || !upserted) {
-      toast.error("שגיאה בהוספת שותף");
-      console.error(error);
-      return;
-    }
+      if (shareToAllSheets) {
+        const sheetNamesToShare = [...new Set([MAIN_SHEET_NAME, ...selectableSheets])];
 
-    setCollaborators((prev) => {
-      const existingIndex = prev.findIndex((c) => c.id === upserted.id);
-      if (existingIndex >= 0) {
-        const next = [...prev];
-        next[existingIndex] = upserted as Collaborator;
-        return next;
+        const { data: ensuredSheets, error: ensureSheetsError } = await supabase
+          .from("task_sheets")
+          .upsert(
+            sheetNamesToShare.map((name) => ({
+              user_id: user.id,
+              task_type: taskType,
+              sheet_name: name,
+            })),
+            { onConflict: "user_id,task_type,sheet_name" }
+          )
+          .select("id, sheet_name");
+
+        if (ensureSheetsError || !ensuredSheets) {
+          throw ensureSheetsError || new Error("לא נמצאו גליונות לשיתוף");
+        }
+
+        targetSheets = ensuredSheets;
+      } else {
+        if (!sheetId) {
+          throw new Error("הגליון שנבחר לא זמין לשיתוף");
+        }
+
+        targetSheets = [{ id: sheetId, sheet_name: selectedShareSheet }];
       }
-      return [...prev, upserted as Collaborator];
-    });
 
-    toast.success(`${parsed.data} נוסף כשותף לגליון "${selectedShareSheet}"`);
-    setNewEmail("");
+      const { error } = await supabase
+        .from("task_sheet_collaborators")
+        .upsert(
+          targetSheets.map((sheet) => ({
+            sheet_id: sheet.id,
+            invited_email: normalizedEmail,
+            permission,
+            invited_by: user.id,
+          })),
+          { onConflict: "sheet_id,invited_email" }
+        );
+
+      if (error) {
+        throw error;
+      }
+
+      await fetchSheetAndCollaborators();
+
+      toast.success(
+        shareToAllSheets
+          ? `${normalizedEmail} נוסף לשיתוף בכל הגליונות`
+          : `${normalizedEmail} נוסף לגליון "${selectedShareSheet}"`
+      );
+      setNewEmail("");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message?.includes("on conflict") ? "שגיאת מערכת בשיתוף תוקנה, נסה שוב" : "שגיאה בהוספת שותף");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updatePermission = async (id: string, newPermission: string) => {
@@ -167,8 +235,8 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
       return;
     }
 
-    setCollaborators(prev =>
-      prev.map(c => (c.id === id ? { ...c, permission: newPermission } : c))
+    setCollaborators((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, permission: newPermission } : c))
     );
   };
 
@@ -183,7 +251,7 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
       return;
     }
 
-    setCollaborators(prev => prev.filter(c => c.id !== id));
+    setCollaborators((prev) => prev.filter((c) => c.id !== id));
     toast.success("השותף הוסר");
   };
 
@@ -198,24 +266,33 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Sheet selector */}
-          {availableSheets.length > 0 && (
-            <div className="space-y-2">
-              <Label>בחר גליון לשיתוף</Label>
-              <Select value={selectedShareSheet} onValueChange={setSelectedShareSheet}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSheets.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>בחר גליון לשיתוף</Label>
+            <Select value={selectedShareSheet} onValueChange={setSelectedShareSheet}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {selectableSheets.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* Add collaborator */}
+          <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+            <Checkbox
+              id="share-all-sheets"
+              checked={shareToAllSheets}
+              onCheckedChange={(checked) => setShareToAllSheets(!!checked)}
+            />
+            <Label htmlFor="share-all-sheets" className="text-sm cursor-pointer">
+              שתף לכל הגליונות (כולל ראשי)
+            </Label>
+          </div>
+
           <div className="space-y-2">
             <Label>הוסף שותף לפי אימייל</Label>
             <div className="flex gap-2">
@@ -236,13 +313,12 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
                   <SelectItem value="edit">עריכה</SelectItem>
                 </SelectContent>
               </Select>
-              <Button onClick={addCollaborator} size="sm">
-                הוסף
+              <Button onClick={addCollaborator} size="sm" disabled={saving || !newEmail.trim()}>
+                {saving ? "שומר..." : "הוסף"}
               </Button>
             </div>
           </div>
 
-          {/* Collaborators list */}
           <div className="space-y-2">
             <Label>שותפים ({collaborators.length})</Label>
             {loading ? (
