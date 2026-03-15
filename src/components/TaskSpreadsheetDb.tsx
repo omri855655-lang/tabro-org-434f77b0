@@ -63,7 +63,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   // null means "all sheets", a string means specific sheet
   const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName ?? null);
   const effectiveSheet = fixedSheetName ?? selectedSheet;
-  const effectiveOwnerId = taskType === "work" ? (fixedSheetOwnerId ?? user?.id) : undefined;
+  const effectiveOwnerId = fixedSheetOwnerId ?? user?.id;
   const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: string; field: keyof Task } | null>(null);
