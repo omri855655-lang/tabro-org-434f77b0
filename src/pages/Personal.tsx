@@ -58,6 +58,7 @@ const STATIC_TABS: TabDef[] = [
   { id: "planner", icon: CalendarDays, label: "planner", visibilityKey: "planner" },
   { id: "deeply", icon: Focus, label: "deeply", visibilityKey: "deeply" },
   { id: "challenges", icon: Trophy, label: "challenges" },
+  { id: "sharing", icon: Share2, label: "שיתופים" },
   { id: "settings", icon: Settings, label: "settings" },
 ];
 
