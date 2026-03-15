@@ -165,20 +165,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       if (error) throw error;
 
       // Update local state
-      setAvailableSheets(prev => {
-        const updated = [...prev, sheetName];
-        return updated.sort((a, b) => {
-          const aNum = parseInt(a, 10);
-          const bNum = parseInt(b, 10);
-          const aIsNum = !isNaN(aNum);
-          const bIsNum = !isNaN(bNum);
-          
-          if (aIsNum && bIsNum) return aNum - bNum;
-          if (aIsNum) return -1;
-          if (bIsNum) return 1;
-          return a.localeCompare(b, 'he');
-        });
-      });
+      setAvailableSheets((prev) => [...new Set([...prev, sheetName])].sort(compareSheetNames));
       setSelectedSheet(sheetName);
       toast.success(`גליון "${sheetName}" נוצר בהצלחה`);
     } catch (error: any) {
