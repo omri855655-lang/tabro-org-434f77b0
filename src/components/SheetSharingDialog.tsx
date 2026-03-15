@@ -201,49 +201,61 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
         targetSheets = [{ id: sheetId, name: selectedShareSheet }];
       }
 
-      // Insert collaborators one by one to handle conflicts gracefully
+      // Write via secured backend function and verify persistence
       let successCount = 0;
+      const failedSheets: string[] = [];
+
       for (const sheet of targetSheets) {
-        // Check if already exists
-        const { data: existing } = await supabase
-          .from("task_sheet_collaborators")
-          .select("id")
-          .eq("sheet_id", sheet.id)
-          .eq("invited_email", normalizedEmail)
-          .maybeSingle();
+        const { error: rpcError } = await supabase.rpc(
+          "share_sheet_with_email" as any,
+          {
+            _sheet_id: sheet.id,
+            _invited_email: normalizedEmail,
+            _permission: permission,
+          } as any
+        );
 
-        if (existing) {
-          // Update permission
-          await supabase
-            .from("task_sheet_collaborators")
-            .update({ permission })
-            .eq("id", existing.id);
-          successCount++;
-        } else {
-          // Insert new
-          const { error } = await supabase
-            .from("task_sheet_collaborators")
-            .insert({
-              sheet_id: sheet.id,
-              invited_email: normalizedEmail,
-              permission,
-              invited_by: user.id,
-            });
-
-          if (error) {
-            console.error("Insert collaborator error:", error);
-          } else {
-            successCount++;
-          }
+        if (rpcError) {
+          console.error("share_sheet_with_email error:", rpcError);
+          failedSheets.push(sheet.name);
+          continue;
         }
+
+        successCount++;
       }
+
+      const { data: persistedRows, error: verifyError } = await supabase
+        .from("task_sheet_collaborators")
+        .select("id, sheet_id")
+        .in("sheet_id", targetSheets.map((s) => s.id))
+        .eq("invited_email", normalizedEmail)
+        .eq("invited_by", user.id);
+
+      if (verifyError) {
+        throw new Error("נכשלה בדיקת שמירה אחרי השיתוף");
+      }
+
+      const persistedCount = persistedRows?.length || 0;
+      if (persistedCount === 0) {
+        const failed = failedSheets.length > 0 ? ` (${failedSheets.join(", ")})` : "";
+        throw new Error(`השיתוף לא נשמר בבסיס הנתונים${failed}`);
+      }
+
+      successCount = Math.min(successCount, persistedCount);
 
       if (successCount === 0) {
         throw new Error("לא הצלחנו להוסיף שותף לאף גליון");
       }
 
-      await logActivity("added_collaborator", normalizedEmail, targetSheets.map(s => s.name));
+      const succeededSheetNames = targetSheets
+        .filter((s) => !failedSheets.includes(s.name))
+        .map((s) => s.name);
+      await logActivity("added_collaborator", normalizedEmail, succeededSheetNames);
       await fetchSheetAndCollaborators();
+
+      if (failedSheets.length > 0) {
+        toast.warning(`נשמר חלקית. נכשל בגליונות: ${failedSheets.join(", ")}`);
+      }
 
       toast.success(
         shareToAllSheets
