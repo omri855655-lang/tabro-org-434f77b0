@@ -22,7 +22,8 @@ import NotificationBell from "@/components/NotificationBell";
 import SettingsPanel from "@/components/SettingsPanel";
 import CustomBoardManager from "@/components/CustomBoardManager";
 import ChallengesManager from "@/components/ChallengesManager";
-import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight } from "lucide-react";
+import SharingManagement from "@/components/SharingManagement";
+import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -57,6 +58,7 @@ const STATIC_TABS: TabDef[] = [
   { id: "planner", icon: CalendarDays, label: "planner", visibilityKey: "planner" },
   { id: "deeply", icon: Focus, label: "deeply", visibilityKey: "deeply" },
   { id: "challenges", icon: Trophy, label: "challenges" },
+  { id: "sharing", icon: Share2, label: "שיתופים" },
   { id: "settings", icon: Settings, label: "settings" },
 ];
 
@@ -432,6 +434,10 @@ const Personal = () => {
 
         <TabsContent value="challenges" className="flex-1 min-h-0 overflow-auto m-0 p-0">
           <ChallengesManager />
+        </TabsContent>
+
+        <TabsContent value="sharing" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <SharingManagement />
         </TabsContent>
 
         {customBoards.map((board) => (

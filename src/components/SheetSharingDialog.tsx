@@ -61,76 +61,81 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
     return [...new Set(normalized)].sort((a, b) => {
       if (a === MAIN_SHEET_NAME && b !== MAIN_SHEET_NAME) return -1;
       if (b === MAIN_SHEET_NAME && a !== MAIN_SHEET_NAME) return 1;
-
       const aNum = Number(a);
       const bNum = Number(b);
-      const aIsNum = !Number.isNaN(aNum);
-      const bIsNum = !Number.isNaN(bNum);
-
-      if (aIsNum && bIsNum) return aNum - bNum;
-      if (aIsNum) return -1;
-      if (bIsNum) return 1;
+      if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
+      if (!Number.isNaN(aNum)) return -1;
+      if (!Number.isNaN(bNum)) return 1;
       return a.localeCompare(b, "he");
     });
   }, [availableSheets, sheetName]);
 
   useEffect(() => {
-    const initial = (sheetName || MAIN_SHEET_NAME).trim();
-    setSelectedShareSheet(initial || MAIN_SHEET_NAME);
+    setSelectedShareSheet((sheetName || MAIN_SHEET_NAME).trim() || MAIN_SHEET_NAME);
   }, [sheetName]);
 
   useEffect(() => {
     if (!open || !user) return;
-
     if (!selectableSheets.includes(selectedShareSheet)) {
       setSelectedShareSheet(selectableSheets[0] || MAIN_SHEET_NAME);
       return;
     }
-
     fetchSheetAndCollaborators();
   }, [open, user, selectedShareSheet, selectableSheets]);
+
+  const ensureSheet = async (name: string): Promise<string | null> => {
+    if (!user) return null;
+    // First try to find existing
+    const { data: existing } = await supabase
+      .from("task_sheets")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("task_type", taskType)
+      .eq("sheet_name", name)
+      .maybeSingle();
+
+    if (existing) return existing.id;
+
+    // Create new
+    const { data: created, error } = await supabase
+      .from("task_sheets")
+      .insert({ user_id: user.id, task_type: taskType, sheet_name: name })
+      .select("id")
+      .single();
+
+    if (error) {
+      // Might be race condition, try select again
+      const { data: retry } = await supabase
+        .from("task_sheets")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("task_type", taskType)
+        .eq("sheet_name", name)
+        .maybeSingle();
+      return retry?.id || null;
+    }
+    return created.id;
+  };
 
   const fetchSheetAndCollaborators = async () => {
     if (!user) return;
     setLoading(true);
 
-    const normalizedSheetName = (selectedShareSheet || MAIN_SHEET_NAME).trim();
-
-    const { error: ensureSheetError } = await supabase.from("task_sheets").upsert(
-      { user_id: user.id, task_type: taskType, sheet_name: normalizedSheetName },
-      { onConflict: "user_id,task_type,sheet_name" }
-    );
-
-    if (ensureSheetError) {
+    const id = await ensureSheet(selectedShareSheet);
+    if (!id) {
       setCollaborators([]);
+      setSheetId(null);
       setLoading(false);
       toast.error("שגיאה בפתיחת גליון לשיתוף");
       return;
     }
 
-    const { data: sheetData, error: sheetError } = await supabase
-      .from("task_sheets")
-      .select("id")
-      .eq("sheet_name", normalizedSheetName)
-      .eq("task_type", taskType)
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (sheetError || !sheetData) {
-      setCollaborators([]);
-      setSheetId(null);
-      setLoading(false);
-      return;
-    }
-
-    setSheetId(sheetData.id);
+    setSheetId(id);
 
     const { data: collabData, error: collabError } = await supabase
       .from("task_sheet_collaborators")
       .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
-      .eq("sheet_id", sheetData.id)
+      .eq("sheet_id", id)
       .order("created_at", { ascending: true });
 
     if (collabError) {
@@ -141,6 +146,22 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
 
     setCollaborators((collabData || []) as Collaborator[]);
     setLoading(false);
+  };
+
+  const logActivity = async (action: string, targetEmail: string, sheetNames: string[]) => {
+    if (!user) return;
+    try {
+      await supabase.from("sharing_activity_log").insert(
+        sheetNames.map((sn) => ({
+          user_id: user.id,
+          action,
+          target_email: targetEmail,
+          sheet_name: sn,
+          task_type: taskType,
+          details: `${action}: ${targetEmail} → ${sn}`,
+        }))
+      );
+    } catch {}
   };
 
   const addCollaborator = async () => {
@@ -162,63 +183,77 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
     setSaving(true);
 
     try {
-      let targetSheets: Array<{ id: string; sheet_name: string }> = [];
+      let targetSheets: Array<{ id: string; name: string }> = [];
 
       if (shareToAllSheets) {
-        const sheetNamesToShare = [...new Set([MAIN_SHEET_NAME, ...selectableSheets])];
-
-        const { data: ensuredSheets, error: ensureSheetsError } = await supabase
-          .from("task_sheets")
-          .upsert(
-            sheetNamesToShare.map((name) => ({
-              user_id: user.id,
-              task_type: taskType,
-              sheet_name: name,
-            })),
-            { onConflict: "user_id,task_type,sheet_name" }
-          )
-          .select("id, sheet_name");
-
-        if (ensureSheetsError || !ensuredSheets) {
-          throw ensureSheetsError || new Error("לא נמצאו גליונות לשיתוף");
+        const allNames = [...new Set([MAIN_SHEET_NAME, ...selectableSheets])];
+        for (const name of allNames) {
+          const id = await ensureSheet(name);
+          if (id) targetSheets.push({ id, name });
         }
-
-        targetSheets = ensuredSheets;
+        if (targetSheets.length === 0) {
+          throw new Error("לא נמצאו גליונות לשיתוף");
+        }
       } else {
         if (!sheetId) {
           throw new Error("הגליון שנבחר לא זמין לשיתוף");
         }
-
-        targetSheets = [{ id: sheetId, sheet_name: selectedShareSheet }];
+        targetSheets = [{ id: sheetId, name: selectedShareSheet }];
       }
 
-      const { error } = await supabase
-        .from("task_sheet_collaborators")
-        .upsert(
-          targetSheets.map((sheet) => ({
-            sheet_id: sheet.id,
-            invited_email: normalizedEmail,
-            permission,
-            invited_by: user.id,
-          })),
-          { onConflict: "sheet_id,invited_email" }
-        );
+      // Insert collaborators one by one to handle conflicts gracefully
+      let successCount = 0;
+      for (const sheet of targetSheets) {
+        // Check if already exists
+        const { data: existing } = await supabase
+          .from("task_sheet_collaborators")
+          .select("id")
+          .eq("sheet_id", sheet.id)
+          .eq("invited_email", normalizedEmail)
+          .maybeSingle();
 
-      if (error) {
-        throw error;
+        if (existing) {
+          // Update permission
+          await supabase
+            .from("task_sheet_collaborators")
+            .update({ permission })
+            .eq("id", existing.id);
+          successCount++;
+        } else {
+          // Insert new
+          const { error } = await supabase
+            .from("task_sheet_collaborators")
+            .insert({
+              sheet_id: sheet.id,
+              invited_email: normalizedEmail,
+              permission,
+              invited_by: user.id,
+            });
+
+          if (error) {
+            console.error("Insert collaborator error:", error);
+          } else {
+            successCount++;
+          }
+        }
       }
 
+      if (successCount === 0) {
+        throw new Error("לא הצלחנו להוסיף שותף לאף גליון");
+      }
+
+      await logActivity("added_collaborator", normalizedEmail, targetSheets.map(s => s.name));
       await fetchSheetAndCollaborators();
 
       toast.success(
         shareToAllSheets
-          ? `${normalizedEmail} נוסף לשיתוף בכל הגליונות`
+          ? `${normalizedEmail} נוסף לשיתוף ב-${successCount} גליונות`
           : `${normalizedEmail} נוסף לגליון "${selectedShareSheet}"`
       );
       setNewEmail("");
     } catch (error: any) {
-      console.error(error);
-      toast.error(error?.message?.includes("on conflict") ? "שגיאת מערכת בשיתוף תוקנה, נסה שוב" : "שגיאה בהוספת שותף");
+      console.error("addCollaborator error:", error);
+      toast.error(error?.message || "שגיאה בהוספת שותף");
     } finally {
       setSaving(false);
     }
@@ -241,6 +276,7 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
   };
 
   const removeCollaborator = async (id: string) => {
+    const collab = collaborators.find(c => c.id === id);
     const { error } = await supabase
       .from("task_sheet_collaborators")
       .delete()
@@ -249,6 +285,10 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
     if (error) {
       toast.error("שגיאה בהסרת שותף");
       return;
+    }
+
+    if (collab) {
+      await logActivity("removed_collaborator", collab.invited_email, [selectedShareSheet]);
     }
 
     setCollaborators((prev) => prev.filter((c) => c.id !== id));
@@ -274,9 +314,7 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
               </SelectTrigger>
               <SelectContent>
                 {selectableSheets.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

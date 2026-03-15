@@ -786,6 +786,42 @@ export type Database = {
         }
         Relationships: []
       }
+      sharing_activity_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: string | null
+          id: string
+          sheet_name: string | null
+          target_display_name: string | null
+          target_email: string | null
+          task_type: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          sheet_name?: string | null
+          target_display_name?: string | null
+          target_email?: string | null
+          task_type?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          sheet_name?: string | null
+          target_display_name?: string | null
+          target_email?: string | null
+          task_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       shows: {
         Row: {
           air_date: string | null
