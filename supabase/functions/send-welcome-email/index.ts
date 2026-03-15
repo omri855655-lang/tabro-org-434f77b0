@@ -184,9 +184,8 @@ serve(async (req: Request): Promise<Response> => {
     const username = profile?.username || user.email.split("@")[0];
     const lang = profile?.preferred_language || "he";
 
-    // Build origin from request URL
-    const reqUrl = new URL(req.url);
-    const origin = reqUrl.origin.replace("/functions/v1/send-welcome-email", "");
+    // Always link to the published website
+    const origin = "https://excel-life-sync.lovable.app";
 
     const emailHtml = getWelcomeEmailHtml(lang, fullName, username, origin);
     const subject = lang === "en" ? "Welcome to the App! ✅" : "ברוך הבא למערכת ✅";
