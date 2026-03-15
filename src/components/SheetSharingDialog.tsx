@@ -203,43 +203,61 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
         targetSheets = [{ id: sheetId, name: selectedShareSheet }];
       }
 
-      // Direct INSERT with upsert + verification
+      // Direct INSERT/UPDATE + verification
       const succeededSheetNames: string[] = [];
       const failedSheets: string[] = [];
+      const failedReasons: string[] = [];
 
       for (const sheet of targetSheets) {
-        // Direct INSERT (upsert on sheet_id + invited_email via unique constraint)
-        const { data: insertedRow, error: insertError } = await supabase
+        let failureReason = "";
+
+        const basePayload = {
+          sheet_id: sheet.id,
+          invited_email: normalizedEmail,
+          permission,
+          invited_by: user.id,
+        };
+
+        const { error: insertError } = await supabase
           .from("task_sheet_collaborators")
-          .upsert(
-            {
-              sheet_id: sheet.id,
-              invited_email: normalizedEmail,
-              permission,
-              invited_by: user.id,
-            },
-            { onConflict: "sheet_id,invited_email" }
-          )
-          .select("id")
-          .maybeSingle();
+          .insert(basePayload);
 
         if (insertError) {
-          console.error("INSERT collaborator error:", insertError);
-          failedSheets.push(sheet.name);
-          continue;
+          // If already exists, update permission directly
+          if (insertError.code === "23505") {
+            const { data: updatedRow, error: updateError } = await supabase
+              .from("task_sheet_collaborators")
+              .update({ permission, invited_by: user.id })
+              .eq("sheet_id", sheet.id)
+              .eq("invited_email", normalizedEmail)
+              .select("id")
+              .maybeSingle();
+
+            if (updateError || !updatedRow) {
+              failureReason = updateError?.message || "נכשלה עדכון הרשאה לשורה קיימת";
+            }
+          } else {
+            failureReason = insertError.message || "נכשל INSERT";
+          }
         }
 
-        // Verify the row actually exists
-        const { data: verifyRow } = await supabase
-          .from("task_sheet_collaborators")
-          .select("id")
-          .eq("sheet_id", sheet.id)
-          .eq("invited_email", normalizedEmail)
-          .maybeSingle();
+        if (!failureReason) {
+          const { data: verifyRow, error: verifyError } = await supabase
+            .from("task_sheet_collaborators")
+            .select("id")
+            .eq("sheet_id", sheet.id)
+            .eq("invited_email", normalizedEmail)
+            .maybeSingle();
 
-        if (!verifyRow) {
-          console.error("Verification failed: row not found after INSERT for sheet", sheet.name);
+          if (verifyError || !verifyRow) {
+            failureReason = verifyError?.message || "השורה לא חזרה אחרי שמירה";
+          }
+        }
+
+        if (failureReason) {
+          console.error("Collaborator save failed", { sheet: sheet.name, reason: failureReason });
           failedSheets.push(sheet.name);
+          failedReasons.push(`${sheet.name}: ${failureReason}`);
           continue;
         }
 

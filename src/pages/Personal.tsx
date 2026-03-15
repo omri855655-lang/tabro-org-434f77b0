@@ -86,13 +86,28 @@ const Personal = () => {
 
     try {
       const normalizedEmail = (user.email || "").trim().toLowerCase();
-      const { data, error } = await supabase
+
+      const byUserPromise = supabase
         .from("task_sheet_collaborators")
         .select("sheet_id, permission")
-        .or(`user_id.eq.${user.id},invited_email.eq.${normalizedEmail}`);
+        .eq("user_id", user.id);
 
-      if (error) throw error;
-      if (!data || data.length === 0) {
+      const byEmailPromise = normalizedEmail
+        ? supabase
+            .from("task_sheet_collaborators")
+            .select("sheet_id, permission")
+            .eq("invited_email", normalizedEmail)
+        : Promise.resolve({ data: [], error: null } as any);
+
+      const [byUserRes, byEmailRes] = await Promise.all([byUserPromise, byEmailPromise]);
+
+      if (byUserRes.error) throw byUserRes.error;
+      if (byEmailRes.error) throw byEmailRes.error;
+
+      const mergedCollabs = [...(byUserRes.data || []), ...(byEmailRes.data || [])];
+      const data = Array.from(new Map(mergedCollabs.map((row) => [row.sheet_id, row])).values());
+
+      if (data.length === 0) {
         setSharedSheets([]);
         return;
       }

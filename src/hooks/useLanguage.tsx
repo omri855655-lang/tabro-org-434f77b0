@@ -20,7 +20,7 @@ const translations = {
     podcasts: "פודקאסטים",
     dailyRoutine: "לוז יומי",
     projects: "פרויקטים",
-    courses: "קורסים",
+    courses: "רשימות",
     planner: "מתכנן לוז",
     deeply: "Deeply",
     settings: "הגדרות",
