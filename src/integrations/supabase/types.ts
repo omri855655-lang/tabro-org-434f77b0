@@ -495,6 +495,7 @@ export type Database = {
           last_name: string | null
           pin_code: string | null
           pin_enabled: boolean
+          preferred_language: string
           updated_at: string
           user_id: string
           username: string | null
@@ -508,6 +509,7 @@ export type Database = {
           last_name?: string | null
           pin_code?: string | null
           pin_enabled?: boolean
+          preferred_language?: string
           updated_at?: string
           user_id: string
           username?: string | null
@@ -521,6 +523,7 @@ export type Database = {
           last_name?: string | null
           pin_code?: string | null
           pin_enabled?: boolean
+          preferred_language?: string
           updated_at?: string
           user_id?: string
           username?: string | null

@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -18,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Trash2, Mail, Shield } from "lucide-react";
+import { Users, Trash2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -36,33 +35,44 @@ interface SheetSharingDialogProps {
   onOpenChange: (open: boolean) => void;
   sheetName: string;
   taskType: string;
+  availableSheets?: string[];
 }
 
 const emailSchema = z.string().trim().email("אימייל לא תקין").max(255);
 
-const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSharingDialogProps) => {
+const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, availableSheets = [] }: SheetSharingDialogProps) => {
   const { user } = useAuth();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [newEmail, setNewEmail] = useState("");
   const [permission, setPermission] = useState<"view" | "edit">("view");
   const [loading, setLoading] = useState(false);
   const [sheetId, setSheetId] = useState<string | null>(null);
+  const [selectedShareSheet, setSelectedShareSheet] = useState<string>(sheetName);
+
+  useEffect(() => {
+    setSelectedShareSheet(sheetName);
+  }, [sheetName]);
 
   useEffect(() => {
     if (open && user) {
       fetchSheetAndCollaborators();
     }
-  }, [open, user, sheetName]);
+  }, [open, user, selectedShareSheet]);
 
   const fetchSheetAndCollaborators = async () => {
     if (!user) return;
     setLoading(true);
 
-    // Get the sheet ID
+    // Ensure sheet exists
+    await supabase.from("task_sheets").upsert(
+      { user_id: user.id, task_type: taskType, sheet_name: selectedShareSheet },
+      { onConflict: "user_id,task_type,sheet_name" }
+    );
+
     const { data: sheetData, error: sheetError } = await supabase
       .from("task_sheets")
       .select("id")
-      .eq("sheet_name", sheetName)
+      .eq("sheet_name", selectedShareSheet)
       .eq("task_type", taskType)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -77,7 +87,6 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
 
     setSheetId(sheetData.id);
 
-    // Get collaborators
     const { data: collabData, error: collabError } = await supabase
       .from("task_sheet_collaborators")
       .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
@@ -143,7 +152,7 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
       return [...prev, upserted as Collaborator];
     });
 
-    toast.success(`${parsed.data} נוסף כשותף`);
+    toast.success(`${parsed.data} נוסף כשותף לגליון "${selectedShareSheet}"`);
     setNewEmail("");
   };
 
@@ -184,11 +193,28 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            שיתוף גליון: {sheetName}
+            שיתוף גליון
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Sheet selector */}
+          {availableSheets.length > 0 && (
+            <div className="space-y-2">
+              <Label>בחר גליון לשיתוף</Label>
+              <Select value={selectedShareSheet} onValueChange={setSelectedShareSheet}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSheets.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Add collaborator */}
           <div className="space-y-2">
             <Label>הוסף שותף לפי אימייל</Label>

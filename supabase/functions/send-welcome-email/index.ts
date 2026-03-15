@@ -8,6 +8,130 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function getWelcomeEmailHtml(lang: string, fullName: string, username: string, origin: string) {
+  if (lang === "en") {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; background: #fafafa; border-radius: 12px;">
+        <h1 style="margin: 0 0 8px 0; color: #111827;">Welcome to the App! 🎉</h1>
+        <p style="margin: 0 0 4px 0; color: #374151;">Hi <strong>${fullName}</strong>, we're glad you joined!</p>
+        <p style="margin: 0 0 16px 0; color: #6b7280;">Your username: <strong>@${username}</strong></p>
+        
+        <h2 style="margin: 24px 0 12px 0; font-size: 18px; color: #111827;">📋 What you can do</h2>
+        
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">✅ Personal & Work Tasks</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Create task sheets, organize by category, track progress with statuses (Not Started / In Progress / Done), set deadlines and urgency levels.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">👥 Sheet Sharing</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Share your task sheets with others by email. Set view or edit permissions. Collaborators see who created each task.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📚 Books, Shows & Podcasts</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Track your reading list, TV shows, and podcasts. Mark status changes with timestamps for annual statistics.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📅 Personal Planner</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Visual daily/weekly schedule. Drag to resize events, 5-minute precision, color-coded categories.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🤖 AI Assistant</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Get AI-powered task recommendations and mental coaching for difficult tasks.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📊 Dashboard & Projects</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Overview of all tasks, completion rates, project management with team members and task assignments.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🎓 Courses & Challenges</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Manage your learning courses with syllabi, schedule lessons, and track 30-day challenges.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🎵 Deeply Focus</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Ambient sound presets for deep focus and concentration while working.</p>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px;">
+          <a href="${origin}"
+             style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold;">
+            Open the App →
+          </a>
+        </div>
+      </div>
+    `;
+  }
+
+  // Hebrew (default)
+  return `
+    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; background: #fafafa; border-radius: 12px;">
+      <h1 style="margin: 0 0 8px 0; color: #111827;">ברוך הבא למערכת! 🎉</h1>
+      <p style="margin: 0 0 4px 0; color: #374151;">היי <strong>${fullName}</strong>, שמחים שהצטרפת!</p>
+      <p style="margin: 0 0 16px 0; color: #6b7280;">שם המשתמש שלך: <strong>@${username}</strong></p>
+      
+      <h2 style="margin: 24px 0 12px 0; font-size: 18px; color: #111827;">📋 מה אפשר לעשות כאן</h2>
+      
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">✅ משימות אישיות ועבודה</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">צור גליונות משימות, ארגן לפי קטגוריה, עקוב אחרי התקדמות עם סטטוסים (טרם החל / בטיפול / בוצע), הגדר דדליינים ודחיפות.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">👥 שיתוף גליונות</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">שתף את גליונות המשימות שלך עם אחרים לפי אימייל. הגדר הרשאות צפייה או עריכה. שותפים רואים מי יצר כל משימה.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📚 ספרים, סדרות ופודקאסטים</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">עקוב אחרי רשימת הקריאה, הסדרות והפודקאסטים שלך. סמן שינויי סטטוס עם חותמות זמן לסטטיסטיקות שנתיות.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📅 מתכנן לו״ז אישי</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">לוז יומי/שבועי ויזואלי. גרור לשינוי גודל אירועים, דיוק של 5 דקות, קטגוריות צבעוניות.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🤖 עוזר AI</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">קבל המלצות AI חכמות למשימות ואימון מנטלי למשימות מאתגרות.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📊 דשבורד ופרויקטים</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">סקירה כללית של כל המשימות, אחוזי ביצוע, ניהול פרויקטים עם חברי צוות ושיוך משימות.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🎓 קורסים ואתגרים</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">נהל קורסי לימוד עם סילבוס, תזמן שיעורים ועקוב אחרי אתגרי 30 יום.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🔄 שגרה יומית</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">הגדר משימות חוזרות יומיות, שבועיות או חודשיות ועקוב אחרי השלמתן.</p>
+      </div>
+
+      <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🎵 Deeply - מוזיקת ריכוז</h3>
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">פריסטים של צלילי אווירה לריכוז עמוק בזמן עבודה.</p>
+      </div>
+
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${origin}"
+           style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold;">
+          כניסה לאפליקציה ←
+        </a>
+      </div>
+    </div>
+  `;
+}
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -41,7 +165,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("first_name, last_name, display_name, username, welcome_email_sent")
+      .select("first_name, last_name, display_name, username, welcome_email_sent, preferred_language")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -58,19 +182,14 @@ serve(async (req: Request): Promise<Response> => {
       user.email.split("@")[0];
 
     const username = profile?.username || user.email.split("@")[0];
+    const lang = profile?.preferred_language || "he";
 
-    const emailHtml = `
-      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-        <h1 style="margin: 0 0 12px 0;">ברוך הבא 🎉</h1>
-        <p style="margin: 0 0 8px 0;">היי ${fullName}, שמחים שהצטרפת!</p>
-        <p style="margin: 0 0 8px 0;">שם המשתמש שלך: <strong>@${username}</strong></p>
-        <p style="margin: 0 0 16px 0;">אפשר להתחיל ליצור משימות, לשתף גליונות ולעבוד יחד.</p>
-        <a href="${new URL(req.url).origin.replace('/functions/v1/send-welcome-email', '') || ''}"
-           style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 8px;">
-          כניסה לאפליקציה
-        </a>
-      </div>
-    `;
+    // Build origin from request URL
+    const reqUrl = new URL(req.url);
+    const origin = reqUrl.origin.replace("/functions/v1/send-welcome-email", "");
+
+    const emailHtml = getWelcomeEmailHtml(lang, fullName, username, origin);
+    const subject = lang === "en" ? "Welcome to the App! ✅" : "ברוך הבא למערכת ✅";
 
     if (!RESEND_API_KEY) {
       return new Response(JSON.stringify({ error: "RESEND_API_KEY is missing" }), {
@@ -88,7 +207,7 @@ serve(async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Welcome <onboarding@resend.dev>",
         to: [user.email],
-        subject: "ברוך הבא למערכת ✅",
+        subject,
         html: emailHtml,
       }),
     });

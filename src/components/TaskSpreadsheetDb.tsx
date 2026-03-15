@@ -33,6 +33,7 @@ interface TaskSpreadsheetDbProps {
   showYearSelector?: boolean;
   fixedSheetName?: string;
   fixedSheetOwnerId?: string;
+  ownerDisplayName?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -55,7 +56,9 @@ const statusOrder: Record<string, number> = {
 
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
-const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId }: TaskSpreadsheetDbProps) => {
+const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
+  const isSharedSheet = !!fixedSheetOwnerId;
+  const [sharedCollapsed, setSharedCollapsed] = useState(false);
   const { user } = useAuth();
   const currentYear = String(new Date().getFullYear());
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
@@ -736,6 +739,31 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
   return (
     <div className="flex flex-col h-full bg-background" dir="rtl">
+      {/* Shared sheet collapse toggle */}
+      {isSharedSheet && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSharedCollapsed(!sharedCollapsed)}
+            className="gap-1"
+          >
+            {sharedCollapsed ? "▸" : "▾"}
+            <span className="text-sm font-medium">{title}</span>
+          </Button>
+          {ownerDisplayName && (
+            <span className="text-xs text-muted-foreground">משותף מ: {ownerDisplayName}</span>
+          )}
+          <span className={cn(
+            "text-xs px-2 py-0.5 rounded-full",
+            readOnly ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+          )}>
+            {readOnly ? "צפייה בלבד" : "עריכה"}
+          </span>
+        </div>
+      )}
+      {isSharedSheet && sharedCollapsed ? null : (
+        <>
       {/* Sheet Selector */}
       {showYearSelector && (
         <div className="flex items-center gap-2">
@@ -753,7 +781,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               variant="outline"
               size="sm"
               onClick={async () => {
-                // Ensure the sheet exists in task_sheets before sharing
                 const sheetToShare = selectedSheet ?? currentYear;
                 if (!user) return;
 
@@ -908,7 +935,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               <table className="w-full border-collapse min-w-[1200px]">
             <thead className="sticky top-0 z-10">
               <tr className="bg-muted">
-                {taskHeaders.map((header, i) => (
+                {taskHeaders.filter((_, i) => {
+                  // Hide "נוצר על ידי" column (index 9) when not a shared sheet
+                  if (i === 9 && !isSharedSheet) return false;
+                  return true;
+                }).map((header, i) => (
                   <th
                     key={i}
                     className="px-3 py-2 text-right text-sm font-medium text-muted-foreground border-b border-border whitespace-nowrap"
@@ -1016,6 +1047,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         <span className="text-muted-foreground">-</span>
                       )}
                     </td>
+                    {isSharedSheet && (
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                       {task.creatorName ? (
                         <div className="flex flex-col leading-tight">
@@ -1030,6 +1062,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         "-"
                       )}
                     </td>
+                    )}
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                       {task.createdAt ? new Date(task.createdAt).toLocaleDateString('he-IL') + ' ' + new Date(task.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}
                     </td>
@@ -1201,7 +1234,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         onOpenChange={setSharingDialogOpen}
         sheetName={selectedSheet ?? currentYear}
         taskType={taskType}
+        availableSheets={availableSheets}
       />
+      </>
+      )}
     </div>
   );
 };
