@@ -201,8 +201,8 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
         targetSheets = [{ id: sheetId, name: selectedShareSheet }];
       }
 
-      // Write via secured backend function and verify persistence
-      let successCount = 0;
+      // Write via secured backend function
+      const succeededSheetNames: string[] = [];
       const failedSheets: string[] = [];
 
       for (const sheet of targetSheets) {
@@ -221,35 +221,13 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
           continue;
         }
 
-        successCount++;
+        succeededSheetNames.push(sheet.name);
       }
 
-      const { data: persistedRows, error: verifyError } = await supabase
-        .from("task_sheet_collaborators")
-        .select("id, sheet_id")
-        .in("sheet_id", targetSheets.map((s) => s.id))
-        .eq("invited_email", normalizedEmail)
-        .eq("invited_by", user.id);
-
-      if (verifyError) {
-        throw new Error("נכשלה בדיקת שמירה אחרי השיתוף");
-      }
-
-      const persistedCount = persistedRows?.length || 0;
-      if (persistedCount === 0) {
-        const failed = failedSheets.length > 0 ? ` (${failedSheets.join(", ")})` : "";
-        throw new Error(`השיתוף לא נשמר בבסיס הנתונים${failed}`);
-      }
-
-      successCount = Math.min(successCount, persistedCount);
-
-      if (successCount === 0) {
+      if (succeededSheetNames.length === 0) {
         throw new Error("לא הצלחנו להוסיף שותף לאף גליון");
       }
 
-      const succeededSheetNames = targetSheets
-        .filter((s) => !failedSheets.includes(s.name))
-        .map((s) => s.name);
       await logActivity("added_collaborator", normalizedEmail, succeededSheetNames);
       await fetchSheetAndCollaborators();
 
@@ -259,7 +237,7 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
 
       toast.success(
         shareToAllSheets
-          ? `${normalizedEmail} נוסף לשיתוף ב-${successCount} גליונות`
+          ? `${normalizedEmail} נוסף לשיתוף ב-${succeededSheetNames.length} גליונות`
           : `${normalizedEmail} נוסף לגליון "${selectedShareSheet}"`
       );
       setNewEmail("");

@@ -159,10 +159,10 @@ const SettingsPanel = () => {
       {/* Custom Boards Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />דשבורדים מותאמים אישית</CardTitle>
+          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />רשימות ודשבורדים מותאמים אישית</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">צור דשבורדים מותאמים לעקוב אחר כל דבר שתרצה (למידה, כושר, מתכונים ועוד). הם יופיעו כלשוניות בסרגל העליון.</p>
+          <p className="text-sm text-muted-foreground">צור קטגוריות רשימות ודשבורדים מותאמים לעקוב אחר כל דבר שתרצה (למידה, כושר, מתכונים ועוד). הן יופיעו כלשוניות בסרגל העליון.</p>
 
           {boards.length > 0 && (
             <div className="space-y-2">
@@ -211,7 +211,7 @@ const SettingsPanel = () => {
                     <SelectItem value="tasks">📋 רשימת משימות (כולל דשבורד)</SelectItem>
                     <SelectItem value="todo">✅ רשימת To-Do (צ'קבוקסים)</SelectItem>
                     <SelectItem value="shopping">🛒 רשימת קניות</SelectItem>
-                    <SelectItem value="tracking">📚 רשימת מעקב (כמו ספרים/פודקאסטים)</SelectItem>
+                    <SelectItem value="tracking">📚 קטגוריית רשימות (כמו ספרים/פודקאסטים)</SelectItem>
                     <SelectItem value="kanban">📊 קנבן (לביצוע → בבדיקה → הושלם)</SelectItem>
                     <SelectItem value="custom">⚙️ מותאם אישית</SelectItem>
                   </SelectContent>
@@ -231,10 +231,10 @@ const SettingsPanel = () => {
                 <Switch checked={newBoardDashboard} onCheckedChange={setNewBoardDashboard} />
                 <Label>הצג סיכום בדשבורד הראשי</Label>
               </div>
-              <Button onClick={handleAddBoard} className="w-full gap-2"><Plus className="h-4 w-4" />צור דשבורד</Button>
+              <Button onClick={handleAddBoard} className="w-full gap-2"><Plus className="h-4 w-4" />צור קטגוריה</Button>
             </div>
           ) : (
-            <Button variant="outline" onClick={() => setShowAddBoard(true)} className="w-full gap-2"><Plus className="h-4 w-4" />הוסף דשבורד חדש</Button>
+            <Button variant="outline" onClick={() => setShowAddBoard(true)} className="w-full gap-2"><Plus className="h-4 w-4" />הוסף קטגוריית רשימות/דשבורד חדש</Button>
           )}
         </CardContent>
       </Card>

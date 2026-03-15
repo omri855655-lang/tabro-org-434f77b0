@@ -209,7 +209,11 @@ const Personal = () => {
     const fromIdx = currentIds.indexOf(tabId);
     if (fromIdx === -1) return;
 
-    const toIdx = direction === "left" ? fromIdx - 1 : fromIdx + 1;
+    const step = dir === "rtl"
+      ? (direction === "left" ? 1 : -1)
+      : (direction === "left" ? -1 : 1);
+    const toIdx = fromIdx + step;
+
     if (toIdx < 0 || toIdx >= currentIds.length) return;
 
     const newOrder = [...currentIds];
@@ -218,11 +222,11 @@ const Personal = () => {
 
     setTabOrder(newOrder);
     localStorage.setItem("tab-order", JSON.stringify(newOrder));
-  }, [orderedTabs]);
+  }, [orderedTabs, dir]);
 
   const activeTabIndex = orderedTabs.findIndex((tab) => tab.id === activeTab);
-  const canMoveActiveLeft = activeTabIndex > 0;
-  const canMoveActiveRight = activeTabIndex >= 0 && activeTabIndex < orderedTabs.length - 1;
+  const canMoveActiveLeft = activeTabIndex >= 0 && (dir === "rtl" ? activeTabIndex < orderedTabs.length - 1 : activeTabIndex > 0);
+  const canMoveActiveRight = activeTabIndex >= 0 && (dir === "rtl" ? activeTabIndex > 0 : activeTabIndex < orderedTabs.length - 1);
 
   if (loading) {
     return (
@@ -345,7 +349,7 @@ const Personal = () => {
                   disabled={!canMoveActiveLeft}
                   title="הזז שמאלה"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
@@ -355,7 +359,7 @@ const Personal = () => {
                   disabled={!canMoveActiveRight}
                   title="הזז ימינה"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             )}

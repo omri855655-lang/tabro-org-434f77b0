@@ -12,7 +12,7 @@ export const DEFAULT_TABS = [
   { id: "podcasts", name: "פודקאסטים", removable: true },
   { id: "routine", name: "לוז יומי", removable: true },
   { id: "projects", name: "פרויקטים", removable: true },
-  { id: "courses", name: "קורסים", removable: true },
+  { id: "courses", name: "רשימות", removable: true },
   { id: "planner", name: "מתכנן לוז", removable: true },
   { id: "deeply", name: "Deeply", removable: true },
   { id: "settings", name: "הגדרות", removable: false },

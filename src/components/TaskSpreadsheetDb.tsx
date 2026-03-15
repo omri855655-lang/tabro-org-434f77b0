@@ -772,7 +772,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               variant="outline"
               size="sm"
               onClick={async () => {
-                const sheetToShare = selectedSheet ?? currentYear;
+                const sheetToShare = selectedSheet ?? MAIN_SHEET_NAME;
                 if (!user) return;
 
                 const { error } = await supabase.from("task_sheets").upsert(
@@ -1223,7 +1223,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       <SheetSharingDialog
         open={sharingDialogOpen}
         onOpenChange={setSharingDialogOpen}
-        sheetName={selectedSheet ?? currentYear}
+        sheetName={selectedSheet ?? MAIN_SHEET_NAME}
         taskType={taskType}
         availableSheets={availableSheets}
       />
