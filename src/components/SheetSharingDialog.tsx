@@ -59,15 +59,18 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
     setLoading(true);
 
     // Get the sheet ID
-    const { data: sheetData } = await supabase
+    const { data: sheetData, error: sheetError } = await supabase
       .from("task_sheets")
       .select("id")
       .eq("sheet_name", sheetName)
       .eq("task_type", taskType)
       .eq("user_id", user.id)
-      .single();
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (!sheetData) {
+    if (sheetError || !sheetData) {
+      setCollaborators([]);
       setLoading(false);
       return;
     }
@@ -75,13 +78,19 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
     setSheetId(sheetData.id);
 
     // Get collaborators
-    const { data: collabData } = await supabase
+    const { data: collabData, error: collabError } = await supabase
       .from("task_sheet_collaborators")
-      .select("id, invited_email, permission, created_at")
+      .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
       .eq("sheet_id", sheetData.id)
       .order("created_at", { ascending: true });
 
-    setCollaborators(collabData || []);
+    if (collabError) {
+      setLoading(false);
+      toast.error("שגיאה בטעינת שותפים");
+      return;
+    }
+
+    setCollaborators((collabData || []) as Collaborator[]);
     setLoading(false);
   };
 
