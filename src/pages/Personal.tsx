@@ -362,59 +362,114 @@ const Personal = () => {
           <div className="flex items-center gap-2">
             <div className="overflow-x-auto scrollbar-thin flex-1">
               <TabsList className="h-12 bg-transparent w-max min-w-full">
-                {orderedTabs.map((tab) => {
-                  if (tab.visibilityKey && !isTabVisible(tab.visibilityKey)) return null;
-                  const Icon = tab.icon;
-                  const label = t(tab.label as any);
-                  return (
-                    <TabsTrigger
-                      key={tab.id}
-                      value={tab.id}
-                      className="gap-2 cursor-grab active:cursor-grabbing"
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggedTab(tab.id);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "move";
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (!draggedTab || draggedTab === tab.id) return;
-                        const currentIds = orderedTabs.map((t) => t.id);
-                        const fromIdx = currentIds.indexOf(draggedTab);
-                        const toIdx = currentIds.indexOf(tab.id);
-                        if (fromIdx === -1 || toIdx === -1) return;
-                        const newOrder = [...currentIds];
-                        newOrder.splice(fromIdx, 1);
-                        newOrder.splice(toIdx, 0, draggedTab);
-                        setTabOrder(newOrder);
-                        localStorage.setItem("tab-order", JSON.stringify(newOrder));
-                        setDraggedTab(null);
-                      }}
-                      onDragEnd={() => setDraggedTab(null)}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </TabsTrigger>
-                  );
+                {allTabIds.map((tabId) => {
+                  // Static tab
+                  const staticTab = STATIC_TABS.find(t => t.id === tabId);
+                  if (staticTab) {
+                    if (staticTab.visibilityKey && !isTabVisible(staticTab.visibilityKey)) return null;
+                    const Icon = staticTab.icon;
+                    const label = t(staticTab.label as any);
+                    return (
+                      <TabsTrigger
+                        key={staticTab.id}
+                        value={staticTab.id}
+                        className="gap-2 cursor-grab active:cursor-grabbing"
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggedTab(staticTab.id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!draggedTab || draggedTab === staticTab.id) return;
+                          const fromIdx = allTabIds.indexOf(draggedTab);
+                          const toIdx = allTabIds.indexOf(staticTab.id);
+                          if (fromIdx === -1 || toIdx === -1) return;
+                          const newOrder = [...allTabIds];
+                          newOrder.splice(fromIdx, 1);
+                          newOrder.splice(toIdx, 0, draggedTab);
+                          setTabOrder(newOrder);
+                          localStorage.setItem("tab-order", JSON.stringify(newOrder));
+                          setDraggedTab(null);
+                        }}
+                        onDragEnd={() => setDraggedTab(null)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </TabsTrigger>
+                    );
+                  }
+
+                  // Shared sheet tab
+                  if (tabId.startsWith("shared-")) {
+                    const sheetId = tabId.replace("shared-", "");
+                    const shared = sharedSheets.find(s => s.sheet_id === sheetId);
+                    if (!shared) return null;
+                    return (
+                      <TabsTrigger key={tabId} value={tabId} className="gap-2 cursor-grab active:cursor-grabbing"
+                        draggable
+                        onDragStart={(e) => { setDraggedTab(tabId); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!draggedTab || draggedTab === tabId) return;
+                          const fromIdx = allTabIds.indexOf(draggedTab);
+                          const toIdx = allTabIds.indexOf(tabId);
+                          if (fromIdx === -1 || toIdx === -1) return;
+                          const newOrder = [...allTabIds];
+                          newOrder.splice(fromIdx, 1);
+                          newOrder.splice(toIdx, 0, draggedTab);
+                          setTabOrder(newOrder);
+                          localStorage.setItem("tab-order", JSON.stringify(newOrder));
+                          setDraggedTab(null);
+                        }}
+                        onDragEnd={() => setDraggedTab(null)}
+                      >
+                        {shared.task_type === "work" ? <Briefcase className="h-4 w-4" /> : <ListTodo className="h-4 w-4" />}
+                        <span className="max-w-[160px] truncate">
+                          {shared.sheet_name} · {shared.owner_display_name}
+                        </span>
+                      </TabsTrigger>
+                    );
+                  }
+
+                  // Custom board tab
+                  if (tabId.startsWith("board-")) {
+                    const boardId = tabId.replace("board-", "");
+                    const board = customBoards.find(b => b.id === boardId);
+                    if (!board) return null;
+                    return (
+                      <TabsTrigger key={tabId} value={tabId} className="gap-2 cursor-grab active:cursor-grabbing"
+                        draggable
+                        onDragStart={(e) => { setDraggedTab(tabId); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!draggedTab || draggedTab === tabId) return;
+                          const fromIdx = allTabIds.indexOf(draggedTab);
+                          const toIdx = allTabIds.indexOf(tabId);
+                          if (fromIdx === -1 || toIdx === -1) return;
+                          const newOrder = [...allTabIds];
+                          newOrder.splice(fromIdx, 1);
+                          newOrder.splice(toIdx, 0, draggedTab);
+                          setTabOrder(newOrder);
+                          localStorage.setItem("tab-order", JSON.stringify(newOrder));
+                          setDraggedTab(null);
+                        }}
+                        onDragEnd={() => setDraggedTab(null)}
+                      >
+                        <LayoutGrid className="h-4 w-4" />
+                        {board.name}
+                      </TabsTrigger>
+                    );
+                  }
+
+                  return null;
                 })}
-                {sharedSheets.map((shared) => (
-                  <TabsTrigger key={`shared-${shared.sheet_id}`} value={`shared-${shared.sheet_id}`} className="gap-2">
-                    {shared.task_type === "work" ? <Briefcase className="h-4 w-4" /> : <ListTodo className="h-4 w-4" />}
-                    <span className="max-w-[160px] truncate">
-                      {shared.sheet_name} · {shared.owner_display_name}
-                    </span>
-                  </TabsTrigger>
-                ))}
-                {customBoards.map((board) => (
-                  <TabsTrigger key={`board-${board.id}`} value={`board-${board.id}`} className="gap-2">
-                    <LayoutGrid className="h-4 w-4" />
-                    {board.name}
-                  </TabsTrigger>
-                ))}
               </TabsList>
             </div>
 
