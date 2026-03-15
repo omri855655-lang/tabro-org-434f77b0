@@ -75,6 +75,7 @@ export type Database = {
           id: string
           notes: string | null
           status: string | null
+          status_changed_at: string | null
           title: string
           updated_at: string
           user_id: string
@@ -85,6 +86,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -95,6 +97,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -233,6 +236,7 @@ export type Database = {
           id: string
           notes: string | null
           status: string | null
+          status_changed_at: string | null
           syllabus: string | null
           title: string
           updated_at: string
@@ -244,6 +248,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           syllabus?: string | null
           title: string
           updated_at?: string
@@ -255,6 +260,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           syllabus?: string | null
           title?: string
           updated_at?: string
@@ -451,6 +457,7 @@ export type Database = {
           id: string
           notes: string | null
           status: string | null
+          status_changed_at: string | null
           title: string
           updated_at: string
           user_id: string
@@ -461,6 +468,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -471,6 +479,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -772,6 +781,7 @@ export type Database = {
           id: string
           notes: string | null
           status: string | null
+          status_changed_at: string | null
           title: string
           type: string | null
           updated_at: string
@@ -786,6 +796,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           title: string
           type?: string | null
           updated_at?: string
@@ -800,6 +811,7 @@ export type Database = {
           id?: string
           notes?: string | null
           status?: string | null
+          status_changed_at?: string | null
           title?: string
           type?: string | null
           updated_at?: string
