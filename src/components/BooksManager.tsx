@@ -209,7 +209,7 @@ const BooksManager = () => {
           <TableBody>
             {filteredBooks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   {searchTerm ? 'לא נמצאו תוצאות' : 'אין ספרים עדיין'}
                 </TableCell>
               </TableRow>

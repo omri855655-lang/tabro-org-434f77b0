@@ -1968,6 +1968,15 @@ const PersonalPlanner = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Floating resize time tooltip */}
+      {resizeTimeTooltip && (
+        <div
+          className="fixed z-[9999] pointer-events-none bg-popover text-popover-foreground border border-border rounded-lg px-3 py-1.5 shadow-lg text-sm font-mono font-bold"
+          style={{ left: resizeTimeTooltip.x + 16, top: resizeTimeTooltip.y - 20 }}
+        >
+          {resizeTimeTooltip.startTime} - {resizeTimeTooltip.endTime}
+        </div>
+      )}
     </div>
   );
 };
