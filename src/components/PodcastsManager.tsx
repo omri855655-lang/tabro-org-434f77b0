@@ -17,6 +17,7 @@ interface Podcast {
   notes: string | null;
   updated_at: string;
   created_at: string;
+  status_changed_at: string | null;
 }
 
 const formatDateTime = (dateStr: string) => {
