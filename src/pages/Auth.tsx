@@ -92,6 +92,7 @@ const Auth = () => {
             last_name: normalizedLastName,
             username,
             display_name: `${normalizedFirstName} ${normalizedLastName}`,
+            preferred_language: preferredLanguage,
           },
         },
       });
