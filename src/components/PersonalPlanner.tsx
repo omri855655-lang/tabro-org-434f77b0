@@ -711,19 +711,33 @@ const PersonalPlanner = () => {
         new Date(resizingEvent.originalStartTime)
       );
 
+      let newStart = new Date(resizingEvent.originalStartTime);
+      let newEnd = new Date(resizingEvent.originalEndTime);
+
       if (resizingEvent.edge === "bottom") {
-        const newDuration = Math.max(15, originalDuration + deltaMinutes);
+        const newDuration = Math.max(5, originalDuration + deltaMinutes);
+        newEnd = addMinutes(newStart, newDuration);
         setResizePreviewHeight((newDuration / 60) * hourHeight);
         setResizePreviewTop(null);
       } else {
         // Top edge: move start time, keep end fixed
-        const newDuration = Math.max(15, originalDuration - deltaMinutes);
-        setResizePreviewHeight((newDuration / 60) * hourHeight);
-        // Adjust top offset
-        const originalStartMin = new Date(resizingEvent.originalStartTime).getMinutes();
-        const topShift = (deltaMinutes / 60) * hourHeight;
-        setResizePreviewTop((originalStartMin / 60) * hourHeight + topShift);
+        newStart = addMinutes(new Date(resizingEvent.originalStartTime), deltaMinutes);
+        const newDuration = differenceInMinutes(newEnd, newStart);
+        if (newDuration >= 5) {
+          setResizePreviewHeight((newDuration / 60) * hourHeight);
+          const originalStartMin = new Date(resizingEvent.originalStartTime).getMinutes();
+          const topShift = (deltaMinutes / 60) * hourHeight;
+          setResizePreviewTop((originalStartMin / 60) * hourHeight + topShift);
+        }
       }
+
+      // Show live time tooltip near cursor
+      setResizeTimeTooltip({
+        startTime: format(newStart, "HH:mm"),
+        endTime: format(newEnd, "HH:mm"),
+        x: e.clientX,
+        y: e.clientY,
+      });
     };
 
     const handleMouseUp = async (e: MouseEvent) => {
@@ -737,14 +751,13 @@ const PersonalPlanner = () => {
             new Date(resizingEvent.originalEndTime),
             new Date(event.startTime)
           );
-          const newDuration = Math.max(15, originalDuration + deltaMinutes);
+          const newDuration = Math.max(5, originalDuration + deltaMinutes);
           const newEnd = addMinutes(new Date(event.startTime), newDuration);
           await updateEvent(resizingEvent.eventId, { endTime: newEnd.toISOString() });
         } else {
-          // Top edge: adjust start time
           const newStart = addMinutes(new Date(resizingEvent.originalStartTime), deltaMinutes);
           const end = new Date(resizingEvent.originalEndTime);
-          if (newStart < end && differenceInMinutes(end, newStart) >= 15) {
+          if (newStart < end && differenceInMinutes(end, newStart) >= 5) {
             await updateEvent(resizingEvent.eventId, { startTime: newStart.toISOString() });
           }
         }
@@ -753,6 +766,7 @@ const PersonalPlanner = () => {
       setResizingEvent(null);
       setResizePreviewHeight(null);
       setResizePreviewTop(null);
+      setResizeTimeTooltip(null);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
