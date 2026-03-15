@@ -73,7 +73,7 @@ const Personal = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [draggedTab, setDraggedTab] = useState<string | null>(null);
-  const { boards: customBoards, updateBoard } = useCustomBoards();
+  const { boards: customBoards, updateBoard, reorderBoards } = useCustomBoards();
   const { isTabVisible } = useUserPreferences();
   const { t, dir } = useLanguage();
 

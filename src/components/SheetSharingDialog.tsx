@@ -136,9 +136,11 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
       .from("task_sheet_collaborators")
       .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
       .eq("sheet_id", id)
+      .eq("invited_by", user.id)
       .order("created_at", { ascending: true });
 
     if (collabError) {
+      console.error("Error fetching collaborators:", collabError);
       setLoading(false);
       toast.error("שגיאה בטעינת שותפים");
       return;
