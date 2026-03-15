@@ -84,34 +84,42 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
   // Fetch available sheets from the task_sheets table (persisted)
   const fetchAvailableSheets = useCallback(async () => {
+    if (!user || !showYearSelector) {
+      setSheetsLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("task_sheets")
         .select("sheet_name")
-        .eq("task_type", taskType);
+        .eq("task_type", taskType)
+        .eq("user_id", user.id);
 
       if (error) throw error;
 
       // Get unique sheet names
-      const sheetNames = [...new Set(data?.map(s => s.sheet_name) || [])].filter(Boolean) as string[];
-      
+      const sheetNames = [...new Set(data?.map((s) => s.sheet_name) || [])].filter(Boolean) as string[];
+
       // Always include current year if not present
       if (!sheetNames.includes(currentYear)) {
         sheetNames.push(currentYear);
       }
-      
+
       // Sort: numbers first (ascending), then text (alphabetically)
-      setAvailableSheets(sheetNames.sort((a, b) => {
-        const aNum = parseInt(a, 10);
-        const bNum = parseInt(b, 10);
-        const aIsNum = !isNaN(aNum);
-        const bIsNum = !isNaN(bNum);
-        
-        if (aIsNum && bIsNum) return aNum - bNum;
-        if (aIsNum) return -1;
-        if (bIsNum) return 1;
-        return a.localeCompare(b, 'he');
-      }));
+      setAvailableSheets(
+        sheetNames.sort((a, b) => {
+          const aNum = parseInt(a, 10);
+          const bNum = parseInt(b, 10);
+          const aIsNum = !isNaN(aNum);
+          const bIsNum = !isNaN(bNum);
+
+          if (aIsNum && bIsNum) return aNum - bNum;
+          if (aIsNum) return -1;
+          if (bIsNum) return 1;
+          return a.localeCompare(b, "he");
+        })
+      );
     } catch (error) {
       console.error("Error fetching sheets:", error);
       // Fallback to current year
@@ -119,7 +127,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     } finally {
       setSheetsLoading(false);
     }
-  }, [taskType, currentYear]);
+  }, [user, showYearSelector, taskType, currentYear]);
 
   useEffect(() => {
     fetchAvailableSheets();
