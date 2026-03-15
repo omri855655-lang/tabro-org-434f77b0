@@ -490,29 +490,41 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
+          first_name: string | null
           id: string
+          last_name: string | null
           pin_code: string | null
           pin_enabled: boolean
           updated_at: string
           user_id: string
+          username: string | null
+          welcome_email_sent: boolean
         }
         Insert: {
           created_at?: string
           display_name?: string | null
+          first_name?: string | null
           id?: string
+          last_name?: string | null
           pin_code?: string | null
           pin_enabled?: boolean
           updated_at?: string
           user_id: string
+          username?: string | null
+          welcome_email_sent?: boolean
         }
         Update: {
           created_at?: string
           display_name?: string | null
+          first_name?: string | null
           id?: string
+          last_name?: string | null
           pin_code?: string | null
           pin_enabled?: boolean
           updated_at?: string
           user_id?: string
+          username?: string | null
+          welcome_email_sent?: boolean
         }
         Relationships: []
       }
@@ -824,7 +836,9 @@ export type Database = {
           created_at: string
           id: string
           invited_by: string
+          invited_display_name: string | null
           invited_email: string
+          invited_username: string | null
           permission: string
           sheet_id: string
           user_id: string | null
@@ -833,7 +847,9 @@ export type Database = {
           created_at?: string
           id?: string
           invited_by: string
+          invited_display_name?: string | null
           invited_email: string
+          invited_username?: string | null
           permission?: string
           sheet_id: string
           user_id?: string | null
@@ -842,7 +858,9 @@ export type Database = {
           created_at?: string
           id?: string
           invited_by?: string
+          invited_display_name?: string | null
           invited_email?: string
+          invited_username?: string | null
           permission?: string
           sheet_id?: string
           user_id?: string | null
@@ -889,6 +907,10 @@ export type Database = {
           archived: boolean
           category: string | null
           created_at: string
+          creator_email: string | null
+          creator_name: string | null
+          creator_user_id: string | null
+          creator_username: string | null
           description: string
           id: string
           overdue: boolean | null
@@ -907,6 +929,10 @@ export type Database = {
           archived?: boolean
           category?: string | null
           created_at?: string
+          creator_email?: string | null
+          creator_name?: string | null
+          creator_user_id?: string | null
+          creator_username?: string | null
           description: string
           id?: string
           overdue?: boolean | null
@@ -925,6 +951,10 @@ export type Database = {
           archived?: boolean
           category?: string | null
           created_at?: string
+          creator_email?: string | null
+          creator_name?: string | null
+          creator_user_id?: string | null
+          creator_username?: string | null
           description?: string
           id?: string
           overdue?: boolean | null
