@@ -334,12 +334,13 @@ const Personal = () => {
         {sharedSheets.map((shared) => (
           <TabsContent key={`shared-${shared.sheet_id}`} value={`shared-${shared.sheet_id}`} className="flex-1 min-h-0 overflow-hidden m-0 p-0">
             <TaskSpreadsheetDb
-              title={`${shared.task_type === "work" ? "משימות עבודה" : "משימות אישיות"} (${shared.owner_email})`}
+              title={`${shared.task_type === "work" ? "משימות עבודה" : "משימות אישיות"} - ${shared.sheet_name}`}
               taskType={shared.task_type as "work" | "personal"}
               readOnly={shared.permission === "view"}
               showYearSelector={false}
               fixedSheetName={shared.sheet_name}
               fixedSheetOwnerId={shared.owner_id}
+              ownerDisplayName={shared.owner_display_name}
             />
           </TabsContent>
         ))}
