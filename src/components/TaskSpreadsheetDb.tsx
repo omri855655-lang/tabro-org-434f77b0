@@ -754,6 +754,19 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           )}>
             {readOnly ? "צפייה בלבד" : "עריכה"}
           </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const newVal = !hideCreatorInfo;
+              setHideCreatorInfo(newVal);
+              localStorage.setItem("hide-creator-info", String(newVal));
+            }}
+            className="text-xs gap-1 mr-auto"
+          >
+            {hideCreatorInfo ? <Users className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+            {hideCreatorInfo ? "הצג יוצר" : "הסתר יוצר"}
+          </Button>
         </div>
       )}
       {isSharedSheet && sharedCollapsed ? null : (
