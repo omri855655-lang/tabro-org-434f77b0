@@ -1950,6 +1950,17 @@ const PersonalPlanner = () => {
                   />
                 ))}
               </div>
+              <div className="flex items-center gap-2 mt-1">
+                <label className="text-xs text-muted-foreground">או בחר צבע מותאם:</label>
+                <input
+                  type="color"
+                  value={newCatColor}
+                  onChange={(e) => setNewCatColor(e.target.value)}
+                  className="w-10 h-8 rounded border border-border cursor-pointer"
+                />
+                <div className="w-6 h-6 rounded-full border border-border" style={{ backgroundColor: newCatColor }} />
+                <span className="text-xs text-muted-foreground font-mono" dir="ltr">{newCatColor}</span>
+              </div>
               <Button
                 size="sm"
                 className="gap-1"
