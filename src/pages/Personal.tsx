@@ -204,24 +204,68 @@ const Personal = () => {
     navigate("/");
   };
 
-  // Compute ordered tabs based on saved order
-  const orderedTabs = useMemo(() => {
-    if (tabOrder.length === 0) return STATIC_TABS;
-    const ordered: TabDef[] = [];
-    for (const id of tabOrder) {
-      const tab = STATIC_TABS.find((t) => t.id === id);
-      if (tab) ordered.push(tab);
+  // Build a unified list of ALL tab IDs (static + shared + custom boards)
+  const allTabIds = useMemo(() => {
+    // Start with ordered static tabs
+    let staticIds: string[];
+    if (tabOrder.length === 0) {
+      staticIds = STATIC_TABS.map(t => t.id);
+    } else {
+      const ordered: string[] = [];
+      for (const id of tabOrder) {
+        if (STATIC_TABS.find(t => t.id === id)) ordered.push(id);
+      }
+      for (const tab of STATIC_TABS) {
+        if (!ordered.includes(tab.id)) ordered.push(tab.id);
+      }
+      staticIds = ordered;
     }
-    // Add any new tabs not in saved order
-    for (const tab of STATIC_TABS) {
-      if (!ordered.find((t) => t.id === tab.id)) ordered.push(tab);
-    }
-    return ordered;
-  }, [tabOrder]);
 
-  const moveTabInOrder = useCallback((tabId: string, direction: "left" | "right") => {
-    const currentIds = orderedTabs.map((t) => t.id);
-    const fromIdx = currentIds.indexOf(tabId);
+    // Build full list including shared + custom boards from tabOrder
+    const sharedIds = sharedSheets.map(s => `shared-${s.sheet_id}`);
+    const boardIds = customBoards.map(b => `board-${b.id}`);
+    const dynamicIds = [...sharedIds, ...boardIds];
+
+    // If tabOrder contains dynamic IDs, respect their positions
+    if (tabOrder.length > 0) {
+      const result: string[] = [];
+      for (const id of tabOrder) {
+        if (STATIC_TABS.find(t => t.id === id)) result.push(id);
+        else if (dynamicIds.includes(id)) result.push(id);
+        // skip IDs that no longer exist
+      }
+      // Add any new dynamic tabs not in saved order
+      for (const id of dynamicIds) {
+        if (!result.includes(id)) result.push(id);
+      }
+      // Add any new static tabs not in saved order
+      for (const id of staticIds) {
+        if (!result.includes(id)) result.push(id);
+      }
+      return result;
+    }
+
+    return [...staticIds, ...dynamicIds];
+  }, [tabOrder, sharedSheets, customBoards]);
+
+  // Compute orderedTabs for static tabs rendering only
+  const orderedTabs = useMemo(() => {
+    return allTabIds
+      .map(id => STATIC_TABS.find(t => t.id === id))
+      .filter((t): t is TabDef => !!t);
+  }, [allTabIds]);
+
+  // Check if a tab ID is currently visible
+  const isTabIdVisible = useCallback((tabId: string) => {
+    const staticTab = STATIC_TABS.find(t => t.id === tabId);
+    if (staticTab) {
+      return !staticTab.visibilityKey || isTabVisible(staticTab.visibilityKey);
+    }
+    return true; // shared sheets and custom boards are always visible
+  }, [isTabVisible]);
+
+  const moveActiveTab = useCallback((direction: "left" | "right") => {
+    const fromIdx = allTabIds.indexOf(activeTab);
     if (fromIdx === -1) return;
 
     const step = dir === "rtl"
@@ -229,26 +273,23 @@ const Personal = () => {
       : (direction === "left" ? -1 : 1);
 
     let toIdx = fromIdx + step;
-    while (toIdx >= 0 && toIdx < currentIds.length) {
-      const candidateTab = orderedTabs[toIdx];
-      if (!candidateTab) break;
-      if (!candidateTab.visibilityKey || isTabVisible(candidateTab.visibilityKey)) break;
+    while (toIdx >= 0 && toIdx < allTabIds.length) {
+      if (isTabIdVisible(allTabIds[toIdx])) break;
       toIdx += step;
     }
 
-    if (toIdx < 0 || toIdx >= currentIds.length) return;
+    if (toIdx < 0 || toIdx >= allTabIds.length) return;
 
-    const newOrder = [...currentIds];
+    const newOrder = [...allTabIds];
     const [moved] = newOrder.splice(fromIdx, 1);
     newOrder.splice(toIdx, 0, moved);
 
     setTabOrder(newOrder);
     localStorage.setItem("tab-order", JSON.stringify(newOrder));
-  }, [orderedTabs, dir, isTabVisible]);
+  }, [allTabIds, activeTab, dir, isTabIdVisible]);
 
-  const canMoveStaticTab = useCallback((tabId: string, direction: "left" | "right") => {
-    const currentIds = orderedTabs.map((t) => t.id);
-    const fromIdx = currentIds.indexOf(tabId);
+  const canMoveActive = useCallback((direction: "left" | "right") => {
+    const fromIdx = allTabIds.indexOf(activeTab);
     if (fromIdx === -1) return false;
 
     const step = dir === "rtl"
@@ -256,60 +297,15 @@ const Personal = () => {
       : (direction === "left" ? -1 : 1);
 
     let idx = fromIdx + step;
-    while (idx >= 0 && idx < currentIds.length) {
-      const candidateTab = orderedTabs[idx];
-      if (candidateTab && (!candidateTab.visibilityKey || isTabVisible(candidateTab.visibilityKey))) {
-        return true;
-      }
+    while (idx >= 0 && idx < allTabIds.length) {
+      if (isTabIdVisible(allTabIds[idx])) return true;
       idx += step;
     }
-
     return false;
-  }, [orderedTabs, dir, isTabVisible]);
+  }, [allTabIds, activeTab, dir, isTabIdVisible]);
 
-  const activeTabIndex = orderedTabs.findIndex((tab) => tab.id === activeTab);
-  const activeCustomBoardId = activeTab.startsWith("board-") ? activeTab.replace("board-", "") : null;
-  const activeCustomBoardIndex = activeCustomBoardId
-    ? customBoards.findIndex((board) => board.id === activeCustomBoardId)
-    : -1;
-
-  const moveActiveTab = useCallback(async (direction: "left" | "right") => {
-    if (activeCustomBoardIndex >= 0) {
-      const step = dir === "rtl"
-        ? (direction === "left" ? 1 : -1)
-        : (direction === "left" ? -1 : 1);
-      const toIdx = activeCustomBoardIndex + step;
-      if (toIdx < 0 || toIdx >= customBoards.length) return;
-
-      const nextBoards = [...customBoards];
-      const [movedBoard] = nextBoards.splice(activeCustomBoardIndex, 1);
-      nextBoards.splice(toIdx, 0, movedBoard);
-
-      try {
-        await reorderBoards(nextBoards.map((board) => board.id));
-      } catch (error) {
-        console.error("Error reordering custom boards:", error);
-        toast.error("שגיאה בהזזת הרשימה");
-      }
-      return;
-    }
-
-    if (activeTabIndex >= 0) {
-      moveTabInOrder(activeTab, direction);
-    }
-  }, [activeCustomBoardIndex, activeTabIndex, customBoards, reorderBoards, dir, moveTabInOrder, activeTab]);
-
-  const canMoveActiveLeft = activeTabIndex >= 0
-    ? canMoveStaticTab(activeTab, "left")
-    : activeCustomBoardIndex >= 0
-      ? (dir === "rtl" ? activeCustomBoardIndex < customBoards.length - 1 : activeCustomBoardIndex > 0)
-      : false;
-
-  const canMoveActiveRight = activeTabIndex >= 0
-    ? canMoveStaticTab(activeTab, "right")
-    : activeCustomBoardIndex >= 0
-      ? (dir === "rtl" ? activeCustomBoardIndex > 0 : activeCustomBoardIndex < customBoards.length - 1)
-      : false;
+  const canMoveActiveLeft = canMoveActive("left");
+  const canMoveActiveRight = canMoveActive("right");
 
   if (loading) {
     return (
