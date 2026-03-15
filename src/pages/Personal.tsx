@@ -192,15 +192,35 @@ const Personal = () => {
     if (tabOrder.length === 0) return STATIC_TABS;
     const ordered: TabDef[] = [];
     for (const id of tabOrder) {
-      const tab = STATIC_TABS.find(t => t.id === id);
+      const tab = STATIC_TABS.find((t) => t.id === id);
       if (tab) ordered.push(tab);
     }
     // Add any new tabs not in saved order
     for (const tab of STATIC_TABS) {
-      if (!ordered.find(t => t.id === tab.id)) ordered.push(tab);
+      if (!ordered.find((t) => t.id === tab.id)) ordered.push(tab);
     }
     return ordered;
   }, [tabOrder]);
+
+  const moveTabInOrder = useCallback((tabId: string, direction: "left" | "right") => {
+    const currentIds = orderedTabs.map((t) => t.id);
+    const fromIdx = currentIds.indexOf(tabId);
+    if (fromIdx === -1) return;
+
+    const toIdx = direction === "left" ? fromIdx - 1 : fromIdx + 1;
+    if (toIdx < 0 || toIdx >= currentIds.length) return;
+
+    const newOrder = [...currentIds];
+    const [moved] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, moved);
+
+    setTabOrder(newOrder);
+    localStorage.setItem("tab-order", JSON.stringify(newOrder));
+  }, [orderedTabs]);
+
+  const activeTabIndex = orderedTabs.findIndex((tab) => tab.id === activeTab);
+  const canMoveActiveLeft = activeTabIndex > 0;
+  const canMoveActiveRight = activeTabIndex >= 0 && activeTabIndex < orderedTabs.length - 1;
 
   if (loading) {
     return (
