@@ -22,6 +22,8 @@ const Auth = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">(
     searchParams.get("mode") === "signup" ? "signup" : "login"
@@ -60,15 +62,36 @@ const Auth = () => {
       return;
     }
 
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+
+    if (mode === "signup") {
+      if (normalizedFirstName.length < 2) {
+        toast.error("שם פרטי חייב להכיל לפחות 2 תווים");
+        return;
+      }
+      if (normalizedLastName.length < 2) {
+        toast.error("שם משפחה חייב להכיל לפחות 2 תווים");
+        return;
+      }
+    }
+
     setIsLoading(true);
 
     if (mode === "signup") {
       const { supabase } = await import("@/integrations/supabase/client");
+      const username = parsed.data.email.split("@")[0].toLowerCase();
       const { data, error } = await supabase.auth.signUp({
         email: parsed.data.email,
         password: parsed.data.password,
         options: {
           emailRedirectTo: window.location.origin + "/personal",
+          data: {
+            first_name: normalizedFirstName,
+            last_name: normalizedLastName,
+            username,
+            display_name: `${normalizedFirstName} ${normalizedLastName}`,
+          },
         },
       });
       setIsLoading(false);
@@ -141,6 +164,31 @@ const Auth = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "signup" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">שם פרטי</Label>
+                  <Input
+                    id="firstName"
+                    placeholder="ישראל"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">שם משפחה</Label>
+                  <Input
+                    id="lastName"
+                    placeholder="ישראלי"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">אימייל</Label>
               <Input

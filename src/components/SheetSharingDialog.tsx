@@ -25,6 +25,8 @@ import { z } from "zod";
 interface Collaborator {
   id: string;
   invited_email: string;
+  invited_display_name: string | null;
+  invited_username: string | null;
   permission: string;
   created_at: string;
 }
@@ -57,15 +59,18 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
     setLoading(true);
 
     // Get the sheet ID
-    const { data: sheetData } = await supabase
+    const { data: sheetData, error: sheetError } = await supabase
       .from("task_sheets")
       .select("id")
       .eq("sheet_name", sheetName)
       .eq("task_type", taskType)
       .eq("user_id", user.id)
-      .single();
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (!sheetData) {
+    if (sheetError || !sheetData) {
+      setCollaborators([]);
       setLoading(false);
       return;
     }
@@ -73,13 +78,19 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
     setSheetId(sheetData.id);
 
     // Get collaborators
-    const { data: collabData } = await supabase
+    const { data: collabData, error: collabError } = await supabase
       .from("task_sheet_collaborators")
-      .select("id, invited_email, permission, created_at")
+      .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
       .eq("sheet_id", sheetData.id)
       .order("created_at", { ascending: true });
 
-    setCollaborators(collabData || []);
+    if (collabError) {
+      setLoading(false);
+      toast.error("שגיאה בטעינת שותפים");
+      return;
+    }
+
+    setCollaborators((collabData || []) as Collaborator[]);
     setLoading(false);
   };
 
@@ -97,27 +108,43 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
       return;
     }
 
-    if (collaborators.some(c => c.invited_email === parsed.data)) {
+    if (collaborators.some((c) => c.invited_email.toLowerCase() === parsed.data.toLowerCase())) {
       toast.error("המשתמש כבר משותף");
       return;
     }
 
-    const { error } = await supabase.from("task_sheet_collaborators").insert({
-      sheet_id: sheetId,
-      invited_email: parsed.data,
-      permission,
-      invited_by: user.id,
-    });
+    const { data: upserted, error } = await supabase
+      .from("task_sheet_collaborators")
+      .upsert(
+        {
+          sheet_id: sheetId,
+          invited_email: parsed.data.toLowerCase(),
+          permission,
+          invited_by: user.id,
+        },
+        { onConflict: "sheet_id,invited_email" }
+      )
+      .select("id, invited_email, invited_display_name, invited_username, permission, created_at")
+      .single();
 
-    if (error) {
+    if (error || !upserted) {
       toast.error("שגיאה בהוספת שותף");
       console.error(error);
       return;
     }
 
+    setCollaborators((prev) => {
+      const existingIndex = prev.findIndex((c) => c.id === upserted.id);
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = upserted as Collaborator;
+        return next;
+      }
+      return [...prev, upserted as Collaborator];
+    });
+
     toast.success(`${parsed.data} נוסף כשותף`);
     setNewEmail("");
-    fetchSheetAndCollaborators();
   };
 
   const updatePermission = async (id: string, newPermission: string) => {
@@ -205,9 +232,14 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType }: SheetSh
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm truncate" dir="ltr">
-                        {collab.invited_email}
-                      </span>
+                      <div className="min-w-0 leading-tight">
+                        <div className="text-sm truncate">
+                          {collab.invited_display_name || collab.invited_email.split("@")[0]}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate" dir="ltr">
+                          @{collab.invited_username || collab.invited_email.split("@")[0]} · {collab.invited_email}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Select

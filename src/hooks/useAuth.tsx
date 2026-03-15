@@ -26,12 +26,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       setLoading(false);
       
-      // Log sign-in events
+      // Log sign-in events + send one-time welcome email
       if (event === 'SIGNED_IN' && session?.user) {
         supabase.from('admin_login_log').insert({
           user_id: session.user.id,
           user_email: session.user.email,
         }).then(() => {});
+
+        supabase.functions.invoke('send-welcome-email').then(() => {}).catch(() => {});
       }
     });
 

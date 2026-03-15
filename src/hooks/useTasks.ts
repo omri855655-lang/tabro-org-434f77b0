@@ -17,6 +17,10 @@ export interface DbTask {
   task_type: "personal" | "work";
   sheet_name: string | null;
   archived: boolean;
+  creator_user_id: string | null;
+  creator_email: string | null;
+  creator_name: string | null;
+  creator_username: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +39,9 @@ export interface Task {
   urgent: boolean;
   sheetName: string;
   archived: boolean;
+  creatorEmail: string;
+  creatorName: string;
+  creatorUsername: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +60,9 @@ const mapDbTaskToTask = (dbTask: DbTask & { urgent?: boolean }): Task => ({
   urgent: dbTask.urgent || false,
   sheetName: dbTask.sheet_name || String(new Date().getFullYear()),
   archived: dbTask.archived || false,
+  creatorEmail: dbTask.creator_email || "",
+  creatorName: dbTask.creator_name || "",
+  creatorUsername: dbTask.creator_username || "",
   createdAt: dbTask.created_at,
   updatedAt: dbTask.updated_at,
 });

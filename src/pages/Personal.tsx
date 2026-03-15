@@ -74,52 +74,54 @@ const Personal = () => {
   const { isTabVisible } = useUserPreferences();
   const { t, dir } = useLanguage();
 
-  // Fetch shared work sheets (where someone shared with me)
+  // Fetch shared sheets (where someone shared with me)
   const fetchSharedSheets = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setSharedSheets([]);
+      return;
+    }
+
     try {
       const normalizedEmail = (user.email || "").trim().toLowerCase();
       const { data, error } = await supabase
         .from("task_sheet_collaborators")
-        .select("sheet_id, permission, invited_email")
+        .select("sheet_id, permission")
         .or(`user_id.eq.${user.id},invited_email.eq.${normalizedEmail}`);
 
       if (error) throw error;
-      if (!data || data.length === 0) return;
+      if (!data || data.length === 0) {
+        setSharedSheets([]);
+        return;
+      }
 
-      // Get the sheet details and owner emails
-      const sheetIds = data.map(d => d.sheet_id);
+      const uniqueSheetIds = [...new Set(data.map((d) => d.sheet_id))];
       const { data: sheets, error: sheetsError } = await supabase
         .from("task_sheets")
         .select("id, sheet_name, user_id, task_type")
-        .in("id", sheetIds);
+        .in("id", uniqueSheetIds);
 
       if (sheetsError) throw sheetsError;
 
       // We'll show sheets that are NOT owned by the current user
       const sharedResults: SharedSheet[] = [];
       for (const sheet of sheets || []) {
-        if (sheet.user_id === user.id) continue; // Skip own sheets
-        const collab = data.find(d => d.sheet_id === sheet.id);
-        // Get owner email
-        const { data: ownerProfile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("user_id", sheet.user_id)
-          .single();
-        
+        if (sheet.user_id === user.id) continue;
+
+        const collab = data.find((d) => d.sheet_id === sheet.id);
         sharedResults.push({
           sheet_id: sheet.id,
           sheet_name: sheet.sheet_name,
           owner_id: sheet.user_id,
-          owner_email: ownerProfile?.display_name || sheet.user_id.slice(0, 8),
+          owner_email: sheet.user_id.slice(0, 8),
           permission: collab?.permission || "view",
           task_type: sheet.task_type,
         });
       }
+
       setSharedSheets(sharedResults);
     } catch (error) {
       console.error("Error fetching shared sheets:", error);
+      setSharedSheets([]);
     }
   }, [user]);
 
@@ -131,6 +133,28 @@ const Personal = () => {
     }
     fetchSharedSheets();
   }, [user, loading, navigate, fetchSharedSheets]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`shared-sheets-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_sheet_collaborators" },
+        () => fetchSharedSheets()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_sheets" },
+        () => fetchSharedSheets()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchSharedSheets]);
 
   const toggleTheme = () => {
     setIsDark(!isDark);

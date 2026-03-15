@@ -63,7 +63,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   // null means "all sheets", a string means specific sheet
   const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName ?? null);
   const effectiveSheet = fixedSheetName ?? selectedSheet;
-  const effectiveOwnerId = taskType === "work" ? (fixedSheetOwnerId ?? user?.id) : undefined;
+  const effectiveOwnerId = fixedSheetOwnerId ?? user?.id;
   const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: string; field: keyof Task } | null>(null);
@@ -84,34 +84,42 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
   // Fetch available sheets from the task_sheets table (persisted)
   const fetchAvailableSheets = useCallback(async () => {
+    if (!user || !showYearSelector) {
+      setSheetsLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("task_sheets")
         .select("sheet_name")
-        .eq("task_type", taskType);
+        .eq("task_type", taskType)
+        .eq("user_id", user.id);
 
       if (error) throw error;
 
       // Get unique sheet names
-      const sheetNames = [...new Set(data?.map(s => s.sheet_name) || [])].filter(Boolean) as string[];
-      
+      const sheetNames = [...new Set(data?.map((s) => s.sheet_name) || [])].filter(Boolean) as string[];
+
       // Always include current year if not present
       if (!sheetNames.includes(currentYear)) {
         sheetNames.push(currentYear);
       }
-      
+
       // Sort: numbers first (ascending), then text (alphabetically)
-      setAvailableSheets(sheetNames.sort((a, b) => {
-        const aNum = parseInt(a, 10);
-        const bNum = parseInt(b, 10);
-        const aIsNum = !isNaN(aNum);
-        const bIsNum = !isNaN(bNum);
-        
-        if (aIsNum && bIsNum) return aNum - bNum;
-        if (aIsNum) return -1;
-        if (bIsNum) return 1;
-        return a.localeCompare(b, 'he');
-      }));
+      setAvailableSheets(
+        sheetNames.sort((a, b) => {
+          const aNum = parseInt(a, 10);
+          const bNum = parseInt(b, 10);
+          const aIsNum = !isNaN(aNum);
+          const bIsNum = !isNaN(bNum);
+
+          if (aIsNum && bIsNum) return aNum - bNum;
+          if (aIsNum) return -1;
+          if (bIsNum) return 1;
+          return a.localeCompare(b, "he");
+        })
+      );
     } catch (error) {
       console.error("Error fetching sheets:", error);
       // Fallback to current year
@@ -119,7 +127,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     } finally {
       setSheetsLoading(false);
     }
-  }, [taskType, currentYear]);
+  }, [user, showYearSelector, taskType, currentYear]);
 
   useEffect(() => {
     fetchAvailableSheets();
@@ -747,22 +755,22 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               onClick={async () => {
                 // Ensure the sheet exists in task_sheets before sharing
                 const sheetToShare = selectedSheet ?? currentYear;
-                if (user) {
-                  const { data: existing } = await supabase
-                    .from("task_sheets")
-                    .select("id")
-                    .eq("sheet_name", sheetToShare)
-                    .eq("task_type", taskType)
-                    .eq("user_id", user.id)
-                    .maybeSingle();
-                  if (!existing) {
-                    await supabase.from("task_sheets").insert({
-                      user_id: user.id,
-                      task_type: taskType,
-                      sheet_name: sheetToShare,
-                    });
-                  }
+                if (!user) return;
+
+                const { error } = await supabase.from("task_sheets").upsert(
+                  {
+                    user_id: user.id,
+                    task_type: taskType,
+                    sheet_name: sheetToShare,
+                  },
+                  { onConflict: "user_id,task_type,sheet_name" }
+                );
+
+                if (error) {
+                  toast.error("שגיאה בפתיחת שיתוף הגליון");
+                  return;
                 }
+
                 setSharingDialogOpen(true);
               }}
               className="gap-1 ml-2 mr-2 shrink-0"
@@ -1006,6 +1014,20 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         <span className="text-destructive font-medium">חריגה</span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                      {task.creatorName ? (
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-foreground">{task.creatorName}</span>
+                          <span dir="ltr" className="text-[11px] text-muted-foreground">
+                            @{task.creatorUsername || task.creatorEmail.split("@")[0] || "-"}
+                          </span>
+                        </div>
+                      ) : task.creatorEmail ? (
+                        <span dir="ltr">{task.creatorEmail}</span>
+                      ) : (
+                        "-"
                       )}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
