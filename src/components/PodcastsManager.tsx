@@ -243,6 +243,9 @@ const PodcastsManager = () => {
                     />
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    {podcast.status_changed_at ? formatDateTime(podcast.status_changed_at) : '-'}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
                     {formatDateTime(podcast.created_at)}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
