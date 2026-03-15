@@ -755,22 +755,22 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               onClick={async () => {
                 // Ensure the sheet exists in task_sheets before sharing
                 const sheetToShare = selectedSheet ?? currentYear;
-                if (user) {
-                  const { data: existing } = await supabase
-                    .from("task_sheets")
-                    .select("id")
-                    .eq("sheet_name", sheetToShare)
-                    .eq("task_type", taskType)
-                    .eq("user_id", user.id)
-                    .maybeSingle();
-                  if (!existing) {
-                    await supabase.from("task_sheets").insert({
-                      user_id: user.id,
-                      task_type: taskType,
-                      sheet_name: sheetToShare,
-                    });
-                  }
+                if (!user) return;
+
+                const { error } = await supabase.from("task_sheets").upsert(
+                  {
+                    user_id: user.id,
+                    task_type: taskType,
+                    sheet_name: sheetToShare,
+                  },
+                  { onConflict: "user_id,task_type,sheet_name" }
+                );
+
+                if (error) {
+                  toast.error("שגיאה בפתיחת שיתוף הגליון");
+                  return;
                 }
+
                 setSharingDialogOpen(true);
               }}
               className="gap-1 ml-2 mr-2 shrink-0"
