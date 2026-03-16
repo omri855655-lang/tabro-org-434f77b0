@@ -326,11 +326,7 @@ const DeeplyDashboard = () => {
     setTimeLeft(TIMER_PRESETS[0].work * 60);
     setIsTimerRunning(false);
     setIsBreak(false);
-    // Suggest a classical preset for focus
-    if (!isPlaying) {
-      const studyPreset = AUDIO_PRESETS.find(p => p.id === "satie-gymnopedie") || AUDIO_PRESETS.find(p => p.category === "study");
-      if (studyPreset) toggle(studyPreset);
-    }
+    // Don't auto-start audio - let the user choose when to play
   };
 
   const today = new Date().toDateString();

@@ -1073,7 +1073,12 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     </td>
                     )}
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                      {task.createdAt ? new Date(task.createdAt).toLocaleDateString('he-IL') + ' ' + new Date(task.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      <div>{task.createdAt ? new Date(task.createdAt).toLocaleDateString('he-IL') + ' ' + new Date(task.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
+                      {isSharedSheet && !hideCreatorInfo && task.creatorEmail && task.creatorEmail !== user?.email && (
+                        <div className="text-[10px] text-primary/70 mt-0.5">
+                          {task.creatorName || task.creatorEmail}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                       {task.updatedAt ? new Date(task.updatedAt).toLocaleDateString('he-IL') + ' ' + new Date(task.updatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}

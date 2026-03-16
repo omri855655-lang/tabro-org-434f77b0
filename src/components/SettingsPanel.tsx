@@ -129,6 +129,46 @@ const SettingsPanel = () => {
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6" dir="rtl">
+      {/* Profile Name Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />פרטים אישיים</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">השם שלך יוצג בגליונות משותפים כדי שאחרים ידעו מי הוסיף או עדכן משימות.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>שם פרטי</Label>
+              <Input
+                placeholder="שם פרטי"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                onBlur={async () => {
+                  if (!user || !nameLoaded) return;
+                  const displayName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || null;
+                  await supabase.from("profiles").update({ first_name: firstName.trim() || null, display_name: displayName }).eq("user_id", user.id);
+                }}
+                dir="rtl"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>שם משפחה</Label>
+              <Input
+                placeholder="שם משפחה"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                onBlur={async () => {
+                  if (!user || !nameLoaded) return;
+                  const displayName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || null;
+                  await supabase.from("profiles").update({ last_name: lastName.trim() || null, display_name: displayName }).eq("user_id", user.id);
+                }}
+                dir="rtl"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Security Card */}
       <Card>
         <CardHeader>
