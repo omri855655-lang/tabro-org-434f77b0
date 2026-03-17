@@ -952,6 +952,10 @@ export type Database = {
           creator_username: string | null
           description: string
           id: string
+          last_editor_email: string | null
+          last_editor_name: string | null
+          last_editor_user_id: string | null
+          last_editor_username: string | null
           overdue: boolean | null
           planned_end: string | null
           progress: string | null
@@ -974,6 +978,10 @@ export type Database = {
           creator_username?: string | null
           description: string
           id?: string
+          last_editor_email?: string | null
+          last_editor_name?: string | null
+          last_editor_user_id?: string | null
+          last_editor_username?: string | null
           overdue?: boolean | null
           planned_end?: string | null
           progress?: string | null
@@ -996,6 +1004,10 @@ export type Database = {
           creator_username?: string | null
           description?: string
           id?: string
+          last_editor_email?: string | null
+          last_editor_name?: string | null
+          last_editor_user_id?: string | null
+          last_editor_username?: string | null
           overdue?: boolean | null
           planned_end?: string | null
           progress?: string | null
