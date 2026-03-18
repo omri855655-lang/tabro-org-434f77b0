@@ -70,6 +70,9 @@ const mapDbTaskToTask = (dbTask: DbTask & { urgent?: boolean }): Task => ({
   creatorEmail: dbTask.creator_email || "",
   creatorName: dbTask.creator_name || "",
   creatorUsername: dbTask.creator_username || "",
+  lastEditorEmail: dbTask.last_editor_email || "",
+  lastEditorName: dbTask.last_editor_name || "",
+  lastEditorUsername: dbTask.last_editor_username || "",
   createdAt: dbTask.created_at,
   updatedAt: dbTask.updated_at,
 });

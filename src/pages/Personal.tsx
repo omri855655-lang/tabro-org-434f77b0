@@ -151,8 +151,8 @@ const Personal = () => {
           sheet_id: sheet.id,
           sheet_name: sheet.sheet_name,
           owner_id: sheet.user_id,
-          owner_email: ownerInfo?.email || sheet.user_id.slice(0, 8),
-          owner_display_name: ownerInfo?.display_name || ownerInfo?.email || sheet.user_id.slice(0, 8),
+          owner_email: ownerInfo?.email || "משתמש",
+          owner_display_name: ownerInfo?.display_name || ownerInfo?.email || "משתמש",
           permission: collab?.permission || "view",
           task_type: sheet.task_type,
         });
