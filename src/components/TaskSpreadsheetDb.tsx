@@ -1053,14 +1053,19 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     {/* Creator info moved under date columns - no separate column needed */}
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                       <div>{task.createdAt ? new Date(task.createdAt).toLocaleDateString('he-IL') + ' ' + new Date(task.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
-                      {isSharedSheet && !hideCreatorInfo && task.creatorEmail && task.creatorEmail !== user?.email && (
+                      {!hideCreatorInfo && task.creatorName && task.creatorEmail !== user?.email && (
                         <div className="text-[10px] text-primary/70 mt-0.5">
-                          {task.creatorName || task.creatorEmail}
+                          נוצר ע״י: {task.creatorName || task.creatorEmail}
                         </div>
                       )}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                      {task.updatedAt ? new Date(task.updatedAt).toLocaleDateString('he-IL') + ' ' + new Date(task.updatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      <div>{task.updatedAt ? new Date(task.updatedAt).toLocaleDateString('he-IL') + ' ' + new Date(task.updatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
+                      {!hideCreatorInfo && task.lastEditorName && task.lastEditorEmail !== user?.email && (
+                        <div className="text-[10px] text-blue-500/70 mt-0.5">
+                          עודכן ע״י: {task.lastEditorName || task.lastEditorEmail}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-sm">
                       <div className="flex items-center gap-1">
