@@ -46,6 +46,9 @@ export interface Task {
   creatorEmail: string;
   creatorName: string;
   creatorUsername: string;
+  lastEditorEmail: string;
+  lastEditorName: string;
+  lastEditorUsername: string;
   createdAt: string;
   updatedAt: string;
 }
