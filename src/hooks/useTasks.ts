@@ -21,6 +21,10 @@ export interface DbTask {
   creator_email: string | null;
   creator_name: string | null;
   creator_username: string | null;
+  last_editor_user_id: string | null;
+  last_editor_email: string | null;
+  last_editor_name: string | null;
+  last_editor_username: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -42,6 +46,9 @@ export interface Task {
   creatorEmail: string;
   creatorName: string;
   creatorUsername: string;
+  lastEditorEmail: string;
+  lastEditorName: string;
+  lastEditorUsername: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -63,6 +70,9 @@ const mapDbTaskToTask = (dbTask: DbTask & { urgent?: boolean }): Task => ({
   creatorEmail: dbTask.creator_email || "",
   creatorName: dbTask.creator_name || "",
   creatorUsername: dbTask.creator_username || "",
+  lastEditorEmail: dbTask.last_editor_email || "",
+  lastEditorName: dbTask.last_editor_name || "",
+  lastEditorUsername: dbTask.last_editor_username || "",
   createdAt: dbTask.created_at,
   updatedAt: dbTask.updated_at,
 });
@@ -193,6 +203,33 @@ export function useTasks(
 
         const newTask = mapDbTaskToTask(data as unknown as DbTask);
         setTasks((prev) => [...prev, newTask]);
+
+        // If adding to someone else's sheet, send email notification
+        if (ownerId && ownerId !== user.id) {
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("display_name, first_name, last_name, username")
+              .eq("user_id", user.id)
+              .maybeSingle();
+            
+            const creatorName = profile?.display_name || 
+              [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 
+              profile?.username || user.email || "משתמש";
+
+            supabase.functions.invoke("notify-shared-task", {
+              body: {
+                ownerUserId: ownerId,
+                taskDescription: newTask.description,
+                creatorName,
+                sheetName: taskSheetName,
+              },
+            }).catch(e => console.error("Notify error:", e));
+          } catch (notifyError) {
+            console.error("Failed to send notification:", notifyError);
+          }
+        }
+
         return newTask;
       } catch (error: any) {
         console.error("Error adding task:", error);

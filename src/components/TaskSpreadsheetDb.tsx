@@ -273,9 +273,31 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     [updateTask]
   );
 
+  // Fetch user profile for auto-responsible
+  const [userProfileName, setUserProfileName] = useState<string>("");
+  
+  useEffect(() => {
+    if (!user) return;
+    const fetchProfile = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name, username, first_name, last_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (data) {
+        const name = data.display_name || 
+          [data.first_name, data.last_name].filter(Boolean).join(' ') || 
+          data.username || user.email || "";
+        setUserProfileName(name);
+      } else {
+        setUserProfileName(user.email || "");
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
   const handleAddTask = async () => {
-    // When adding a task, use selected sheet or current year if showing all
-    const defaultResponsible = taskType === "work" && user?.email ? user.email : "";
+    const defaultResponsible = taskType === "work" ? userProfileName : "";
     await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
   };
 
@@ -764,8 +786,26 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             }}
             className="text-xs gap-1 mr-auto"
           >
-            {hideCreatorInfo ? <Users className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+            <Users className="h-3 w-3" />
             {hideCreatorInfo ? "הצג יוצר" : "הסתר יוצר"}
+          </Button>
+        </div>
+      )}
+      {/* Show creator toggle also for owned sheets (not shared) */}
+      {!isSharedSheet && showYearSelector && (
+        <div className="flex items-center justify-end px-4 py-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const newVal = !hideCreatorInfo;
+              setHideCreatorInfo(newVal);
+              localStorage.setItem("hide-creator-info", String(newVal));
+            }}
+            className="text-xs gap-1"
+          >
+            <Users className="h-3 w-3" />
+            {hideCreatorInfo ? "הצג יוצר/עורך" : "הסתר יוצר/עורך"}
           </Button>
         </div>
       )}
@@ -1053,14 +1093,19 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     {/* Creator info moved under date columns - no separate column needed */}
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                       <div>{task.createdAt ? new Date(task.createdAt).toLocaleDateString('he-IL') + ' ' + new Date(task.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
-                      {isSharedSheet && !hideCreatorInfo && task.creatorEmail && task.creatorEmail !== user?.email && (
+                      {!hideCreatorInfo && task.creatorName && task.creatorEmail !== user?.email && (
                         <div className="text-[10px] text-primary/70 mt-0.5">
-                          {task.creatorName || task.creatorEmail}
+                          נוצר ע״י: {task.creatorName || task.creatorEmail}
                         </div>
                       )}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                      {task.updatedAt ? new Date(task.updatedAt).toLocaleDateString('he-IL') + ' ' + new Date(task.updatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      <div>{task.updatedAt ? new Date(task.updatedAt).toLocaleDateString('he-IL') + ' ' + new Date(task.updatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
+                      {!hideCreatorInfo && task.lastEditorName && task.lastEditorEmail !== user?.email && (
+                        <div className="text-[10px] text-blue-500/70 mt-0.5">
+                          עודכן ע״י: {task.lastEditorName || task.lastEditorEmail}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-sm">
                       <div className="flex items-center gap-1">
