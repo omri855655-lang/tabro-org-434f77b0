@@ -52,13 +52,14 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
   const [saving, setSaving] = useState(false);
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [selectedShareSheet, setSelectedShareSheet] = useState<string>(sheetName || MAIN_SHEET_NAME);
+  const ALL_SHEETS_VALUE = "הכל";
 
   const selectableSheets = useMemo(() => {
     const normalized = [MAIN_SHEET_NAME, ...availableSheets, sheetName]
       .map((s) => (s || "").trim())
       .filter(Boolean);
 
-    return [...new Set(normalized)].sort((a, b) => {
+    const sorted = [...new Set(normalized)].sort((a, b) => {
       if (a === MAIN_SHEET_NAME && b !== MAIN_SHEET_NAME) return -1;
       if (b === MAIN_SHEET_NAME && a !== MAIN_SHEET_NAME) return 1;
       const aNum = Number(a);
@@ -68,6 +69,8 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
       if (!Number.isNaN(bNum)) return 1;
       return a.localeCompare(b, "he");
     });
+
+    return [ALL_SHEETS_VALUE, ...sorted];
   }, [availableSheets, sheetName]);
 
   useEffect(() => {
