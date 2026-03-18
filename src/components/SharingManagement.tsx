@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Trash2, Mail, Clock, Search, Filter, ArrowUpDown, Share2, History } from "lucide-react";
+import { Users, Trash2, Mail, Clock, Search, Filter, ArrowUpDown, Share2, History, FolderKanban, FileSpreadsheet } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,6 +25,24 @@ interface CollabRecord {
   invited_display_name: string | null;
   invited_username: string | null;
   permission: string;
+  created_at: string;
+}
+
+interface SharedWithMeRecord {
+  sheet_id: string;
+  sheet_name: string;
+  task_type: string;
+  owner_display_name: string;
+  owner_username: string;
+  permission: string;
+  created_at: string;
+}
+
+interface SharedProjectRecord {
+  project_id: string;
+  project_title: string;
+  role: string;
+  invited_by_name: string;
   created_at: string;
 }
 
@@ -49,6 +67,8 @@ const ACTION_LABELS: Record<string, string> = {
 const SharingManagement = () => {
   const { user } = useAuth();
   const [collabs, setCollabs] = useState<CollabRecord[]>([]);
+  const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeRecord[]>([]);
+  const [sharedProjects, setSharedProjects] = useState<SharedProjectRecord[]>([]);
   const [activities, setActivities] = useState<ActivityRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,6 +111,105 @@ const SharingManagement = () => {
     setLoading(false);
   }, [user]);
 
+  const fetchSharedWithMe = useCallback(async () => {
+    if (!user) return;
+
+    const normalizedEmail = (user.email || "").trim().toLowerCase();
+
+    // Get collaborator entries for me
+    const [byUser, byEmail] = await Promise.all([
+      supabase.from("task_sheet_collaborators").select("sheet_id, permission, created_at").eq("user_id", user.id),
+      normalizedEmail ? supabase.from("task_sheet_collaborators").select("sheet_id, permission, created_at").eq("invited_email", normalizedEmail) : Promise.resolve({ data: [], error: null } as any),
+    ]);
+
+    const merged = [...(byUser.data || []), ...(byEmail.data || [])];
+    const unique = Array.from(new Map(merged.map(r => [r.sheet_id, r])).values());
+
+    if (unique.length === 0) {
+      setSharedWithMe([]);
+      return;
+    }
+
+    const sheetIds = unique.map(u => u.sheet_id);
+    const { data: sheets } = await supabase.from("task_sheets").select("id, sheet_name, user_id, task_type").in("id", sheetIds);
+
+    const ownerIds = [...new Set((sheets || []).filter(s => s.user_id !== user.id).map(s => s.user_id))];
+    let ownerProfiles: Record<string, { display_name: string; username: string }> = {};
+    if (ownerIds.length > 0) {
+      const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, username, first_name, last_name").in("user_id", ownerIds);
+      for (const p of profiles || []) {
+        const name = p.display_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username || "משתמש";
+        ownerProfiles[p.user_id] = { display_name: name, username: p.username || "" };
+      }
+    }
+
+    const results: SharedWithMeRecord[] = [];
+    for (const sheet of sheets || []) {
+      if (sheet.user_id === user.id) continue;
+      const collab = unique.find(u => u.sheet_id === sheet.id);
+      const owner = ownerProfiles[sheet.user_id];
+      results.push({
+        sheet_id: sheet.id,
+        sheet_name: sheet.sheet_name,
+        task_type: sheet.task_type,
+        owner_display_name: owner?.display_name || "משתמש",
+        owner_username: owner?.username || "",
+        permission: collab?.permission || "view",
+        created_at: collab?.created_at || "",
+      });
+    }
+
+    setSharedWithMe(results);
+  }, [user]);
+
+  const fetchSharedProjects = useCallback(async () => {
+    if (!user) return;
+
+    const normalizedEmail = (user.email || "").trim().toLowerCase();
+
+    // Get project memberships
+    const { data: memberships } = await supabase
+      .from("project_members")
+      .select("project_id, role, invited_by, created_at")
+      .or(`user_id.eq.${user.id},invited_email.eq.${normalizedEmail}`);
+
+    if (!memberships || memberships.length === 0) {
+      setSharedProjects([]);
+      return;
+    }
+
+    const projectIds = [...new Set(memberships.map(m => m.project_id))];
+    const { data: projects } = await supabase
+      .from("projects")
+      .select("id, title, user_id")
+      .in("id", projectIds);
+
+    // Only show projects NOT owned by me
+    const sharedProjs = (projects || []).filter(p => p.user_id !== user.id);
+
+    const inviterIds = [...new Set(memberships.filter(m => m.invited_by !== user.id).map(m => m.invited_by))];
+    let inviterProfiles: Record<string, string> = {};
+    if (inviterIds.length > 0) {
+      const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, username, first_name, last_name").in("user_id", inviterIds);
+      for (const p of profiles || []) {
+        inviterProfiles[p.user_id] = p.display_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || p.username || "משתמש";
+      }
+    }
+
+    const results: SharedProjectRecord[] = sharedProjs.map(proj => {
+      const membership = memberships.find(m => m.project_id === proj.id);
+      return {
+        project_id: proj.id,
+        project_title: proj.title,
+        role: membership?.role || "member",
+        invited_by_name: inviterProfiles[membership?.invited_by || ""] || "משתמש",
+        created_at: membership?.created_at || "",
+      };
+    });
+
+    setSharedProjects(results);
+  }, [user]);
+
   const fetchActivities = useCallback(async () => {
     if (!user) return;
 
@@ -105,8 +224,10 @@ const SharingManagement = () => {
 
   useEffect(() => {
     fetchAllCollaborators();
+    fetchSharedWithMe();
+    fetchSharedProjects();
     fetchActivities();
-  }, [fetchAllCollaborators, fetchActivities]);
+  }, [fetchAllCollaborators, fetchSharedWithMe, fetchSharedProjects, fetchActivities]);
 
   const removeCollaborator = async (id: string) => {
     const collab = collabs.find(c => c.id === id);
@@ -192,6 +313,12 @@ const SharingManagement = () => {
     return acc;
   }, {} as Record<string, CollabRecord[]>);
 
+  const ROLE_LABELS: Record<string, string> = {
+    manager: "מנהל",
+    member: "חבר",
+    viewer: "צופה",
+  };
+
   return (
     <div className="p-4 space-y-4 max-w-4xl mx-auto" dir="rtl">
       <div className="flex items-center gap-3">
@@ -203,7 +330,11 @@ const SharingManagement = () => {
         <TabsList>
           <TabsTrigger value="overview" className="gap-2">
             <Users className="h-4 w-4" />
-            סקירה
+            שיתפתי
+          </TabsTrigger>
+          <TabsTrigger value="shared-with-me" className="gap-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            שותף איתי
           </TabsTrigger>
           <TabsTrigger value="activity" className="gap-2">
             <History className="h-4 w-4" />
@@ -310,6 +441,74 @@ const SharingManagement = () => {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="shared-with-me" className="space-y-6">
+          {/* Sheets shared with me */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-primary" />
+              גליונות ששותפו איתי
+            </h3>
+            {sharedWithMe.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileSpreadsheet className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">אין גליונות ששותפו איתך</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sharedWithMe.map((s) => (
+                  <div key={s.sheet_id} className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border bg-card">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${s.task_type === "work" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"}`}>
+                        {s.task_type === "work" ? "עבודה" : "אישי"}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{s.sheet_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          משותף מ: {s.owner_display_name}
+                          {s.owner_username && <span dir="ltr"> @{s.owner_username}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${s.permission === "edit" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      {s.permission === "edit" ? "עריכה" : "צפייה"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Projects shared with me */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-primary" />
+              פרויקטים משותפים
+            </h3>
+            {sharedProjects.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FolderKanban className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">אין פרויקטים משותפים</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sharedProjects.map((p) => (
+                  <div key={p.project_id} className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border bg-card">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{p.project_title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        שותף ע״י: {p.invited_by_name}
+                      </div>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      {ROLE_LABELS[p.role] || p.role}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="activity" className="space-y-4">
