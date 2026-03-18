@@ -127,12 +127,15 @@ const Personal = () => {
       if (ownerIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, display_name, username")
+          .select("user_id, display_name, username, first_name, last_name")
           .in("user_id", ownerIds);
         
         for (const p of profiles || []) {
+          const name = p.display_name || 
+            [p.first_name, p.last_name].filter(Boolean).join(' ') || 
+            p.username;
           ownerProfiles[p.user_id] = { 
-            display_name: p.display_name || p.username || null, 
+            display_name: name || null, 
             email: p.username || "" 
           };
         }
