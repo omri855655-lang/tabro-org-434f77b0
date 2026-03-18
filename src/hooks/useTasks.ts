@@ -203,6 +203,33 @@ export function useTasks(
 
         const newTask = mapDbTaskToTask(data as unknown as DbTask);
         setTasks((prev) => [...prev, newTask]);
+
+        // If adding to someone else's sheet, send email notification
+        if (ownerId && ownerId !== user.id) {
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("display_name, first_name, last_name, username")
+              .eq("user_id", user.id)
+              .maybeSingle();
+            
+            const creatorName = profile?.display_name || 
+              [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 
+              profile?.username || user.email || "משתמש";
+
+            supabase.functions.invoke("notify-shared-task", {
+              body: {
+                ownerUserId: ownerId,
+                taskDescription: newTask.description,
+                creatorName,
+                sheetName: taskSheetName,
+              },
+            }).catch(e => console.error("Notify error:", e));
+          } catch (notifyError) {
+            console.error("Failed to send notification:", notifyError);
+          }
+        }
+
         return newTask;
       } catch (error: any) {
         console.error("Error adding task:", error);
