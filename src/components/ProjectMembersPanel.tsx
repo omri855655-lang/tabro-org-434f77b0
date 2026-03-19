@@ -87,13 +87,13 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
       return;
     }
 
-    const { error } = await supabase.from("project_members").insert({
+    const { error } = await supabase.from("project_members").upsert({
       project_id: projectId,
       invited_email: parsed.data,
       role: newRole,
       job_title: newJobTitle.trim() || null,
       invited_by: user.id,
-    });
+    }, { onConflict: "project_id,invited_email", ignoreDuplicates: true });
 
     if (error) {
       toast.error("שגיאה בהוספת חבר צוות");

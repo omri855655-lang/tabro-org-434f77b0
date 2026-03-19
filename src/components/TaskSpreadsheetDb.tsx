@@ -299,6 +299,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const handleAddTask = async () => {
     const defaultResponsible = taskType === "work" ? userProfileName : "";
     await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
+    // Auto-scroll to bottom after adding task
+    setTimeout(() => {
+      const tableContainer = document.querySelector('[data-task-table]');
+      if (tableContainer) {
+        tableContainer.scrollTop = tableContainer.scrollHeight;
+      } else {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }
+    }, 200);
   };
 
   const handleDeleteTask = async () => {
