@@ -15,6 +15,7 @@ import ProjectMembersPanel from '@/components/ProjectMembersPanel';
 
 interface Project {
   id: string;
+  user_id: string;
   title: string;
   description: string | null;
   status: string | null;
@@ -509,7 +510,7 @@ const ProjectsManager = () => {
                         )}
 
                         {/* Project Members */}
-                        <ProjectMembersPanel projectId={project.id} isOwner={true} />
+                        <ProjectMembersPanel projectId={project.id} isOwner={project.user_id === user?.id} />
                       </div>
                     </CollapsibleContent>
                   </Collapsible>

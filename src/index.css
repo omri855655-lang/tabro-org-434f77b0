@@ -52,6 +52,41 @@ All colors MUST be HSL.
     --sidebar-ring: 217 91% 60%;
   }
 
+  :root[data-site-theme="ocean"] {
+    --primary: 198 89% 48%;
+    --ring: 198 89% 48%;
+    --accent: 184 70% 38%;
+    --sidebar-ring: 198 89% 48%;
+  }
+
+  :root[data-site-theme="mint"] {
+    --primary: 160 84% 34%;
+    --ring: 160 84% 34%;
+    --accent: 148 63% 42%;
+    --sidebar-ring: 160 84% 34%;
+  }
+
+  :root[data-site-theme="sunset"] {
+    --primary: 16 89% 57%;
+    --ring: 16 89% 57%;
+    --accent: 38 92% 50%;
+    --sidebar-ring: 16 89% 57%;
+  }
+
+  :root[data-site-theme="lavender"] {
+    --primary: 262 83% 61%;
+    --ring: 262 83% 61%;
+    --accent: 328 73% 54%;
+    --sidebar-ring: 262 83% 61%;
+  }
+
+  :root[data-site-theme="graphite"] {
+    --primary: 215 25% 27%;
+    --ring: 215 25% 27%;
+    --accent: 199 89% 48%;
+    --sidebar-ring: 215 25% 27%;
+  }
+
   .dark {
     --background: 220 20% 10%;
     --foreground: 210 40% 98%;
@@ -89,6 +124,41 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 5% 96%;
     --sidebar-border: 240 4% 16%;
     --sidebar-ring: 217 91% 60%;
+  }
+
+  .dark[data-site-theme="ocean"] {
+    --primary: 191 95% 68%;
+    --ring: 191 95% 68%;
+    --accent: 184 65% 45%;
+    --sidebar-ring: 191 95% 68%;
+  }
+
+  .dark[data-site-theme="mint"] {
+    --primary: 157 73% 58%;
+    --ring: 157 73% 58%;
+    --accent: 148 58% 47%;
+    --sidebar-ring: 157 73% 58%;
+  }
+
+  .dark[data-site-theme="sunset"] {
+    --primary: 23 94% 63%;
+    --ring: 23 94% 63%;
+    --accent: 43 96% 56%;
+    --sidebar-ring: 23 94% 63%;
+  }
+
+  .dark[data-site-theme="lavender"] {
+    --primary: 266 85% 72%;
+    --ring: 266 85% 72%;
+    --accent: 320 79% 64%;
+    --sidebar-ring: 266 85% 72%;
+  }
+
+  .dark[data-site-theme="graphite"] {
+    --primary: 210 11% 71%;
+    --ring: 210 11% 71%;
+    --accent: 198 89% 58%;
+    --sidebar-ring: 210 11% 71%;
   }
 }
 

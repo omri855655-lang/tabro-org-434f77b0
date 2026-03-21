@@ -306,6 +306,15 @@ const DeeplyDashboard = () => {
     }
   };
 
+  const openNutritionAi = () => {
+    setShowAiChat(true);
+    setAiMessages((prev) => prev.length > 0 ? prev : [{
+      role: "assistant",
+      content: "מעולה — אני יכול לעזור לך לבנות תפריט, להחליף מאכלים שאת לא אוהבת, להתאים סגנון תזונה, ולבנות תפריט יומי לפי מטרה, העדפות ואנרגיה. כתבי לי מה את רוצה לאכול / להימנע ממנו ומה המטרה שלך 🥗"
+    }]);
+    setAiInput("אני רוצה תפריט שמתאים לי");
+  };
+
   const formatHour = (dateStr: string) => {
     const d = new Date(dateStr);
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -391,7 +400,7 @@ const DeeplyDashboard = () => {
             <CardContent className="p-4 space-y-3">
               <div className="max-h-[300px] overflow-y-auto space-y-2">
                 {aiMessages.length === 0 && (
-                  <p className="text-center text-sm opacity-40 py-4">שאל אותי על ריכוז, מוטיבציה, שיטות עבודה עמוקה, או כל דבר שקשור לפרודוקטיביות 🧠</p>
+                  <p className="text-center text-sm opacity-40 py-4">שאל אותי על ריכוז, מוטיבציה, שינה, תזונה, תפריטים מותאמים, או כל דבר שקשור לפרודוקטיביות ובריאות 🧠</p>
                 )}
                 {aiMessages.map((msg, i) => (
                   <div key={i} className={`text-sm rounded-xl p-3 ${msg.role === "user" ? "bg-violet-500/15 mr-8" : "bg-white/5 ml-8"}`}>
@@ -405,7 +414,7 @@ const DeeplyDashboard = () => {
                   value={aiInput}
                   onChange={e => setAiInput(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && sendAiMessage()}
-                  placeholder="שאל על ריכוז, מוטיבציה, שיטות..."
+                  placeholder="למשל: אני לא אוהבת ביצים, תחליף לי ארוחת בוקר..."
                   className={`flex-1 px-3 py-2 rounded-lg ${themeInput} border text-sm placeholder:opacity-30 focus:outline-none focus:ring-1 focus:ring-violet-500/50`}
                 />
                 <Button size="icon" variant="ghost" onClick={sendAiMessage} disabled={aiLoading} className="text-violet-400">
@@ -1335,6 +1344,15 @@ const DeeplyDashboard = () => {
                 )}
               </div>
             ))}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={openNutritionAi}
+              className="w-full justify-center gap-2 border-green-500/30 bg-green-500/10 text-inherit hover:bg-green-500/20"
+            >
+              <MessageCircle className="h-4 w-4" />
+              דברי עם AI על התפריט והתזונה
+            </Button>
           </CardContent>
         </Card>
 

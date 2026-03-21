@@ -3,13 +3,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { useUserPreferences, DEFAULT_TABS } from "@/hooks/useUserPreferences";
+import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, Shield, LayoutGrid, Plus, Trash2, X, Eye, EyeOff, Globe } from "lucide-react";
+import { Lock, Shield, LayoutGrid, Plus, Trash2, X, Eye, EyeOff, Globe, Palette, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
@@ -18,6 +19,7 @@ const SettingsPanel = () => {
   const { user } = useAuth();
   const { toggleTab, isTabVisible } = useUserPreferences();
   const { lang, setLang } = useLanguage();
+  const { themeId, mode, themes, setThemeId, setMode } = useSiteAppearance();
   const [pinEnabled, setPinEnabled] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -164,6 +166,53 @@ const SettingsPanel = () => {
                 }}
                 dir="rtl"
               />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" />עיצוב וצבעים</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">אפשר לבחור ערכת צבעים לכל האתר ולעבור בין מראה בהיר וכהה — כמו ב-Deeply, אבל לכל המערכת.</p>
+          <div className="space-y-2">
+            <Label>ערכת צבעים</Label>
+            <Select value={themeId} onValueChange={setThemeId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {themes.map((theme) => (
+                  <SelectItem key={theme.id} value={theme.id}>
+                    {theme.name} — {theme.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>מצב תצוגה</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={mode === "light" ? "default" : "outline"}
+                className="gap-2"
+                onClick={() => setMode("light")}
+              >
+                <Sun className="h-4 w-4" />
+                בהיר
+              </Button>
+              <Button
+                type="button"
+                variant={mode === "dark" ? "default" : "outline"}
+                className="gap-2"
+                onClick={() => setMode("dark")}
+              >
+                <Moon className="h-4 w-4" />
+                כהה
+              </Button>
             </div>
           </div>
         </CardContent>

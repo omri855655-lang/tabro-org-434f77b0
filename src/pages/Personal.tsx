@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
 import BooksManager from "@/components/BooksManager";
 import ShowsManager from "@/components/ShowsManager";
@@ -65,7 +66,6 @@ const STATIC_TABS: TabDef[] = [
 const Personal = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const [isDark, setIsDark] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sharedSheets, setSharedSheets] = useState<SharedSheet[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(() => {
@@ -76,6 +76,7 @@ const Personal = () => {
   const { boards: customBoards, updateBoard, reorderBoards } = useCustomBoards();
   const { isTabVisible } = useUserPreferences();
   const { t, dir } = useLanguage();
+  const { isDark, toggleMode } = useSiteAppearance();
 
   // Fetch shared sheets (where someone shared with me)
   const fetchSharedSheets = useCallback(async () => {
@@ -195,11 +196,6 @@ const Personal = () => {
       supabase.removeChannel(channel);
     };
   }, [user, fetchSharedSheets]);
-
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle("dark");
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -344,7 +340,7 @@ const Personal = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={toggleTheme}
+              onClick={toggleMode}
           >
             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
