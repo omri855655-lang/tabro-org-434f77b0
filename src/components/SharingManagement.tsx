@@ -134,6 +134,8 @@ const SharingManagement = () => {
     const { data: sheets } = await supabase.from("task_sheets").select("id, sheet_name, user_id, task_type").in("id", sheetIds);
 
     const ownerIds = [...new Set((sheets || []).filter(s => s.user_id !== user.id).map(s => s.user_id))];
+    const sheetNames = [...new Set((sheets || []).map((s) => s.sheet_name))];
+    const taskTypes = [...new Set((sheets || []).map((s) => s.task_type))];
     let ownerProfiles: Record<string, { display_name: string; username: string }> = {};
     if (ownerIds.length > 0) {
       const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, username, first_name, last_name").in("user_id", ownerIds);
@@ -143,16 +145,36 @@ const SharingManagement = () => {
       }
     }
 
+    const ownerNamesBySheetKey: Record<string, string> = {};
+    if (ownerIds.length > 0 && sheetNames.length > 0 && taskTypes.length > 0) {
+      const { data: taskNameRows } = await supabase
+        .from("tasks")
+        .select("user_id, task_type, sheet_name, creator_user_id, creator_name, creator_email")
+        .in("user_id", ownerIds)
+        .in("sheet_name", sheetNames)
+        .in("task_type", taskTypes)
+        .order("created_at", { ascending: true });
+
+      for (const row of taskNameRows || []) {
+        if (row.creator_user_id !== row.user_id) continue;
+        const key = `${row.user_id}:${row.task_type}:${row.sheet_name || ""}`;
+        if (!ownerNamesBySheetKey[key]) {
+          ownerNamesBySheetKey[key] = row.creator_name || row.creator_email || "";
+        }
+      }
+    }
+
     const results: SharedWithMeRecord[] = [];
     for (const sheet of sheets || []) {
       if (sheet.user_id === user.id) continue;
       const collab = unique.find(u => u.sheet_id === sheet.id);
       const owner = ownerProfiles[sheet.user_id];
+      const ownerLabel = ownerNamesBySheetKey[`${sheet.user_id}:${sheet.task_type}:${sheet.sheet_name}`] || owner?.display_name || "משתמש";
       results.push({
         sheet_id: sheet.id,
         sheet_name: sheet.sheet_name,
         task_type: sheet.task_type,
-        owner_display_name: owner?.display_name || "משתמש",
+        owner_display_name: ownerLabel,
         owner_username: owner?.username || "",
         permission: collab?.permission || "view",
         created_at: collab?.created_at || "",

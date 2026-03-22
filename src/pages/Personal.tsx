@@ -46,6 +46,13 @@ interface TabDef {
   visibilityKey?: string;
 }
 
+const MAIN_SHEET_NAME = "ראשי";
+
+const getSharedSheetLabel = (shared: SharedSheet) => {
+  const taskTypeLabel = shared.task_type === "work" ? "משימות עבודה" : "משימות אישיות";
+  return `${shared.owner_display_name} - ${shared.sheet_name === MAIN_SHEET_NAME ? taskTypeLabel : shared.sheet_name}`;
+};
+
 const STATIC_TABS: TabDef[] = [
   { id: "dashboard", icon: LayoutDashboard, label: "dashboard" },
   { id: "tasks", icon: ListTodo, label: "personalTasks", visibilityKey: "tasks" },
@@ -122,6 +129,8 @@ const Personal = () => {
       if (sheetsError) throw sheetsError;
 
       const ownerIds = [...new Set((sheets || []).filter(s => s.user_id !== user.id).map(s => s.user_id))];
+      const sheetNames = [...new Set((sheets || []).map((s) => s.sheet_name))];
+      const taskTypes = [...new Set((sheets || []).map((s) => s.task_type))];
       
       // Fetch owner profiles
       let ownerProfiles: Record<string, { display_name: string | null; email: string }> = {};
@@ -142,18 +151,38 @@ const Personal = () => {
         }
       }
 
+      const ownerNamesBySheetKey: Record<string, string> = {};
+      if (ownerIds.length > 0 && sheetNames.length > 0 && taskTypes.length > 0) {
+        const { data: taskNameRows } = await supabase
+          .from("tasks")
+          .select("user_id, task_type, sheet_name, creator_user_id, creator_name, creator_email")
+          .in("user_id", ownerIds)
+          .in("sheet_name", sheetNames)
+          .in("task_type", taskTypes)
+          .order("created_at", { ascending: true });
+
+        for (const row of taskNameRows || []) {
+          if (row.creator_user_id !== row.user_id) continue;
+          const key = `${row.user_id}:${row.task_type}:${row.sheet_name || ""}`;
+          if (!ownerNamesBySheetKey[key]) {
+            ownerNamesBySheetKey[key] = row.creator_name || row.creator_email || "";
+          }
+        }
+      }
+
       const sharedResults: SharedSheet[] = [];
       for (const sheet of sheets || []) {
         if (sheet.user_id === user.id) continue;
 
         const collab = data.find((d) => d.sheet_id === sheet.id);
         const ownerInfo = ownerProfiles[sheet.user_id];
+        const ownerLabel = ownerNamesBySheetKey[`${sheet.user_id}:${sheet.task_type}:${sheet.sheet_name}`] || ownerInfo?.display_name || ownerInfo?.email || "משתמש";
         sharedResults.push({
           sheet_id: sheet.id,
           sheet_name: sheet.sheet_name,
           owner_id: sheet.user_id,
           owner_email: ownerInfo?.email || "משתמש",
-          owner_display_name: ownerInfo?.display_name || ownerInfo?.email || "משתמש",
+          owner_display_name: ownerLabel,
           permission: collab?.permission || "view",
           task_type: sheet.task_type,
         });
@@ -429,8 +458,8 @@ const Personal = () => {
                         onDragEnd={() => setDraggedTab(null)}
                       >
                         {shared.task_type === "work" ? <Briefcase className="h-4 w-4" /> : <ListTodo className="h-4 w-4" />}
-                        <span className="max-w-[160px] truncate">
-                          {shared.sheet_name} · {shared.owner_display_name}
+                        <span className="max-w-[220px] truncate">
+                          {getSharedSheetLabel(shared)}
                         </span>
                       </TabsTrigger>
                     );
@@ -522,7 +551,7 @@ const Personal = () => {
         {sharedSheets.map((shared) => (
           <TabsContent key={`shared-${shared.sheet_id}`} value={`shared-${shared.sheet_id}`} className="flex-1 min-h-0 overflow-hidden m-0 p-0">
             <TaskSpreadsheetDb
-              title={`${shared.task_type === "work" ? "משימות עבודה" : "משימות אישיות"} - ${shared.sheet_name}`}
+              title={getSharedSheetLabel(shared)}
               taskType={shared.task_type as "work" | "personal"}
               readOnly={shared.permission === "view"}
               showYearSelector={false}

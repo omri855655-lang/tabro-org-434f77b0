@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -85,9 +85,32 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [mentalDialogOpen, setMentalDialogOpen] = useState(false);
   const [mentalTask, setMentalTask] = useState<Task | null>(null);
   const [sharingDialogOpen, setSharingDialogOpen] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const [pendingScrollTaskId, setPendingScrollTaskId] = useState<string | null>(null);
   const [hideCreatorInfo, setHideCreatorInfo] = useState(() => {
     return localStorage.getItem("hide-creator-info") === "true";
   });
+
+  useEffect(() => {
+    if (!pendingScrollTaskId) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const row = document.querySelector(`[data-task-row="${pendingScrollTaskId}"]`) as HTMLElement | null;
+
+      if (row) {
+        row.scrollIntoView({ behavior: "smooth", block: "end" });
+      } else if (tableScrollRef.current) {
+        tableScrollRef.current.scrollTo({
+          top: tableScrollRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+
+      setPendingScrollTaskId(null);
+    }, 150);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingScrollTaskId, tasks, activeTaskTab]);
 
   const compareSheetNames = useCallback((a: string, b: string) => {
     if (a === MAIN_SHEET_NAME && b !== MAIN_SHEET_NAME) return -1;
@@ -298,16 +321,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
   const handleAddTask = async () => {
     const defaultResponsible = taskType === "work" ? userProfileName : "";
-    await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
-    // Auto-scroll to bottom after adding task
-    setTimeout(() => {
-      const tableContainer = document.querySelector('[data-task-table]');
-      if (tableContainer) {
-        tableContainer.scrollTop = tableContainer.scrollHeight;
-      } else {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      }
-    }, 200);
+    setActiveTaskTab("active");
+    const newTask = await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
+    if (!newTask) return;
+    setSelectedRow(newTask.id);
+    setPendingScrollTaskId(newTask.id);
   };
 
   const handleDeleteTask = async () => {
@@ -986,8 +1004,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             );
           }
           
-           return (
-            <div className="min-h-0">
+            return (
+            <div ref={tableScrollRef} data-task-table className="min-h-0 h-full overflow-auto scroll-smooth">
               <table className="w-full border-collapse min-w-[1200px]">
             <thead className="sticky top-0 z-10">
               <tr className="bg-muted">
@@ -1007,6 +1025,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 return (
                   <tr
                     key={task.id}
+                    data-task-row={task.id}
                     className={cn(
                       "border-b border-border hover:bg-accent/30 transition-colors cursor-pointer",
                       selectedRow === task.id && "bg-primary/10",

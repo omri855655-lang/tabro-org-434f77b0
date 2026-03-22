@@ -3,6 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+const getPreferredDisplayName = (
+  profile: {
+    display_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    username?: string | null;
+  } | null | undefined,
+  fallbackEmail?: string | null
+) => {
+  const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim();
+  return profile?.display_name?.trim() || fullName || profile?.username?.trim() || fallbackEmail || "משתמש";
+};
+
 export interface DbTask {
   id: string;
   user_id: string;
@@ -204,32 +217,6 @@ export function useTasks(
         const newTask = mapDbTaskToTask(data as unknown as DbTask);
         setTasks((prev) => [...prev, newTask]);
 
-        // If adding to someone else's sheet, send email notification
-        if (ownerId && ownerId !== user.id) {
-          try {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("display_name, first_name, last_name, username")
-              .eq("user_id", user.id)
-              .maybeSingle();
-            
-            const creatorName = profile?.display_name || 
-              [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 
-              profile?.username || user.email || "משתמש";
-
-            supabase.functions.invoke("notify-shared-task", {
-              body: {
-                ownerUserId: ownerId,
-                taskDescription: newTask.description,
-                creatorName,
-                sheetName: taskSheetName,
-              },
-            }).catch(e => console.error("Notify error:", e));
-          } catch (notifyError) {
-            console.error("Failed to send notification:", notifyError);
-          }
-        }
-
         return newTask;
       } catch (error: any) {
         console.error("Error adding task:", error);
@@ -260,6 +247,13 @@ export function useTasks(
 
       const newPlannedEnd = updates.plannedEnd !== undefined ? updates.plannedEnd : currentTask?.plannedEnd;
       const newStatus = updates.status !== undefined ? updates.status : currentTask?.status;
+      const nextDescription = typeof updates.description === "string" ? updates.description.trim() : "";
+      const shouldNotifySharedOwner =
+        !!ownerId &&
+        ownerId !== user.id &&
+        updates.description !== undefined &&
+        nextDescription.length > 0 &&
+        !(currentTask?.description || "").trim();
 
       if (newPlannedEnd && newStatus !== "בוצע") {
         const today = new Date();
@@ -285,12 +279,35 @@ export function useTasks(
         }
 
         setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task)));
+
+        if (shouldNotifySharedOwner) {
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("display_name, first_name, last_name, username")
+              .eq("user_id", user.id)
+              .maybeSingle();
+
+            const creatorName = getPreferredDisplayName(profile, user.email);
+
+            supabase.functions.invoke("notify-shared-task", {
+              body: {
+                ownerUserId: ownerId,
+                taskDescription: nextDescription,
+                creatorName,
+                sheetName: currentTask?.sheetName || sheetName || String(new Date().getFullYear()),
+              },
+            }).catch((e) => console.error("Notify error:", e));
+          } catch (notifyError) {
+            console.error("Failed to send notification:", notifyError);
+          }
+        }
       } catch (error: any) {
         console.error("Error updating task:", error);
         toast.error("שגיאה בעדכון משימה");
       }
     },
-    [user, tasks, ownerId]
+    [user, tasks, ownerId, sheetName]
   );
 
   const deleteTask = useCallback(

@@ -10,8 +10,10 @@ export interface SiteThemePreset {
 
 export const SITE_THEME_PRESETS: SiteThemePreset[] = [
   { id: "default", name: "נקי", description: "מראה בהיר ונעים עם כחול קלאסי" },
+  { id: "paper", name: "לבן צלול", description: "מסך לבן ובהיר במיוחד עם תחושה נקייה" },
   { id: "ocean", name: "אוקיינוס", description: "כחול-טורקיז מרגיע עם עומק" },
   { id: "mint", name: "מנטה", description: "ירקרק רך וחד לעבודה יומיומית" },
+  { id: "ember", name: "אמבר", description: "חם, מודגש ומעוצב בגוונים כתומים-אדמדמים" },
   { id: "sunset", name: "שקיעה", description: "חם, אנרגטי ועם ניגודיות גבוהה" },
   { id: "lavender", name: "לבנדר", description: "רגוע, אלגנטי ומעט יצירתי" },
   { id: "graphite", name: "גרפיט", description: "אפור-פחם מקצועי וממוקד" },
