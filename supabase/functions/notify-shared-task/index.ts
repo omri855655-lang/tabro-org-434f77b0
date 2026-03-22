@@ -13,6 +13,8 @@ serve(async (req) => {
 
   try {
     const { ownerUserId, taskDescription, creatorName, sheetName } = await req.json();
+    const normalizedTaskDescription = typeof taskDescription === "string" ? taskDescription.trim() : "";
+    const taskPreview = normalizedTaskDescription ? `: ${normalizedTaskDescription.slice(0, 80)}` : "";
 
     if (!ownerUserId || !creatorName) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -48,12 +50,12 @@ serve(async (req) => {
       body: JSON.stringify({
         from: "ExcelSync <onboarding@resend.dev>",
         to: [ownerEmail],
-        subject: `${creatorName} הוסיף/ה משימה חדשה בגליון ${sheetName || "משותף"}`,
+        subject: `${creatorName} צירף/ה לך משימה${taskPreview}`,
         html: `
           <div dir="rtl" style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2>משימה חדשה בגליון המשותף שלך</h2>
-            <p><strong>${creatorName}</strong> הוסיף/ה משימה חדשה לגליון <strong>${sheetName || "משותף"}</strong>.</p>
-            ${taskDescription ? `<p>תיאור המשימה: <em>${taskDescription}</em></p>` : ""}
+            <h2>נוספה לך משימה חדשה</h2>
+            <p><strong>${creatorName}</strong> צירף/ה לך משימה חדשה לגליון <strong>${sheetName || "משותף"}</strong>.</p>
+            ${normalizedTaskDescription ? `<p>המשימה: <strong>${normalizedTaskDescription}</strong></p>` : ""}
             <hr style="margin: 20px 0;" />
             <a href="https://excel-life-sync.lovable.app/personal" style="display: inline-block; background: #6366f1; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
               פתח את האפליקציה
