@@ -36,6 +36,7 @@ const AdminDashboard = () => {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [passwordVerified, setPasswordVerified] = useState(false);
 
   const fetchStats = useCallback(async () => {
@@ -66,11 +67,22 @@ const AdminDashboard = () => {
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === ADMIN_PASSWORD) {
-      setPasswordVerified(true);
-    } else {
+    if (passwordInput !== ADMIN_PASSWORD) {
       toast.error("סיסמה שגויה");
+      return;
     }
+    // Check that logged-in user's email matches input or that they are an admin
+    if (!user) {
+      toast.error("יש להתחבר קודם");
+      return;
+    }
+    const normalizedInput = emailInput.trim().toLowerCase();
+    const userEmail = (user.email || "").toLowerCase();
+    if (normalizedInput && normalizedInput !== userEmail) {
+      toast.error("האימייל לא תואם את החשבון המחובר");
+      return;
+    }
+    setPasswordVerified(true);
   };
 
   const handleAddAdmin = async () => {
@@ -112,12 +124,20 @@ const AdminDashboard = () => {
           <CardContent>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <Input
+                type="email"
+                placeholder="האימייל שלך..."
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                dir="ltr"
+                autoFocus
+                required
+              />
+              <Input
                 type="password"
                 placeholder="הזן סיסמה..."
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 dir="ltr"
-                autoFocus
               />
               <Button type="submit" className="w-full">כניסה</Button>
             </form>
