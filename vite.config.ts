@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt"],
       manifest: {
-        name: "מנהל משימות אישי",
-        short_name: "משימות",
+        name: "Tabro - ניהול משימות",
+        short_name: "Tabro",
         description: "אפליקציה לניהול משימות אישיות ועבודה",
         theme_color: "#8b5cf6",
         background_color: "#1a1a2e",
