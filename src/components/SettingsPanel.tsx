@@ -389,9 +389,12 @@ const SettingsPanel = () => {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">בחר את שפת הממשק / Choose interface language</p>
-          <div className="flex gap-2">
-            <Button variant={lang === "he" ? "default" : "outline"} onClick={() => setLang("he")} className="flex-1">עברית</Button>
-            <Button variant={lang === "en" ? "default" : "outline"} onClick={() => setLang("en")} className="flex-1">English</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant={lang === "he" ? "default" : "outline"} onClick={() => setLang("he")} className="flex-1 min-w-[80px]">🇮🇱 עברית</Button>
+            <Button variant={lang === "en" ? "default" : "outline"} onClick={() => setLang("en")} className="flex-1 min-w-[80px]">🇺🇸 English</Button>
+            <Button variant={lang === "es" ? "default" : "outline"} onClick={() => setLang("es" as any)} className="flex-1 min-w-[80px]">🇪🇸 Español</Button>
+            <Button variant={lang === "zh" ? "default" : "outline"} onClick={() => setLang("zh" as any)} className="flex-1 min-w-[80px]">🇨🇳 中文</Button>
+            <Button variant={lang === "ar" ? "default" : "outline"} onClick={() => setLang("ar" as any)} className="flex-1 min-w-[80px]">🇸🇦 العربية</Button>
           </div>
         </CardContent>
       </Card>

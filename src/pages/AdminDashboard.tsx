@@ -36,6 +36,7 @@ const AdminDashboard = () => {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [passwordVerified, setPasswordVerified] = useState(false);
 
   const fetchStats = useCallback(async () => {
