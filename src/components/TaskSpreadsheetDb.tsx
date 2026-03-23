@@ -31,7 +31,7 @@ interface TaskSpreadsheetDbProps {
   taskType: "personal" | "work";
   readOnly?: boolean;
   showYearSelector?: boolean;
-  fixedSheetName?: string;
+  fixedSheetName?: string | null;
   fixedSheetOwnerId?: string;
   ownerDisplayName?: string;
 }
