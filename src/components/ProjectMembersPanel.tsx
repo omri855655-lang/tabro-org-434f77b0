@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Trash2, Mail, Crown, UserCheck, Eye } from "lucide-react";
+import { Users, Trash2, Mail, Crown, UserCheck, Eye, CheckCircle, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -22,6 +22,7 @@ interface ProjectMember {
   invited_username: string | null;
   role: string;
   job_title: string | null;
+  status: string;
   created_at: string;
 }
 
@@ -59,7 +60,7 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
   const fetchMembers = async () => {
     const { data, error } = await supabase
       .from("project_members")
-      .select("id, invited_email, invited_display_name, invited_username, role, job_title, created_at")
+      .select("id, invited_email, invited_display_name, invited_username, role, job_title, status, created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: true });
 
