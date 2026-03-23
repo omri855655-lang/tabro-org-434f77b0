@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import AutocompleteInput from "@/components/AutocompleteInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -444,8 +445,9 @@ ${context}
                   <TrendingDown className="h-4 w-4" />הוצאה
                 </Button>
               </div>
-              <Input placeholder={newType === "income" ? "שם ההכנסה (משכורת, פרילנס...)" : "שם ההוצאה (שכירות, חשמל...)"} value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+              <AutocompleteInput fieldName="payment-title" value={newTitle} onChange={setNewTitle} placeholder={newType === "income" ? "שם ההכנסה (משכורת, פרילנס...)" : "שם ההוצאה (שכירות, חשמל...)"} />
               <Input placeholder="סכום" type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} dir="ltr" />
+              <AutocompleteInput fieldName="payment-method" value={newMethod} onChange={setNewMethod} placeholder="אמצעי תשלום (אשראי, מזומן...)" />
               <Select value={newCategory} onValueChange={setNewCategory}>
                 <SelectTrigger><SelectValue placeholder="בחר קטגוריה" /></SelectTrigger>
                 <SelectContent>
@@ -453,7 +455,6 @@ ${context}
                 </SelectContent>
               </Select>
               <div className="flex gap-2">
-                <Input placeholder="אמצעי תשלום" value={newMethod} onChange={e => setNewMethod(e.target.value)} className="flex-1" />
                 <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} dir="ltr" className="flex-1" />
               </div>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
