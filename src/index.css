@@ -269,6 +269,81 @@ All colors MUST be HSL.
     --accent: 198 89% 58%;
     --sidebar-ring: 210 11% 71%;
   }
+
+  .dark[data-site-theme="mint-bg"] {
+    --background: 155 20% 10%;
+    --card: 155 18% 14%;
+    --popover: 155 18% 14%;
+    --secondary: 155 15% 17%;
+    --muted: 155 15% 17%;
+    --border: 155 12% 20%;
+    --input: 155 12% 20%;
+    --primary: 157 73% 58%;
+    --ring: 157 73% 58%;
+    --accent: 148 58% 47%;
+    --sidebar-background: 155 18% 10%;
+    --sidebar-ring: 157 73% 58%;
+  }
+
+  .dark[data-site-theme="peach-bg"] {
+    --background: 18 20% 10%;
+    --card: 18 18% 14%;
+    --popover: 18 18% 14%;
+    --secondary: 18 15% 17%;
+    --muted: 18 15% 17%;
+    --border: 18 12% 20%;
+    --input: 18 12% 20%;
+    --primary: 18 93% 64%;
+    --ring: 18 93% 64%;
+    --accent: 40 97% 60%;
+    --sidebar-background: 18 18% 10%;
+    --sidebar-ring: 18 93% 64%;
+  }
+
+  .dark[data-site-theme="sky-bg"] {
+    --background: 200 20% 10%;
+    --card: 200 18% 14%;
+    --popover: 200 18% 14%;
+    --secondary: 200 15% 17%;
+    --muted: 200 15% 17%;
+    --border: 200 12% 20%;
+    --input: 200 12% 20%;
+    --primary: 191 95% 68%;
+    --ring: 191 95% 68%;
+    --accent: 184 65% 45%;
+    --sidebar-background: 200 18% 10%;
+    --sidebar-ring: 191 95% 68%;
+  }
+
+  .dark[data-site-theme="sand-bg"] {
+    --background: 35 18% 10%;
+    --card: 35 15% 14%;
+    --popover: 35 15% 14%;
+    --secondary: 35 12% 17%;
+    --muted: 35 12% 17%;
+    --border: 35 10% 20%;
+    --input: 35 10% 20%;
+    --primary: 40 85% 60%;
+    --ring: 40 85% 60%;
+    --accent: 28 80% 55%;
+    --sidebar-background: 35 15% 10%;
+    --sidebar-ring: 40 85% 60%;
+  }
+
+  .dark[data-site-theme="rose-bg"] {
+    --background: 335 18% 10%;
+    --card: 335 15% 14%;
+    --popover: 335 15% 14%;
+    --secondary: 335 12% 17%;
+    --muted: 335 12% 17%;
+    --border: 335 10% 20%;
+    --input: 335 10% 20%;
+    --primary: 330 75% 65%;
+    --ring: 330 75% 65%;
+    --accent: 340 70% 60%;
+    --sidebar-background: 335 15% 10%;
+    --sidebar-ring: 330 75% 65%;
+  }
 }
 
 @layer base {
