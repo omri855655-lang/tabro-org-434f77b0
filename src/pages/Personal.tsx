@@ -24,7 +24,11 @@ import SettingsPanel from "@/components/SettingsPanel";
 import CustomBoardManager from "@/components/CustomBoardManager";
 import ChallengesManager from "@/components/ChallengesManager";
 import SharingManagement from "@/components/SharingManagement";
-import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
+import NutritionDashboard from "@/components/dashboards/NutritionDashboard";
+import DreamRoadmapDashboard from "@/components/dashboards/DreamRoadmapDashboard";
+import ShoppingDashboard from "@/components/dashboards/ShoppingDashboard";
+import PaymentDashboard from "@/components/dashboards/PaymentDashboard";
+import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight, Share2, Apple, Target, ShoppingCart, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -71,6 +75,10 @@ const STATIC_TABS: TabDef[] = [
   { id: "planner", icon: CalendarDays, label: "planner", visibilityKey: "planner" },
   { id: "deeply", icon: Focus, label: "deeply", visibilityKey: "deeply" },
   { id: "challenges", icon: Trophy, label: "challenges" },
+  { id: "nutrition", icon: Apple, label: "תזונה ושינה", visibilityKey: "nutrition" },
+  { id: "dreams", icon: Target, label: "מפת חלומות", visibilityKey: "dreams" },
+  { id: "shopping", icon: ShoppingCart, label: "קניות", visibilityKey: "shopping" },
+  { id: "payments", icon: CreditCard, label: "תשלומים", visibilityKey: "payments" },
   { id: "sharing", icon: Share2, label: "שיתופים" },
   { id: "settings", icon: Settings, label: "settings" },
 ];
@@ -596,6 +604,22 @@ const Personal = () => {
 
         <TabsContent value="challenges" className="flex-1 min-h-0 overflow-auto m-0 p-0">
           <ChallengesManager />
+        </TabsContent>
+
+        <TabsContent value="nutrition" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <NutritionDashboard />
+        </TabsContent>
+
+        <TabsContent value="dreams" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <DreamRoadmapDashboard />
+        </TabsContent>
+
+        <TabsContent value="shopping" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <ShoppingDashboard />
+        </TabsContent>
+
+        <TabsContent value="payments" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <PaymentDashboard />
         </TabsContent>
 
         <TabsContent value="sharing" className="flex-1 min-h-0 overflow-auto m-0 p-0">
