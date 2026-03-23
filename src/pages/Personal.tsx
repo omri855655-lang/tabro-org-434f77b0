@@ -146,32 +146,12 @@ const Personal = () => {
           .in("user_id", ownerIds);
         
         for (const p of profiles || []) {
-          const name = p.display_name || 
-            [p.first_name, p.last_name].filter(Boolean).join(' ') || 
-            p.username;
+          const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+          const name = fullName || p.display_name || p.username;
           ownerProfiles[p.user_id] = { 
             display_name: name || null, 
             email: p.username || "" 
           };
-        }
-      }
-
-      const ownerNamesBySheetKey: Record<string, string> = {};
-      if (ownerIds.length > 0 && sheetNames.length > 0 && taskTypes.length > 0) {
-        const { data: taskNameRows } = await supabase
-          .from("tasks")
-          .select("user_id, task_type, sheet_name, creator_user_id, creator_name, creator_email")
-          .in("user_id", ownerIds)
-          .in("sheet_name", sheetNames)
-          .in("task_type", taskTypes)
-          .order("created_at", { ascending: true });
-
-        for (const row of taskNameRows || []) {
-          if (row.creator_user_id !== row.user_id) continue;
-          const key = `${row.user_id}:${row.task_type}:${row.sheet_name || ""}`;
-          if (!ownerNamesBySheetKey[key]) {
-            ownerNamesBySheetKey[key] = row.creator_name || row.creator_email || "";
-          }
         }
       }
 
@@ -181,7 +161,7 @@ const Personal = () => {
 
         const collab = data.find((d) => d.sheet_id === sheet.id);
         const ownerInfo = ownerProfiles[sheet.user_id];
-        const ownerLabel = ownerNamesBySheetKey[`${sheet.user_id}:${sheet.task_type}:${sheet.sheet_name}`] || ownerInfo?.display_name || ownerInfo?.email || "משתמש";
+        const ownerLabel = ownerInfo?.display_name || ownerInfo?.email || "משתמש";
         sharedResults.push({
           sheet_id: sheet.id,
           sheet_name: sheet.sheet_name,
