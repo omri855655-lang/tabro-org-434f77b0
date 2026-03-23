@@ -48,8 +48,13 @@ interface TabDef {
 
 const MAIN_SHEET_NAME = "ראשי";
 
+const ALL_SHEETS_VALUE = "הכל";
+
 const getSharedSheetLabel = (shared: SharedSheet) => {
   const taskTypeLabel = shared.task_type === "work" ? "משימות עבודה" : "משימות אישיות";
+  if (shared.sheet_name === ALL_SHEETS_VALUE) {
+    return `${shared.owner_display_name} - ${taskTypeLabel} (הכל)`;
+  }
   return `${shared.owner_display_name} - ${shared.sheet_name === MAIN_SHEET_NAME ? taskTypeLabel : shared.sheet_name}`;
 };
 
