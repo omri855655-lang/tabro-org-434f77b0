@@ -606,6 +606,22 @@ const Personal = () => {
           <ChallengesManager />
         </TabsContent>
 
+        <TabsContent value="nutrition" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <NutritionDashboard />
+        </TabsContent>
+
+        <TabsContent value="dreams" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <DreamRoadmapDashboard />
+        </TabsContent>
+
+        <TabsContent value="shopping" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <ShoppingDashboard />
+        </TabsContent>
+
+        <TabsContent value="payments" className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          <PaymentDashboard />
+        </TabsContent>
+
         <TabsContent value="sharing" className="flex-1 min-h-0 overflow-auto m-0 p-0">
           <SharingManagement />
         </TabsContent>
