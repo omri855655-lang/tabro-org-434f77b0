@@ -540,7 +540,7 @@ const Personal = () => {
               taskType={shared.task_type as "work" | "personal"}
               readOnly={shared.permission === "view"}
               showYearSelector={false}
-              fixedSheetName={shared.sheet_name}
+              fixedSheetName={shared.sheet_name === ALL_SHEETS_VALUE ? null : shared.sheet_name}
               fixedSheetOwnerId={shared.owner_id}
               ownerDisplayName={shared.owner_display_name}
             />
