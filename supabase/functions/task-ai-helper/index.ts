@@ -12,7 +12,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { taskDescription, taskCategory, conversationHistory, startTime, type, messages, customPrompt } = body;
+    const { taskDescription, taskCategory, conversationHistory, startTime, type, messages, customPrompt, milestoneCount } = body;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
@@ -190,6 +190,22 @@ ${taskDescription}
       systemPrompt = `אתה יועץ למידה מקצועי. תן המלצות מפורטות ומעשיות בעברית. השתמש באימוג'ים.`;
       userPrompt = taskDescription;
 
+    } else if (taskCategory === 'dream_roadmap') {
+      const requestedCount = Math.min(100, Math.max(10, Number(milestoneCount) || 15));
+      systemPrompt = `אתה מאמן אישי ומומחה לתכנון מטרות ארוכות טווח. דבר בעברית בלבד. פרק כל חלום לתוכנית פעולה ברורה, ריאלית ומעשית.
+
+חובה ליצור בדיוק את מספר אבני הדרך שהתבקש.
+כל אבן דרך חייבת להיות:
+- צעד פעולה קונקרטי
+- קצרה וברורה
+- מסודרת בסדר התקדמות הגיוני
+- שונה מהאחרות
+- מתאימה לרמת המורכבות של החלום`;
+      userPrompt = `חלום: ${taskDescription}
+תיאור נוסף: ${customPrompt || "ללא"}
+
+צור בדיוק ${requestedCount} אבני דרך שונות ומדורגות להגשמת החלום.`;
+
     } else if (customPrompt) {
       // Custom prompt mode - used by dream roadmap, shopping AI, payment AI, etc.
       systemPrompt = `אתה עוזר AI חכם ומקצועי. דבר בעברית. היה ממוקד ומעשי.`;
@@ -210,12 +226,10 @@ ${taskDescription}
         : `משימה: ${taskDescription}`;
     }
 
-    // Build messages array with conversation history if provided
     const aiMessages: { role: string; content: string }[] = [
       { role: "system", content: systemPrompt },
     ];
 
-    // Add conversation history if exists (includes the latest user message)
     if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
       for (const msg of conversationHistory) {
         aiMessages.push({
@@ -223,9 +237,7 @@ ${taskDescription}
           content: msg.content
         });
       }
-      // Don't add userPrompt again - it's already the last message in conversationHistory
     } else {
-      // No history - add the user prompt directly
       aiMessages.push({ role: "user", content: userPrompt });
     }
 
@@ -270,6 +282,42 @@ ${taskDescription}
       requestBody.tool_choice = { type: "function", function: { name: "extract_lessons" } };
     }
 
+    if (taskCategory === 'dream_roadmap') {
+      const requestedCount = Math.min(100, Math.max(10, Number(milestoneCount) || 15));
+      requestBody.tools = [
+        {
+          type: "function",
+          function: {
+            name: "generate_milestones",
+            description: `Generate exactly ${requestedCount} milestones for a dream roadmap.`,
+            parameters: {
+              type: "object",
+              properties: {
+                milestones: {
+                  type: "array",
+                  minItems: requestedCount,
+                  maxItems: requestedCount,
+                  items: {
+                    type: "object",
+                    properties: {
+                      title: { type: "string" },
+                      week: { type: "integer", minimum: 1, maximum: requestedCount },
+                      description: { type: "string" },
+                    },
+                    required: ["title", "week", "description"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["milestones"],
+              additionalProperties: false,
+            },
+          },
+        },
+      ];
+      requestBody.tool_choice = { type: "function", function: { name: "generate_milestones" } };
+    }
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -305,6 +353,7 @@ ${taskDescription}
     const suggestion = choice?.content ?? null;
 
     let lessons: { title: string; duration_minutes: number }[] = [];
+    let milestones: { title: string; week: number; description: string }[] = [];
 
     if (taskCategory === 'course_breakdown') {
       const toolCall = choice?.tool_calls?.find((call: any) => call?.function?.name === "extract_lessons");
@@ -349,7 +398,33 @@ ${taskDescription}
         .slice(0, 60);
     }
 
-    return new Response(JSON.stringify({ suggestion, lessons }), {
+    if (taskCategory === 'dream_roadmap') {
+      const requestedCount = Math.min(100, Math.max(10, Number(milestoneCount) || 15));
+      const toolCall = choice?.tool_calls?.find((call: any) => call?.function?.name === "generate_milestones");
+      const toolArgs = toolCall?.function?.arguments;
+
+      if (typeof toolArgs === "string") {
+        try {
+          const parsedArgs = JSON.parse(toolArgs);
+          if (Array.isArray(parsedArgs?.milestones)) {
+            milestones = parsedArgs.milestones;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse generate_milestones tool arguments:", parseError);
+        }
+      }
+
+      milestones = milestones
+        .map((milestone: any, index: number) => ({
+          title: typeof milestone?.title === "string" ? milestone.title.trim() : "",
+          week: Number(milestone?.week) || index + 1,
+          description: typeof milestone?.description === "string" ? milestone.description.trim() : "",
+        }))
+        .filter((milestone: { title: string }) => milestone.title.length > 0)
+        .slice(0, requestedCount);
+    }
+
+    return new Response(JSON.stringify({ suggestion, lessons, milestones }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
