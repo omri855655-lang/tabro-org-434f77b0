@@ -387,6 +387,105 @@ export type Database = {
         }
         Relationships: []
       }
+      dream_goals: {
+        Row: {
+          ai_roadmap: Json | null
+          archived: boolean
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          milestones: Json
+          notes: string | null
+          progress: number
+          status: string
+          target_date: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_roadmap?: Json | null
+          archived?: boolean
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          milestones?: Json
+          notes?: string | null
+          progress?: number
+          status?: string
+          target_date?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_roadmap?: Json | null
+          archived?: boolean
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          milestones?: Json
+          notes?: string | null
+          progress?: number
+          status?: string
+          target_date?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      health_profiles: {
+        Row: {
+          activity_level: string | null
+          age: number | null
+          allergies: Json | null
+          created_at: string
+          dietary_preferences: Json | null
+          ethnicity: string | null
+          gender: string | null
+          health_goals: string | null
+          height: number | null
+          id: string
+          updated_at: string
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          activity_level?: string | null
+          age?: number | null
+          allergies?: Json | null
+          created_at?: string
+          dietary_preferences?: Json | null
+          ethnicity?: string | null
+          gender?: string | null
+          health_goals?: string | null
+          height?: number | null
+          id?: string
+          updated_at?: string
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          activity_level?: string | null
+          age?: number | null
+          allergies?: Json | null
+          created_at?: string
+          dietary_preferences?: Json | null
+          ethnicity?: string | null
+          gender?: string | null
+          health_goals?: string | null
+          height?: number | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
       mental_coaching_sessions: {
         Row: {
           created_at: string
@@ -415,6 +514,102 @@ export type Database = {
           messages?: Json
           task_description?: string
           task_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      nutrition_tracking: {
+        Row: {
+          calories: number | null
+          created_at: string
+          food_items: Json
+          id: string
+          log_date: string
+          meal_type: string
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calories?: number | null
+          created_at?: string
+          food_items?: Json
+          id?: string
+          log_date?: string
+          meal_type?: string
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calories?: number | null
+          created_at?: string
+          food_items?: Json
+          id?: string
+          log_date?: string
+          meal_type?: string
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      payment_tracking: {
+        Row: {
+          amount: number
+          archived: boolean
+          category: string | null
+          created_at: string
+          currency: string
+          due_date: string | null
+          id: string
+          notes: string | null
+          paid: boolean
+          payment_method: string | null
+          payment_type: string
+          recurring: boolean
+          recurring_frequency: string | null
+          sheet_name: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          archived?: boolean
+          category?: string | null
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          paid?: boolean
+          payment_method?: string | null
+          payment_type?: string
+          recurring?: boolean
+          recurring_frequency?: string | null
+          sheet_name?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          archived?: boolean
+          category?: string | null
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          paid?: boolean
+          payment_method?: string | null
+          payment_type?: string
+          recurring?: boolean
+          recurring_frequency?: string | null
+          sheet_name?: string
+          title?: string
           updated_at?: string
           user_id?: string
         }
@@ -824,6 +1019,57 @@ export type Database = {
           target_display_name?: string | null
           target_email?: string | null
           task_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      shopping_items: {
+        Row: {
+          archived: boolean
+          category: string | null
+          created_at: string
+          id: string
+          is_dream: boolean
+          notes: string | null
+          price: number | null
+          priority: string | null
+          quantity: string | null
+          sheet_name: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_dream?: boolean
+          notes?: string | null
+          price?: number | null
+          priority?: string | null
+          quantity?: string | null
+          sheet_name?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_dream?: boolean
+          notes?: string | null
+          price?: number | null
+          priority?: string | null
+          quantity?: string | null
+          sheet_name?: string
+          status?: string
+          title?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
