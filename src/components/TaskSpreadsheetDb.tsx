@@ -31,7 +31,7 @@ interface TaskSpreadsheetDbProps {
   taskType: "personal" | "work";
   readOnly?: boolean;
   showYearSelector?: boolean;
-  fixedSheetName?: string;
+  fixedSheetName?: string | null;
   fixedSheetOwnerId?: string;
   ownerDisplayName?: string;
 }
@@ -65,8 +65,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
   const [sheetsLoading, setSheetsLoading] = useState(true);
   // null means "all sheets", a string means specific sheet
-  const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName ?? null);
-  const effectiveSheet = fixedSheetName ?? selectedSheet;
+  const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName !== undefined ? fixedSheetName : null);
+  const effectiveSheet = fixedSheetName !== undefined ? fixedSheetName : selectedSheet;
   const effectiveOwnerId = fixedSheetOwnerId ?? user?.id;
   const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);

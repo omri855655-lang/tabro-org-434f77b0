@@ -48,8 +48,13 @@ interface TabDef {
 
 const MAIN_SHEET_NAME = "ראשי";
 
+const ALL_SHEETS_VALUE = "הכל";
+
 const getSharedSheetLabel = (shared: SharedSheet) => {
   const taskTypeLabel = shared.task_type === "work" ? "משימות עבודה" : "משימות אישיות";
+  if (shared.sheet_name === ALL_SHEETS_VALUE) {
+    return `${shared.owner_display_name} - ${taskTypeLabel} (הכל)`;
+  }
   return `${shared.owner_display_name} - ${shared.sheet_name === MAIN_SHEET_NAME ? taskTypeLabel : shared.sheet_name}`;
 };
 
@@ -141,32 +146,12 @@ const Personal = () => {
           .in("user_id", ownerIds);
         
         for (const p of profiles || []) {
-          const name = p.display_name || 
-            [p.first_name, p.last_name].filter(Boolean).join(' ') || 
-            p.username;
+          const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+          const name = fullName || p.display_name || p.username;
           ownerProfiles[p.user_id] = { 
             display_name: name || null, 
             email: p.username || "" 
           };
-        }
-      }
-
-      const ownerNamesBySheetKey: Record<string, string> = {};
-      if (ownerIds.length > 0 && sheetNames.length > 0 && taskTypes.length > 0) {
-        const { data: taskNameRows } = await supabase
-          .from("tasks")
-          .select("user_id, task_type, sheet_name, creator_user_id, creator_name, creator_email")
-          .in("user_id", ownerIds)
-          .in("sheet_name", sheetNames)
-          .in("task_type", taskTypes)
-          .order("created_at", { ascending: true });
-
-        for (const row of taskNameRows || []) {
-          if (row.creator_user_id !== row.user_id) continue;
-          const key = `${row.user_id}:${row.task_type}:${row.sheet_name || ""}`;
-          if (!ownerNamesBySheetKey[key]) {
-            ownerNamesBySheetKey[key] = row.creator_name || row.creator_email || "";
-          }
         }
       }
 
@@ -176,7 +161,7 @@ const Personal = () => {
 
         const collab = data.find((d) => d.sheet_id === sheet.id);
         const ownerInfo = ownerProfiles[sheet.user_id];
-        const ownerLabel = ownerNamesBySheetKey[`${sheet.user_id}:${sheet.task_type}:${sheet.sheet_name}`] || ownerInfo?.display_name || ownerInfo?.email || "משתמש";
+        const ownerLabel = ownerInfo?.display_name || ownerInfo?.email || "משתמש";
         sharedResults.push({
           sheet_id: sheet.id,
           sheet_name: sheet.sheet_name,
@@ -188,7 +173,18 @@ const Personal = () => {
         });
       }
 
-      setSharedSheets(sharedResults);
+      // If "הכל" is shared from an owner, hide individual sheets from same owner+type
+      const allKeys = new Set(
+        sharedResults
+          .filter(s => s.sheet_name === ALL_SHEETS_VALUE)
+          .map(s => `${s.owner_id}:${s.task_type}`)
+      );
+      const dedupedResults = sharedResults.filter(s => {
+        if (s.sheet_name === ALL_SHEETS_VALUE) return true;
+        return !allKeys.has(`${s.owner_id}:${s.task_type}`);
+      });
+
+      setSharedSheets(dedupedResults);
     } catch (error) {
       console.error("Error fetching shared sheets:", error);
       setSharedSheets([]);
@@ -555,7 +551,7 @@ const Personal = () => {
               taskType={shared.task_type as "work" | "personal"}
               readOnly={shared.permission === "view"}
               showYearSelector={false}
-              fixedSheetName={shared.sheet_name}
+              fixedSheetName={shared.sheet_name === ALL_SHEETS_VALUE ? null : shared.sheet_name}
               fixedSheetOwnerId={shared.owner_id}
               ownerDisplayName={shared.owner_display_name}
             />

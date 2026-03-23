@@ -204,11 +204,15 @@ const SheetSharingDialog = ({ open, onOpenChange, sheetName, taskType, available
       let targetSheets: Array<{ id: string; name: string }> = [];
 
       if (shareToAllSheets) {
-        const allNames = [...new Set([MAIN_SHEET_NAME, ...selectableSheets])];
+        // Share individual sheets for RLS access
+        const allNames = [...new Set([MAIN_SHEET_NAME, ...selectableSheets])].filter(n => n !== ALL_SHEETS_VALUE);
         for (const name of allNames) {
           const id = await ensureSheet(name);
           if (id) targetSheets.push({ id, name });
         }
+        // Also create and share a "הכל" sheet entry for the "all" view
+        const allSheetId = await ensureSheet(ALL_SHEETS_VALUE);
+        if (allSheetId) targetSheets.push({ id: allSheetId, name: ALL_SHEETS_VALUE });
         if (targetSheets.length === 0) {
           throw new Error("לא נמצאו גליונות לשיתוף");
         }

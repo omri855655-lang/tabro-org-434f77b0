@@ -17,6 +17,11 @@ export const SITE_THEME_PRESETS: SiteThemePreset[] = [
   { id: "sunset", name: "שקיעה", description: "חם, אנרגטי ועם ניגודיות גבוהה" },
   { id: "lavender", name: "לבנדר", description: "רגוע, אלגנטי ומעט יצירתי" },
   { id: "graphite", name: "גרפיט", description: "אפור-פחם מקצועי וממוקד" },
+  { id: "mint-bg", name: "רקע מנטה", description: "רקע ירקרק רענן עם גווני מנטה" },
+  { id: "peach-bg", name: "רקע אפרסק", description: "רקע חמים בגווני אפרסק ורוד רך" },
+  { id: "sky-bg", name: "רקע שמיים", description: "רקע תכלת בהיר כמו שמיים" },
+  { id: "sand-bg", name: "רקע חול", description: "רקע חמים בגווני חול וקרם" },
+  { id: "rose-bg", name: "רקע ורוד", description: "רקע ורוד רך ועדין" },
 ];
 
 const STORAGE_THEME_KEY = "site-theme-id";
