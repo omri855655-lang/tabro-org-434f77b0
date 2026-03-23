@@ -173,7 +173,18 @@ const Personal = () => {
         });
       }
 
-      setSharedSheets(sharedResults);
+      // If "הכל" is shared from an owner, hide individual sheets from same owner+type
+      const allKeys = new Set(
+        sharedResults
+          .filter(s => s.sheet_name === ALL_SHEETS_VALUE)
+          .map(s => `${s.owner_id}:${s.task_type}`)
+      );
+      const dedupedResults = sharedResults.filter(s => {
+        if (s.sheet_name === ALL_SHEETS_VALUE) return true;
+        return !allKeys.has(`${s.owner_id}:${s.task_type}`);
+      });
+
+      setSharedSheets(dedupedResults);
     } catch (error) {
       console.error("Error fetching shared sheets:", error);
       setSharedSheets([]);
