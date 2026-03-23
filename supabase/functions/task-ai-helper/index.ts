@@ -12,7 +12,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { taskDescription, taskCategory, conversationHistory, startTime, type, messages, customPrompt } = body;
+    const { taskDescription, taskCategory, conversationHistory, startTime, type, messages, customPrompt, milestoneCount } = body;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
