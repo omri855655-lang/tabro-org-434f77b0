@@ -65,7 +65,7 @@ export function useAudioEngine() {
       if ("mediaSession" in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: `Deeply — ${preset.nameHe || preset.name}`,
-          artist: "ExcelTime",
+          artist: "Tabro",
           album: "Deeply",
           artwork: [
             { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },

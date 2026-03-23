@@ -46,7 +46,7 @@ const InstallApp = () => {
         </div>
 
         <h1 className="text-2xl font-bold text-foreground mb-2">
-          ExcelTime
+          Tabro
         </h1>
         <p className="text-muted-foreground mb-6">
           התקן את האפליקציה למסך הבית שלך לגישה מהירה וקלה

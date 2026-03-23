@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Trash2, Mail, Crown, UserCheck, Eye } from "lucide-react";
+import { Users, Trash2, Mail, Crown, UserCheck, Eye, CheckCircle, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -22,6 +22,7 @@ interface ProjectMember {
   invited_username: string | null;
   role: string;
   job_title: string | null;
+  status: string;
   created_at: string;
 }
 
@@ -59,7 +60,7 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
   const fetchMembers = async () => {
     const { data, error } = await supabase
       .from("project_members")
-      .select("id, invited_email, invited_display_name, invited_username, role, job_title, created_at")
+      .select("id, invited_email, invited_display_name, invited_username, role, job_title, status, created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: true });
 
@@ -174,6 +175,26 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
     setMembers(prev => prev.map(m => (m.id === id ? { ...m, job_title } : m)));
   };
 
+  const approveMember = async (id: string) => {
+    const { error } = await supabase
+      .from("project_members")
+      .update({ status: "approved" })
+      .eq("id", id);
+    if (error) { toast.error("שגיאה באישור"); return; }
+    setMembers(prev => prev.map(m => m.id === id ? { ...m, status: "approved" } : m));
+    toast.success("חבר צוות אושר ✅");
+  };
+
+  const rejectMember = async (id: string) => {
+    const { error } = await supabase
+      .from("project_members")
+      .delete()
+      .eq("id", id);
+    if (error) { toast.error("שגיאה בדחייה"); return; }
+    setMembers(prev => prev.filter(m => m.id !== id));
+    toast.success("הבקשה נדחתה");
+  };
+
   const removeMember = async (id: string) => {
     const { error } = await supabase
       .from("project_members")
@@ -241,7 +262,35 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
         <p className="text-sm text-muted-foreground">אין חברי צוות</p>
       ) : (
         <div className="space-y-2">
-          {members.map((member) => {
+          {/* Pending approvals first */}
+          {members.filter(m => m.status === "pending").length > 0 && isOwner && (
+            <div className="space-y-2 mb-3">
+              <p className="text-xs font-semibold text-amber-600 flex items-center gap-1"><Clock className="h-3 w-3" />ממתינים לאישור</p>
+              {members.filter(m => m.status === "pending").map(member => (
+                <div key={member.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium truncate block">{member.invited_display_name || member.invited_email.split("@")[0]}</span>
+                      <span className="text-xs text-muted-foreground" dir="ltr">{member.invited_email}</span>
+                      {member.job_title && <span className="text-xs text-muted-foreground block">{member.job_title}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" onClick={() => approveMember(member.id)}>
+                      <CheckCircle className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => rejectMember(member.id)}>
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Approved members */}
+          {members.filter(m => m.status !== "pending").map((member) => {
             const RoleIcon = roleIcons[member.role] || UserCheck;
             return (
               <div

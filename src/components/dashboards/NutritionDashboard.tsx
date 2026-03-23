@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Apple, Sparkles, MessageCircle, User, ChevronDown, ChevronUp, Save, UtensilsCrossed, Moon as MoonIcon, Dumbbell } from "lucide-react";
+import { Apple, Sparkles, MessageCircle, User, ChevronDown, ChevronUp, Save, UtensilsCrossed, Moon as MoonIcon, Dumbbell, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 
 interface HealthProfile {
   age: number | null;
@@ -36,11 +37,11 @@ const NutritionDashboard = () => {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // AI Chat state
+  // Persistent AI Chat
+  const { messages: nutritionMessages, setMessages: setNutritionMessages, clearHistory: clearNutrition } = useDashboardChatHistory("nutrition");
+  const { messages: sleepMessages, setMessages: setSleepMessages, clearHistory: clearSleep } = useDashboardChatHistory("sleep");
   const [nutritionChat, setNutritionChat] = useState("");
-  const [nutritionMessages, setNutritionMessages] = useState<{ role: string; content: string }[]>([]);
   const [sleepChat, setSleepChat] = useState("");
-  const [sleepMessages, setSleepMessages] = useState<{ role: string; content: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
 
   // Fetch health profile
@@ -224,7 +225,7 @@ const NutritionDashboard = () => {
         {/* Nutrition Tab */}
         <TabsContent value="nutrition" className="space-y-4">
           <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />יועץ תזונה AI</CardTitle></CardHeader>
+            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2 justify-between"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />יועץ תזונה AI</div>{nutritionMessages.length > 0 && <Button variant="ghost" size="sm" className="text-xs h-6" onClick={clearNutrition}><Trash2 className="h-3 w-3 mr-1" />נקה היסטוריה</Button>}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {/* Quick prompts */}
               <div className="flex gap-2 flex-wrap">
@@ -257,7 +258,7 @@ const NutritionDashboard = () => {
         {/* Sleep Tab */}
         <TabsContent value="sleep" className="space-y-4">
           <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />מדריך שינה AI</CardTitle></CardHeader>
+            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2 justify-between"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />מדריך שינה AI</div>{sleepMessages.length > 0 && <Button variant="ghost" size="sm" className="text-xs h-6" onClick={clearSleep}><Trash2 className="h-3 w-3 mr-1" />נקה היסטוריה</Button>}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2 flex-wrap">
                 {quickSleepPrompts.map(prompt => (

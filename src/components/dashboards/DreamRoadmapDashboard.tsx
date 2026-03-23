@@ -34,7 +34,13 @@ const DreamRoadmapDashboard = () => {
   const [newDescription, setNewDescription] = useState("");
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
   const [aiChat, setAiChat] = useState("");
-  const [aiMessages, setAiMessages] = useState<Record<string, { role: string; content: string }[]>>({});
+  // Per-goal AI messages stored in localStorage
+  const [aiMessages, setAiMessages] = useState<Record<string, { role: string; content: string }[]>>(() => {
+    try {
+      const raw = localStorage.getItem("dashboard-chat-dreams");
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
   const [aiLoading, setAiLoading] = useState(false);
   const [generatingRoadmap, setGeneratingRoadmap] = useState<string | null>(null);
 
@@ -51,6 +57,11 @@ const DreamRoadmapDashboard = () => {
   }, [user]);
 
   useEffect(() => { fetchGoals(); }, [fetchGoals]);
+
+  // Persist dream AI messages
+  useEffect(() => {
+    localStorage.setItem("dashboard-chat-dreams", JSON.stringify(aiMessages));
+  }, [aiMessages]);
 
   const addGoal = async () => {
     if (!user || !newTitle.trim()) return;

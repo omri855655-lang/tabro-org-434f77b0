@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, ShoppingCart, Star, Check, Archive, ArchiveRestore, Sparkles, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 
 interface ShoppingItem {
   id: string;
@@ -37,7 +38,7 @@ const ShoppingDashboard = () => {
   const [isDream, setIsDream] = useState(false);
   const [activeTab, setActiveTab] = useState("shopping");
   const [aiChat, setAiChat] = useState("");
-  const [aiMessages, setAiMessages] = useState<{ role: string; content: string }[]>([]);
+  const { messages: aiMessages, setMessages: setAiMessages, clearHistory: clearAiHistory } = useDashboardChatHistory("shopping");
   const [aiLoading, setAiLoading] = useState(false);
 
   const fetchItems = useCallback(async () => {
@@ -222,7 +223,7 @@ const ShoppingDashboard = () => {
 
         <TabsContent value="ai" className="space-y-4">
           <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />יועץ קניות AI</CardTitle></CardHeader>
+            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2 justify-between"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />יועץ קניות AI</div>{aiMessages.length > 0 && <Button variant="ghost" size="sm" className="text-xs h-6" onClick={clearAiHistory}><Trash2 className="h-3 w-3 mr-1" />נקה</Button>}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">שאל אותי על תקציב, חלופות זולות, איפה הכי משתלם, או איך לחסוך</p>
               <div className="border rounded-lg p-3 min-h-[200px] max-h-[400px] overflow-y-auto space-y-3">

@@ -11,6 +11,7 @@ import { Plus, Trash2, CreditCard, TrendingUp, TrendingDown, DollarSign, Check, 
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 
 interface Payment {
   id: string;
@@ -43,7 +44,7 @@ const PaymentDashboard = () => {
   const [newRecurring, setNewRecurring] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [aiChat, setAiChat] = useState("");
-  const [aiMessages, setAiMessages] = useState<{ role: string; content: string }[]>([]);
+  const { messages: aiMessages, setMessages: setAiMessages, clearHistory: clearAiHistory } = useDashboardChatHistory("payments");
   const [aiLoading, setAiLoading] = useState(false);
 
   const fetchPayments = useCallback(async () => {

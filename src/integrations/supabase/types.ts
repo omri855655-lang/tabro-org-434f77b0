@@ -737,6 +737,7 @@ export type Database = {
           job_title: string | null
           project_id: string
           role: string
+          status: string
           user_id: string | null
         }
         Insert: {
@@ -749,6 +750,7 @@ export type Database = {
           job_title?: string | null
           project_id: string
           role?: string
+          status?: string
           user_id?: string | null
         }
         Update: {
@@ -761,6 +763,7 @@ export type Database = {
           job_title?: string | null
           project_id?: string
           role?: string
+          status?: string
           user_id?: string | null
         }
         Relationships: [
@@ -1069,6 +1072,74 @@ export type Database = {
           sheet_name?: string
           status?: string
           title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      shopping_sheet_collaborators: {
+        Row: {
+          created_at: string
+          id: string
+          invited_by: string
+          invited_display_name: string | null
+          invited_email: string
+          invited_username: string | null
+          permission: string
+          sheet_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_by: string
+          invited_display_name?: string | null
+          invited_email: string
+          invited_username?: string | null
+          permission?: string
+          sheet_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_by?: string
+          invited_display_name?: string | null
+          invited_email?: string
+          invited_username?: string | null
+          permission?: string
+          sheet_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopping_sheet_collaborators_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "shopping_sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shopping_sheets: {
+        Row: {
+          created_at: string
+          id: string
+          sheet_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sheet_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sheet_name?: string
           updated_at?: string
           user_id?: string
         }
@@ -1385,6 +1456,10 @@ export type Database = {
         Returns: boolean
       }
       is_sheet_collaborator: {
+        Args: { _sheet_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_shopping_collaborator: {
         Args: { _sheet_id: string; _user_id: string }
         Returns: boolean
       }

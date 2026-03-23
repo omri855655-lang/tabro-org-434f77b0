@@ -116,7 +116,7 @@ export function DeeplyMusicPlayer({ onPlayingChange, themeCard, themeMuted, them
       if ("mediaSession" in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: `Deeply — ${file.name}`,
-          artist: "ExcelTime",
+          artist: "Tabro",
           album: "Deeply Music",
           artwork: [
             { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },
