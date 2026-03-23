@@ -58,6 +58,11 @@ const DreamRoadmapDashboard = () => {
 
   useEffect(() => { fetchGoals(); }, [fetchGoals]);
 
+  // Persist dream AI messages
+  useEffect(() => {
+    localStorage.setItem("dashboard-chat-dreams", JSON.stringify(aiMessages));
+  }, [aiMessages]);
+
   const addGoal = async () => {
     if (!user || !newTitle.trim()) return;
     const { error } = await supabase.from("dream_goals").insert({
