@@ -18,6 +18,8 @@ import { z } from "zod";
 interface ProjectMember {
   id: string;
   invited_email: string;
+  invited_display_name: string | null;
+  invited_username: string | null;
   role: string;
   job_title: string | null;
   created_at: string;
@@ -57,7 +59,7 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
   const fetchMembers = async () => {
     const { data, error } = await supabase
       .from("project_members")
-      .select("id, invited_email, role, job_title, created_at")
+      .select("id, invited_email, invited_display_name, invited_username, role, job_title, created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: true });
 
@@ -84,23 +86,40 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
       return;
     }
 
-    if (members.some((m) => m.invited_email.toLowerCase() === normalizedEmail)) {
-      toast.error("המשתמש כבר חבר בפרויקט");
-      return;
-    }
-
-    const { error } = await supabase.from("project_members").insert({
+    const basePayload = {
       project_id: projectId,
       invited_email: normalizedEmail,
       role: newRole,
       job_title: newJobTitle.trim() || null,
       invited_by: user.id,
-    });
+    };
+
+    const { error } = await supabase.from("project_members").insert(basePayload);
 
     if (error) {
-      toast.error(error.message || "שגיאה בהוספת חבר צוות");
-      console.error(error);
-      return;
+      if (error.code === "23505") {
+        const { data: updatedRow, error: updateError } = await supabase
+          .from("project_members")
+          .update({
+            role: newRole,
+            job_title: newJobTitle.trim() || null,
+            invited_by: user.id,
+          })
+          .eq("project_id", projectId)
+          .eq("invited_email", normalizedEmail)
+          .select("id")
+          .maybeSingle();
+
+        if (updateError || !updatedRow) {
+          toast.error(updateError?.message || "שגיאה בעדכון חבר צוות קיים");
+          console.error(updateError || error);
+          return;
+        }
+      } else {
+        toast.error(error.message || "שגיאה בהוספת חבר צוות");
+        console.error(error);
+        return;
+      }
     }
 
     const { data: savedRow, error: verifyError } = await supabase
@@ -117,7 +136,11 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
       return;
     }
 
-    toast.success(`${normalizedEmail} נוסף לפרויקט`);
+    toast.success(
+      members.some((m) => m.invited_email.toLowerCase() === normalizedEmail)
+        ? `${normalizedEmail} עודכן בפרויקט`
+        : `${normalizedEmail} נוסף לפרויקט`
+    );
     setNewEmail("");
     setNewJobTitle("");
     fetchMembers();
@@ -229,7 +252,7 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
                   <RoleIcon className="h-4 w-4 text-primary shrink-0" />
                   <div className="min-w-0">
                       <span className="text-sm font-medium truncate block">
-                        {member.invited_email.split("@")[0]}
+                        {member.invited_display_name || member.invited_username || member.invited_email.split("@")[0]}
                       </span>
                     <span className="text-sm truncate block" dir="ltr">
                       {member.invited_email}
