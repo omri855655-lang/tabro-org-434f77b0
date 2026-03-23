@@ -536,7 +536,9 @@ export type Database = {
           created_at: string
           id: string
           invited_by: string
+          invited_display_name: string | null
           invited_email: string
+          invited_username: string | null
           job_title: string | null
           project_id: string
           role: string
@@ -546,7 +548,9 @@ export type Database = {
           created_at?: string
           id?: string
           invited_by: string
+          invited_display_name?: string | null
           invited_email: string
+          invited_username?: string | null
           job_title?: string | null
           project_id: string
           role?: string
@@ -556,7 +560,9 @@ export type Database = {
           created_at?: string
           id?: string
           invited_by?: string
+          invited_display_name?: string | null
           invited_email?: string
+          invited_username?: string | null
           job_title?: string | null
           project_id?: string
           role?: string
