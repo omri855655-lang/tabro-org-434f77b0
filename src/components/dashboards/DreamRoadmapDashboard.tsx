@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Trash2, Target, Sparkles, MessageCircle, ChevronDown, ChevronUp, MapPin, CheckCircle2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, Target, Sparkles, MessageCircle, ChevronDown, ChevronUp, MapPin, CheckCircle2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 
 interface DreamGoal {
   id: string;
@@ -37,13 +37,9 @@ const DreamRoadmapDashboard = () => {
   const [aiChat, setAiChat] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [generatingRoadmap, setGeneratingRoadmap] = useState<string | null>(null);
+  const [milestoneCount, setMilestoneCount] = useState<Record<string, string>>({});
+  const [pendingRoadmap, setPendingRoadmap] = useState<{ goalId: string; milestones: any[] } | null>(null);
 
-  // Per-goal AI messages using the dashboard chat history hook
-  const { messages: allChatMessages, setMessages: setAllChatMessages, clearHistory } = useDashboardChatHistory("dreams");
-
-  // Helper to get/set per-goal messages within the flat array using a simple prefix approach
-  // We store messages as {role, content, goalId} but the hook expects {role, content}
-  // So we use localStorage directly for per-goal chats
   const [goalChats, setGoalChats] = useState<Record<string, { role: string; content: string }[]>>(() => {
     try {
       const raw = localStorage.getItem("dashboard-chat-dreams-goals");
@@ -89,6 +85,11 @@ const DreamRoadmapDashboard = () => {
   };
 
   const generateRoadmap = async (goal: DreamGoal) => {
+    const count = parseInt(milestoneCount[goal.id] || "15");
+    if (count < 10 || count > 100) {
+      toast.error("בחר מספר בין 10 ל-100");
+      return;
+    }
     setGeneratingRoadmap(goal.id);
     try {
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
@@ -96,15 +97,13 @@ const DreamRoadmapDashboard = () => {
           taskDescription: goal.title,
           customPrompt: `אתה מאמן להגשמת חלומות. המשתמש רוצה להגשים את החלום: "${goal.title}". ${goal.description ? `תיאור: ${goal.description}` : ""}
           
-צור מפת דרכים מפורטת עם 8-12 אבני דרך שבועיות. לכל אבן דרך כתוב:
-- מספר שבוע
-- כותרת האבן (קצרה וברורה)
-- תיאור קצר מה צריך לעשות
+צור מפת דרכים מפורטת עם בדיוק ${count} אבני דרך. כל אבן דרך צריכה להיות צעד מעשי וברור.
+עבור חלומות פשוטים תן צעדים מפורטים יותר, עבור חלומות מורכבים תן צעדים גדולים יותר.
 
 חשוב מאוד: החזר תשובה שמכילה JSON בפורמט הזה בתוך הטקסט:
-{ "milestones": [{ "week": 1, "title": "כותרת", "description": "תיאור" }] }
+{ "milestones": [{ "week": 1, "title": "כותרת הצעד", "description": "תיאור מה לעשות" }, ...] }
 
-חובה לכלול את ה-JSON בתשובה.`,
+חובה ליצור בדיוק ${count} אבני דרך. חובה לכלול את ה-JSON בתשובה.`,
         },
       });
       if (error) throw error;
@@ -112,26 +111,24 @@ const DreamRoadmapDashboard = () => {
       const suggestion = data?.suggestion || "";
       let milestones: any[] = [];
       
-      // Try to extract JSON from the response
+      // Try to extract JSON
       const jsonMatch = suggestion.match(/\{[\s\S]*?"milestones"[\s\S]*?\}/);
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
           milestones = (parsed.milestones || []).map((m: any, i: number) => ({
             id: `ms-${Date.now()}-${i}`,
-            title: `שבוע ${m.week || i + 1}: ${m.title}`,
+            title: m.title || `שלב ${i + 1}`,
             done: false,
             week: m.week || i + 1,
           }));
-        } catch {
-          // JSON parse failed
-        }
+        } catch { /* fallback below */ }
       }
       
-      // Fallback: create milestones from text lines
+      // Fallback: parse lines
       if (milestones.length === 0 && suggestion.length > 10) {
         const lines = suggestion.split('\n').filter((l: string) => l.trim().length > 5 && (l.includes('שבוע') || l.match(/^\d/) || l.includes('-') || l.includes('•')));
-        milestones = lines.slice(0, 12).map((line: string, i: number) => ({
+        milestones = lines.slice(0, count).map((line: string, i: number) => ({
           id: `ms-${Date.now()}-${i}`,
           title: line.replace(/^[\s\-•\d\.\)]+/, '').trim().slice(0, 100),
           done: false,
@@ -139,28 +136,31 @@ const DreamRoadmapDashboard = () => {
         }));
       }
 
-      // Last fallback
       if (milestones.length === 0) {
         milestones = [{ id: `ms-${Date.now()}`, title: suggestion.slice(0, 200), done: false, week: 1 }];
       }
 
-      const { error: updateError } = await supabase.from("dream_goals").update({ 
-        milestones: milestones as any, 
-        ai_roadmap: { suggestion } as any
-      }).eq("id", goal.id);
-      
-      if (updateError) {
-        console.error("Update error:", updateError);
-        throw updateError;
-      }
-      
-      setGoals(prev => prev.map(g => g.id === goal.id ? { ...g, milestones, ai_roadmap: data } : g));
-      toast.success(`מפת דרכים נוצרה עם ${milestones.length} אבני דרך! 🗺️`);
+      // Show preview for approval
+      setPendingRoadmap({ goalId: goal.id, milestones });
+      toast.success(`נוצרו ${milestones.length} אבני דרך - בדוק ואשר ✅`);
     } catch (err) {
       console.error("Roadmap generation error:", err);
       toast.error("שגיאה ביצירת מפת דרכים");
     }
     setGeneratingRoadmap(null);
+  };
+
+  const approveRoadmap = async () => {
+    if (!pendingRoadmap) return;
+    const { goalId, milestones } = pendingRoadmap;
+    const { error } = await supabase.from("dream_goals").update({
+      milestones: milestones as any,
+      ai_roadmap: { generated: true, count: milestones.length } as any,
+    }).eq("id", goalId);
+    if (error) { toast.error("שגיאה בשמירה"); return; }
+    setGoals(prev => prev.map(g => g.id === goalId ? { ...g, milestones, ai_roadmap: { generated: true } } : g));
+    setPendingRoadmap(null);
+    toast.success("מפת הדרכים אושרה! 🎯");
   };
 
   const toggleMilestone = async (goalId: string, msId: string) => {
@@ -172,6 +172,49 @@ const DreamRoadmapDashboard = () => {
     setGoals(prev => prev.map(g => g.id === goalId ? { ...g, milestones: updated, progress } : g));
   };
 
+  const addMilestoneToCalendar = async (goal: DreamGoal, ms: { id: string; title: string; week?: number }) => {
+    if (!user) return;
+    const startDate = new Date();
+    if (ms.week) startDate.setDate(startDate.getDate() + (ms.week - 1) * 7);
+    const endDate = new Date(startDate);
+    endDate.setHours(endDate.getHours() + 1);
+
+    const { error } = await supabase.from("calendar_events").insert({
+      user_id: user.id,
+      title: `🎯 ${goal.title}: ${ms.title}`,
+      start_time: startDate.toISOString(),
+      end_time: endDate.toISOString(),
+      category: "חלום",
+      source_type: "dream",
+      source_id: goal.id,
+    });
+    if (error) { toast.error("שגיאה בהוספה ללוז"); return; }
+    toast.success("נוסף למתכנן הלוז! 📅");
+  };
+
+  const addAllMilestonesToCalendar = async (goal: DreamGoal) => {
+    if (!user) return;
+    const events = goal.milestones.filter(m => !m.done).map((ms) => {
+      const startDate = new Date();
+      if (ms.week) startDate.setDate(startDate.getDate() + (ms.week - 1) * 7);
+      const endDate = new Date(startDate);
+      endDate.setHours(endDate.getHours() + 1);
+      return {
+        user_id: user.id,
+        title: `🎯 ${goal.title}: ${ms.title}`,
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        category: "חלום",
+        source_type: "dream",
+        source_id: goal.id,
+      };
+    });
+    if (events.length === 0) return;
+    const { error } = await supabase.from("calendar_events").insert(events);
+    if (error) { toast.error("שגיאה"); return; }
+    toast.success(`${events.length} אבני דרך נוספו ללוז! 📅`);
+  };
+
   const sendAiMessage = async (goalId: string) => {
     if (!aiChat.trim()) return;
     const goal = goals.find(g => g.id === goalId);
@@ -179,8 +222,7 @@ const DreamRoadmapDashboard = () => {
 
     const msgs = goalChats[goalId] || [];
     const userMsg = { role: "user", content: aiChat };
-    const newMsgs = [...msgs, userMsg];
-    setGoalChats(prev => ({ ...prev, [goalId]: newMsgs }));
+    setGoalChats(prev => ({ ...prev, [goalId]: [...(prev[goalId] || []), userMsg] }));
     setAiChat("");
     setAiLoading(true);
 
@@ -196,7 +238,7 @@ const DreamRoadmapDashboard = () => {
 
 בסיס הידע שלך כולל: The 7 Habits (סטיבן קאבי), Think and Grow Rich (נפוליאון היל), The 4-Hour Workweek (טים פריס), Start with Why (סיימון סינק), Grit (אנג'לה דאקוורת').
 
-תן עצות מעשיות וספציפיות להגשמת החלום. השתמש באימוג'ים. דבר בעברית.
+תן עצות מעשיות וספציפיות. השתמש באימוג'ים. דבר בעברית.
 
 המשתמש שואל: ${aiChat}`,
         },
@@ -227,6 +269,41 @@ const DreamRoadmapDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* Pending roadmap approval */}
+      {pendingRoadmap && (
+        <Card className="border-2 border-primary/50 bg-primary/5">
+          <CardHeader className="py-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              מפת דרכים מוכנה - {pendingRoadmap.milestones.length} אבני דרך
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="max-h-[300px] overflow-y-auto space-y-1">
+              {pendingRoadmap.milestones.map((ms, i) => (
+                <div key={ms.id} className="flex items-center gap-2 p-2 rounded border text-sm">
+                  <span className="text-xs font-bold text-primary shrink-0">{i + 1}</span>
+                  <span>{ms.title}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button onClick={approveRoadmap} className="flex-1 gap-2">
+                <CheckCircle2 className="h-4 w-4" />מרוצה! אשר ושמור
+              </Button>
+              <Button variant="outline" onClick={() => {
+                setPendingRoadmap(null);
+                const goalId = pendingRoadmap.goalId;
+                generateRoadmap(goals.find(g => g.id === goalId)!);
+              }} className="flex-1 gap-2">
+                <Sparkles className="h-4 w-4" />צור מחדש
+              </Button>
+              <Button variant="ghost" onClick={() => setPendingRoadmap(null)}>ביטול</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Goals list */}
       <div className="space-y-4">
         {goals.map(goal => (
@@ -252,31 +329,60 @@ const DreamRoadmapDashboard = () => {
 
               <CollapsibleContent>
                 <CardContent className="pt-0 space-y-4">
-                  {/* Generate roadmap button */}
+                  {/* Generate roadmap */}
                   {goal.milestones.length === 0 && (
-                    <Button onClick={() => generateRoadmap(goal)} disabled={generatingRoadmap === goal.id} className="gap-2 w-full" variant="outline">
-                      <Sparkles className="h-4 w-4" />
-                      {generatingRoadmap === goal.id ? "יוצר מפת דרכים..." : "צור מפת דרכים עם AI 🗺️"}
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="flex gap-2 items-center">
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">כמה אבני דרך?</span>
+                        <Select value={milestoneCount[goal.id] || "15"} onValueChange={v => setMilestoneCount(prev => ({ ...prev, [goal.id]: v }))}>
+                          <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="15">15</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="30">30</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="75">75</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={() => generateRoadmap(goal)} disabled={generatingRoadmap === goal.id} className="gap-2 w-full" variant="outline">
+                        <Sparkles className="h-4 w-4" />
+                        {generatingRoadmap === goal.id ? "יוצר מפת דרכים..." : "צור מפת דרכים עם AI 🗺️"}
+                      </Button>
+                    </div>
                   )}
 
                   {/* Milestones */}
                   {goal.milestones.length > 0 && (
                     <div className="space-y-2">
-                      <h4 className="text-sm font-semibold flex items-center gap-2"><MapPin className="h-4 w-4" />אבני דרך ({goal.milestones.filter(m => m.done).length}/{goal.milestones.length})</h4>
-                      {goal.milestones.map((ms) => (
-                        <div key={ms.id} className={`flex items-center gap-3 p-2 rounded-lg border transition-all ${ms.done ? "bg-green-50 dark:bg-green-950/20" : "bg-card"}`}>
-                          <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => toggleMilestone(goal.id, ms.id)}>
-                            {ms.done ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded-full" />}
-                          </Button>
-                          <span className={`flex-1 text-sm ${ms.done ? "line-through text-muted-foreground" : ""}`}>{ms.title}</span>
-                        </div>
-                      ))}
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold flex items-center gap-2"><MapPin className="h-4 w-4" />אבני דרך ({goal.milestones.filter(m => m.done).length}/{goal.milestones.length})</h4>
+                        <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => addAllMilestonesToCalendar(goal)}>
+                          <Calendar className="h-3 w-3" />הוסף הכל ללוז
+                        </Button>
+                      </div>
+                      <div className="max-h-[400px] overflow-y-auto space-y-1">
+                        {goal.milestones.map((ms, i) => (
+                          <div key={ms.id} className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${ms.done ? "bg-green-50 dark:bg-green-950/20" : "bg-card"}`}>
+                            <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">{i + 1}</span>
+                            <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => toggleMilestone(goal.id, ms.id)}>
+                              {ms.done ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded-full" />}
+                            </Button>
+                            <span className={`flex-1 text-sm ${ms.done ? "line-through text-muted-foreground" : ""}`}>{ms.title}</span>
+                            <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => addMilestoneToCalendar(goal, ms)} title="הוסף ללוז">
+                              <Calendar className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
 
-                      {/* Regenerate */}
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => generateRoadmap(goal)} disabled={generatingRoadmap === goal.id}>
-                        <Sparkles className="h-3 w-3" />צור מחדש
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => generateRoadmap(goal)} disabled={generatingRoadmap === goal.id}>
+                          <Sparkles className="h-3 w-3" />צור מחדש
+                        </Button>
+                      </div>
                     </div>
                   )}
 

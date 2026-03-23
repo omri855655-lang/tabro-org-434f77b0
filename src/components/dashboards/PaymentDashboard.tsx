@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, CreditCard, TrendingUp, TrendingDown, DollarSign, Check, Calendar, Sparkles, MessageCircle, ChevronDown, ChevronUp, BookOpen, PiggyBank, AlertTriangle, Lightbulb } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Plus, Trash2, CreditCard, TrendingUp, TrendingDown, DollarSign, Check, Calendar, Sparkles, MessageCircle, ChevronDown, ChevronUp, BookOpen, PiggyBank, AlertTriangle, Lightbulb, Wallet, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
@@ -31,61 +32,40 @@ interface Payment {
   created_at: string;
 }
 
+const CATEGORIES = ["דיור", "אוכל", "תחבורה", "בילויים", "ביטוחים", "חשבונות", "קניות", "חינוך", "בריאות", "חיסכון", "משכורת", "פרילנס", "אחר"];
+
 const FINANCIAL_GUIDES = [
   {
-    id: "saving",
-    icon: PiggyBank,
-    title: "מדריך לחיסכון כסף",
-    color: "text-green-600",
-    bgColor: "bg-green-50 dark:bg-green-950/20",
+    id: "saving", icon: PiggyBank, title: "מדריך לחיסכון כסף", color: "text-green-600", bgColor: "bg-green-50 dark:bg-green-950/20",
     sections: [
-      { title: "כלל 50/30/20", content: "חלק את ההכנסה: 50% לצרכים (שכירות, אוכל, חשבונות), 30% לרצונות (בילויים, קניות), 20% לחיסכון והשקעות. זה הבסיס לכל תקציב בריא." },
-      { title: "שלם לעצמך קודם", content: "ברגע שהמשכורת נכנסת, העבר אוטומטית 10-20% לחשבון חיסכון נפרד. אל תחכה לסוף החודש - מה שנשאר לעולם לא מספיק." },
-      { title: "ביטול מנויים מיותרים", content: "בדוק את כל המנויים החודשיים שלך. ביטול של 3-4 מנויים של ₪30-50 = חיסכון של ₪1,200-2,400 בשנה." },
+      { title: "כלל 50/30/20", content: "חלק את ההכנסה: 50% לצרכים, 30% לרצונות, 20% לחיסכון. זה הבסיס לכל תקציב בריא." },
+      { title: "שלם לעצמך קודם", content: "ברגע שהמשכורת נכנסת, העבר אוטומטית 10-20% לחשבון חיסכון נפרד." },
       { title: "כלל 24 השעות", content: "לפני כל קנייה מעל ₪100, חכה 24 שעות. ב-70% מהמקרים תגלה שאתה לא באמת צריך את זה." },
-      { title: "אתגר 52 שבועות", content: "שבוע 1 = חסוך ₪1, שבוע 2 = ₪2, שבוע 52 = ₪52. בסוף השנה יהיו לך ₪1,378. אפשר גם להתחיל מ-₪10 ולהכפיל." },
+      { title: "אתגר 52 שבועות", content: "שבוע 1 = חסוך ₪10, שבוע 2 = ₪20... בסוף השנה יהיו לך אלפי שקלים." },
     ]
   },
   {
-    id: "invest",
-    icon: TrendingUp,
-    title: "איך לעשות כסף מהכסף שלך",
-    color: "text-blue-600",
-    bgColor: "bg-blue-50 dark:bg-blue-950/20",
+    id: "invest", icon: TrendingUp, title: "איך להשקיע נכון", color: "text-blue-600", bgColor: "bg-blue-50 dark:bg-blue-950/20",
     sections: [
-      { title: "קרן חירום קודם", content: "לפני כל השקעה, בנה קרן חירום של 3-6 חודשי הוצאות. זה הביטוח שלך נגד מצבים לא צפויים." },
-      { title: "ריבית דריבית - הכוח השמיני", content: "השקעה של ₪500 בחודש עם תשואה ממוצעת של 8% = ₪450,000 אחרי 20 שנה. הזמן הוא הנכס הכי חשוב שלך." },
-      { title: "פיזור סיכונים", content: "לעולם אל תשים את כל הביצים בסל אחד. חלק בין מניות, אג\"ח, נדל\"ן, וקרנות מחקות. ככל שאתה צעיר יותר - יותר מניות." },
-      { title: "קרנות מחקות (ETF)", content: "במקום לנסות לבחור מניות - השקע בקרנות שמחקות את המדד (S&P 500, ת\"א 125). סטטיסטית, 90% מהמשקיעים הפרטיים לא מנצחים את המדד." },
-      { title: "הכנסה פסיבית", content: "חפש דרכים ליצור הכנסה שלא תלויה בשעות עבודה: השכרת נכסים, דיבידנדים, קורסים דיגיטליים, תוכן אונליין." },
+      { title: "קרן חירום קודם", content: "לפני כל השקעה, בנה קרן חירום של 3-6 חודשי הוצאות." },
+      { title: "ריבית דריבית", content: "₪500/חודש עם 8% תשואה = ₪450,000 אחרי 20 שנה. הזמן הוא הנכס הכי חשוב." },
+      { title: "קרנות מחקות (ETF)", content: "90% מהמשקיעים לא מנצחים את המדד. השקע בקרנות שמחקות S&P 500 או ת\"א 125." },
     ]
   },
   {
-    id: "impulse",
-    icon: AlertTriangle,
-    title: "איך להימנע מקניות אימפולסיביות",
-    color: "text-amber-600",
-    bgColor: "bg-amber-50 dark:bg-amber-950/20",
+    id: "impulse", icon: AlertTriangle, title: "הימנעות מקניות אימפולסיביות", color: "text-amber-600", bgColor: "bg-amber-50 dark:bg-amber-950/20",
     sections: [
-      { title: "זהה את הטריגרים", content: "קניות אימפולסיביות נובעות מרגשות: שעמום, עצב, לחץ, FOMO. כשאתה מרגיש דחף לקנות - שאל את עצמך 'מה אני מרגיש עכשיו?'" },
-      { title: "רשימת קניות מראש", content: "לעולם אל תלך לקנות בלי רשימה. מחקרים מראים שקניות ללא רשימה עולות 40% יותר בממוצע." },
-      { title: "כלל 10/10/10", content: "לפני קנייה, שאל: איך ארגיש לגבי זה בעוד 10 דקות? 10 שעות? 10 ימים? אם התשובה 'לא אכפת לי' - אל תקנה." },
-      { title: "מחק אפליקציות קניות", content: "הסר אפליקציות כמו שיין, עלי אקספרס, אמזון מהטלפון. הקושי הנוסף של לפתוח דפדפן = פחות קניות דחף." },
-      { title: "חשב בשעות עבודה", content: "אם המוצר עולה ₪300 ואתה מרוויח ₪60 לשעה - זה עולה 5 שעות עבודה. האם שווה לך?" },
+      { title: "זהה את הטריגרים", content: "שעמום, עצב, FOMO. כשאתה מרגיש דחף לקנות - שאל 'מה אני מרגיש עכשיו?'" },
+      { title: "חשב בשעות עבודה", content: "מוצר ב-₪300 ואתה מרוויח ₪60/שעה = 5 שעות עבודה. שווה?" },
+      { title: "מחק אפליקציות קניות", content: "הקושי הנוסף של לפתוח דפדפן = פחות קניות דחף." },
     ]
   },
   {
-    id: "tips",
-    icon: Lightbulb,
-    title: "טיפים פיננסיים חכמים",
-    color: "text-purple-600",
-    bgColor: "bg-purple-50 dark:bg-purple-950/20",
+    id: "tips", icon: Lightbulb, title: "טיפים פיננסיים", color: "text-purple-600", bgColor: "bg-purple-50 dark:bg-purple-950/20",
     sections: [
-      { title: "The Psychology of Money", content: "מורגן האוסל: 'עושר הוא מה שאתה לא רואה. זה הרכב שלא נקנה, היהלום שלא נרכש. עושר הוא ההכנסה שלא הוצאת.'" },
-      { title: "Rich Dad Poor Dad", content: "רוברט קיוסאקי: 'עשירים קונים נכסים שמייצרים הכנסה. עניים קונים התחייבויות שהם חושבים שהן נכסים.'" },
-      { title: "אוטומציה פיננסית", content: "הגדר העברות אוטומטיות: חיסכון, השקעות, ביטוחים - הכל ביום שהמשכורת נכנסת. אל תסמוך על כוח הרצון." },
-      { title: "ניהול חובות", content: "שיטת המפולת: שלם קודם את החוב עם הריבית הגבוהה ביותר. שיטת כדור השלג: שלם קודם את החוב הקטן ביותר לתחושת הישג." },
-      { title: "⚠️ הערה חשובה", content: "כל המידע הפיננסי כאן הוא לצרכי למידה בלבד ואינו מהווה ייעוץ השקעות. מומלץ להתייעץ עם יועץ מוסמך לפני קבלת החלטות פיננסיות." },
+      { title: "אוטומציה פיננסית", content: "הגדר העברות אוטומטיות ביום המשכורת: חיסכון, השקעות, ביטוחים." },
+      { title: "שיטת המפולת לחובות", content: "שלם קודם את החוב עם הריבית הגבוהה ביותר." },
+      { title: "⚠️ הערה", content: "כל המידע כאן הוא לצרכי למידה בלבד ואינו מהווה ייעוץ השקעות מקצועי." },
     ]
   },
 ];
@@ -106,6 +86,8 @@ const PaymentDashboard = () => {
   const { messages: aiMessages, setMessages: setAiMessages, clearHistory: clearAiHistory } = useDashboardChatHistory("payments");
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
+  const [monthlyIncome, setMonthlyIncome] = useState("");
+  const [savingsGoal, setSavingsGoal] = useState("");
 
   const fetchPayments = useCallback(async () => {
     if (!user) return;
@@ -127,7 +109,7 @@ const PaymentDashboard = () => {
       user_id: user.id,
       title: newTitle.trim(),
       amount: parseFloat(newAmount),
-      category: newCategory.trim() || null,
+      category: newCategory || null,
       payment_type: newType,
       payment_method: newMethod.trim() || null,
       due_date: newDueDate || null,
@@ -135,7 +117,7 @@ const PaymentDashboard = () => {
     });
     if (error) { toast.error("שגיאה"); return; }
     setNewTitle(""); setNewAmount(""); setNewCategory(""); setNewMethod(""); setNewDueDate("");
-    toast.success("נוסף");
+    toast.success(newType === "income" ? "הכנסה נוספה ✅" : "הוצאה נוספה");
     fetchPayments();
   };
 
@@ -149,14 +131,33 @@ const PaymentDashboard = () => {
     setPayments(prev => prev.filter(p => p.id !== id));
   };
 
+  // Financial calculations
   const totalExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense").reduce((s, p) => s + p.amount, 0), [payments]);
   const totalIncome = useMemo(() => payments.filter(p => p.payment_type === "income").reduce((s, p) => s + p.amount, 0), [payments]);
   const balance = totalIncome - totalExpenses;
   const unpaidExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && !p.paid).reduce((s, p) => s + p.amount, 0), [payments]);
+  const fixedExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && p.recurring).reduce((s, p) => s + p.amount, 0), [payments]);
+  const variableExpenses = totalExpenses - fixedExpenses;
+  
   const overdue = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
     return payments.filter(p => !p.paid && p.due_date && p.due_date < today);
   }, [payments]);
+
+  // Category breakdown
+  const categoryBreakdown = useMemo(() => {
+    const cats: Record<string, number> = {};
+    payments.filter(p => p.payment_type === "expense").forEach(p => {
+      const cat = p.category || "אחר";
+      cats[cat] = (cats[cat] || 0) + p.amount;
+    });
+    return Object.entries(cats).sort(([, a], [, b]) => b - a);
+  }, [payments]);
+
+  // 50/30/20 rule calculation
+  const needsPercent = totalIncome > 0 ? Math.round((fixedExpenses / totalIncome) * 100) : 0;
+  const wantsPercent = totalIncome > 0 ? Math.round((variableExpenses / totalIncome) * 100) : 0;
+  const savingsPercent = totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
 
   const sendAiMessage = async () => {
     if (!aiChat.trim()) return;
@@ -166,17 +167,34 @@ const PaymentDashboard = () => {
     setAiLoading(true);
 
     try {
-      const context = `הוצאות: ₪${totalExpenses.toFixed(0)}, הכנסות: ₪${totalIncome.toFixed(0)}, מאזן: ₪${balance.toFixed(0)}, לא שולמו: ₪${unpaidExpenses.toFixed(0)}, באיחור: ${overdue.length}. קטגוריות: ${[...new Set(payments.map(p => p.category).filter(Boolean))].join(", ")}`;
+      const catBreakdown = categoryBreakdown.map(([cat, amt]) => `${cat}: ₪${amt.toLocaleString()}`).join(", ");
+      const context = `
+הכנסות חודשיות: ₪${totalIncome.toLocaleString()}
+הוצאות חודשיות: ₪${totalExpenses.toLocaleString()}
+מאזן (נותר): ₪${balance.toLocaleString()}
+הוצאות קבועות: ₪${fixedExpenses.toLocaleString()}
+הוצאות משתנות: ₪${variableExpenses.toLocaleString()}
+לא שולמו: ₪${unpaidExpenses.toLocaleString()}
+באיחור: ${overdue.length} תשלומים
+פילוח קטגוריות: ${catBreakdown}
+כלל 50/30/20 - צרכים: ${needsPercent}%, רצונות: ${wantsPercent}%, חיסכון: ${savingsPercent}%`;
+
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
           taskDescription: aiChat,
-          taskCategory: "finance",
-          customPrompt: `אתה יועץ פיננסי חכם ומקצועי. הנה המצב הפיננסי של המשתמש:
+          customPrompt: `אתה יועץ פיננסי חכם ומקצועי. הנה המצב הפיננסי המפורט של המשתמש:
 ${context}
 
-בסיס הידע שלך כולל: The Psychology of Money (מורגן האוסל), Rich Dad Poor Dad (קיוסאקי), The Almanack of Naval Ravikant, Principles (ריי דליו), I Will Teach You to Be Rich (רמית סתי).
+בסיס הידע שלך כולל: The Psychology of Money (מורגן האוסל), Rich Dad Poor Dad (קיוסאקי), I Will Teach You to Be Rich (רמית סתי), The Almanack of Naval Ravikant.
 
-תן עצות מעשיות, ספציפיות ומבוססות מחקר. השתמש באימוג'ים. דבר בעברית. ציין שזו המלצה בלבד ולא ייעוץ מקצועי.
+חובה עליך:
+1. לנתח את המצב הפיננסי ולהגיד מה טוב ומה לא טוב
+2. לתת עצות ספציפיות מבוססות על הנתונים
+3. להציע שיפורים ליעד החיסכון
+4. לציין הוצאות חריגות אם יש
+5. להשוות לכלל 50/30/20
+
+השתמש באימוג'ים. דבר בעברית. ציין שזו המלצה בלבד ולא ייעוץ מקצועי.
 
 המשתמש שואל: ${aiChat}`,
         },
@@ -189,46 +207,145 @@ ${context}
     setAiLoading(false);
   };
 
+  const getMonthlyInsight = async () => {
+    setAiLoading(true);
+    const prompt = "תן לי סיכום חודשי מפורט: מה הייתי צריך לשפר, מה עשיתי טוב, ומה הצעדים הבאים שלי. תתייחס להוצאות הגדולות ביותר ותציע איך לחסוך.";
+    setAiMessages(prev => [...prev, { role: "user", content: prompt }]);
+    setAiChat(prompt);
+    // Trigger sendAiMessage logic
+    const userMsg = { role: "user", content: prompt };
+    setAiMessages(prev => {
+      // Remove last duplicate
+      const filtered = prev.filter(m => m.content !== prompt);
+      return [...filtered, userMsg];
+    });
+    
+    try {
+      const catBreakdown = categoryBreakdown.map(([cat, amt]) => `${cat}: ₪${amt.toLocaleString()}`).join(", ");
+      const { data, error } = await supabase.functions.invoke("task-ai-helper", {
+        body: {
+          taskDescription: prompt,
+          customPrompt: `אתה יועץ פיננסי. נתח את החודש:
+הכנסות: ₪${totalIncome.toLocaleString()}, הוצאות: ₪${totalExpenses.toLocaleString()}, מאזן: ₪${balance.toLocaleString()}
+קבועות: ₪${fixedExpenses.toLocaleString()}, משתנות: ₪${variableExpenses.toLocaleString()}
+קטגוריות: ${catBreakdown}
+50/30/20: צרכים ${needsPercent}%, רצונות ${wantsPercent}%, חיסכון ${savingsPercent}%
+
+תן סיכום חודשי: ✅ מה טוב, ⚠️ מה צריך שיפור, 💡 צעדים הבאים. השתמש באימוג'ים. עברית. ציין שזו המלצה בלבד.`,
+        },
+      });
+      if (error) throw error;
+      setAiMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
+    } catch {
+      setAiMessages(prev => [...prev, { role: "assistant", content: "שגיאה" }]);
+    }
+    setAiChat("");
+    setAiLoading(false);
+  };
+
   if (loading) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
 
   return (
     <div className="p-4 space-y-4 max-w-4xl mx-auto" dir="rtl">
-      <div className="flex items-center gap-3 mb-4">
-        <CreditCard className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">מעקב תשלומים</h2>
+      <div className="flex items-center gap-3 mb-2">
+        <Wallet className="h-6 w-6 text-primary" />
+        <h2 className="text-2xl font-bold">ניהול תקציב</h2>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-          <CardContent className="p-3 text-center">
-            <TrendingUp className="h-5 w-5 text-green-500 mx-auto mb-1" />
-            <p className="text-xs text-muted-foreground">הכנסות</p>
-            <p className="font-bold text-green-600">₪{totalIncome.toLocaleString()}</p>
+      {/* Hero balance card */}
+      <Card className={`${balance >= 0 ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200" : "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 border-red-200"}`}>
+        <CardContent className="py-6 text-center">
+          <p className="text-sm text-muted-foreground mb-1">סה״כ נותר</p>
+          <p className={`text-4xl font-bold ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+            ₪{Math.abs(balance).toLocaleString()}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">{balance >= 0 ? "מצוין! יש לך עודף 👏" : "שים לב - ההוצאות עולות על ההכנסות ⚠️"}</p>
+          <div className="flex justify-center gap-6 mt-4">
+            <div className="text-center">
+              <TrendingUp className="h-4 w-4 text-green-500 mx-auto mb-1" />
+              <p className="text-xs text-muted-foreground">הכנסות</p>
+              <p className="font-semibold text-green-600">₪{totalIncome.toLocaleString()}</p>
+            </div>
+            <div className="text-center">
+              <TrendingDown className="h-4 w-4 text-red-500 mx-auto mb-1" />
+              <p className="text-xs text-muted-foreground">הוצאות</p>
+              <p className="font-semibold text-red-600">₪{totalExpenses.toLocaleString()}</p>
+            </div>
+            <div className="text-center">
+              <Calendar className="h-4 w-4 text-amber-500 mx-auto mb-1" />
+              <p className="text-xs text-muted-foreground">באיחור</p>
+              <p className="font-semibold text-amber-600">{overdue.length}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 50/30/20 Rule visual */}
+      {totalIncome > 0 && (
+        <Card>
+          <CardContent className="py-4">
+            <h3 className="text-sm font-semibold mb-3 text-center">כלל 50/30/20</h3>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="relative mx-auto w-16 h-16">
+                  <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" className="text-muted/20" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" className={`${needsPercent <= 50 ? "text-green-500" : "text-red-500"}`} strokeWidth="3" strokeDasharray={`${Math.min(needsPercent, 100) * 0.94} 100`} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{needsPercent}%</span>
+                </div>
+                <p className="text-xs font-medium mt-1">צרכים</p>
+                <p className="text-[10px] text-muted-foreground">יעד: 50%</p>
+              </div>
+              <div>
+                <div className="relative mx-auto w-16 h-16">
+                  <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" className="text-muted/20" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" className={`${wantsPercent <= 30 ? "text-blue-500" : "text-amber-500"}`} strokeWidth="3" strokeDasharray={`${Math.min(wantsPercent, 100) * 0.94} 100`} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{wantsPercent}%</span>
+                </div>
+                <p className="text-xs font-medium mt-1">רצונות</p>
+                <p className="text-[10px] text-muted-foreground">יעד: 30%</p>
+              </div>
+              <div>
+                <div className="relative mx-auto w-16 h-16">
+                  <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" className="text-muted/20" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" className={`${savingsPercent >= 20 ? "text-green-500" : "text-red-500"}`} strokeWidth="3" strokeDasharray={`${Math.min(Math.max(savingsPercent, 0), 100) * 0.94} 100`} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{savingsPercent}%</span>
+                </div>
+                <p className="text-xs font-medium mt-1">חיסכון</p>
+                <p className="text-[10px] text-muted-foreground">יעד: 20%</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
-          <CardContent className="p-3 text-center">
-            <TrendingDown className="h-5 w-5 text-red-500 mx-auto mb-1" />
-            <p className="text-xs text-muted-foreground">הוצאות</p>
-            <p className="font-bold text-red-600">₪{totalExpenses.toLocaleString()}</p>
+      )}
+
+      {/* Category breakdown */}
+      {categoryBreakdown.length > 0 && (
+        <Card>
+          <CardContent className="py-4">
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><BarChart3 className="h-4 w-4" />פילוח הוצאות</h3>
+            <div className="space-y-2">
+              {categoryBreakdown.map(([cat, amt]) => {
+                const pct = totalExpenses > 0 ? Math.round((amt / totalExpenses) * 100) : 0;
+                return (
+                  <div key={cat}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>{cat}</span>
+                      <span className="font-medium">₪{amt.toLocaleString()} ({pct}%)</span>
+                    </div>
+                    <Progress value={pct} className="h-2" />
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
-        <Card className={`${balance >= 0 ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200" : "bg-red-100 dark:bg-red-950/30 border-red-300"}`}>
-          <CardContent className="p-3 text-center">
-            <DollarSign className="h-5 w-5 mx-auto mb-1" />
-            <p className="text-xs text-muted-foreground">מאזן</p>
-            <p className={`font-bold ${balance >= 0 ? "text-emerald-600" : "text-red-600"}`}>₪{balance.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card className={`${overdue.length > 0 ? "bg-red-100 dark:bg-red-950/30 border-red-300" : "bg-muted/30"}`}>
-          <CardContent className="p-3 text-center">
-            <Calendar className="h-5 w-5 text-red-500 mx-auto mb-1" />
-            <p className="text-xs text-muted-foreground">באיחור</p>
-            <p className="font-bold">{overdue.length}</p>
-          </CardContent>
-        </Card>
-      </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
@@ -239,53 +356,113 @@ ${context}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-2">
-          {payments.map(p => (
-            <Card key={p.id} className={p.payment_type === "income" ? "border-green-200 dark:border-green-800" : ""}>
-              <CardContent className="py-2 px-3 flex items-center gap-3">
-                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
-                  {p.paid ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
-                </Button>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
-                  <div className="flex gap-2 items-center flex-wrap">
-                    {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
-                    {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
-                    {p.recurring && <Badge variant="secondary" className="text-[10px]">חוזר</Badge>}
-                    {p.payment_method && <span className="text-[10px] text-muted-foreground">{p.payment_method}</span>}
-                  </div>
-                </div>
-                <span className={`font-bold text-sm whitespace-nowrap ${p.payment_type === "income" ? "text-green-600" : "text-red-600"}`}>
-                  {p.payment_type === "income" ? "+" : "-"}₪{p.amount.toLocaleString()}
-                </span>
-                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-          {payments.length === 0 && <p className="text-center text-muted-foreground py-8">אין תשלומים עדיין</p>}
+          {/* Fixed expenses */}
+          {payments.filter(p => p.recurring && p.payment_type === "expense").length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-muted-foreground">הוצאות קבועות</h3>
+              {payments.filter(p => p.recurring && p.payment_type === "expense").map(p => (
+                <Card key={p.id} className="border-muted">
+                  <CardContent className="py-2 px-3 flex items-center gap-3">
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
+                      {p.paid ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
+                        {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
+                      </div>
+                    </div>
+                    <span className="font-bold text-sm text-red-600 whitespace-nowrap">-₪{p.amount.toLocaleString()}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}><Trash2 className="h-3 w-3" /></Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Variable expenses */}
+          {payments.filter(p => !p.recurring && p.payment_type === "expense").length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-muted-foreground mt-3">הוצאות משתנות</h3>
+              {payments.filter(p => !p.recurring && p.payment_type === "expense").map(p => (
+                <Card key={p.id}>
+                  <CardContent className="py-2 px-3 flex items-center gap-3">
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
+                      {p.paid ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
+                        {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
+                        {p.payment_method && <span className="text-[10px] text-muted-foreground">{p.payment_method}</span>}
+                      </div>
+                    </div>
+                    <span className="font-bold text-sm text-red-600 whitespace-nowrap">-₪{p.amount.toLocaleString()}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}><Trash2 className="h-3 w-3" /></Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Income */}
+          {payments.filter(p => p.payment_type === "income").length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-muted-foreground mt-3">הכנסות</h3>
+              {payments.filter(p => p.payment_type === "income").map(p => (
+                <Card key={p.id} className="border-green-200 dark:border-green-800">
+                  <CardContent className="py-2 px-3 flex items-center gap-3">
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
+                      {p.paid ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
+                      {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
+                    </div>
+                    <span className="font-bold text-sm text-green-600 whitespace-nowrap">+₪{p.amount.toLocaleString()}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}><Trash2 className="h-3 w-3" /></Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {payments.length === 0 && <p className="text-center text-muted-foreground py-8">אין תשלומים עדיין. הוסף הכנסה או הוצאה כדי להתחיל!</p>}
         </TabsContent>
 
         <TabsContent value="add">
           <Card>
             <CardContent className="pt-4 space-y-3">
-              <Input placeholder="שם התשלום (משכורת, שכירות, חשמל...)" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-              <div className="flex gap-2">
-                <Input placeholder="סכום" type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} dir="ltr" className="flex-1" />
-                <Select value={newType} onValueChange={setNewType}>
-                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="expense">הוצאה</SelectItem>
-                    <SelectItem value="income">הכנסה</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Type selector - prominent */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant={newType === "income" ? "default" : "outline"} className={`gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => setNewType("income")}>
+                  <TrendingUp className="h-4 w-4" />הכנסה
+                </Button>
+                <Button variant={newType === "expense" ? "default" : "outline"} className={`gap-2 ${newType === "expense" ? "bg-red-600 hover:bg-red-700" : ""}`} onClick={() => setNewType("expense")}>
+                  <TrendingDown className="h-4 w-4" />הוצאה
+                </Button>
               </div>
+              <Input placeholder={newType === "income" ? "שם ההכנסה (משכורת, פרילנס...)" : "שם ההוצאה (שכירות, חשמל...)"} value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+              <Input placeholder="סכום" type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} dir="ltr" />
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger><SelectValue placeholder="בחר קטגוריה" /></SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <div className="flex gap-2">
-                <Input placeholder="קטגוריה" value={newCategory} onChange={e => setNewCategory(e.target.value)} className="flex-1" />
                 <Input placeholder="אמצעי תשלום" value={newMethod} onChange={e => setNewMethod(e.target.value)} className="flex-1" />
+                <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} dir="ltr" className="flex-1" />
               </div>
-              <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} dir="ltr" />
-              <Button onClick={addPayment} className="w-full gap-2"><Plus className="h-4 w-4" />הוסף תשלום</Button>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={newRecurring} onChange={e => setNewRecurring(e.target.checked)} className="rounded" />
+                הוצאה/הכנסה קבועה (חוזרת כל חודש)
+              </label>
+              <Button onClick={addPayment} className={`w-full gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`}>
+                <Plus className="h-4 w-4" />{newType === "income" ? "הוסף הכנסה" : "הוסף הוצאה"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -323,21 +500,26 @@ ${context}
             <CardHeader className="py-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-5 w-5" />יועץ פיננסי AI</CardTitle>
-                {aiMessages.length > 0 && <Button size="sm" variant="ghost" onClick={clearAiHistory} className="text-xs">נקה היסטוריה</Button>}
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" onClick={getMonthlyInsight} disabled={aiLoading} className="text-xs gap-1">
+                    <BarChart3 className="h-3 w-3" />סיכום חודשי
+                  </Button>
+                  {aiMessages.length > 0 && <Button size="sm" variant="ghost" onClick={clearAiHistory} className="text-xs">נקה</Button>}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">שאל על תקציב, חיסכון, ניתוח הוצאות, השקעות ועוד. ⚠️ זו המלצה בלבד ולא ייעוץ מקצועי.</p>
+              <p className="text-sm text-muted-foreground">שאל על תקציב, חיסכון, השקעות, או בקש סיכום חודשי. ⚠️ המלצה בלבד, לא ייעוץ מקצועי.</p>
               <div className="border rounded-lg p-3 min-h-[200px] max-h-[400px] overflow-y-auto space-y-3">
-                {aiMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">התחל שיחה עם היועץ הפיננסי...</p>}
+                {aiMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">לחץ "סיכום חודשי" לקבל ניתוח מלא, או שאל שאלה...</p>}
                 {aiMessages.map((msg, i) => (
                   <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                    <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   </div>
                 ))}
-                {aiLoading && <div className="text-sm text-muted-foreground animate-pulse">חושב...</div>}
+                {aiLoading && <div className="text-sm text-muted-foreground animate-pulse">מנתח את הנתונים שלך...</div>}
               </div>
               <div className="flex gap-2">
                 <Input placeholder="שאל שאלה על הכסף שלך..." value={aiChat} onChange={e => setAiChat(e.target.value)} onKeyDown={e => e.key === "Enter" && sendAiMessage()} />
