@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import AutocompleteInput from "@/components/AutocompleteInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Edit2, Check, X, LayoutGrid, List, Palette, Grid3X3, Clock, AlignJustify, CreditCard, Archive, ArchiveRestore, FolderPlus, FileText, ChevronDown, ChevronUp, Tag } from "lucide-react";
@@ -326,7 +327,7 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
         <CardContent className="pt-4">
           <div className="flex gap-2 flex-wrap">
             <Input placeholder="הוסף פריט חדש..." value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem()} className="flex-1 min-w-[150px]" />
-            <Input placeholder="קטגוריה (אופציונלי)" value={newCategory} onChange={e => setNewCategory(e.target.value)} className="w-36" />
+            <AutocompleteInput fieldName={`board-category-${boardId}`} value={newCategory} onChange={setNewCategory} placeholder="קטגוריה (אופציונלי)" className="w-36" />
             <Button onClick={addItem} size="icon"><Plus className="h-4 w-4" /></Button>
           </div>
         </CardContent>
@@ -341,7 +342,7 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(null)}><X className="h-4 w-4" /></Button>
             </div>
             <Input value={editValues.title || ""} onChange={e => setEditValues({ ...editValues, title: e.target.value })} placeholder="שם" />
-            <Input value={editValues.category || ""} onChange={e => setEditValues({ ...editValues, category: e.target.value })} placeholder="קטגוריה" />
+            <AutocompleteInput fieldName={`board-category-${boardId}`} value={editValues.category || ""} onChange={(v) => setEditValues({ ...editValues, category: v })} placeholder="קטגוריה" />
             <Textarea value={editValues.notes || ""} onChange={e => setEditValues({ ...editValues, notes: e.target.value })} placeholder="הערות..." className="min-h-[60px]" />
             <Button size="sm" onClick={() => updateItem(editingId, editValues)} className="gap-1"><Check className="h-3 w-3" />שמור</Button>
           </CardContent>
