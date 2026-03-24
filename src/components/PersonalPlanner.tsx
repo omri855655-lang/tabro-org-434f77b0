@@ -271,7 +271,7 @@ const PersonalPlanner = () => {
           tasks.push({
             id: item.id,
             title: item.title,
-            source: "personal",
+            source: "board",
             overdue: false,
             urgent: false,
             status: item.status || "לביצוע",
@@ -1024,6 +1024,7 @@ const PersonalPlanner = () => {
       case "course": return "קורס";
       case "podcast": return "פודקאסט";
       case "book": return "ספר";
+      case "board": return "רשימה";
       default: return source;
     }
   };
