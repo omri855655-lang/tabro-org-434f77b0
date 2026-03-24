@@ -10,6 +10,7 @@ import IosMusicBanner from "@/components/IosMusicBanner";
 import Landing from "./pages/Landing";
 import Personal from "./pages/Personal";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import InstallApp from "./pages/InstallApp";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -57,6 +58,7 @@ const AppContent = () => {
           }
         />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/creator-admin" element={<AdminDashboard />} />
         <Route path="/install/*" element={<InstallApp />} />
         <Route path="/Install/*" element={<InstallApp />} />
