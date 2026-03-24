@@ -16,7 +16,38 @@ import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
 
-const SettingsPanel = () => {
+const ChangePasswordForm = () => {
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = async () => {
+    if (newPw.length < 6) { toast.error("סיסמה חייבת להכיל לפחות 6 תווים"); return; }
+    if (newPw !== confirmPw) { toast.error("הסיסמאות לא תואמות"); return; }
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    setSaving(false);
+    if (error) { toast.error("שגיאה: " + error.message); return; }
+    setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    toast.success("הסיסמה שונתה בהצלחה!");
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label>סיסמה חדשה</Label>
+        <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="••••••" dir="ltr" />
+      </div>
+      <div className="space-y-1">
+        <Label>אימות סיסמה חדשה</Label>
+        <Input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="••••••" dir="ltr" />
+      </div>
+      <Button onClick={handleChange} disabled={saving || !newPw}>{saving ? "משנה..." : "שנה סיסמה"}</Button>
+    </div>
+  );
+};
+
   const { user, signOut } = useAuth();
   const navTo = useNavigate();
   const { toggleTab, isTabVisible } = useUserPreferences();
