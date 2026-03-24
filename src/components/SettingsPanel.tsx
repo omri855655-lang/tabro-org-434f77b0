@@ -17,7 +17,8 @@ import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
 
 const SettingsPanel = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navTo = useNavigate();
   const { toggleTab, isTabVisible } = useUserPreferences();
   const { lang, setLang } = useLanguage();
   const { themeId, mode, themes, setThemeId, setMode } = useSiteAppearance();
