@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { LanguageProvider } from "@/hooks/useLanguage";
 import PinGate, { usePinGate, PinSetup } from "@/components/PinGate";
-import IosMusicBanner from "@/components/IosMusicBanner";
+
 import TabroAiAgent from "@/components/TabroAiAgent";
 import Landing from "./pages/Landing";
 import Personal from "./pages/Personal";

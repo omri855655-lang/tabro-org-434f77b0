@@ -621,7 +621,7 @@ const ProjectsManager = () => {
                                   <SelectValue placeholder="הקצה לחבר צוות" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">ללא הקצאה</SelectItem>
+                                  <SelectItem value="__none__">ללא הקצאה</SelectItem>
                                   {(projectMembers[project.id] || []).map(m => (
                                     <SelectItem key={m.id} value={m.invited_display_name || m.invited_email}>
                                       {m.invited_display_name || m.invited_email}
