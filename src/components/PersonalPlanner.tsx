@@ -51,7 +51,7 @@ const PersonalPlanner = () => {
   const { tasks: workTasks } = useTasks("work");
   const { tasks: recurringTasks, isTaskDueToday, isTaskCompletedToday } = useRecurringTasks();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendarEvents();
-  const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor } = useCustomCategories();
+  const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
