@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, ShoppingCart, Star, Check, Archive, Sparkles, MessageCircle, Users, ShoppingBasket } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, ShoppingCart, Star, Check, Archive, Sparkles, MessageCircle, Users, ShoppingBasket, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AutocompleteInput from "@/components/AutocompleteInput";
@@ -25,9 +26,12 @@ interface ShoppingItem {
   is_dream: boolean;
   archived: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 const SUPERMARKET_CATEGORIES = ["ירקות ופירות", "מוצרי חלב", "בשר ודגים", "לחם ומאפים", "שימורים", "חטיפים ומתוקים", "משקאות", "ניקיון", "היגיינה", "קפואים", "תבלינים", "אחר"];
+
+const QUANTITY_UNITS = ["יח'", "ק״ג", "גרם", "ליטר", "מ״ל", "חבילה", "שקית", "קופסה", "בקבוק", "תריסר"];
 
 const CATEGORY_ITEMS: Record<string, string[]> = {
   "ירקות ופירות": [
@@ -148,10 +152,12 @@ const CATEGORY_ITEMS: Record<string, string[]> = {
 const ShoppingDashboard = () => {
   const { user } = useAuth();
   const [items, setItems] = useState<ShoppingItem[]>([]);
+  const [archivedItems, setArchivedItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [newQuantity, setNewQuantity] = useState("");
+  const [newQuantityUnit, setNewQuantityUnit] = useState("יח'");
   const [newPrice, setNewPrice] = useState("");
   const [activeTab, setActiveTab] = useState("shopping");
   const [aiChat, setAiChat] = useState("");
@@ -160,6 +166,13 @@ const ShoppingDashboard = () => {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareSheetName, setShareSheetName] = useState("ראשי");
   const [customItemInputs, setCustomItemInputs] = useState<Record<string, string>>({});
+  const [customCatalog, setCustomCatalog] = useState<Record<string, string[]>>(() => {
+    try { return JSON.parse(localStorage.getItem("shopping-custom-catalog") || "{}"); } catch { return {}; }
+  });
+  // Quantity editing inline
+  const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
+  const [editQtyValue, setEditQtyValue] = useState("");
+  const [editQtyUnit, setEditQtyUnit] = useState("יח'");
 
   const fetchItems = useCallback(async () => {
     if (!user) return;
@@ -169,19 +182,57 @@ const ShoppingDashboard = () => {
       .eq("user_id", user.id)
       .eq("archived", false)
       .order("created_at", { ascending: false });
-    setItems((data as any[]) || []);
+
+    const allItems = (data as any[]) || [];
+
+    // 24h auto-reset: items marked "נקנה" over 24h ago → reset to "לקנות"
+    const now = new Date();
+    const toReset: string[] = [];
+    const processed = allItems.map(item => {
+      if (item.status === "נקנה" && item.updated_at) {
+        const checkedAt = new Date(item.updated_at);
+        const hoursDiff = (now.getTime() - checkedAt.getTime()) / (1000 * 60 * 60);
+        if (hoursDiff >= 24) {
+          toReset.push(item.id);
+          return { ...item, status: "לקנות" };
+        }
+      }
+      return item;
+    });
+
+    // Batch reset in DB
+    if (toReset.length > 0) {
+      await supabase.from("shopping_items").update({ status: "לקנות" }).in("id", toReset);
+      toast.info(`${toReset.length} פריטים חזרו לרשימה (עברו 24 שעות)`);
+    }
+
+    setItems(processed);
     setLoading(false);
   }, [user]);
 
+  const fetchArchivedItems = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("shopping_items")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("archived", true)
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    setArchivedItems((data as any[]) || []);
+  }, [user]);
+
   useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => { if (activeTab === "history") fetchArchivedItems(); }, [activeTab, fetchArchivedItems]);
 
   const addItem = async (isDream: boolean, sheetName = "ראשי") => {
     if (!user || !newTitle.trim()) return;
+    const qtyStr = newQuantity.trim() ? `${newQuantity.trim()} ${newQuantityUnit}` : null;
     const { error } = await supabase.from("shopping_items").insert({
       user_id: user.id,
       title: newTitle.trim(),
       category: newCategory.trim() || null,
-      quantity: newQuantity.trim() || null,
+      quantity: qtyStr,
       price: newPrice ? parseFloat(newPrice) : null,
       is_dream: isDream,
       sheet_name: sheetName,
@@ -194,8 +245,8 @@ const ShoppingDashboard = () => {
 
   const toggleStatus = async (id: string, current: string) => {
     const next = current === "לקנות" ? "נקנה" : "לקנות";
-    await supabase.from("shopping_items").update({ status: next }).eq("id", id);
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: next } : i));
+    await supabase.from("shopping_items").update({ status: next, updated_at: new Date().toISOString() }).eq("id", id);
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status: next, updated_at: new Date().toISOString() } : i));
   };
 
   const deleteItem = async (id: string) => {
@@ -209,6 +260,51 @@ const ShoppingDashboard = () => {
     toast.success("הועבר לארכיון");
   };
 
+  const restoreItem = async (id: string) => {
+    await supabase.from("shopping_items").update({ archived: false, status: "לקנות" }).eq("id", id);
+    setArchivedItems(prev => prev.filter(i => i.id !== id));
+    fetchItems();
+    toast.success("הפריט שוחזר לרשימה");
+  };
+
+  const updateItemQuantity = async (id: string) => {
+    const qtyStr = editQtyValue.trim() ? `${editQtyValue.trim()} ${editQtyUnit}` : null;
+    await supabase.from("shopping_items").update({ quantity: qtyStr }).eq("id", id);
+    setItems(prev => prev.map(i => i.id === id ? { ...i, quantity: qtyStr } : i));
+    setEditingQuantity(null);
+    toast.success("כמות עודכנה");
+  };
+
+  const addCustomItemToCategory = async (cat: string) => {
+    const title = customItemInputs[cat]?.trim();
+    if (!title || !user) return;
+    // Add to shopping items
+    await supabase.from("shopping_items").insert({
+      user_id: user.id,
+      title,
+      category: cat,
+      sheet_name: "סופר",
+      is_dream: false,
+    });
+    // Save to permanent custom catalog
+    const updated = { ...customCatalog };
+    if (!updated[cat]) updated[cat] = [];
+    if (!updated[cat].includes(title)) {
+      updated[cat] = [...updated[cat], title];
+      setCustomCatalog(updated);
+      localStorage.setItem("shopping-custom-catalog", JSON.stringify(updated));
+    }
+    setCustomItemInputs(prev => ({ ...prev, [cat]: "" }));
+    fetchItems();
+    toast.success(`${title} נוסף ל-${cat} (קבוע)`);
+  };
+
+  const getCategoryItemsList = (cat: string): string[] => {
+    const builtIn = CATEGORY_ITEMS[cat] || [];
+    const custom = customCatalog[cat] || [];
+    return [...builtIn, ...custom.filter(c => !builtIn.includes(c))];
+  };
+
   const sendAiMessage = async () => {
     if (!aiChat.trim()) return;
     const userMsg = { role: "user", content: aiChat };
@@ -216,18 +312,16 @@ const ShoppingDashboard = () => {
     setAiMessages(newMessages);
     setAiChat("");
     setAiLoading(true);
-
     try {
       const dreamItems = items.filter(i => i.is_dream);
       const shoppingItems = items.filter(i => !i.is_dream && i.sheet_name !== "סופר");
       const superItems = items.filter(i => i.sheet_name === "סופר");
       const context = `רשימת קניות: ${shoppingItems.map(i => `${i.title} (${i.status})`).join(", ")}. רשימת סופר: ${superItems.map(i => `${i.title} (${i.status}${i.category ? ", " + i.category : ""})`).join(", ")}. רשימת חלומות: ${dreamItems.map(i => `${i.title} (מחיר: ${i.price || "לא ידוע"})`).join(", ")}.`;
-
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
           taskDescription: aiChat,
           taskCategory: "shopping",
-          customPrompt: `אתה יועץ קניות חכם. עזור למשתמש עם רשימת הקניות, הסופר והחלומות שלו. תן טיפים לחיסכון, חלופות זולות, ומניעת קניות אימפולסיביות. ${context}\n\nהמשתמש שואל: ${aiChat}`,
+          customPrompt: `אתה יועץ קניות חכם. עזור למשתמש עם רשימת הקניות, הסופר והחלומות שלו. ${context}\n\nהמשתמש שואל: ${aiChat}`,
         },
       });
       if (error) throw error;
@@ -246,21 +340,6 @@ const ShoppingDashboard = () => {
   const dreamTotal = dreamItems.filter(i => i.price).reduce((sum, i) => sum + (i.price || 0), 0);
 
   const availableSheets = [...new Set(items.map(i => i.sheet_name))];
-
-  const addCustomItemToCategory = async (cat: string) => {
-    const title = customItemInputs[cat]?.trim();
-    if (!title || !user) return;
-    await supabase.from("shopping_items").insert({
-      user_id: user.id,
-      title,
-      category: cat,
-      sheet_name: "סופר",
-      is_dream: false,
-    });
-    setCustomItemInputs(prev => ({ ...prev, [cat]: "" }));
-    fetchItems();
-    toast.success(`${title} נוסף ל-${cat}`);
-  };
 
   const renderItemList = (itemList: ShoppingItem[], emptyMsg: string, showCustomInput = false) => {
     if (itemList.length === 0 && !showCustomInput) return <p className="text-center text-muted-foreground py-6">{emptyMsg}</p>;
@@ -284,7 +363,43 @@ const ShoppingDashboard = () => {
                   {item.status === "נקנה" ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
                 </Button>
                 <span className={`flex-1 text-sm ${item.status === "נקנה" ? "line-through text-muted-foreground" : ""}`}>{item.title}</span>
-                {item.quantity && <Badge variant="outline" className="text-[10px]">{item.quantity}</Badge>}
+                {/* Quantity badge - click to edit */}
+                {editingQuantity === item.id ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={editQtyValue}
+                      onChange={e => setEditQtyValue(e.target.value)}
+                      className="w-12 h-6 text-[10px] px-1"
+                      placeholder="כמות"
+                      onKeyDown={e => e.key === "Enter" && updateItemQuantity(item.id)}
+                      autoFocus
+                    />
+                    <Select value={editQtyUnit} onValueChange={setEditQtyUnit}>
+                      <SelectTrigger className="w-16 h-6 text-[10px] px-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {QUANTITY_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => updateItemQuantity(item.id)}>
+                      <Check className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] cursor-pointer hover:bg-accent"
+                    onClick={() => {
+                      const parts = (item.quantity || "").split(" ");
+                      setEditQtyValue(parts[0] || "1");
+                      setEditQtyUnit(parts.slice(1).join(" ") || "יח'");
+                      setEditingQuantity(item.id);
+                    }}
+                  >
+                    {item.quantity || "כמות"}
+                  </Badge>
+                )}
                 {item.price && <span className="text-xs text-muted-foreground">₪{item.price}</span>}
                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => archiveItem(item.id)}><Archive className="h-3 w-3" /></Button>
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
@@ -294,14 +409,14 @@ const ShoppingDashboard = () => {
             {showCustomInput && (
               <div className="flex gap-1 mt-2 pt-2 border-t border-border">
                 <Input
-                  placeholder="הוספת פריט..."
+                  placeholder="הוספת פריט קבוע..."
                   value={customItemInputs[cat] || ""}
                   onChange={e => setCustomItemInputs(prev => ({ ...prev, [cat]: e.target.value }))}
                   onKeyDown={e => e.key === "Enter" && addCustomItemToCategory(cat)}
                   className="flex-1 h-7 text-xs"
                 />
                 <Button size="sm" className="h-7 text-xs px-2" onClick={() => addCustomItemToCategory(cat)} disabled={!customItemInputs[cat]?.trim()}>
-                  <Plus className="h-3 w-3 mr-1" />הוסף
+                  <Plus className="h-3 w-3 mr-1" />קבוע
                 </Button>
               </div>
             )}
@@ -328,6 +443,7 @@ const ShoppingDashboard = () => {
           <TabsTrigger value="shopping" className="flex-1 gap-1"><ShoppingCart className="h-3.5 w-3.5" />קניות ({shoppingItems.length})</TabsTrigger>
           <TabsTrigger value="supermarket" className="flex-1 gap-1"><ShoppingBasket className="h-3.5 w-3.5" />סופר ({supermarketItems.length})</TabsTrigger>
           <TabsTrigger value="dreams" className="flex-1 gap-1"><Star className="h-3.5 w-3.5" />חלומות ({dreamItems.length})</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3.5 w-3.5" />היסטוריה</TabsTrigger>
           <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3.5 w-3.5" />יועץ AI</TabsTrigger>
         </TabsList>
 
@@ -338,7 +454,17 @@ const ShoppingDashboard = () => {
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="מוצר חדש..." value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(false)} className="flex-1 min-w-[150px]" />
                 <AutocompleteInput fieldName="shopping-category" value={newCategory} onChange={setNewCategory} placeholder="קטגוריה" className="w-28" />
-                <Input placeholder="כמות" value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-20" />
+                <div className="flex gap-1">
+                  <Input placeholder="כמות" value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-16" />
+                  <Select value={newQuantityUnit} onValueChange={setNewQuantityUnit}>
+                    <SelectTrigger className="w-20 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {QUANTITY_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Input placeholder="מחיר" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
                 <Button onClick={() => addItem(false)} size="icon"><Plus className="h-4 w-4" /></Button>
               </div>
@@ -359,7 +485,17 @@ const ShoppingDashboard = () => {
               <div className="flex gap-2 flex-wrap">
                 <Input placeholder="מוצר לסופר..." value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(false, "סופר")} className="flex-1 min-w-[150px]" />
                 <AutocompleteInput fieldName="supermarket-category" value={newCategory} onChange={setNewCategory} placeholder="קטגוריה" className="w-32" />
-                <Input placeholder="כמות" value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-20" />
+                <div className="flex gap-1">
+                  <Input placeholder="כמות" value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-16" />
+                  <Select value={newQuantityUnit} onValueChange={setNewQuantityUnit}>
+                    <SelectTrigger className="w-20 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {QUANTITY_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Input placeholder="מחיר" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
                 <Button onClick={() => addItem(false, "סופר")} size="icon"><Plus className="h-4 w-4" /></Button>
               </div>
@@ -368,11 +504,11 @@ const ShoppingDashboard = () => {
                   <Badge key={cat} variant={newCategory === cat ? "default" : "outline"} className="cursor-pointer text-[10px]" onClick={() => setNewCategory(newCategory === cat ? "" : cat)}>{cat}</Badge>
                 ))}
               </div>
-              {newCategory && CATEGORY_ITEMS[newCategory] && (
+              {newCategory && getCategoryItemsList(newCategory).length > 0 && (
                 <div className="mt-2 p-2 rounded-lg border bg-muted/30">
                   <p className="text-[10px] text-muted-foreground mb-1">לחץ להוספה מהירה:</p>
                   <div className="flex flex-wrap gap-1">
-                    {CATEGORY_ITEMS[newCategory]
+                    {getCategoryItemsList(newCategory)
                       .filter(item => !supermarketItems.some(si => si.title === item && si.category === newCategory))
                       .map(item => (
                         <Badge
@@ -446,12 +582,39 @@ const ShoppingDashboard = () => {
           </div>
         </TabsContent>
 
+        {/* History */}
+        <TabsContent value="history" className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <History className="h-5 w-5 text-primary" />
+            <h3 className="font-bold text-sm">היסטוריית קניות ({archivedItems.length})</h3>
+          </div>
+          {archivedItems.length === 0 ? (
+            <p className="text-center text-muted-foreground py-6">אין היסטוריה עדיין</p>
+          ) : (
+            <div className="space-y-1">
+              {archivedItems.map(item => (
+                <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30">
+                  <span className="flex-1 text-sm text-muted-foreground">{item.title}</span>
+                  {item.category && <Badge variant="outline" className="text-[10px]">{item.category}</Badge>}
+                  {item.quantity && <Badge variant="outline" className="text-[10px]">{item.quantity}</Badge>}
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(item.updated_at).toLocaleDateString("he-IL")}
+                  </span>
+                  <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => restoreItem(item.id)}>
+                    <RotateCcw className="h-3 w-3" />שחזר
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
         {/* AI */}
         <TabsContent value="ai" className="space-y-4">
           <Card>
             <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2 justify-between"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />יועץ קניות AI</div>{aiMessages.length > 0 && <Button variant="ghost" size="sm" className="text-xs h-6" onClick={clearAiHistory}><Trash2 className="h-3 w-3 mr-1" />נקה</Button>}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">שאל אותי על תקציב, חלופות זולות, איפה הכי משתלם, או איך לחסוך. גם טיפים להימנעות מקניות אימפולסיביות!</p>
+              <p className="text-sm text-muted-foreground">שאל אותי על תקציב, חלופות זולות, איפה הכי משתלם, או איך לחסוך.</p>
               <div className="border rounded-lg p-3 min-h-[200px] max-h-[400px] overflow-y-auto space-y-3">
                 {aiMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">התחל שיחה...</p>}
                 {aiMessages.map((msg, i) => (
