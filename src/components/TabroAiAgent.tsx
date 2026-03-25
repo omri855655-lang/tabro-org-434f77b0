@@ -4,12 +4,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, X, Send, Loader2 } from "lucide-react";
+import { Bot, X, Send, Loader2, Trash2, History, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface ConversationEntry {
+  id: string;
+  date: string;
+  preview: string;
+  messages: Message[];
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -34,10 +41,17 @@ const ACTION_LABELS: Record<string, string> = {
 const TabroAiAgent = () => {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = localStorage.getItem("tabro-ai-history");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [conversationHistory, setConversationHistory] = useState<ConversationEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem("tabro-ai-conversations");
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
@@ -56,6 +70,32 @@ const TabroAiAgent = () => {
       localStorage.setItem("tabro-ai-history", JSON.stringify(messages.slice(-50)));
     }
   }, [messages]);
+
+  // Save conversations list
+  useEffect(() => {
+    localStorage.setItem("tabro-ai-conversations", JSON.stringify(conversationHistory.slice(-30)));
+  }, [conversationHistory]);
+
+  const clearChat = () => {
+    if (messages.length === 0) return;
+    // Archive current conversation
+    const firstUserMsg = messages.find(m => m.role === "user");
+    const entry: ConversationEntry = {
+      id: Date.now().toString(),
+      date: new Date().toLocaleDateString("he-IL"),
+      preview: firstUserMsg?.content.slice(0, 60) || "שיחה",
+      messages: [...messages],
+    };
+    setConversationHistory(prev => [entry, ...prev].slice(0, 30));
+    setMessages([]);
+    localStorage.removeItem("tabro-ai-history");
+    toast.success("השיחה נוקתה ונשמרה בהיסטוריה");
+  };
+
+  const loadConversation = (entry: ConversationEntry) => {
+    setMessages(entry.messages);
+    setShowHistory(false);
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || !user || loading) return;
@@ -111,10 +151,55 @@ const TabroAiAgent = () => {
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
             <Bot className="h-5 w-5 text-primary" />
             <span className="font-bold text-sm flex-1">Tabro AI</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setShowHistory(!showHistory)}
+              title="היסטוריית שיחות"
+            >
+              <History className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={clearChat}
+              title="נקה שיחה"
+              disabled={messages.length === 0}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* History sidebar */}
+          {showHistory && (
+            <div className="border-b border-border bg-muted/30 max-h-[200px] overflow-auto">
+              <div className="p-2 space-y-1">
+                <p className="text-[10px] font-bold text-muted-foreground px-1">שיחות קודמות</p>
+                {conversationHistory.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-3">אין היסטוריה</p>
+                ) : (
+                  conversationHistory.map(entry => (
+                    <button
+                      key={entry.id}
+                      onClick={() => loadConversation(entry)}
+                      className="w-full text-right px-2 py-1.5 rounded-md hover:bg-accent text-xs flex items-center gap-2 transition-colors"
+                    >
+                      <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <span className="block truncate">{entry.preview}</span>
+                        <span className="text-[10px] text-muted-foreground">{entry.date}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Messages */}
           <ScrollArea className="flex-1 p-3" ref={scrollRef}>
