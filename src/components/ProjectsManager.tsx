@@ -70,6 +70,7 @@ const ProjectsManager = () => {
   const [aiMilestones, setAiMilestones] = useState<Record<string, { title: string; done: boolean }[]>>({});
   const [projectMembers, setProjectMembers] = useState<Record<string, ProjectMember[]>>({});
   const [newTaskAssignee, setNewTaskAssignee] = useState<Record<string, string>>({});
+  const [newTaskNotes, setNewTaskNotes] = useState<Record<string, string>>({});
   const [newTaskPushToWork, setNewTaskPushToWork] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
