@@ -37,6 +37,8 @@ interface ProjectTask {
   assigned_to: string | null;
   assigned_email: string | null;
   urgent: boolean;
+  status: string | null;
+  notes: string | null;
 }
 
 interface ProjectMember {
