@@ -1616,7 +1616,42 @@ const PersonalPlanner = () => {
           </CollapsibleContent>
         </Collapsible>
 
-        <ScrollArea className="flex-1">
+        {/* Inline category color pickers */}
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full justify-between text-[10px] h-7 px-2 border-b border-border rounded-none">
+              🎨 צבעי קטגוריות
+              <Filter className="h-3 w-3" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="p-2 border-b border-border space-y-1 max-h-[200px] overflow-auto">
+            {categories.map((cat) => (
+              <div key={cat.name} className="flex items-center gap-1.5">
+                <label className="relative w-5 h-5 shrink-0 cursor-pointer">
+                  <div className="w-5 h-5 rounded-full border border-border" style={{ backgroundColor: cat.color }} />
+                  <input
+                    type="color"
+                    value={cat.color}
+                    onChange={(e) => {
+                      const newCats = categories.map(c => c.name === cat.name ? { ...c, color: e.target.value } : c);
+                      saveCategories(newCats);
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </label>
+                <span className="text-[10px] flex-1">{cat.name}</span>
+              </div>
+            ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-[10px] h-6 mt-1"
+              onClick={() => setShowCategoryManager(true)}
+            >
+              ⚙️ ניהול מלא
+            </Button>
+          </CollapsibleContent>
+        </Collapsible>
           <div className="p-2 space-y-1.5">
             {filteredTasks.map((task) => (
               <div
