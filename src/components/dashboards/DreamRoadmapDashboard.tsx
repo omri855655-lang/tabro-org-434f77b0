@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Target, Sparkles, MessageCircle, ChevronDown, ChevronUp, MapPin, CheckCircle2, Calendar } from "lucide-react";
+import { Plus, Trash2, Target, Sparkles, MessageCircle, ChevronDown, ChevronUp, MapPin, CheckCircle2, Calendar, FolderKanban } from "lucide-react";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -466,7 +466,37 @@ const DreamRoadmapDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-2 border-t">
+                  <div className="flex justify-between pt-2 border-t">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-xs"
+                      onClick={async () => {
+                        if (!user) return;
+                        const { data, error } = await supabase.from("projects").insert({
+                          user_id: user.id,
+                          title: goal.title,
+                          description: goal.description || `חלום שהפך לפרויקט`,
+                        }).select().single();
+                        if (error) { toast.error("שגיאה ביצירת פרויקט"); return; }
+                        // Add milestones as project tasks
+                        if (goal.milestones.length > 0 && data) {
+                          const tasks = goal.milestones.filter(m => !m.done).map((m, i) => ({
+                            project_id: data.id,
+                            user_id: user.id,
+                            title: m.title,
+                            sort_order: i,
+                          }));
+                          if (tasks.length > 0) {
+                            await supabase.from("project_tasks").insert(tasks);
+                          }
+                        }
+                        toast.success(`הפרויקט "${goal.title}" נוצר עם ${goal.milestones.filter(m => !m.done).length} משימות! 🚀`);
+                      }}
+                    >
+                      <FolderKanban className="h-3 w-3" />
+                      הפוך לפרויקט
+                    </Button>
                     <Button size="sm" variant="ghost" className="text-destructive gap-1" onClick={() => deleteGoal(goal.id)}>
                       <Trash2 className="h-3 w-3" />מחק
                     </Button>
