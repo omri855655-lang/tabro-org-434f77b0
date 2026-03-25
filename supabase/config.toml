@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.tabro-ai-agent]
 verify_jwt = false
+
+[functions.delete-account-confirm]
+verify_jwt = false
+
+[functions.notify-shared-task]
+verify_jwt = false

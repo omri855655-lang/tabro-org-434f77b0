@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Plus, Trash2, Search, FolderKanban, ChevronDown, ChevronLeft, Link2, ExternalLink, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, Trash2, Search, FolderKanban, ChevronDown, ChevronLeft, Link2, ExternalLink, CheckCircle2, Circle, Sparkles, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import ProjectMembersPanel from '@/components/ProjectMembersPanel';
@@ -52,6 +53,8 @@ const ProjectsManager = () => {
   const [newTaskTitle, setNewTaskTitle] = useState<Record<string, string>>({});
   const [addLinkDialogOpen, setAddLinkDialogOpen] = useState<string | null>(null);
   const [newLink, setNewLink] = useState('');
+  const [aiMilestonesLoading, setAiMilestonesLoading] = useState<string | null>(null);
+  const [aiMilestones, setAiMilestones] = useState<Record<string, { title: string; done: boolean }[]>>({});
 
   useEffect(() => {
     if (user) {
@@ -259,6 +262,36 @@ const ProjectsManager = () => {
     ));
   };
 
+  const generateAiMilestones = async (project: Project) => {
+    setAiMilestonesLoading(project.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('task-ai-helper', {
+        body: {
+          taskDescription: project.title,
+          taskCategory: 'project_milestones',
+          customPrompt: `צור רשימת אבני דרך (milestones) לפרויקט "${project.title}". ${project.description ? `תיאור: ${project.description}` : ''} החזר רשימה של עד 10 אבני דרך מסודרות מ-0% ל-100% השלמה. כל אבן דרך צריכה להיות קצרה וספציפית.`,
+        },
+      });
+      if (error) throw error;
+      const text = data?.suggestion || '';
+      const lines = text.split('\n').map((l: string) => l.replace(/^\s*[-*•\d\.\)\-]+\s*/, '').trim()).filter((l: string) => l.length > 2);
+      const milestones = lines.slice(0, 10).map((title: string) => ({ title, done: false }));
+      setAiMilestones(prev => ({ ...prev, [project.id]: milestones }));
+      toast.success(`נוצרו ${milestones.length} אבני דרך`);
+    } catch {
+      toast.error('שגיאה ביצירת אבני דרך');
+    } finally {
+      setAiMilestonesLoading(null);
+    }
+  };
+
+  const toggleAiMilestone = (projectId: string, index: number) => {
+    setAiMilestones(prev => ({
+      ...prev,
+      [projectId]: prev[projectId].map((m, i) => i === index ? { ...m, done: !m.done } : m),
+    }));
+  };
+
   const toggleExpanded = (projectId: string) => {
     setExpandedProjects(prev => {
       const newSet = new Set(prev);
@@ -447,6 +480,49 @@ const ProjectsManager = () => {
                               </button>
                             </div>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Progress Bar */}
+                      {tasks.length > 0 && (
+                        <div className="mt-3 mr-11 space-y-1">
+                          <Progress value={tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0} className="h-2" />
+                          <p className="text-[10px] text-muted-foreground">
+                            {Math.round((completedTasks / tasks.length) * 100)}% הושלם — {tasks.length - completedTasks} משימות נותרו
+                          </p>
+                        </div>
+                      )}
+
+                      {/* AI Milestones Button */}
+                      <div className="mt-2 mr-11">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs"
+                          disabled={aiMilestonesLoading === project.id}
+                          onClick={(e) => { e.stopPropagation(); generateAiMilestones(project); }}
+                        >
+                          {aiMilestonesLoading === project.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                          {aiMilestones[project.id] ? 'צור מחדש' : 'אבני דרך AI'}
+                        </Button>
+                      </div>
+
+                      {/* AI Milestones List */}
+                      {aiMilestones[project.id] && aiMilestones[project.id].length > 0 && (
+                        <div className="mt-2 mr-11 space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">אבני דרך מומלצות:</p>
+                          {aiMilestones[project.id].map((ms, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs">
+                              <button onClick={() => toggleAiMilestone(project.id, idx)}>
+                                {ms.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
+                              </button>
+                              <span className={ms.done ? 'line-through text-muted-foreground' : ''}>{ms.title}</span>
+                            </div>
+                          ))}
+                          <Progress
+                            value={(aiMilestones[project.id].filter(m => m.done).length / aiMilestones[project.id].length) * 100}
+                            className="h-1.5 mt-1"
+                          />
                         </div>
                       )}
 

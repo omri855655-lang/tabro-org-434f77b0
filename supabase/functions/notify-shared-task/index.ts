@@ -67,6 +67,45 @@ serve(async (req) => {
 
     const emailResult = await emailRes.json();
 
+    // Also send push notification to the owner
+    const { data: pushSubs } = await supabase
+      .from("push_subscriptions")
+      .select("*")
+      .eq("user_id", ownerUserId);
+
+    if (pushSubs && pushSubs.length > 0) {
+      const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+      const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+
+      if (vapidPrivateKey && vapidPublicKey) {
+        // Use web-push via fetch to send notifications
+        for (const sub of pushSubs) {
+          try {
+            // Simple notification via the existing send-push-notifications function pattern
+            await fetch(`${supabaseUrl}/functions/v1/send-push-notifications`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${serviceKey}`,
+              },
+              body: JSON.stringify({
+                subscriptions: [{
+                  endpoint: sub.endpoint,
+                  keys: { p256dh: sub.p256dh, auth: sub.auth },
+                }],
+                title: `📋 ${creatorName} הוסיף/ה משימה`,
+                body: normalizedTaskDescription
+                  ? `${normalizedTaskDescription.slice(0, 100)}`
+                  : `משימה חדשה נוספה לגליון ${sheetName || "משותף"}`,
+              }),
+            });
+          } catch (pushErr) {
+            console.error("Push notification error:", pushErr);
+          }
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ success: true, emailResult }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

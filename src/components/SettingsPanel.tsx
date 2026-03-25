@@ -307,26 +307,24 @@ const SettingsPanel = () => {
           <Button
             variant="destructive"
             onClick={async () => {
-              if (!confirm("האם אתה בטוח? כל הנתונים שלך יימחקו לצמיתות.")) return;
-              if (!confirm("אישור אחרון - האם אתה בטוח שברצונך למחוק את החשבון?")) return;
+              if (!confirm("⚠️ פעולה זו תמחק את כל הנתונים שלך לצמיתות. לא ניתן לבטל פעולה זו.\n\nהאם להמשיך?")) return;
+              if (!confirm("אישור אחרון - האם אתה בטוח שברצונך למחוק את החשבון? תישלח הודעת אימייל לאישור סופי.")) return;
               try {
-                // Delete user data first, then sign out
-                if (user) {
-                  const tables = ["tasks", "books", "shows", "podcasts", "courses", "course_lessons", "projects", "project_tasks", "project_members", "calendar_events", "custom_board_items", "custom_boards", "daily_stopwatch", "dream_goals", "health_profiles", "nutrition_tracking", "payment_tracking", "shopping_items", "shopping_sheets", "shopping_sheet_collaborators", "checked_items", "recurring_tasks", "recurring_task_completions", "planner_conversations", "user_preferences", "profiles"];
-                  for (const table of tables) {
-                    await supabase.from(table as any).delete().eq("user_id", user.id);
-                  }
-                }
-                await signOut();
-                toast.success("החשבון נמחק בהצלחה");
-                navTo("/");
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) { toast.error("יש להתחבר מחדש"); return; }
+                const { error } = await supabase.functions.invoke('delete-account-confirm', {
+                  headers: { Authorization: `Bearer ${session.access_token}` },
+                });
+                if (error) throw error;
+                toast.success("נשלח אימייל אישור מחיקה לכתובת המייל שלך. לחץ על הקישור באימייל כדי לאשר.");
               } catch {
-                toast.error("שגיאה במחיקת החשבון");
+                toast.error("שגיאה בשליחת בקשת מחיקה");
               }
             }}
           >
             מחק את החשבון שלי
           </Button>
+          <p className="text-xs text-muted-foreground">לאחר לחיצה, תישלח הודעת אימייל עם קישור אישור. רק לאחר לחיצה על הקישור החשבון יימחק.</p>
         </CardContent>
       </Card>
       <Card>
