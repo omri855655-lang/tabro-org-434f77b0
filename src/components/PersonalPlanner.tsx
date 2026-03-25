@@ -1187,10 +1187,14 @@ const PersonalPlanner = () => {
                       // Only side-by-side for truly overlapping events
                       const evStart = new Date(event.startTime);
                       const evEnd = new Date(event.endTime);
+                      // Strict overlap: boundary-only (A ends at 20:00, B starts at 20:00) is NOT overlap
                       const trueOverlaps = allDayEvents.filter(other => {
+                        if (other.id === event.id) return true;
                         const oStart = new Date(other.startTime);
                         const oEnd = new Date(other.endTime);
-                        return oStart < evEnd && oEnd > evStart;
+                        // Must have real overlap, not just boundary touching
+                        return oStart.getTime() < evEnd.getTime() && oEnd.getTime() > evStart.getTime()
+                          && !(oStart.getTime() === evEnd.getTime() || oEnd.getTime() === evStart.getTime());
                       });
                       const overlapIndex = trueOverlaps.findIndex(e => e.id === event.id);
                       const overlapCount = trueOverlaps.length;
@@ -1778,9 +1782,12 @@ const PersonalPlanner = () => {
                   <Select
                     value={newEventData.startTime ? String(new Date(newEventData.startTime).getHours()) : "9"}
                     onValueChange={(v) => {
-                      const d = new Date(newEventData.startTime || new Date());
+                   const d = new Date(newEventData.startTime || new Date());
                       d.setHours(parseInt(v));
-                      setNewEventData((p) => ({ ...p, startTime: d.toISOString() }));
+                      // Auto-set end time to start + 1 hour
+                      const autoEnd = new Date(d);
+                      autoEnd.setHours(autoEnd.getHours() + 1);
+                      setNewEventData((p) => ({ ...p, startTime: d.toISOString(), endTime: autoEnd.toISOString() }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
@@ -1792,7 +1799,10 @@ const PersonalPlanner = () => {
                     onValueChange={(v) => {
                       const d = new Date(newEventData.startTime || new Date());
                       d.setMinutes(parseInt(v));
-                      setNewEventData((p) => ({ ...p, startTime: d.toISOString() }));
+                      // Auto-set end time to start + 1 hour
+                      const autoEnd = new Date(d);
+                      autoEnd.setHours(autoEnd.getHours() + 1);
+                      setNewEventData((p) => ({ ...p, startTime: d.toISOString(), endTime: autoEnd.toISOString() }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>

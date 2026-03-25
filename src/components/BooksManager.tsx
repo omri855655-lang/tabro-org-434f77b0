@@ -193,7 +193,7 @@ const BooksManager = () => {
       {/* Books table with scroll */}
       <div className="flex-1 min-h-0 border rounded-lg overflow-hidden">
         <div className="h-full overflow-auto">
-          <Table className="min-w-[980px]">
+          <Table className="min-w-[700px] sm:min-w-[980px]">
           <TableHeader>
            <TableRow>
                <TableHead className="text-right min-w-[220px] sticky right-0 bg-card z-10">שם הספר</TableHead>
@@ -216,10 +216,10 @@ const BooksManager = () => {
             ) : (
               filteredBooks.map((book) => (
                 <TableRow key={book.id}>
-                   <TableCell className="font-medium text-right min-w-[220px] sticky right-0 bg-card z-10">
+                   <TableCell className="font-medium text-right min-w-[140px] sm:min-w-[220px] sticky right-0 bg-card z-10 max-w-[200px] sm:max-w-none">
                     <Input
-                      defaultValue={book.title}
-                       className="border-0 bg-transparent p-0 h-auto text-right font-medium focus-visible:ring-1 min-w-[200px]"
+                       defaultValue={book.title}
+                        className="border-0 bg-transparent p-0 h-auto text-right font-medium focus-visible:ring-1 min-w-[120px] sm:min-w-[200px] text-sm sm:text-base"
                       dir="rtl"
                       onBlur={(e) => {
                         const val = e.target.value.trim();
