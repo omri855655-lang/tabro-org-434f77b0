@@ -12,6 +12,25 @@ interface Message {
   content: string;
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  add_task: "✅ המשימה נוספה בהצלחה!",
+  update_task: "✅ המשימה עודכנה!",
+  add_event: "✅ האירוע נוסף ללוח הזמנים!",
+  update_event: "✅ האירוע עודכן!",
+  delete_event: "✅ האירוע נמחק!",
+  add_book: "✅ הספר נוסף בהצלחה!",
+  update_book: "✅ סטטוס הספר עודכן!",
+  add_shopping: "✅ הפריט נוסף לרשימת הקניות!",
+  update_shopping: "✅ פריט הקניות עודכן!",
+  update_project: "✅ הפרויקט עודכן!",
+  toggle_project_task: "✅ משימת הפרויקט עודכנה!",
+  add_project_task: "✅ משימה נוספה לפרויקט!",
+  update_show: "✅ הסדרה/סרט עודכנו!",
+  add_board_item: "✅ פריט נוסף לרשימה!",
+  update_course: "✅ הקורס עודכן!",
+  multi: "✅ כל הפעולות בוצעו!",
+};
+
 const TabroAiAgent = () => {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -49,13 +68,7 @@ const TabroAiAgent = () => {
       setMessages(prev => [...prev, { role: "assistant", content: responseText }]);
 
       if (data?.action?.success) {
-        const actionLabels: Record<string, string> = {
-          add_task: "✅ המשימה נוספה בהצלחה!",
-          add_event: "✅ האירוע נוסף ללוח הזמנים!",
-          add_book: "✅ הספר נוסף בהצלחה!",
-          add_shopping: "✅ הפריט נוסף לרשימת הקניות!",
-        };
-        toast.success(actionLabels[data.action.type] || "✅ הפעולה בוצעה!");
+        toast.success(ACTION_LABELS[data.action.type] || "✅ הפעולה בוצעה!");
       }
     } catch (e: any) {
       console.error("Tabro AI error:", e);
@@ -98,13 +111,20 @@ const TabroAiAgent = () => {
                 <div className="text-center text-muted-foreground text-sm py-8 space-y-2">
                   <Bot className="h-10 w-10 mx-auto text-primary/40" />
                   <p>שלום! אני Tabro AI 👋</p>
-                  <p className="text-xs">אני יכול להוסיף משימות, לבדוק רשימות, לתזמן אירועים ועוד.</p>
+                  <p className="text-xs">אני יכול לנהל את כל הנתונים שלך - משימות, לוח זמנים, ספרים, קניות, פרויקטים ועוד.</p>
                   <div className="flex flex-wrap gap-1 justify-center mt-3">
-                    {["תוסיף משימה בעבודה", "יש לי את הספר X?", "איפה אנחנו בפרויקט?", "תשים אירוע במתכנן"].map(s => (
+                    {[
+                      "סיימתי את המשימה הראשונה",
+                      "תוסיף משימה בעבודה",
+                      "מה הסטטוס של הפרויקטים?",
+                      "תשים אירוע מחר ב-10:00",
+                      "תסמן קניתי חלב",
+                      "מה יש לי היום בלוז?",
+                    ].map(s => (
                       <button
                         key={s}
                         className="text-[10px] px-2 py-1 rounded-full border border-border hover:bg-muted transition-colors"
-                        onClick={() => { setInput(s); }}
+                        onClick={() => setInput(s)}
                       >
                         {s}
                       </button>
