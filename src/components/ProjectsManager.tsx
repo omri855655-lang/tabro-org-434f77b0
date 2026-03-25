@@ -195,16 +195,20 @@ const ProjectsManager = () => {
     const currentTasks = projectTasks[projectId] || [];
     const maxOrder = currentTasks.length > 0 ? Math.max(...currentTasks.map(t => t.sort_order)) : 0;
 
-    const assignee = newTaskAssignee[projectId] || null;
-    const assigneeEmail = assignee ? (projectMembers[projectId]?.find(m => m.invited_display_name === assignee)?.invited_email || null) : null;
+    const assigneeMemberId = newTaskAssignee[projectId] || null;
+    const assigneeMember = assigneeMemberId ? (projectMembers[projectId]?.find(m => m.id === assigneeMemberId)) : null;
+    const assigneeName = assigneeMember?.invited_display_name || assigneeMember?.invited_email || null;
+    const assigneeEmail = assigneeMember?.invited_email || null;
+    const taskNotes = newTaskNotes[projectId]?.trim() || null;
 
     const { data, error } = await supabase.from('project_tasks').insert({
       project_id: projectId,
       user_id: user?.id,
       title,
       sort_order: maxOrder + 1,
-      assigned_to: assignee ? (projectMembers[projectId]?.find(m => m.invited_display_name === assignee)?.id || null) : null,
+      assigned_to: assigneeMemberId || null,
       assigned_email: assigneeEmail,
+      notes: taskNotes,
     }).select().single();
 
     if (error) {
@@ -221,7 +225,8 @@ const ProjectsManager = () => {
         task_type: 'work',
         status: 'לא התחיל',
         category: 'פרויקט',
-        responsible: assignee || null,
+        responsible: assigneeName || null,
+        status_notes: taskNotes || null,
         sheet_name: String(new Date().getFullYear()),
       });
     }
@@ -246,6 +251,7 @@ const ProjectsManager = () => {
     }));
     setNewTaskTitle(prev => ({ ...prev, [projectId]: '' }));
     setNewTaskAssignee(prev => ({ ...prev, [projectId]: '' }));
+    setNewTaskNotes(prev => ({ ...prev, [projectId]: '' }));
     setNewTaskPushToWork(prev => ({ ...prev, [projectId]: false }));
   };
 
