@@ -191,6 +191,7 @@ export type Database = {
           sort_order: number | null
           title: string
           updated_at: string
+          urgent: boolean | null
           user_id: string
         }
         Insert: {
@@ -204,6 +205,7 @@ export type Database = {
           sort_order?: number | null
           title: string
           updated_at?: string
+          urgent?: boolean | null
           user_id: string
         }
         Update: {
@@ -217,6 +219,7 @@ export type Database = {
           sort_order?: number | null
           title?: string
           updated_at?: string
+          urgent?: boolean | null
           user_id?: string
         }
         Relationships: [
@@ -789,6 +792,7 @@ export type Database = {
           status: string | null
           title: string
           updated_at: string
+          urgent: boolean | null
           user_id: string
         }
         Insert: {
@@ -803,6 +807,7 @@ export type Database = {
           status?: string | null
           title: string
           updated_at?: string
+          urgent?: boolean | null
           user_id: string
         }
         Update: {
@@ -817,6 +822,7 @@ export type Database = {
           status?: string | null
           title?: string
           updated_at?: string
+          urgent?: boolean | null
           user_id?: string
         }
         Relationships: [
