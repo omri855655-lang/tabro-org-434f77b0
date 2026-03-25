@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface StopwatchState {
   accumulated_seconds: number;
@@ -142,16 +143,43 @@ export function useDailyStopwatch() {
     return () => clearInterval(interval);
   }, [isRunning, loaded, saveToDb]);
 
+  // 3-hour reminder
+  const reminderSentRef = useRef(false);
+  useEffect(() => {
+    if (!isRunning || !loaded) return;
+    const checkReminder = () => {
+      if (stopwatchTime >= 10800 && !reminderSentRef.current) {
+        reminderSentRef.current = true;
+        toast.info("⏱️ הסטופר פועל כבר 3 שעות! האם שכחת לכבות?", { duration: 10000 });
+        // Send push notification
+        if (user) {
+          supabase.functions.invoke('send-push-notifications', {
+            body: {
+              userId: user.id,
+              title: "⏱️ תזכורת סטופר",
+              body: "הסטופר פועל כבר 3 שעות ברציפות. האם שכחת לכבות?",
+            },
+          }).catch(() => {});
+        }
+      }
+    };
+    const interval = setInterval(checkReminder, 30000);
+    checkReminder();
+    return () => clearInterval(interval);
+  }, [isRunning, loaded, stopwatchTime, user]);
+
+  // Reset reminder flag when stopwatch resets
+  useEffect(() => {
+    if (!isRunning) reminderSentRef.current = false;
+  }, [isRunning]);
+
   // Midnight check
   useEffect(() => {
     if (!loaded) return;
     const checkMidnight = () => {
       const today = getTodayStr();
-      // We just check if day changed — if so, auto-reset will happen on next load
-      // For now, trigger a simple reset
       if (startedAtRef.current) {
         const startDate = new Date(startedAtRef.current).toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }).slice(0, 10);
-        // Simple: just reload state
       }
     };
     const interval = setInterval(checkMidnight, 60000);
