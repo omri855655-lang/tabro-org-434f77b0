@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Plus, Trash2, Search, FolderKanban, ChevronDown, ChevronLeft, Link2, ExternalLink, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, Trash2, Search, FolderKanban, ChevronDown, ChevronLeft, Link2, ExternalLink, CheckCircle2, Circle, Sparkles, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import ProjectMembersPanel from '@/components/ProjectMembersPanel';
