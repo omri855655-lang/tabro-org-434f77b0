@@ -102,7 +102,8 @@ ${(podcastsRes.data || []).map(p => `- [ID:${p.id}] "${p.title}"${p.host ? ` - $
 ### רשימות מותאמות (${(boardsRes.data || []).length}):
 ${(boardsRes.data || []).map(b => {
   const items = (boardItemsRes.data || []).filter((i: any) => i.board_id === b.id);
-  return \`- רשימה "\${b.name}" [ID:\${b.id}]: \${items.map((i: any) => \`"\${i.title}" (\${i.status})\`).join(', ') || 'ריקה'}\`;
+  const itemsStr = items.map((i: any) => '"' + i.title + '" (' + i.status + ')').join(', ') || 'ריקה';
+  return '- רשימה "' + b.name + '" [ID:' + b.id + ']: ' + itemsStr;
 }).join('\n')}
 
 ### חלומות ומטרות (${(dreamGoalsRes.data || []).length}):
