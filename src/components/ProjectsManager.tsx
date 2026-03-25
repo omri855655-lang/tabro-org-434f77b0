@@ -53,6 +53,8 @@ const ProjectsManager = () => {
   const [newTaskTitle, setNewTaskTitle] = useState<Record<string, string>>({});
   const [addLinkDialogOpen, setAddLinkDialogOpen] = useState<string | null>(null);
   const [newLink, setNewLink] = useState('');
+  const [aiMilestonesLoading, setAiMilestonesLoading] = useState<string | null>(null);
+  const [aiMilestones, setAiMilestones] = useState<Record<string, { title: string; done: boolean }[]>>({});
 
   useEffect(() => {
     if (user) {
