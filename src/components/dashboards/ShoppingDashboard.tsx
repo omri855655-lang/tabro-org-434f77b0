@@ -159,6 +159,7 @@ const ShoppingDashboard = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareSheetName, setShareSheetName] = useState("ראשי");
+  const [customItemInputs, setCustomItemInputs] = useState<Record<string, string>>({});
 
   const fetchItems = useCallback(async () => {
     if (!user) return;
@@ -246,18 +247,34 @@ const ShoppingDashboard = () => {
 
   const availableSheets = [...new Set(items.map(i => i.sheet_name))];
 
-  const renderItemList = (itemList: ShoppingItem[], emptyMsg: string) => {
-    if (itemList.length === 0) return <p className="text-center text-muted-foreground py-6">{emptyMsg}</p>;
+  const addCustomItemToCategory = async (cat: string) => {
+    const title = customItemInputs[cat]?.trim();
+    if (!title || !user) return;
+    await supabase.from("shopping_items").insert({
+      user_id: user.id,
+      title,
+      category: cat,
+      sheet_name: "סופר",
+      is_dream: false,
+    });
+    setCustomItemInputs(prev => ({ ...prev, [cat]: "" }));
+    fetchItems();
+    toast.success(`${title} נוסף ל-${cat}`);
+  };
 
-    const cats = [...new Set(itemList.map(i => i.category || "כללי"))];
+  const renderItemList = (itemList: ShoppingItem[], emptyMsg: string, showCustomInput = false) => {
+    if (itemList.length === 0 && !showCustomInput) return <p className="text-center text-muted-foreground py-6">{emptyMsg}</p>;
+
+    const cats = [...new Set([...itemList.map(i => i.category || "כללי"), ...(showCustomInput ? SUPERMARKET_CATEGORIES : [])])];
     return cats.map(cat => {
       const catItems = itemList.filter(i => (i.category || "כללי") === cat);
+      if (catItems.length === 0 && !showCustomInput) return null;
       return (
         <Card key={cat}>
           <CardHeader className="py-2 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               {cat}
-              <Badge variant="secondary" className="text-[10px]">{catItems.length}</Badge>
+              {catItems.length > 0 && <Badge variant="secondary" className="text-[10px]">{catItems.length}</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent className="py-1 px-2 space-y-1">
@@ -273,6 +290,21 @@ const ShoppingDashboard = () => {
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
               </div>
             ))}
+            {/* Custom item input per category */}
+            {showCustomInput && (
+              <div className="flex gap-1 mt-2 pt-2 border-t border-border">
+                <Input
+                  placeholder="הוספת פריט..."
+                  value={customItemInputs[cat] || ""}
+                  onChange={e => setCustomItemInputs(prev => ({ ...prev, [cat]: e.target.value }))}
+                  onKeyDown={e => e.key === "Enter" && addCustomItemToCategory(cat)}
+                  className="flex-1 h-7 text-xs"
+                />
+                <Button size="sm" className="h-7 text-xs px-2" onClick={() => addCustomItemToCategory(cat)} disabled={!customItemInputs[cat]?.trim()}>
+                  <Plus className="h-3 w-3 mr-1" />הוסף
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       );
@@ -376,7 +408,7 @@ const ShoppingDashboard = () => {
             </Button>
           </div>
 
-          {renderItemList(supermarketItems, "רשימת הסופר ריקה. הוסף מוצרים!")}
+          {renderItemList(supermarketItems, "רשימת הסופר ריקה. הוסף מוצרים!", true)}
         </TabsContent>
 
         {/* Dreams */}
