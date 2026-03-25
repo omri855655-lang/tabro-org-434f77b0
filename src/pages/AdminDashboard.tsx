@@ -25,8 +25,6 @@ interface Stats {
   userList: { email: string; created_at: string; last_sign_in_at: string | null }[];
 }
 
-const ADMIN_PASSWORD = "Omri1391998";
-
 const AdminDashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -35,9 +33,6 @@ const AdminDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
-  const [emailInput, setEmailInput] = useState("");
-  const [passwordVerified, setPasswordVerified] = useState(false);
 
   const fetchStats = useCallback(async () => {
     if (!user) return;
