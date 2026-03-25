@@ -608,7 +608,8 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                                 key={lesson.id}
                                 className={cn(
                                   "flex items-center gap-3 p-3 rounded bg-background",
-                                  lesson.completed && "opacity-60"
+                                  lesson.completed && "opacity-60",
+                                  lesson.urgent && !lesson.completed && "bg-red-500/10 border border-red-500/30"
                                 )}
                               >
                                 <span className="text-xs text-muted-foreground w-6">{index + 1}.</span>
@@ -618,6 +619,21 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                                   ) : (
                                     <Circle className="h-5 w-5 text-muted-foreground" />
                                   )}
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const newUrgent = !lesson.urgent;
+                                    await supabase.from('course_lessons').update({ urgent: newUrgent } as any).eq('id', lesson.id);
+                                    setCourseLessons(prev => ({
+                                      ...prev,
+                                      [lesson.course_id]: prev[lesson.course_id].map(l =>
+                                        l.id === lesson.id ? { ...l, urgent: newUrgent } : l
+                                      )
+                                    }));
+                                  }}
+                                  title="סמן כדחוף"
+                                >
+                                  <Flame className={cn("h-4 w-4", lesson.urgent ? "text-red-500 fill-red-500" : "text-muted-foreground/40")} />
                                 </button>
                                 <span className={cn("flex-1", lesson.completed && "line-through")}>
                                   {lesson.title}
