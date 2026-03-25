@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,8 +12,92 @@ serve(async (req) => {
   }
 
   try {
+    // --- Authentication check ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json();
     const { taskDescription, taskCategory, conversationHistory, startTime, type, messages, customPrompt, milestoneCount } = body;
+
+    // --- Input validation ---
+    if (type === "deeply-chat") {
+      if (!messages || !Array.isArray(messages)) {
+        return new Response(JSON.stringify({ error: "הודעות חסרות או לא תקינות" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (messages.length > 100) {
+        return new Response(JSON.stringify({ error: "יותר מדי הודעות בשיחה" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      for (const msg of messages) {
+        if (!msg.content || typeof msg.content !== "string" || msg.content.length > 5000) {
+          return new Response(JSON.stringify({ error: "הודעה לא תקינה או ארוכה מדי (מקסימום 5000 תווים)" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    } else {
+      if (taskDescription !== undefined && taskDescription !== null) {
+        if (typeof taskDescription !== "string") {
+          return new Response(JSON.stringify({ error: "תיאור משימה לא תקין" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (taskDescription.length > 5000) {
+          return new Response(JSON.stringify({ error: "תיאור המשימה ארוך מדי (מקסימום 5000 תווים)" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      if (taskCategory && (typeof taskCategory !== "string" || taskCategory.length > 200)) {
+        return new Response(JSON.stringify({ error: "קטגוריה לא תקינה" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (customPrompt && (typeof customPrompt !== "string" || customPrompt.length > 5000)) {
+        return new Response(JSON.stringify({ error: "פרומפט ארוך מדי (מקסימום 5000 תווים)" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 100) {
+        return new Response(JSON.stringify({ error: "יותר מדי הודעות בשיחה" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
