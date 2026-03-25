@@ -292,7 +292,7 @@ const ProjectsManager = () => {
     }));
   };
 
-
+  const toggleExpanded = (projectId: string) => {
     setExpandedProjects(prev => {
       const newSet = new Set(prev);
       if (newSet.has(projectId)) {
