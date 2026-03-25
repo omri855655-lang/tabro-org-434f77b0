@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Plus, Trash2, Search, GraduationCap, ChevronDown, ChevronLeft, Sparkles, CheckCircle2, Circle, Loader2, Calendar } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
@@ -577,6 +578,16 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                           dir="rtl"
                         />
                       </div>
+
+                      {/* Progress Bar */}
+                      {lessons.length > 0 && (
+                        <div className="mt-3 mr-11 space-y-1">
+                          <Progress value={lessons.length > 0 ? (completedLessons / lessons.length) * 100 : 0} className="h-2" />
+                          <p className="text-[10px] text-muted-foreground">
+                            {Math.round((completedLessons / lessons.length) * 100)}% הושלם — {lessons.length - completedLessons} שיעורים נותרו
+                          </p>
+                        </div>
+                      )}
 
                       <div className="flex gap-4 mt-2 mr-11 text-xs text-muted-foreground">
                         <span>נוצר: {formatDateTime(course.created_at)}</span>
