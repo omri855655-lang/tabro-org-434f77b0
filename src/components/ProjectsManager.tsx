@@ -483,6 +483,49 @@ const ProjectsManager = () => {
                         </div>
                       )}
 
+                      {/* Progress Bar */}
+                      {tasks.length > 0 && (
+                        <div className="mt-3 mr-11 space-y-1">
+                          <Progress value={tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0} className="h-2" />
+                          <p className="text-[10px] text-muted-foreground">
+                            {Math.round((completedTasks / tasks.length) * 100)}% הושלם — {tasks.length - completedTasks} משימות נותרו
+                          </p>
+                        </div>
+                      )}
+
+                      {/* AI Milestones Button */}
+                      <div className="mt-2 mr-11">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs"
+                          disabled={aiMilestonesLoading === project.id}
+                          onClick={(e) => { e.stopPropagation(); generateAiMilestones(project); }}
+                        >
+                          {aiMilestonesLoading === project.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                          {aiMilestones[project.id] ? 'צור מחדש' : 'אבני דרך AI'}
+                        </Button>
+                      </div>
+
+                      {/* AI Milestones List */}
+                      {aiMilestones[project.id] && aiMilestones[project.id].length > 0 && (
+                        <div className="mt-2 mr-11 space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">אבני דרך מומלצות:</p>
+                          {aiMilestones[project.id].map((ms, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs">
+                              <button onClick={() => toggleAiMilestone(project.id, idx)}>
+                                {ms.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
+                              </button>
+                              <span className={ms.done ? 'line-through text-muted-foreground' : ''}>{ms.title}</span>
+                            </div>
+                          ))}
+                          <Progress
+                            value={(aiMilestones[project.id].filter(m => m.done).length / aiMilestones[project.id].length) * 100}
+                            className="h-1.5 mt-1"
+                          />
+                        </div>
+                      )}
+
                       <div className="flex gap-4 mt-2 mr-11 text-xs text-muted-foreground">
                         <span>נוצר: {formatDateTime(project.created_at)}</span>
                         <span>עודכן: {formatDateTime(project.updated_at)}</span>
