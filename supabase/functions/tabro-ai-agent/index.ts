@@ -53,19 +53,31 @@ serve(async (req) => {
     const boardsMap: Record<string, string> = {};
     (boardsRes.data || []).forEach((b: any) => { boardsMap[b.id] = b.name; });
 
-    const today = new Date().toISOString().split('T')[0];
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    // IMPORTANT: Use Israel timezone for correct local time
+    const israelNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+    const today = `${israelNow.getFullYear()}-${String(israelNow.getMonth() + 1).padStart(2, '0')}-${String(israelNow.getDate()).padStart(2, '0')}`;
+    const currentTime = `${israelNow.getHours().toString().padStart(2, '0')}:${israelNow.getMinutes().toString().padStart(2, '0')}`;
+
+    // Calculate Israel timezone offset for ISO dates
+    const israelOffset = "+03:00"; // Israel Standard Time (adjust if DST matters)
+    // More accurate: detect if currently in DST
+    const jan = new Date(israelNow.getFullYear(), 0, 1);
+    const jul = new Date(israelNow.getFullYear(), 6, 1);
+    const janOffset = new Date(jan.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })).getTimezoneOffset();
+    const julOffset = new Date(jul.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })).getTimezoneOffset();
+    const isDST = israelNow.getTimezoneOffset && janOffset !== julOffset;
+    // Israel: UTC+2 in winter, UTC+3 in summer (DST)
+    const tzOffset = isDST ? "+03:00" : "+02:00";
 
     const systemPrompt = `אתה Tabro AI - עוזר חכם עם שליטה מלאה באפליקציה. אתה מדבר עברית.
 
 ## נתוני המשתמש הנוכחיים:
 
 ### משימות עבודה (${(tasksRes.data || []).filter(t => t.task_type === 'work').length}):
-${(tasksRes.data || []).filter(t => t.task_type === 'work').map(t => `- [ID:${t.id}] "${t.description}" | סטטוס: ${t.status} | קטגוריה: ${t.category || '-'} | אחראי: ${t.responsible || '-'} | מועד: ${t.planned_end || '-'}${t.urgent ? ' 🔥דחוף' : ''}${t.overdue ? ' ⚠️באיחור' : ''}`).join('\n')}
+${(tasksRes.data || []).filter(t => t.task_type === 'work').map(t => `- [ID:${t.id}] "${t.description}" | סטטוס: ${t.status} | קטגוריה: ${t.category || '-'} | אחראי: ${t.responsible || '-'} | מועד: ${t.planned_end || '-'}${t.urgent ? ' 🔥דחוף' : ''}${t.overdue ? ' ⚠️באיחור' : ''} | גליון: ${t.sheet_name || '-'}`).join('\n')}
 
 ### משימות אישיות (${(tasksRes.data || []).filter(t => t.task_type === 'personal').length}):
-${(tasksRes.data || []).filter(t => t.task_type === 'personal').map(t => `- [ID:${t.id}] "${t.description}" | סטטוס: ${t.status} | קטגוריה: ${t.category || '-'} | מועד: ${t.planned_end || '-'}`).join('\n')}
+${(tasksRes.data || []).filter(t => t.task_type === 'personal').map(t => `- [ID:${t.id}] "${t.description}" | סטטוס: ${t.status} | קטגוריה: ${t.category || '-'} | מועד: ${t.planned_end || '-'} | גליון: ${t.sheet_name || '-'}`).join('\n')}
 
 ### ספרים (${(booksRes.data || []).length}):
 ${(booksRes.data || []).map(b => `- [ID:${b.id}] "${b.title}" מאת ${b.author || '-'} | סטטוס: ${b.status}`).join('\n')}
@@ -102,15 +114,21 @@ ${(podcastsRes.data || []).map(p => `- [ID:${p.id}] "${p.title}"${p.host ? ` - $
 ### רשימות מותאמות (${(boardsRes.data || []).length}):
 ${(boardsRes.data || []).map(b => {
   const items = (boardItemsRes.data || []).filter((i: any) => i.board_id === b.id);
-  const itemsStr = items.map((i: any) => '"' + i.title + '" (' + i.status + ')').join(', ') || 'ריקה';
-  return '- רשימה "' + b.name + '" [ID:' + b.id + ']: ' + itemsStr;
+  // Group by sheet_name
+  const sheets = [...new Set(items.map((i: any) => i.sheet_name || 'ראשי'))];
+  const sheetsStr = sheets.map(s => {
+    const sheetItems = items.filter((i: any) => (i.sheet_name || 'ראשי') === s);
+    return `גליון "${s}": ${sheetItems.map((i: any) => '"' + i.title + '" (' + i.status + ')' + (i.category ? ' [' + i.category + ']' : '')).join(', ')}`;
+  }).join(' | ');
+  return '- רשימה "' + b.name + '" [ID:' + b.id + ']: ' + (sheetsStr || 'ריקה');
 }).join('\n')}
 
 ### חלומות ומטרות (${(dreamGoalsRes.data || []).length}):
 ${(dreamGoalsRes.data || []).map(d => `- [ID:${d.id}] "${d.title}" | סטטוס: ${d.status} | התקדמות: ${d.progress}%`).join('\n')}
 
 התאריך היום: ${today}
-השעה עכשיו: ${currentTime}
+השעה עכשיו (שעון ישראל): ${currentTime}
+אזור הזמן: Asia/Jerusalem (${tzOffset})
 
 ## הוראות פעולה - חשוב מאוד!
 כשהמשתמש מבקש פעולה (הוספה, עדכון, מחיקה), אתה חייב להחזיר בלוק JSON של הפעולה.
@@ -135,8 +153,10 @@ ${(dreamGoalsRes.data || []).map(d => `- [ID:${d.id}] "${d.title}" | סטטוס:
 \`\`\`
 
 הוספת אירוע למתכנן לוז:
+חשוב מאוד! השעות חייבות להיות בשעון ישראל (${tzOffset}).
+אם המשתמש אומר "ב-17:00" - שים 17:00 בשעון ישראל.
 \`\`\`action
-{"type":"add_event","title":"פגישה","start_time":"2026-03-25T14:00:00","end_time":"2026-03-25T15:00:00","category":"עבודה","color":"#f97316"}
+{"type":"add_event","title":"פגישה","start_time":"${today}T14:00:00${tzOffset}","end_time":"${today}T15:00:00${tzOffset}","category":"עבודה","color":"#f97316"}
 \`\`\`
 
 עדכון/מחיקת אירוע:
@@ -188,8 +208,9 @@ ${(dreamGoalsRes.data || []).map(d => `- [ID:${d.id}] "${d.title}" | סטטוס:
 \`\`\`
 
 הוספת פריט לרשימה מותאמת:
+אם המשתמש מבקש להוסיף פריט לרשימה מותאמת תחת גליון מסוים, השתמש ב-sheet_name.
 \`\`\`action
-{"type":"add_board_item","board_id":"UUID","title":"כותרת","category":"קטגוריה"}
+{"type":"add_board_item","board_id":"UUID","title":"כותרת","category":"קטגוריה","sheet_name":"ראשי"}
 \`\`\`
 
 עדכון קורס:
@@ -199,20 +220,22 @@ ${(dreamGoalsRes.data || []).map(d => `- [ID:${d.id}] "${d.title}" | סטטוס:
 
 פעולות מרובות (כמה פעולות ביחד):
 \`\`\`action
-{"type":"multi","actions":[{"type":"add_task","task_type":"personal","description":"לקנות אוכל","sheet_name":"2026"},{"type":"add_event","title":"קניות","start_time":"2026-03-25T15:00:00","end_time":"2026-03-25T16:00:00","category":"אישי","color":"#a855f7"}]}
+{"type":"multi","actions":[{"type":"add_task","task_type":"personal","description":"לקנות אוכל","sheet_name":"2026"},{"type":"add_event","title":"קניות","start_time":"${today}T15:00:00${tzOffset}","end_time":"${today}T16:00:00${tzOffset}","category":"אישי","color":"#a855f7"}]}
 \`\`\`
 
 ## כללים חשובים:
 1. כשהמשתמש מבקש לעשות פעולה - תמיד תכלול בלוק action תקין!
 2. כשהמשתמש אומר "סיימתי" או "עשיתי" - עדכן סטטוס ל"בוצע"
 3. כשמבקשים להוסיף משימה - תמיד תציין task_type (work/personal) ו-sheet_name (שנה נוכחית)
-4. כשמבקשים להוסיף אירוע למתכנן לוז - חשב את התאריך הנכון מהתאריך של היום
+4. כשמבקשים להוסיף אירוע למתכנן לוז - חשב את התאריך הנכון מהתאריך של היום. **חשוב מאוד**: תמיד הוסף ${tzOffset} בסוף השעה כדי שהאירוע יופיע בשעון ישראל!
 5. כשמבקשים משימה + אירוע ביחד - השתמש ב-multi action
 6. כשהמשתמש אומר "קניתי" - סמן כ"נקנה"
 7. חפש תמיד את הפריט הנכון לפי שם (חיפוש חלקי)
 8. תמיד השב בעברית. תהיה תמציתי וידידותי
 9. כשמבקשים לראות מידע - ענה מהנתונים שלמעלה, אל תמציא
-10. אל תוסיף הערות או טקסט בתוך בלוק ה-JSON - רק JSON נקי`;
+10. אל תוסיף הערות או טקסט בתוך בלוק ה-JSON - רק JSON נקי
+11. כשמבקשים להוסיף לרשימה מותאמת, הרשימות המותאמות מכילות גליונות (sheet_name). ברירת מחדל: "ראשי". אם המשתמש מציין גליון ספציפי - השתמש בו.
+12. המשימות שאתה מוסיף יסומנו כ"נוסף ע"י Tabro AI" - זה קורה אוטומטית.`;
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -341,7 +364,6 @@ ${(dreamGoalsRes.data || []).map(d => `- [ID:${d.id}] "${d.title}" | סטטוס:
     // Build response text
     let responseText = cleanContent;
     if (!responseText && actionResult?.success) {
-      // If the model only used tool calls and didn't provide text
       responseText = "בוצע! ✅";
     } else if (!responseText) {
       responseText = "לא הצלחתי לענות";
@@ -384,13 +406,23 @@ async function executeAction(supabase: any, userId: string, action: any): Promis
           urgent: action.urgent || false,
           status: action.status || "לא התחיל",
           sheet_name: action.sheet_name || String(new Date().getFullYear()),
+          creator_name: "Tabro AI",
+          creator_username: "tabro-ai",
+          creator_email: "ai@tabro.app",
+          last_editor_name: "Tabro AI",
+          last_editor_username: "tabro-ai",
+          last_editor_email: "ai@tabro.app",
         });
         if (error) console.error("add_task error:", error);
         return error ? { success: false, error: error.message } : { success: true, type: "add_task" };
       }
 
       case "update_task": {
-        const updates: any = {};
+        const updates: any = {
+          last_editor_name: "Tabro AI",
+          last_editor_username: "tabro-ai",
+          last_editor_email: "ai@tabro.app",
+        };
         if (action.status) updates.status = action.status;
         if (action.urgent !== undefined) updates.urgent = action.urgent;
         if (action.responsible) updates.responsible = action.responsible;
@@ -410,7 +442,8 @@ async function executeAction(supabase: any, userId: string, action: any): Promis
           end_time: action.end_time,
           category: action.category || "משימה",
           color: action.color || null,
-          source_type: "custom",
+          source_type: "ai",
+          description: "נוסף ע\"י Tabro AI",
         });
         if (error) console.error("add_event error:", error);
         return error ? { success: false, error: error.message } : { success: true, type: "add_event" };
@@ -505,7 +538,8 @@ async function executeAction(supabase: any, userId: string, action: any): Promis
           board_id: action.board_id,
           title: action.title,
           category: action.category || null,
-          status: "לביצוע",
+          sheet_name: action.sheet_name || "ראשי",
+          status: action.status || "לביצוע",
         });
         if (error) console.error("add_board_item error:", error);
         return error ? { success: false, error: error.message } : { success: true, type: "add_board_item" };
