@@ -111,6 +111,7 @@ const TabroAiAgent = () => {
           message: userMsg.content,
           conversationHistory: newMessages.slice(-10).map(m => ({ role: m.role, content: m.content })),
           userId: user.id,
+          userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
       });
 
