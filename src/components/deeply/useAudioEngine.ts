@@ -3,6 +3,7 @@ import { AudioPreset, AUDIO_PRESETS } from "./audioPresets";
 import { startSilentAudio, stopSilentAudio } from "./iosSilentAudio";
 import { unlockAudioContext } from "./iosAudioUnlock";
 import { renderPresetToBlob } from "./renderPresetToAudio";
+import { resetDeeplyAudioState, setDeeplyAudioState, stopOtherDeeplyAudio } from "./deeplyAudioState";
 
 // Quick lookup for preset names by id
 const PRESET_NAME_MAP: Record<string, string> = {};
@@ -37,10 +38,12 @@ export function useAudioEngine() {
     setIsPlaying(false);
     setIsRendering(false);
     isPlayingRef.current = false;
+    resetDeeplyAudioState("freq");
   }, []);
 
   const playPreset = useCallback(async (preset: AudioPreset) => {
     stopAudio();
+    stopOtherDeeplyAudio("freq");
 
     // Stop music player when starting frequency preset
     if (window._deeplyMusicState?.playing) {
@@ -124,7 +127,7 @@ export function useAudioEngine() {
 
   // Sync global state for floating mini-player (frequency presets)
   useEffect(() => {
-    window._deeplyFreqState = {
+    setDeeplyAudioState("freq", {
       playing: isPlaying,
       name: activePresetId
         ? (PRESET_NAME_MAP[activePresetId] || activePresetId)
@@ -133,6 +136,10 @@ export function useAudioEngine() {
         stopAudio();
         setActivePresetId(null);
       },
+    });
+
+    return () => {
+      resetDeeplyAudioState("freq");
     };
   }, [isPlaying, activePresetId, stopAudio]);
 

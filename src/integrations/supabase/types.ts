@@ -779,6 +779,57 @@ export type Database = {
           },
         ]
       }
+      project_task_assignments: {
+        Row: {
+          assignee_email: string
+          assignee_name: string | null
+          created_at: string
+          id: string
+          project_id: string
+          project_task_id: string
+          responsibility: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignee_email: string
+          assignee_name?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          project_task_id: string
+          responsibility?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignee_email?: string
+          assignee_name?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          project_task_id?: string
+          responsibility?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_task_assignments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_task_assignments_project_task_id_fkey"
+            columns: ["project_task_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_tasks: {
         Row: {
           assigned_email: string | null

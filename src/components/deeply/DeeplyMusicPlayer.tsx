@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { startSilentAudio, stopSilentAudio } from "./iosSilentAudio";
 import { unlockAudioContext } from "./iosAudioUnlock";
+import { resetDeeplyAudioState, setDeeplyAudioState, stopOtherDeeplyAudio } from "./deeplyAudioState";
 
 interface AudioFile {
   name: string;
@@ -68,22 +69,25 @@ export function DeeplyMusicPlayer({ onPlayingChange, themeCard, themeMuted, them
     setIsPlaying(false);
     setActiveFile(null);
     onPlayingChange?.(false);
-    if (window._deeplyMusicState) {
-      window._deeplyMusicState.playing = false;
-    }
+    resetDeeplyAudioState("music");
   }, [onPlayingChange]);
 
   // Sync global state for floating mini-player
   useEffect(() => {
-    window._deeplyMusicState = {
+    setDeeplyAudioState("music", {
       playing: isPlaying,
       name: activeFile ? files.find(f => f.path === activeFile)?.name || "" : "",
       stop: () => stopMusic(),
+    });
+
+    return () => {
+      resetDeeplyAudioState("music");
     };
   }, [isPlaying, activeFile, files, stopMusic]);
 
   const playFile = useCallback(async (file: AudioFile) => {
     stopMusic();
+    stopOtherDeeplyAudio("music");
 
     // Stop frequency presets when starting music
     if (window._deeplyFreqState?.playing) {

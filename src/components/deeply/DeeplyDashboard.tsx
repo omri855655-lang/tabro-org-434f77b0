@@ -8,6 +8,7 @@ import { AUDIO_PRESETS, CATEGORIES, GUIDES, MOTIVATION_TIPS, MORNING_HABITS_GUID
 import { useAudioEngine } from "./useAudioEngine";
 import { unlockAudioContext } from "./iosAudioUnlock";
 import { startSilentAudio } from "./iosSilentAudio";
+import { resetDeeplyAudioState, setDeeplyAudioState, stopOtherDeeplyAudio } from "./deeplyAudioState";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { DeeplyMusicPlayer } from "./DeeplyMusicPlayer";
@@ -137,6 +138,7 @@ const DeeplyDashboard = () => {
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedMotivation, setExpandedMotivation] = useState<string | null>(null);
   const [activeYouTube, setActiveYouTube] = useState<string | null>(null);
+  const [activeYouTubeTitle, setActiveYouTubeTitle] = useState("");
   const [activeYtCat, setActiveYtCat] = useState("yt-classical");
   
   // Custom YouTube videos per category
@@ -186,6 +188,25 @@ const DeeplyDashboard = () => {
   useEffect(() => { localStorage.setItem("deeply-sessions", JSON.stringify(sessions)); }, [sessions]);
   useEffect(() => { localStorage.setItem("deeply-bg-theme", bgTheme); }, [bgTheme]);
   useEffect(() => { localStorage.setItem("deeply-custom-yt", JSON.stringify(customYtVideos)); }, [customYtVideos]);
+  useEffect(() => {
+    if (!activeYouTube) {
+      resetDeeplyAudioState("youtube");
+      return;
+    }
+
+    setDeeplyAudioState("youtube", {
+      playing: true,
+      name: activeYouTubeTitle || "YouTube",
+      stop: () => {
+        setActiveYouTube(null);
+        setActiveYouTubeTitle("");
+      },
+    });
+
+    return () => {
+      resetDeeplyAudioState("youtube");
+    };
+  }, [activeYouTube, activeYouTubeTitle]);
 
   const extractYouTubeId = (url: string): string | null => {
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
@@ -270,16 +291,28 @@ const DeeplyDashboard = () => {
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
-  const handleYouTubeToggle = (videoId: string) => {
+  const handleYouTubeToggle = (videoId: string, title = "YouTube") => {
     // Keep iOS media session alive before opening YouTube iframe
     unlockAudioContext();
     startSilentAudio();
 
-    setActiveYouTube(activeYouTube === videoId ? null : videoId);
-    setTimeout(() => {
-      const el = document.getElementById("yt-player-container");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
+    const nextVideoId = activeYouTube === videoId ? null : videoId;
+
+    if (nextVideoId) {
+      stopOtherDeeplyAudio("youtube");
+      setActiveYouTubeTitle(title);
+    } else {
+      setActiveYouTubeTitle("");
+    }
+
+    setActiveYouTube(nextVideoId);
+
+    if (nextVideoId) {
+      setTimeout(() => {
+        const el = document.getElementById("yt-player-container");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
   };
 
   // AI Chat

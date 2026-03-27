@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -276,17 +276,9 @@ const ShoppingDashboard = () => {
   };
 
   const addCustomItemToCategory = async (cat: string) => {
-    const title = customItemInputs[cat]?.trim();
-    if (!title || !user) return;
-    // Add to shopping items
-    await supabase.from("shopping_items").insert({
-      user_id: user.id,
-      title,
-      category: cat,
-      sheet_name: "סופר",
-      is_dream: false,
-    });
-    // Save to permanent custom catalog
+    const inputKey = `header-${cat}`;
+    const title = customItemInputs[inputKey]?.trim();
+    if (!title) return;
     const updated = { ...customCatalog };
     if (!updated[cat]) updated[cat] = [];
     if (!updated[cat].includes(title)) {
@@ -294,15 +286,67 @@ const ShoppingDashboard = () => {
       setCustomCatalog(updated);
       localStorage.setItem("shopping-custom-catalog", JSON.stringify(updated));
     }
-    setCustomItemInputs(prev => ({ ...prev, [cat]: "" }));
-    fetchItems();
-    toast.success(`${title} נוסף ל-${cat} (קבוע)`);
+    setCustomItemInputs(prev => ({ ...prev, [inputKey]: "" }));
+    toast.success(`${title} נשמר בקטלוג של ${cat}`);
   };
 
   const getCategoryItemsList = (cat: string): string[] => {
     const builtIn = CATEGORY_ITEMS[cat] || [];
     const custom = customCatalog[cat] || [];
     return [...builtIn, ...custom.filter(c => !builtIn.includes(c))];
+  };
+
+  const addCatalogItemToList = async (cat: string, title: string) => {
+    if (!user) return;
+
+    await supabase.from("shopping_items").insert({
+      user_id: user.id,
+      title,
+      category: cat,
+      sheet_name: "סופר",
+      is_dream: false,
+    });
+
+    fetchItems();
+    toast.success(`${title} נוסף לרשימה`);
+  };
+
+  const archivedGroups = useMemo(() => {
+    const groups = archivedItems.reduce<Record<string, ShoppingItem[]>>((acc, item) => {
+      const key = new Date(item.updated_at).toLocaleDateString("he-IL");
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+
+    return Object.entries(groups).sort((a, b) => new Date(b[1][0].updated_at).getTime() - new Date(a[1][0].updated_at).getTime());
+  }, [archivedItems]);
+
+  const restoreArchivedGroup = async (groupItems: ShoppingItem[]) => {
+    if (!user || groupItems.length === 0) return;
+
+    const payload = groupItems.map(item => ({
+      user_id: user.id,
+      title: item.title,
+      category: item.category,
+      quantity: item.quantity,
+      price: item.price,
+      notes: item.notes,
+      sheet_name: item.sheet_name,
+      priority: item.priority,
+      is_dream: item.is_dream,
+      status: "לקנות",
+      archived: false,
+    }));
+
+    const { error } = await supabase.from("shopping_items").insert(payload);
+    if (error) {
+      toast.error("שגיאה בשחזור הקנייה");
+      return;
+    }
+
+    fetchItems();
+    toast.success(`שוחזרו ${groupItems.length} פריטים לרשימה`);
   };
 
   const sendAiMessage = async () => {
@@ -425,6 +469,26 @@ const ShoppingDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="py-1 px-2 space-y-1">
+            {showCustomInput && getCategoryItemsList(cat).length > 0 && (
+              <div className="mb-2 rounded-lg border bg-muted/30 p-2">
+                <p className="text-[10px] text-muted-foreground mb-1">קטלוג קבוע:</p>
+                <div className="flex flex-wrap gap-1">
+                  {getCategoryItemsList(cat).map(item => {
+                    const existsInList = catItems.some(catItem => catItem.title === item);
+                    return (
+                      <Badge
+                        key={item}
+                        variant="outline"
+                        className="cursor-pointer text-[10px] hover:bg-accent"
+                        onClick={() => !existsInList && addCatalogItemToList(cat, item)}
+                      >
+                        {existsInList ? item : `+ ${item}`}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {catItems.map(item => (
               <div key={item.id} className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${item.status === "נקנה" ? "bg-green-50 dark:bg-green-950/20 opacity-60" : "bg-card"}`}>
                 <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => toggleStatus(item.id, item.status)}>
@@ -473,21 +537,6 @@ const ShoppingDashboard = () => {
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
               </div>
             ))}
-            {/* Custom item input per category - always visible in supermarket */}
-            {showCustomInput && (
-              <div className="flex gap-1 mt-2 pt-2 border-t border-border">
-                <Input
-                  placeholder="הוספת פריט קבוע..."
-                  value={customItemInputs[cat] || ""}
-                  onChange={e => setCustomItemInputs(prev => ({ ...prev, [cat]: e.target.value }))}
-                  onKeyDown={e => e.key === "Enter" && addCustomItemToCategory(cat)}
-                  className="flex-1 h-7 text-xs"
-                />
-                <Button size="sm" className="h-7 text-xs px-2" onClick={() => addCustomItemToCategory(cat)} disabled={!customItemInputs[cat]?.trim()}>
-                  <Plus className="h-3 w-3 mr-1" />קבוע
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
       );
@@ -659,19 +708,32 @@ const ShoppingDashboard = () => {
           {archivedItems.length === 0 ? (
             <p className="text-center text-muted-foreground py-6">אין היסטוריה עדיין</p>
           ) : (
-            <div className="space-y-1">
-              {archivedItems.map(item => (
-                <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30">
-                  <span className="flex-1 text-sm text-muted-foreground">{item.title}</span>
-                  {item.category && <Badge variant="outline" className="text-[10px]">{item.category}</Badge>}
-                  {item.quantity && <Badge variant="outline" className="text-[10px]">{item.quantity}</Badge>}
-                  <span className="text-[10px] text-muted-foreground">
-                    {new Date(item.updated_at).toLocaleDateString("he-IL")}
-                  </span>
-                  <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => restoreItem(item.id)}>
-                    <RotateCcw className="h-3 w-3" />שחזר
-                  </Button>
-                </div>
+            <div className="space-y-3">
+              {archivedGroups.map(([dateLabel, groupItems]) => (
+                <Card key={dateLabel}>
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <span>{dateLabel}</span>
+                      <Badge variant="secondary" className="text-[10px]">{groupItems.length} פריטים</Badge>
+                      <div className="flex-1" />
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => restoreArchivedGroup(groupItems)}>
+                        <RotateCcw className="h-3 w-3" />שחזר את כל הקנייה
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-1">
+                    {groupItems.map(item => (
+                      <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30">
+                        <span className="flex-1 text-sm text-muted-foreground">{item.title}</span>
+                        {item.category && <Badge variant="outline" className="text-[10px]">{item.category}</Badge>}
+                        {item.quantity && <Badge variant="outline" className="text-[10px]">{item.quantity}</Badge>}
+                        <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => restoreItem(item.id)}>
+                          <RotateCcw className="h-3 w-3" />שחזר
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
