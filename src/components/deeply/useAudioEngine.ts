@@ -121,7 +121,7 @@ export function useAudioEngine() {
     window._deeplyFreqState = {
       playing: isPlaying,
       name: activePresetId
-        ? (AUDIO_PRESETS_LOOKUP[activePresetId] || activePresetId)
+        ? (PRESET_NAME_MAP[activePresetId] || activePresetId)
         : "",
       stop: () => {
         stopAudio();
