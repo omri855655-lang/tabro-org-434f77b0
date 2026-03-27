@@ -10,7 +10,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { message, conversationHistory, userId } = await req.json();
+    const { message, conversationHistory, userId, userTimezone } = await req.json();
+    const timezone = userTimezone || "Asia/Jerusalem";
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -53,21 +54,18 @@ serve(async (req) => {
     const boardsMap: Record<string, string> = {};
     (boardsRes.data || []).forEach((b: any) => { boardsMap[b.id] = b.name; });
 
-    // IMPORTANT: Use Israel timezone for correct local time
-    const israelNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
-    const today = `${israelNow.getFullYear()}-${String(israelNow.getMonth() + 1).padStart(2, '0')}-${String(israelNow.getDate()).padStart(2, '0')}`;
-    const currentTime = `${israelNow.getHours().toString().padStart(2, '0')}:${israelNow.getMinutes().toString().padStart(2, '0')}`;
+    // Use the user's local timezone
+    const userNow = new Date(new Date().toLocaleString("en-US", { timeZone: timezone }));
+    const today = `${userNow.getFullYear()}-${String(userNow.getMonth() + 1).padStart(2, '0')}-${String(userNow.getDate()).padStart(2, '0')}`;
+    const currentTime = `${userNow.getHours().toString().padStart(2, '0')}:${userNow.getMinutes().toString().padStart(2, '0')}`;
 
-    // Calculate Israel timezone offset for ISO dates
-    const israelOffset = "+03:00"; // Israel Standard Time (adjust if DST matters)
-    // More accurate: detect if currently in DST
-    const jan = new Date(israelNow.getFullYear(), 0, 1);
-    const jul = new Date(israelNow.getFullYear(), 6, 1);
-    const janOffset = new Date(jan.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })).getTimezoneOffset();
-    const julOffset = new Date(jul.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })).getTimezoneOffset();
-    const isDST = israelNow.getTimezoneOffset && janOffset !== julOffset;
-    // Israel: UTC+2 in winter, UTC+3 in summer (DST)
-    const tzOffset = isDST ? "+03:00" : "+02:00";
+    // Calculate timezone offset for ISO dates
+    const utcNow = new Date();
+    const localNow = new Date(utcNow.toLocaleString("en-US", { timeZone: timezone }));
+    const offsetMs = localNow.getTime() - utcNow.getTime();
+    const offsetHours = Math.round(offsetMs / (1000 * 60 * 60));
+    const offsetSign = offsetHours >= 0 ? "+" : "-";
+    const tzOffset = `${offsetSign}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
 
     const systemPrompt = `אתה Tabro AI - עוזר חכם עם שליטה מלאה באפליקציה. אתה מדבר עברית.
 
