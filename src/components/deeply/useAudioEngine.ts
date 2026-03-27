@@ -112,5 +112,19 @@ export function useAudioEngine() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
+  // Sync global state for floating mini-player (frequency presets)
+  useEffect(() => {
+    window._deeplyFreqState = {
+      playing: isPlaying,
+      name: activePresetId
+        ? (AUDIO_PRESETS_LOOKUP[activePresetId] || activePresetId)
+        : "",
+      stop: () => {
+        stopAudio();
+        setActivePresetId(null);
+      },
+    };
+  }, [isPlaying, activePresetId, stopAudio]);
+
   return { activePresetId, isPlaying, isRendering, toggle, stopAudio };
 }
