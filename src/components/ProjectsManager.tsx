@@ -70,7 +70,7 @@ const ProjectsManager = () => {
   const [aiMilestonesLoading, setAiMilestonesLoading] = useState<string | null>(null);
   const [aiMilestones, setAiMilestones] = useState<Record<string, { title: string; done: boolean }[]>>({});
   const [projectMembers, setProjectMembers] = useState<Record<string, ProjectMember[]>>({});
-  const [newTaskAssignee, setNewTaskAssignee] = useState<Record<string, string[]>>({});
+  const [newTaskAssignee, setNewTaskAssignee] = useState<Record<string, string>>({});
   const [newTaskNotes, setNewTaskNotes] = useState<Record<string, string>>({});
   const [newTaskPushToWork, setNewTaskPushToWork] = useState<Record<string, string | boolean>>({});
   const { boards: customBoardsList } = useCustomBoards();
