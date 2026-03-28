@@ -275,9 +275,9 @@ const ShoppingDashboard = () => {
     toast.success("כמות עודכנה");
   };
 
-  const addCustomItemToCategory = async (cat: string) => {
+  const addCustomItemToCategory = async (cat: string, titleOverride?: string) => {
     const inputKey = `header-${cat}`;
-    const title = customItemInputs[inputKey]?.trim();
+    const title = titleOverride || customItemInputs[inputKey]?.trim();
     if (!title) return;
     const updated = { ...customCatalog };
     if (!updated[cat]) updated[cat] = [];
@@ -286,7 +286,9 @@ const ShoppingDashboard = () => {
       setCustomCatalog(updated);
       localStorage.setItem("shopping-custom-catalog", JSON.stringify(updated));
     }
-    setCustomItemInputs(prev => ({ ...prev, [inputKey]: "" }));
+    if (!titleOverride) {
+      setCustomItemInputs(prev => ({ ...prev, [inputKey]: "" }));
+    }
     toast.success(`${title} נשמר בקטלוג של ${cat}`);
   };
 
