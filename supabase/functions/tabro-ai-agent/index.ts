@@ -21,7 +21,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch ALL context data for the user
-    const [tasksRes, booksRes, projectsRes, eventsRes, showsRes, coursesRes, shoppingRes, podcastsRes, boardsRes, boardItemsRes, dreamGoalsRes] = await Promise.all([
+    const [tasksRes, booksRes, projectsRes, eventsRes, showsRes, coursesRes, shoppingRes, podcastsRes, boardsRes, boardItemsRes, dreamGoalsRes, notesRes] = await Promise.all([
       supabase.from("tasks").select("id, description, status, task_type, category, responsible, planned_end, sheet_name, urgent, overdue").eq("user_id", userId).eq("archived", false).limit(200),
       supabase.from("books").select("id, title, author, status, notes").eq("user_id", userId).limit(200),
       supabase.from("projects").select("id, title, description, status, target_date").eq("user_id", userId).limit(50),
@@ -33,6 +33,7 @@ serve(async (req) => {
       supabase.from("custom_boards").select("id, name, statuses").eq("user_id", userId).limit(50),
       supabase.from("custom_board_items").select("id, title, status, category, board_id, sheet_name").eq("user_id", userId).eq("archived", false).limit(200),
       supabase.from("dream_goals").select("id, title, description, status, progress, target_date").eq("user_id", userId).eq("archived", false).limit(50),
+      supabase.from("notes").select("id, title, content, pinned, color, category").eq("user_id", userId).eq("archived", false).order("updated_at", { ascending: false }).limit(50),
     ]);
 
     // Fetch project tasks for progress
