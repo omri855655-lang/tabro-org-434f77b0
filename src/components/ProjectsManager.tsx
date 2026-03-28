@@ -145,6 +145,21 @@ const ProjectsManager = () => {
           membersByProject[m.project_id].push(m);
         });
         setProjectMembers(membersByProject);
+
+        // Fetch task assignments
+        const allTaskIds = Object.values(tasksByProject).flat().map(t => t.id);
+        if (allTaskIds.length > 0) {
+          const { data: assignData } = await supabase
+            .from('project_task_assignments')
+            .select('id, project_task_id, assignee_email, assignee_name, responsibility')
+            .in('project_task_id', allTaskIds);
+          const byTask: Record<string, TaskAssignment[]> = {};
+          (assignData || []).forEach((a: any) => {
+            if (!byTask[a.project_task_id]) byTask[a.project_task_id] = [];
+            byTask[a.project_task_id].push(a);
+          });
+          setTaskAssignments(byTask);
+        }
       }
     }
     setLoading(false);
