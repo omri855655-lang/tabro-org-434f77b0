@@ -35,6 +35,8 @@ const ACTION_LABELS: Record<string, string> = {
   update_show: "✅ הסדרה/סרט עודכנו!",
   add_board_item: "✅ פריט נוסף לרשימה!",
   update_course: "✅ הקורס עודכן!",
+  add_note: "✅ הפתק נוסף!",
+  update_note: "✅ הפתק עודכן!",
   multi: "✅ כל הפעולות בוצעו!",
 };
 
