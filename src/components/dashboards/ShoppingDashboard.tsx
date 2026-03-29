@@ -316,15 +316,36 @@ const ShoppingDashboard = () => {
   };
 
   const archivedGroups = useMemo(() => {
-    const groups = archivedItems.reduce<Record<string, ShoppingItem[]>>((acc, item) => {
+    // History = archived items that were NOT deleted (status != "נמחק")
+    const historyItems = archivedItems.filter(i => i.status !== "נמחק");
+    const groups = historyItems.reduce<Record<string, ShoppingItem[]>>((acc, item) => {
       const key = new Date(item.updated_at).toLocaleDateString("he-IL");
       if (!acc[key]) acc[key] = [];
       acc[key].push(item);
       return acc;
     }, {});
-
     return Object.entries(groups).sort((a, b) => new Date(b[1][0].updated_at).getTime() - new Date(a[1][0].updated_at).getTime());
   }, [archivedItems]);
+
+  // Recycle bin items (deleted within 7 days)
+  const recycleBinItems = useMemo(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return archivedItems.filter(i => i.status === "נמחק" && new Date(i.updated_at) > sevenDaysAgo);
+  }, [archivedItems]);
+
+  // Auto-purge items older than 7 days from recycle bin
+  useEffect(() => {
+    if (!user) return;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const toPurge = archivedItems.filter(i => i.status === "נמחק" && new Date(i.updated_at) <= sevenDaysAgo);
+    if (toPurge.length > 0) {
+      supabase.from("shopping_items").delete().in("id", toPurge.map(i => i.id)).then(() => {
+        setArchivedItems(prev => prev.filter(i => !toPurge.some(p => p.id === i.id)));
+      });
+    }
+  }, [archivedItems, user]);
 
   const restoreArchivedGroup = async (groupItems: ShoppingItem[]) => {
     if (!user || groupItems.length === 0) return;
