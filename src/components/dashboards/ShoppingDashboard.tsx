@@ -223,7 +223,7 @@ const ShoppingDashboard = () => {
   }, [user]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
-  useEffect(() => { if (activeTab === "history") fetchArchivedItems(); }, [activeTab, fetchArchivedItems]);
+  useEffect(() => { if (activeTab === "history" || activeTab === "recycle") fetchArchivedItems(); }, [activeTab, fetchArchivedItems]);
 
   const addItem = async (isDream: boolean, sheetName = "ראשי") => {
     if (!user || !newTitle.trim()) return;
