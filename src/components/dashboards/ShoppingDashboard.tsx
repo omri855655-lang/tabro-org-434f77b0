@@ -587,6 +587,7 @@ const ShoppingDashboard = () => {
           <TabsTrigger value="supermarket" className="flex-1 gap-1"><ShoppingBasket className="h-3.5 w-3.5" />סופר ({supermarketItems.length})</TabsTrigger>
           <TabsTrigger value="dreams" className="flex-1 gap-1"><Star className="h-3.5 w-3.5" />חלומות ({dreamItems.length})</TabsTrigger>
           <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3.5 w-3.5" />היסטוריה</TabsTrigger>
+          <TabsTrigger value="recycle" className="flex-1 gap-1"><Recycle className="h-3.5 w-3.5" />סל מחזור{recycleBinItems.length > 0 ? ` (${recycleBinItems.length})` : ""}</TabsTrigger>
           <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3.5 w-3.5" />יועץ AI</TabsTrigger>
         </TabsList>
 
