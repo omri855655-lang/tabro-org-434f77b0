@@ -247,7 +247,7 @@ const ProjectsManager = () => {
       user_id: user?.id,
       title,
       sort_order: maxOrder + 1,
-      assigned_to: assigneeMemberId || null,
+      assigned_to: (assigneeMemberId && assigneeMemberId !== '__self__') ? assigneeMemberId : null,
       assigned_email: assigneeEmail,
       notes: taskNotes,
     }).select().single();
