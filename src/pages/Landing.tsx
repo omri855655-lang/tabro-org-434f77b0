@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
-  FileSpreadsheet,
-  Lock,
   LogIn,
   UserPlus,
   BookOpen,
@@ -15,15 +13,41 @@ import {
   ListTodo,
   ChevronDown,
   Sparkles,
+  ShoppingCart,
+  StickyNote,
+  CreditCard,
+  Target,
+  Apple,
+  Bot,
+  Users,
+  Shield,
+  Zap,
+  Globe,
+  ArrowLeft,
 } from "lucide-react";
 
 const FEATURES = [
-  { icon: ListTodo, title: "משימות חכמות", desc: "נהל משימות אישיות ועבודה עם סטטוסים, קטגוריות ו-AI", color: "from-blue-500 to-cyan-500" },
-  { icon: CalendarDays, title: "מתכנן יומי AI", desc: "תכנן את היום שלך עם עוזר חכם שמכיר את המשימות שלך", color: "from-violet-500 to-purple-500" },
-  { icon: Focus, title: "Deeply — מצב ריכוז", desc: "תדרים, פומודורו, מוזיקה ומאמן AI לעבודה עמוקה", color: "from-emerald-500 to-teal-500" },
-  { icon: Trophy, title: "אתגרים והישגים", desc: "אנליטיקה, רצפים ואתגרים מותאמים אישית שדוחפים קדימה", color: "from-amber-500 to-orange-500" },
-  { icon: BookOpen, title: "ספרים ומדיה", desc: "עקוב אחרי ספרים, סדרות, פודקאסטים וקורסים", color: "from-rose-500 to-pink-500" },
-  { icon: FolderKanban, title: "פרויקטים", desc: "נהל פרויקטים עם צוות, משימות, קישורים ותאריכי יעד", color: "from-sky-500 to-indigo-500" },
+  { icon: ListTodo, title: "משימות חכמות", desc: "נהל משימות אישיות ועבודה עם סטטוסים, קטגוריות, שיתוף גליונות ו-AI שמציע ומנתח", color: "from-blue-500 to-cyan-500" },
+  { icon: CalendarDays, title: "מתכנן יומי + לוז", desc: "תכנן את היום עם AI, נהל אירועים ביומן כולל ימי הולדת, חגים ותזכורות", color: "from-violet-500 to-purple-500" },
+  { icon: Focus, title: "Deeply — מצב ריכוז", desc: "תדרים בינאורליים, פומודורו, מוזיקת רקע ומאמן AI לעבודה עמוקה", color: "from-emerald-500 to-teal-500" },
+  { icon: FolderKanban, title: "ניהול פרויקטים", desc: "פרויקטים עם צוות, ריבוי אחראים למשימה, קישורים, אבני דרך AI וסנכרון לדשבורדים", color: "from-sky-500 to-indigo-500" },
+  { icon: Bot, title: "סוכן AI חכם", desc: "סוכן שמבין את כל המערכת — מוסיף משימות, פתקים, אירועים ותזכורות בשבילך", color: "from-fuchsia-500 to-pink-500" },
+  { icon: ShoppingCart, title: "רשימת קניות", desc: "קטלוג קבוע לפי קטגוריות, הוספה מהירה, היסטוריה, סל מחזור ושיתוף", color: "from-orange-500 to-red-500" },
+  { icon: StickyNote, title: "פתקים", desc: "פתקים צבעוניים עם הצמדה, ארכיון, קטגוריות וחיפוש — כמו לוח מודעות דיגיטלי", color: "from-yellow-500 to-amber-500" },
+  { icon: BookOpen, title: "ספרים ומדיה", desc: "עקוב אחרי ספרים, סדרות, פודקאסטים וקורסים עם סילבוס ושיעורים", color: "from-rose-500 to-pink-500" },
+  { icon: Trophy, title: "אתגרים והישגים", desc: "רצפים, אתגרים מותאמים אישית ואנליטיקה שדוחפים אותך קדימה", color: "from-amber-500 to-orange-500" },
+  { icon: Target, title: "מפת דרכים לחלומות", desc: "הגדר חלומות, צור אבני דרך עם AI, סנכרן ללוז ועקוב אחרי ההתקדמות", color: "from-indigo-500 to-violet-500" },
+  { icon: CreditCard, title: "ניהול תשלומים", desc: "מעקב הכנסות והוצאות, תשלומים חוזרים, קטגוריות וניתוח תקציב AI", color: "from-green-500 to-emerald-500" },
+  { icon: Apple, title: "תזונה וסט חיים", desc: "מעקב ארוחות, חישוב קלוריות AI, שגרה יומית חוזרת וסטופר יומי", color: "from-lime-500 to-green-500" },
+];
+
+const HIGHLIGHTS = [
+  { icon: Bot, text: "סוכן AI שמנהל הכל" },
+  { icon: Users, text: "שיתוף עם צוות ומשפחה" },
+  { icon: Shield, text: "מאובטח עם PIN וגישה פרטית" },
+  { icon: Zap, text: "ללא הגבלת משימות ופרויקטים" },
+  { icon: Globe, text: "עברית ואנגלית, מכל מכשיר" },
+  { icon: Sparkles, text: "AI מובנה ללא הגדרות" },
 ];
 
 const Landing = () => {
@@ -53,7 +77,7 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-hidden" dir="rtl">
-      {/* Animated background blobs */}
+      {/* Animated background */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-primary/[0.07] blur-[120px] animate-pulse" style={{ animationDuration: "8s" }} />
         <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-accent/[0.08] blur-[100px] animate-pulse" style={{ animationDuration: "10s", animationDelay: "2s" }} />
@@ -65,9 +89,7 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img src="/tabro-logo.png" alt="Tabro" className="h-8" />
-            <span className="text-xl font-extrabold tracking-tight text-foreground">
-              Tabro
-            </span>
+            <span className="text-xl font-extrabold tracking-tight text-foreground">Tabro</span>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate("/auth")} className="gap-2 text-muted-foreground hover:text-foreground">
@@ -85,13 +107,11 @@ const Landing = () => {
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 pt-20 pb-16 text-center relative">
         <div className="space-y-8">
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium">
             <Sparkles className="h-4 w-4" />
             מערכת ניהול חיים חכמה עם AI
           </div>
 
-          {/* Main heading */}
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-foreground leading-[1.1] tracking-tight">
             נהל את{" "}
             <span className="relative inline-block">
@@ -105,12 +125,11 @@ const Landing = () => {
           </h1>
 
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            משימות, פרויקטים, לו״ז, ספרים, קורסים, שגרה יומית ו-
-            <span className="text-foreground font-medium">עוזר AI חכם</span> — הכל
-            בפלטפורמה אחת שעוזרת לך להיות הגרסה הטובה ביותר של עצמך.
+            משימות, פרויקטים, לו״ז, קניות, פתקים, ספרים, תשלומים, תזונה ו-
+            <span className="text-foreground font-medium">סוכן AI חכם</span> — הכל בפלטפורמה אחת
+            שעוזרת לך לנהל את החיים בצורה חכמה יותר.
           </p>
 
-          {/* CTA Buttons */}
           <div className="flex flex-wrap justify-center gap-4 pt-2">
             <Button
               size="lg"
@@ -131,52 +150,67 @@ const Landing = () => {
             </Button>
           </div>
 
-          {/* Scroll indicator */}
           <div className="pt-8 flex justify-center">
             <ChevronDown className="h-6 w-6 text-muted-foreground/50 animate-bounce" />
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="max-w-6xl mx-auto px-4 pb-20">
-        <div className="text-center mb-12 space-y-3">
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-            הכל מה שצריך, <span className="text-primary">בדיוק במקום אחד</span>
-          </h2>
-          <p className="text-muted-foreground text-lg">כלים חזקים שעוזרים לך להפוך מחשבות לפעולה</p>
+      {/* Highlights strip */}
+      <section className="border-y border-border/50 bg-card/50 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          <div className="flex flex-wrap justify-center gap-6 sm:gap-10">
+            {HIGHLIGHTS.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Icon className="h-4 w-4 text-primary" />
+                <span>{text}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      </section>
+
+      {/* Features */}
+      <section className="max-w-6xl mx-auto px-4 py-20">
+        <div className="text-center mb-14 space-y-3">
+          <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
+            כל מה שצריך, <span className="text-primary">בדיוק במקום אחד</span>
+          </h2>
+          <p className="text-muted-foreground text-lg">12 מודולים חזקים שעוזרים לך להפוך מחשבות לפעולה</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {FEATURES.map(({ icon: Icon, title, desc, color }) => (
             <div
               key={title}
-              className="group relative rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm p-6 space-y-4 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1"
+              className="group relative rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm p-5 space-y-3 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1"
             >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg`}>
-                <Icon className="h-6 w-6 text-white" />
+              <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg`}>
+                <Icon className="h-5 w-5 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-foreground">{title}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
-              {/* Hover glow */}
+              <h3 className="text-base font-bold text-foreground">{title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
               <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${color} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-300 -z-10`} />
             </div>
           ))}
         </div>
       </section>
 
-      {/* Social proof / stats */}
-      <section className="border-t border-border/50 bg-card/50 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 py-12">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
+      {/* How it works */}
+      <section className="bg-card/50 border-y border-border/50 py-20">
+        <div className="max-w-4xl mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12">איך זה עובד?</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
             {[
-              { value: "∞", label: "משימות ופרויקטים" },
-              { value: "AI", label: "מתכנן ומאמן חכם" },
-              { value: "24/7", label: "גישה מכל מכשיר" },
-              { value: "🔒", label: "מאובטח ופרטי" },
-            ].map(({ value, label }) => (
-              <div key={label} className="space-y-1">
-                <p className="text-3xl font-extrabold text-primary">{value}</p>
-                <p className="text-sm text-muted-foreground">{label}</p>
+              { step: "1", title: "נרשמים בחינם", desc: "יוצרים חשבון ב-30 שניות ומקבלים מדריך אינטראקטיבי" },
+              { step: "2", title: "בוחרים מה צריך", desc: "מפעילים דשבורדים לפי הצורך — קניות, תשלומים, תזונה ועוד" },
+              { step: "3", title: "AI עובד בשבילך", desc: "הסוכן מנהל משימות, מזכיר, מתכנן ומנתח — כל מה שנשאר זה לעשות" },
+            ].map(({ step, title, desc }) => (
+              <div key={step} className="space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center text-xl font-bold text-primary">
+                  {step}
+                </div>
+                <h3 className="text-lg font-bold text-foreground">{title}</h3>
+                <p className="text-sm text-muted-foreground">{desc}</p>
               </div>
             ))}
           </div>
