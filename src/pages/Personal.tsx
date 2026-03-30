@@ -356,7 +356,13 @@ const Personal = () => {
     return null;
   }
 
+  const showOnboarding = !localStorage.getItem("tabro_onboarded");
+
   return (
+    <>
+    {showOnboarding && (
+      <OnboardingWizard onComplete={() => window.location.reload()} />
+    )}
     <div className={`flex flex-col h-screen bg-background`} dir={dir}>
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shadow-sm">
