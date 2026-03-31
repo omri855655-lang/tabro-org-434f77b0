@@ -81,11 +81,7 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
     }
 
     const normalizedEmail = parsed.data.toLowerCase();
-
-    if (normalizedEmail === (user.email || "").toLowerCase()) {
-      toast.error("לא ניתן להוסיף את עצמך");
-      return;
-    }
+    const isSelf = normalizedEmail === (user.email || "").toLowerCase();
 
     const basePayload = {
       project_id: projectId,
@@ -93,6 +89,9 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
       role: newRole,
       job_title: newJobTitle.trim() || null,
       invited_by: user.id,
+      user_id: isSelf ? user.id : null,
+      invited_display_name: isSelf ? (user.email?.split("@")[0] || "אני") : null,
+      status: "approved",
     };
 
     const { error } = await supabase.from("project_members").insert(basePayload);
@@ -105,6 +104,9 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
             role: newRole,
             job_title: newJobTitle.trim() || null,
             invited_by: user.id,
+            user_id: isSelf ? user.id : null,
+            invited_display_name: isSelf ? (user.email?.split("@")[0] || "אני") : null,
+            status: "approved",
           })
           .eq("project_id", projectId)
           .eq("invited_email", normalizedEmail)
@@ -140,7 +142,9 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
     toast.success(
       members.some((m) => m.invited_email.toLowerCase() === normalizedEmail)
         ? `${normalizedEmail} עודכן בפרויקט`
-        : `${normalizedEmail} נוסף לפרויקט`
+        : isSelf
+          ? "צורפת לפרויקט בהצלחה"
+          : `${normalizedEmail} נוסף לפרויקט`
     );
     setNewEmail("");
     setNewJobTitle("");
@@ -251,7 +255,7 @@ const ProjectMembersPanel = ({ projectId, isOwner }: ProjectMembersPanelProps) =
               className="flex-1"
             />
             <Button onClick={addMember} size="sm">
-              הוסף
+              {newEmail.trim().toLowerCase() === (user?.email || "").toLowerCase() ? "צרף אותי" : "הוסף"}
             </Button>
           </div>
         </div>

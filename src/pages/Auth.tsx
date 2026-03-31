@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -14,11 +15,13 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 import { BookOpen, Tv, Lock } from "lucide-react";
+import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { signIn, user, loading } = useAuth();
+  const { themeId, themes, setThemeId } = useSiteAppearance();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -86,7 +89,7 @@ const Auth = () => {
         email: parsed.data.email,
         password: parsed.data.password,
         options: {
-          emailRedirectTo: window.location.origin + "/personal",
+          emailRedirectTo: window.location.origin,
           data: {
             first_name: normalizedFirstName,
             last_name: normalizedLastName,
@@ -109,7 +112,7 @@ const Auth = () => {
 
       // If email confirmation is required, user won't have a session yet
       if (data?.user && !data.session) {
-        toast.success("נרשמת בהצלחה! בדוק את המייל שלך לאישור החשבון");
+        toast.success("נרשמת בהצלחה! בדוק את המייל שלך לאישור החשבון וגם בתיקיית ספאם/קידומי מכירות");
         return;
       }
 
@@ -200,7 +203,7 @@ const Auth = () => {
                     className="flex-1"
                     onClick={() => setPreferredLanguage("he")}
                   >
-                    🇮🇱 עברית
+                    עברית
                   </Button>
                   <Button
                     type="button"
@@ -209,9 +212,24 @@ const Auth = () => {
                     className="flex-1"
                     onClick={() => setPreferredLanguage("en")}
                   >
-                    🇺🇸 English
+                    English
                   </Button>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>עיצוב התחלתי</Label>
+                <Select value={themeId} onValueChange={setThemeId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {themes.map((theme) => (
+                      <SelectItem key={theme.id} value={theme.id}>
+                        {theme.name} — {theme.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               </>
             )}
