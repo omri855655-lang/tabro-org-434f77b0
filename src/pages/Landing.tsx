@@ -127,8 +127,22 @@ const Landing = () => {
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             משימות, פרויקטים, לו״ז, קניות, פתקים, ספרים, תשלומים, תזונה ו-
             <span className="text-foreground font-medium">סוכן AI חכם</span> — הכל בפלטפורמה אחת
-            שעוזרת לך לנהל את החיים בצורה חכמה יותר.
+             שעוזרת לך לנהל את החיים בצורה חכמה, מסודרת וברורה יותר.
           </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl mx-auto text-right">
+            <div className="rounded-2xl border border-border/60 bg-card/70 p-4 backdrop-blur-sm">
+              <h3 className="font-semibold text-foreground mb-1">כניסה מודרכת</h3>
+              <p className="text-sm text-muted-foreground">משתמש חדש מקבל מדריך מסודר, בחירת דשבורדים ובחירת עיצוב כבר בתחילת הדרך.</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-card/70 p-4 backdrop-blur-sm">
+              <h3 className="font-semibold text-foreground mb-1">עבודה אישית או צוותית</h3>
+              <p className="text-sm text-muted-foreground">משימות, פרויקטים, ריבוי אחראים, שיתופים והיסטוריה במקום אחד.</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-card/70 p-4 backdrop-blur-sm">
+              <h3 className="font-semibold text-foreground mb-1">AI שמבצע</h3>
+              <p className="text-sm text-muted-foreground">הסוכן מופיע בפינה השמאלית התחתונה ומקבל ממך הוראות בשפה טבעית.</p>
+            </div>
+          </div>
 
           <div className="flex flex-wrap justify-center gap-4 pt-2">
             <Button
@@ -201,9 +215,9 @@ const Landing = () => {
           <h2 className="text-3xl font-bold text-center mb-12">איך זה עובד?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
             {[
-              { step: "1", title: "נרשמים בחינם", desc: "יוצרים חשבון ב-30 שניות ומקבלים מדריך אינטראקטיבי" },
-              { step: "2", title: "בוחרים מה צריך", desc: "מפעילים דשבורדים לפי הצורך — קניות, תשלומים, תזונה ועוד" },
-              { step: "3", title: "AI עובד בשבילך", desc: "הסוכן מנהל משימות, מזכיר, מתכנן ומנתח — כל מה שנשאר זה לעשות" },
+               { step: "1", title: "נרשמים ומאשרים מייל", desc: "פותחים חשבון, מאשרים את האימייל ונכנסים לאזור האישי" },
+               { step: "2", title: "בוחרים דשבורדים ועיצוב", desc: "מגדירים איזה מסכים להציג ואיזה מראה נוח יותר לעבודה שלך" },
+               { step: "3", title: "מתחילים לעבוד עם הסוכן", desc: "הסוכן בפינה השמאלית התחתונה ועוזר לך להוסיף, לעדכן ולתכנן" },
             ].map(({ step, title, desc }) => (
               <div key={step} className="space-y-3">
                 <div className="w-12 h-12 mx-auto rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center text-xl font-bold text-primary">
@@ -221,7 +235,7 @@ const Landing = () => {
       <section className="max-w-6xl mx-auto px-4 py-20 text-center">
         <div className="max-w-xl mx-auto space-y-6">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-            מוכן להתחיל? 🚀
+             מוכן להתחיל?
           </h2>
           <p className="text-muted-foreground text-lg">
             הצטרף עכשיו בחינם ותתחיל לנהל את החיים שלך בצורה חכמה יותר

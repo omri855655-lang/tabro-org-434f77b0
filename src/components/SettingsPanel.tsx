@@ -360,7 +360,7 @@ const SettingsPanel = () => {
                   </div>
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateBoard(board.id, { show_in_dashboard: !board.show_in_dashboard })}>
-                      {board.show_in_dashboard ? "🔵" : "⚪"}
+                      {board.show_in_dashboard ? <Eye className="h-4 w-4 text-primary" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteBoard(board.id, board.name)}>
                       <Trash2 className="h-3 w-3" />
@@ -392,13 +392,13 @@ const SettingsPanel = () => {
                 }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tasks">📋 רשימת משימות (כולל דשבורד)</SelectItem>
-                    <SelectItem value="todo">✅ רשימת To-Do (צ'קבוקסים)</SelectItem>
-                    <SelectItem value="shopping">🛒 רשימת קניות</SelectItem>
-                    <SelectItem value="tracking">📚 קטגוריית רשימות (כמו ספרים/פודקאסטים)</SelectItem>
-                    <SelectItem value="learning-reading">📖 רשימת למידה/קריאה</SelectItem>
-                    <SelectItem value="kanban">📊 קנבן (לביצוע → בבדיקה → הושלם)</SelectItem>
-                    <SelectItem value="custom">⚙️ מותאם אישית</SelectItem>
+                    <SelectItem value="tasks">רשימת משימות (כולל דשבורד)</SelectItem>
+                    <SelectItem value="todo">רשימת To-Do</SelectItem>
+                    <SelectItem value="shopping">רשימת קניות</SelectItem>
+                    <SelectItem value="tracking">קטגוריית רשימות</SelectItem>
+                    <SelectItem value="learning-reading">רשימת למידה/קריאה</SelectItem>
+                    <SelectItem value="kanban">קנבן</SelectItem>
+                    <SelectItem value="custom">מותאם אישית</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -455,7 +455,7 @@ const SettingsPanel = () => {
       {/* Notifications Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">🔔 התראות</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />התראות</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">בחר אילו התראות תרצה לקבל. שינויים נשמרים מיידית.</p>
@@ -496,11 +496,11 @@ const SettingsPanel = () => {
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">בחר את שפת הממשק / Choose interface language</p>
           <div className="flex flex-wrap gap-2">
-            <Button variant={lang === "he" ? "default" : "outline"} onClick={() => setLang("he")} className="flex-1 min-w-[80px]">🇮🇱 עברית</Button>
-            <Button variant={lang === "en" ? "default" : "outline"} onClick={() => setLang("en")} className="flex-1 min-w-[80px]">🇺🇸 English</Button>
-            <Button variant={lang === "es" ? "default" : "outline"} onClick={() => setLang("es" as any)} className="flex-1 min-w-[80px]">🇪🇸 Español</Button>
-            <Button variant={lang === "zh" ? "default" : "outline"} onClick={() => setLang("zh" as any)} className="flex-1 min-w-[80px]">🇨🇳 中文</Button>
-            <Button variant={lang === "ar" ? "default" : "outline"} onClick={() => setLang("ar" as any)} className="flex-1 min-w-[80px]">🇸🇦 العربية</Button>
+            <Button variant={lang === "he" ? "default" : "outline"} onClick={() => setLang("he")} className="flex-1 min-w-[80px]">עברית</Button>
+            <Button variant={lang === "en" ? "default" : "outline"} onClick={() => setLang("en")} className="flex-1 min-w-[80px]">English</Button>
+            <Button variant={lang === "es" ? "default" : "outline"} onClick={() => setLang("es" as any)} className="flex-1 min-w-[80px]">Español</Button>
+            <Button variant={lang === "zh" ? "default" : "outline"} onClick={() => setLang("zh" as any)} className="flex-1 min-w-[80px]">中文</Button>
+            <Button variant={lang === "ar" ? "default" : "outline"} onClick={() => setLang("ar" as any)} className="flex-1 min-w-[80px]">العربية</Button>
           </div>
         </CardContent>
       </Card>

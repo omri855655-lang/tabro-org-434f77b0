@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSiteAppearance } from "@/hooks/useSiteAppearance";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   ListTodo, CalendarDays, Focus, FolderKanban, Bot, ShoppingCart,
   StickyNote, BookOpen, Trophy, Target, CreditCard, Apple,
-  ChevronLeft, ChevronRight, Sparkles, Check, X,
+  ChevronLeft, ChevronRight, Sparkles, Check,
 } from "lucide-react";
 
 interface OnboardingWizardProps {
@@ -30,7 +32,7 @@ const STEPS = [
     type: "optional" as const,
   },
   {
-    title: "הסוכן החכם שלך 🤖",
+    title: "הסוכן החכם שלך",
     subtitle: "הכר את הסוכן AI שמנהל הכל בשבילך",
     type: "ai" as const,
   },
@@ -51,12 +53,18 @@ const CORE_FEATURES = [
   { icon: Bot, name: "סוכן AI", desc: "שולח פקודות טקסט והסוכן מבצע" },
 ];
 
-const OPTIONAL_DASHBOARDS = [
+const DASHBOARD_OPTIONS = [
+  { key: "tasks", icon: ListTodo, name: "משימות אישיות", desc: "ניהול המשימות האישיות שלך" },
+  { key: "work", icon: FolderKanban, name: "משימות עבודה", desc: "ניהול משימות לעבודה ולצוות" },
+  { key: "routine", icon: CalendarDays, name: "לוז יומי", desc: "ניהול שגרה, אירועים ותזכורות" },
+  { key: "projects", icon: FolderKanban, name: "פרויקטים", desc: "פרויקטים, צוות ומשימות מרובות אחראים" },
+  { key: "courses", icon: BookOpen, name: "קורסים", desc: "מעקב לימודים ושיעורים" },
+  { key: "deeply", icon: Focus, name: "Deeply", desc: "ריכוז, מוזיקה ותדרים" },
   { key: "shopping", icon: ShoppingCart, name: "רשימת קניות", desc: "קטלוג קבוע, קטגוריות, שיתוף והיסטוריה" },
-  { key: "notes", icon: StickyNote, name: "פתקים", desc: "פתקים צבעוניים עם הצמדה וקטגוריות" },
-  { key: "payments", icon: CreditCard, name: "ניהול תשלומים", desc: "הכנסות, הוצאות, תשלומים חוזרים וניתוח AI" },
-  { key: "dreams", icon: Target, name: "מפת דרכים לחלומות", desc: "חלומות, אבני דרך וסנכרון ללוז" },
-  { key: "nutrition", icon: Apple, name: "תזונה ובריאות", desc: "מעקב ארוחות וחישוב קלוריות AI" },
+  { key: "notes", icon: StickyNote, name: "פתקים", desc: "פתקים מהירים עם חיפוש וקטגוריות" },
+  { key: "payments", icon: CreditCard, name: "ניהול תשלומים", desc: "הכנסות, הוצאות ותשלומים חוזרים" },
+  { key: "dreams", icon: Target, name: "מפת חלומות", desc: "חזון, אבני דרך וסנכרון ללוז" },
+  { key: "nutrition", icon: Apple, name: "תזונה ובריאות", desc: "מעקב ארוחות והרגלים" },
 ];
 
 const AI_EXAMPLES = [
@@ -69,8 +77,9 @@ const AI_EXAMPLES = [
 
 const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   const { user } = useAuth();
+  const { themeId, themes, setThemeId } = useSiteAppearance();
   const [step, setStep] = useState(0);
-  const [selectedDashboards, setSelectedDashboards] = useState<Set<string>>(new Set(["shopping", "notes"]));
+  const [selectedDashboards, setSelectedDashboards] = useState<Set<string>>(new Set(["tasks", "work", "routine", "projects", "shopping", "notes"]));
 
   const toggleDashboard = (key: string) => {
     setSelectedDashboards(prev => {
@@ -82,8 +91,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   };
 
   const finish = async () => {
-    // Save dashboard preferences as hidden_tabs (invert: hide what's NOT selected)
-    const allOptionalKeys = OPTIONAL_DASHBOARDS.map(d => d.key);
+    const allOptionalKeys = DASHBOARD_OPTIONS.map(d => d.key);
     const hiddenTabs = allOptionalKeys.filter(k => !selectedDashboards.has(k));
 
     if (user) {
@@ -95,7 +103,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
 
     // Mark onboarding complete in localStorage
     localStorage.setItem("tabro_onboarded", "true");
-    toast.success("!המערכת מוכנה בשבילך 🎉");
+    toast.success("המערכת מוכנה בשבילך");
     onComplete();
   };
 
@@ -128,8 +136,23 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Tabro היא מערכת ניהול חיים מלאה עם AI מובנה.
                 <br />
-                בואו נעבור יחד על הכלים ונפעיל את מה שמתאים לך.
+                במסך הזה תבחר אילו דשבורדים להציג ואיזה עיצוב הכי נוח לך.
               </p>
+              <div className="space-y-2 text-right">
+                <Label>בחר עיצוב התחלתי</Label>
+                <Select value={themeId} onValueChange={setThemeId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {themes.map((theme) => (
+                      <SelectItem key={theme.id} value={theme.id}>
+                        {theme.name} — {theme.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
 
@@ -152,7 +175,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
 
           {current.type === "optional" && (
             <div className="space-y-2 max-h-[350px] overflow-auto">
-              {OPTIONAL_DASHBOARDS.map(({ key, icon: Icon, name, desc }) => {
+              {DASHBOARD_OPTIONS.map(({ key, icon: Icon, name, desc }) => {
                 const selected = selectedDashboards.has(key);
                 return (
                   <button
@@ -182,7 +205,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
                 );
               })}
               <p className="text-xs text-muted-foreground text-center pt-2">
-                אפשר לשנות בכל עת מההגדרות ⚙️
+                אפשר להדליק או להסתיר כל דשבורד גם אחר כך מההגדרות
               </p>
             </div>
           )}
@@ -193,9 +216,9 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
                 <Bot className="h-8 w-8 text-white" />
               </div>
               <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                הסוכן החכם יושב בפינה הימנית התחתונה של המסך.
+                הסוכן החכם יושב בפינה השמאלית התחתונה של המסך.
                 <br />
-                פשוט כתוב לו מה אתה צריך והוא יעשה:
+                אפשר לבקש ממנו להוסיף משימות, פתקים, אירועים, חגים ותזכורות:
               </p>
               <div className="space-y-2">
                 {AI_EXAMPLES.map((ex) => (

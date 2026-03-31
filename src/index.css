@@ -74,6 +74,34 @@ All colors MUST be HSL.
     --sidebar-ring: 215 28% 24%;
   }
 
+  :root[data-site-theme="executive"] {
+    --background: 210 18% 96%;
+    --foreground: 222 18% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 18% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 18% 16%;
+    --secondary: 210 16% 92%;
+    --secondary-foreground: 222 18% 16%;
+    --muted: 210 14% 90%;
+    --muted-foreground: 215 10% 38%;
+    --border: 214 14% 84%;
+    --input: 214 14% 84%;
+    --primary: 214 29% 27%;
+    --primary-foreground: 0 0% 100%;
+    --ring: 214 29% 27%;
+    --accent: 28 30% 42%;
+    --accent-foreground: 0 0% 100%;
+    --sidebar-background: 215 23% 18%;
+    --sidebar-foreground: 210 20% 95%;
+    --sidebar-primary: 28 30% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 18% 26%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 214 18% 26%;
+    --sidebar-ring: 28 30% 42%;
+  }
+
   :root[data-site-theme="mint"] {
     --primary: 160 84% 34%;
     --ring: 160 84% 34%;
@@ -234,6 +262,34 @@ All colors MUST be HSL.
     --ring: 210 20% 92%;
     --accent: 198 89% 58%;
     --sidebar-ring: 210 20% 92%;
+  }
+
+  .dark[data-site-theme="executive"] {
+    --background: 220 16% 11%;
+    --foreground: 210 18% 94%;
+    --card: 220 14% 14%;
+    --card-foreground: 210 18% 94%;
+    --popover: 220 14% 14%;
+    --popover-foreground: 210 18% 94%;
+    --secondary: 220 12% 18%;
+    --secondary-foreground: 210 18% 94%;
+    --muted: 220 12% 18%;
+    --muted-foreground: 214 10% 70%;
+    --border: 220 10% 22%;
+    --input: 220 10% 22%;
+    --primary: 210 15% 78%;
+    --primary-foreground: 220 16% 11%;
+    --ring: 210 15% 78%;
+    --accent: 31 36% 56%;
+    --accent-foreground: 220 16% 11%;
+    --sidebar-background: 220 18% 9%;
+    --sidebar-foreground: 210 18% 94%;
+    --sidebar-primary: 31 36% 56%;
+    --sidebar-primary-foreground: 220 18% 9%;
+    --sidebar-accent: 220 12% 16%;
+    --sidebar-accent-foreground: 210 18% 94%;
+    --sidebar-border: 220 12% 16%;
+    --sidebar-ring: 31 36% 56%;
   }
 
   .dark[data-site-theme="mint"] {
