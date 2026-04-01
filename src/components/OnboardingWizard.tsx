@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   ListTodo, CalendarDays, Focus, FolderKanban, Bot, ShoppingCart,
   StickyNote, BookOpen, Trophy, Target, CreditCard, Apple,
-  ChevronLeft, ChevronRight, Sparkles, Check,
+  ChevronLeft, ChevronRight, Sparkles, Check, ArrowLeft,
 } from "lucide-react";
 
 interface OnboardingWizardProps {
@@ -18,69 +18,76 @@ interface OnboardingWizardProps {
 
 const STEPS = [
   {
-    title: "ברוכים הבאים ל-Tabro! 🎉",
-    subtitle: "בוא נתאים את המערכת בדיוק בשבילך",
+    title: "ברוכים הבאים ל-Tabro!",
+    subtitle: "בוא נתאים את המערכת בדיוק בשבילך — זה ייקח פחות מדקה",
     type: "welcome" as const,
   },
   {
-    title: "הכלים הבסיסיים שלך",
-    subtitle: "אלה מופעלים כברירת מחדל — תמיד זמינים",
+    title: "בחר עיצוב",
+    subtitle: "בחר את העיצוב שהכי נוח לך. אפשר לשנות בכל עת מההגדרות",
+    type: "theme" as const,
+  },
+  {
+    title: "הכלים שמופעלים אוטומטית",
+    subtitle: "אלה הכלים הבסיסיים שתמיד זמינים ואי אפשר להסתיר",
     type: "core" as const,
   },
   {
-    title: "דשבורדים נוספים",
-    subtitle: "בחר אילו דשבורדים להפעיל (אפשר לשנות בכל עת מההגדרות)",
+    title: "בחר אילו דשבורדים להציג",
+    subtitle: "לחץ כדי להפעיל או לכבות. כל מה שכבוי לא יופיע בתפריט",
     type: "optional" as const,
   },
   {
     title: "הסוכן החכם שלך",
-    subtitle: "הכר את הסוכן AI שמנהל הכל בשבילך",
+    subtitle: "בפינה השמאלית התחתונה יושב סוכן AI שמבצע בשבילך פעולות",
     type: "ai" as const,
   },
   {
     title: "הכל מוכן!",
-    subtitle: "אתה מוכן להתחיל לנהל את החיים בצורה חכמה",
+    subtitle: "המערכת מותאמת אישית ומוכנה לשימוש",
     type: "done" as const,
   },
 ];
 
 const CORE_FEATURES = [
-  { icon: ListTodo, name: "משימות עבודה ואישיות", desc: "גליונות, סטטוסים, קטגוריות, שיתוף וסינון" },
-  { icon: CalendarDays, name: "מתכנן יומי + לוז", desc: "AI שמכיר את המשימות, יומן אירועים, חגים ותזכורות" },
-  { icon: Focus, name: "Deeply — מצב ריכוז", desc: "מוזיקת רקע, תדרים, פומודורו ומאמן AI" },
-  { icon: FolderKanban, name: "פרויקטים", desc: "צוות, משימות, קישורים ואבני דרך AI" },
-  { icon: BookOpen, name: "ספרים, סדרות, פודקאסטים וקורסים", desc: "מעקב מדיה מלא" },
-  { icon: Trophy, name: "אתגרים ורצפים", desc: "אנליטיקה ואתגרים מותאמים אישית" },
-  { icon: Bot, name: "סוכן AI", desc: "שולח פקודות טקסט והסוכן מבצע" },
+  { icon: ListTodo, name: "משימות עבודה ואישיות", desc: "גליונות עם סטטוסים, קטגוריות, סינון, מעקב התקדמות ושיתוף עם אחרים" },
+  { icon: CalendarDays, name: "מתכנן יומי + לוז אירועים", desc: "AI שמתכנן את היום לפי המשימות, יומן אירועים, חגים מכל הדתות ותזכורות" },
+  { icon: Focus, name: "Deeply — מצב ריכוז", desc: "תדרים בינאורליים, מוזיקת רקע, פומודורו ומאמן AI לעבודה עמוקה" },
+  { icon: FolderKanban, name: "פרויקטים וצוותים", desc: "ניהול פרויקטים עם חברי צוות, ריבוי אחראים למשימה, קישורים ואבני דרך AI" },
+  { icon: BookOpen, name: "ספרים, סדרות, פודקאסטים וקורסים", desc: "מעקב מדיה מלא עם סטטוסים, הערות וסילבוס לקורסים" },
+  { icon: Trophy, name: "אתגרים ורצפים", desc: "אתגרים מותאמים אישית, מעקב רצפים ואנליטיקה" },
+  { icon: Bot, name: "סוכן AI", desc: "מקבל הוראות בשפה טבעית ומבצע — הוספת משימות, פתקים, אירועים ועוד" },
 ];
 
 const DASHBOARD_OPTIONS = [
-  { key: "tasks", icon: ListTodo, name: "משימות אישיות", desc: "ניהול המשימות האישיות שלך" },
-  { key: "work", icon: FolderKanban, name: "משימות עבודה", desc: "ניהול משימות לעבודה ולצוות" },
-  { key: "routine", icon: CalendarDays, name: "לוז יומי", desc: "ניהול שגרה, אירועים ותזכורות" },
-  { key: "projects", icon: FolderKanban, name: "פרויקטים", desc: "פרויקטים, צוות ומשימות מרובות אחראים" },
-  { key: "courses", icon: BookOpen, name: "קורסים", desc: "מעקב לימודים ושיעורים" },
-  { key: "deeply", icon: Focus, name: "Deeply", desc: "ריכוז, מוזיקה ותדרים" },
-  { key: "shopping", icon: ShoppingCart, name: "רשימת קניות", desc: "קטלוג קבוע, קטגוריות, שיתוף והיסטוריה" },
-  { key: "notes", icon: StickyNote, name: "פתקים", desc: "פתקים מהירים עם חיפוש וקטגוריות" },
-  { key: "payments", icon: CreditCard, name: "ניהול תשלומים", desc: "הכנסות, הוצאות ותשלומים חוזרים" },
-  { key: "dreams", icon: Target, name: "מפת חלומות", desc: "חזון, אבני דרך וסנכרון ללוז" },
-  { key: "nutrition", icon: Apple, name: "תזונה ובריאות", desc: "מעקב ארוחות והרגלים" },
+  { key: "tasks", icon: ListTodo, name: "משימות אישיות", desc: "ניהול המשימות האישיות שלך", defaultOn: true },
+  { key: "work", icon: FolderKanban, name: "משימות עבודה", desc: "ניהול משימות לעבודה ולצוות", defaultOn: true },
+  { key: "routine", icon: CalendarDays, name: "לוז יומי", desc: "ניהול שגרה, אירועים ותזכורות", defaultOn: true },
+  { key: "projects", icon: FolderKanban, name: "פרויקטים", desc: "פרויקטים, צוות ומשימות מרובות אחראים", defaultOn: true },
+  { key: "courses", icon: BookOpen, name: "קורסים", desc: "מעקב לימודים ושיעורים", defaultOn: false },
+  { key: "deeply", icon: Focus, name: "Deeply — ריכוז", desc: "ריכוז, מוזיקה ותדרים", defaultOn: false },
+  { key: "shopping", icon: ShoppingCart, name: "רשימת קניות", desc: "קטלוג קבוע, קטגוריות, סל מחזור ושיתוף", defaultOn: true },
+  { key: "notes", icon: StickyNote, name: "פתקים", desc: "פתקים צבעוניים עם חיפוש, קטגוריות והצמדה", defaultOn: true },
+  { key: "payments", icon: CreditCard, name: "ניהול תשלומים", desc: "הכנסות, הוצאות ותשלומים חוזרים", defaultOn: false },
+  { key: "dreams", icon: Target, name: "מפת חלומות", desc: "חזון, אבני דרך וסנכרון ללוז", defaultOn: false },
+  { key: "nutrition", icon: Apple, name: "תזונה ובריאות", desc: "מעקב ארוחות והרגלים", defaultOn: false },
 ];
 
 const AI_EXAMPLES = [
-  "\"תוסיף משימה: לסיים מצגת עד יום חמישי\"",
-  "\"תזכיר לי ביום הולדת של אמא ב-15 ביוני\"",
-  "\"צור פתק: רשימת רעיונות לנסיעה\"",
-  "\"מה המשימות הדחופות שלי?\"",
-  "\"תוסיף חג פסח ליומן\"",
+  { cmd: "תוסיף משימה: לסיים מצגת עד יום חמישי", what: "מוסיף משימה עם תאריך יעד" },
+  { cmd: "תזכיר לי ביום הולדת של אמא ב-15 ביוני", what: "יוצר אירוע בלוז עם תזכורת" },
+  { cmd: "צור פתק: רשימת רעיונות לנסיעה", what: "פותח פתק חדש בדשבורד הפתקים" },
+  { cmd: "מה המשימות הדחופות שלי?", what: "מציג סיכום משימות דחופות" },
+  { cmd: "תוסיף ערב פסח ליומן", what: "מוסיף חג/אירוע ללוז" },
 ];
 
 const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   const { user } = useAuth();
   const { themeId, themes, setThemeId } = useSiteAppearance();
   const [step, setStep] = useState(0);
-  const [selectedDashboards, setSelectedDashboards] = useState<Set<string>>(new Set(["tasks", "work", "routine", "projects", "shopping", "notes"]));
+  const [selectedDashboards, setSelectedDashboards] = useState<Set<string>>(
+    new Set(DASHBOARD_OPTIONS.filter(d => d.defaultOn).map(d => d.key))
+  );
 
   const toggleDashboard = (key: string) => {
     setSelectedDashboards(prev => {
@@ -90,6 +97,9 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
       return next;
     });
   };
+
+  const selectAll = () => setSelectedDashboards(new Set(DASHBOARD_OPTIONS.map(d => d.key)));
+  const deselectAll = () => setSelectedDashboards(new Set());
 
   const finish = async () => {
     const allOptionalKeys = DASHBOARD_OPTIONS.map(d => d.key);
@@ -102,13 +112,13 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
       }, { onConflict: "user_id" });
     }
 
-    // Mark onboarding complete in localStorage
     localStorage.setItem("tabro_onboarded", "true");
-    toast.success("המערכת מוכנה בשבילך");
+    toast.success("המערכת מוכנה בשבילך!");
     onComplete();
   };
 
   const current = STEPS[step];
+  const progress = ((step + 1) / STEPS.length) * 100;
 
   return (
     <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
@@ -117,15 +127,27 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
         <div className="h-1.5 bg-muted">
           <div
             className="h-full bg-primary transition-all duration-500 rounded-full"
-            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+            style={{ width: `${progress}%` }}
           />
         </div>
 
-        <div className="p-6 space-y-6">
+        {/* Step indicator */}
+        <div className="px-6 pt-4 flex items-center justify-center gap-1.5">
+          {STEPS.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i === step ? "w-6 bg-primary" : i < step ? "w-3 bg-primary/40" : "w-3 bg-muted-foreground/20"
+              }`}
+            />
+          ))}
+        </div>
+
+        <div className="p-6 space-y-5">
           {/* Header */}
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-foreground">{current.title}</h2>
-            <p className="text-muted-foreground">{current.subtitle}</p>
+          <div className="text-center space-y-1.5">
+            <h2 className="text-xl font-bold text-foreground">{current.title}</h2>
+            <p className="text-sm text-muted-foreground">{current.subtitle}</p>
           </div>
 
           {/* Content */}
@@ -134,97 +156,129 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
               <div className="w-20 h-20 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Sparkles className="h-10 w-10 text-primary" />
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Tabro היא מערכת ניהול חיים מלאה עם AI מובנה.
-                <br />
-                במסך הזה תבחר אילו דשבורדים להציג ואיזה עיצוב הכי נוח לך.
-              </p>
-              <div className="space-y-2 text-right">
-                <Label>בחר עיצוב התחלתי</Label>
+              <div className="text-sm text-muted-foreground leading-relaxed space-y-2 text-right bg-muted/30 rounded-xl p-4 border border-border/50">
+                <p className="font-medium text-foreground">מה זה Tabro?</p>
+                <p>מערכת ניהול חיים מלאה — משימות, פרויקטים, לוז, קניות, פתקים, תשלומים ועוד.</p>
+                <p>בעזרת סוכן AI מובנה, אפשר לבצע פעולות בהוראה פשוטה בטקסט.</p>
+                <p>בשלבים הבאים תבחר עיצוב ותפעיל את הדשבורדים שמתאימים לך.</p>
+              </div>
+            </div>
+          )}
+
+          {current.type === "theme" && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">בחר עיצוב</Label>
                 <Select value={themeId} onValueChange={setThemeId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {themes.map((theme) => (
                       <SelectItem key={theme.id} value={theme.id}>
-                        {theme.name} — {theme.description}
+                        <div className="flex flex-col items-start py-0.5">
+                          <span className="font-medium">{theme.name}</span>
+                          <span className="text-xs text-muted-foreground">{theme.description}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/50 space-y-2">
+                <p className="text-sm font-medium text-foreground">טיפ:</p>
+                <p className="text-xs text-muted-foreground">
+                  העיצוב "אקסקיוטיב" מציע מראה מקצועי עם סרגל צד כהה, בלי אימוג'ים — מתאים למי שרוצה ממשק בוגר ורגוע.
+                  אפשר תמיד לשנות את העיצוב מההגדרות.
+                </p>
+              </div>
             </div>
           )}
 
           {current.type === "core" && (
-            <div className="space-y-2 max-h-[350px] overflow-auto">
+            <div className="space-y-2 max-h-[320px] overflow-auto pr-1">
               {CORE_FEATURES.map(({ icon: Icon, name, desc }) => (
                 <div key={name} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
                   <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <Icon className="h-4 w-4 text-primary" />
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{name}</p>
-                    <p className="text-xs text-muted-foreground">{desc}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
                   </div>
-                  <Check className="h-4 w-4 text-green-500 shrink-0 mt-1 mr-auto" />
+                  <Check className="h-4 w-4 text-accent shrink-0 mt-1" />
                 </div>
               ))}
             </div>
           )}
 
           {current.type === "optional" && (
-            <div className="space-y-2 max-h-[350px] overflow-auto">
-              {DASHBOARD_OPTIONS.map(({ key, icon: Icon, name, desc }) => {
-                const selected = selectedDashboards.has(key);
-                return (
-                  <button
-                    key={key}
-                    onClick={() => toggleDashboard(key)}
-                    className={`w-full flex items-start gap-3 p-3 rounded-lg border transition-all text-right ${
-                      selected
-                        ? "bg-primary/5 border-primary/40"
-                        : "bg-muted/30 border-border/50 opacity-70"
-                    }`}
-                  >
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      selected ? "bg-primary/15" : "bg-muted"
-                    }`}>
-                      <Icon className={`h-4 w-4 ${selected ? "text-primary" : "text-muted-foreground"}`} />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">{name}</p>
-                      <p className="text-xs text-muted-foreground">{desc}</p>
-                    </div>
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 ${
-                      selected ? "border-primary bg-primary" : "border-muted-foreground/30"
-                    }`}>
-                      {selected && <Check className="h-3 w-3 text-primary-foreground" />}
-                    </div>
-                  </button>
-                );
-              })}
-              <p className="text-xs text-muted-foreground text-center pt-2">
-                אפשר להדליק או להסתיר כל דשבורד גם אחר כך מההגדרות
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7 px-2">
+                  הפעל הכל
+                </Button>
+                <Button variant="ghost" size="sm" onClick={deselectAll} className="text-xs h-7 px-2">
+                  כבה הכל
+                </Button>
+              </div>
+              <div className="space-y-2 max-h-[290px] overflow-auto pr-1">
+                {DASHBOARD_OPTIONS.map(({ key, icon: Icon, name, desc }) => {
+                  const selected = selectedDashboards.has(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => toggleDashboard(key)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-right ${
+                        selected
+                          ? "bg-primary/5 border-primary/40"
+                          : "bg-muted/20 border-border/40 opacity-60"
+                      }`}
+                    >
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                        selected ? "bg-primary/15" : "bg-muted"
+                      }`}>
+                        <Icon className={`h-4 w-4 ${selected ? "text-primary" : "text-muted-foreground"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0 text-right">
+                        <p className="text-sm font-medium text-foreground">{name}</p>
+                        <p className="text-xs text-muted-foreground">{desc}</p>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        selected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                      }`}>
+                        {selected && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                אפשר לשנות בכל עת מההגדרות — דשבורדים שכבויים לא מופיעים בתפריט
               </p>
             </div>
           )}
 
           {current.type === "ai" && (
             <div className="space-y-4">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-fuchsia-500 to-pink-500 flex items-center justify-center shadow-lg">
-                <Bot className="h-8 w-8 text-white" />
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                <Bot className="h-7 w-7 text-primary-foreground" />
               </div>
-              <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                הסוכן החכם יושב בפינה השמאלית התחתונה של המסך.
-                <br />
-                אפשר לבקש ממנו להוסיף משימות, פתקים, אירועים, חגים ותזכורות:
-              </p>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/50 space-y-2 text-right">
+                <p className="text-sm font-medium text-foreground">איך משתמשים?</p>
+                <p className="text-xs text-muted-foreground">
+                  לחץ על כפתור הסוכן בפינה <strong>השמאלית התחתונה</strong> של המסך. כתוב הוראה בטקסט רגיל והסוכן יבצע.
+                </p>
+              </div>
               <div className="space-y-2">
-                {AI_EXAMPLES.map((ex) => (
-                  <div key={ex} className="text-xs bg-muted/50 border border-border/50 rounded-lg px-3 py-2 text-muted-foreground">
-                    {ex}
+                <p className="text-xs font-medium text-foreground">דוגמאות:</p>
+                {AI_EXAMPLES.map(({ cmd, what }) => (
+                  <div key={cmd} className="flex items-start gap-2 text-xs bg-muted/40 border border-border/40 rounded-lg px-3 py-2">
+                    <ArrowLeft className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-foreground font-medium">{cmd}</span>
+                      <span className="text-muted-foreground mr-1"> — {what}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -233,12 +287,17 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
 
           {current.type === "done" && (
             <div className="text-center space-y-4">
-              <div className="w-20 h-20 mx-auto rounded-full bg-green-500/10 flex items-center justify-center">
-                <Check className="h-10 w-10 text-green-500" />
+              <div className="w-20 h-20 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
+                <Check className="h-10 w-10 text-accent" />
               </div>
-              <p className="text-sm text-muted-foreground">
-                המערכת מוכנה! אפשר תמיד לשנות הגדרות, להוסיף דשבורדים ולהתאים את הכל מחדש.
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-foreground font-medium">
+                  {selectedDashboards.size} דשבורדים מופעלים
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  אפשר תמיד לשנות הגדרות, להוסיף דשבורדים ולהתאים את העיצוב מההגדרות.
+                </p>
+              </div>
             </div>
           )}
 
@@ -250,8 +309,8 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
                 הקודם
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" onClick={() => { localStorage.setItem("tabro_onboarded", "true"); onComplete(); }} className="text-muted-foreground">
-                דלג
+              <Button variant="ghost" size="sm" onClick={() => { localStorage.setItem("tabro_onboarded", "true"); onComplete(); }} className="text-muted-foreground text-xs">
+                דלג על ההדרכה
               </Button>
             )}
 
