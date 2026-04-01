@@ -75,23 +75,31 @@ const SettingsPanel = () => {
   const [nameLoaded, setNameLoaded] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    const fetch = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("pin_code, pin_enabled, first_name, last_name")
-        .eq("user_id", user.id)
-        .single();
-      if (data) {
-        setPinEnabled(data.pin_enabled);
-        setHasPin(!!data.pin_code);
-        setFirstName(data.first_name || "");
-        setLastName(data.last_name || "");
-        setNameLoaded(true);
+    if (!user) { setLoading(false); return; }
+    let cancelled = false;
+    const fetchProfile = async () => {
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("pin_code, pin_enabled, first_name, last_name")
+          .eq("user_id", user.id)
+          .single();
+        if (!cancelled && data) {
+          setPinEnabled(data.pin_enabled);
+          setHasPin(!!data.pin_code);
+          setFirstName(data.first_name || "");
+          setLastName(data.last_name || "");
+          setNameLoaded(true);
+        }
+      } catch (e) {
+        console.error("Settings profile fetch error:", e);
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     };
-    fetch();
+    fetchProfile();
+    // Safety timeout in case fetch hangs
+    const timer = setTimeout(() => { if (!cancelled) setLoading(false); }, 5000);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [user]);
 
   const togglePin = async (enabled: boolean) => {
