@@ -87,6 +87,8 @@ const ProjectsManager = () => {
   const [assignDialogProject, setAssignDialogProject] = useState<string | null>(null);
   const [assignMember, setAssignMember] = useState('');
   const [assignResponsibility, setAssignResponsibility] = useState('');
+  // Multi-assignee on new task creation
+  const [newTaskPreAssignees, setNewTaskPreAssignees] = useState<Record<string, { memberId: string; responsibility: string }[]>>({});
 
   useEffect(() => {
     if (user) {
