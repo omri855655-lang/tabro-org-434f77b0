@@ -53,7 +53,7 @@ const SettingsPanel = () => {
   const navTo = useNavigate();
   const { toggleTab, isTabVisible } = useUserPreferences();
   const { lang, setLang } = useLanguage();
-  const { themeId, mode, themes, setThemeId, setMode } = useSiteAppearance();
+  const { themeId, mode, themes, setThemeId, setMode, customColors, setCustomColor, resetCustomColors } = useSiteAppearance();
   const [pinEnabled, setPinEnabled] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [loading, setLoading] = useState(true);
