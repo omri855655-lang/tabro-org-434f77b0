@@ -793,6 +793,42 @@ const ProjectsManager = () => {
                               </SelectContent>
                             </Select>
                           </div>
+                          {/* Pre-assignees for new task */}
+                          {(newTaskPreAssignees[project.id] || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(newTaskPreAssignees[project.id] || []).map((pa, idx) => {
+                                const member = getAssignableMembers(project.id).find(m => m.id === pa.memberId);
+                                return (
+                                  <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground flex items-center gap-0.5">
+                                    {member?.displayName || pa.memberId}
+                                    {pa.responsibility && <span className="text-muted-foreground">({pa.responsibility})</span>}
+                                    <button onClick={() => setNewTaskPreAssignees(prev => ({
+                                      ...prev,
+                                      [project.id]: (prev[project.id] || []).filter((_, i) => i !== idx),
+                                    }))} className="hover:text-destructive ml-0.5">×</button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] h-6 px-2 mt-1"
+                            onClick={() => {
+                              const assigneeId = newTaskAssignee[project.id];
+                              if (!assigneeId) { toast.error('בחר חבר צוות קודם'); return; }
+                              const responsibility = newTaskNotes[project.id]?.trim() || '';
+                              setNewTaskPreAssignees(prev => ({
+                                ...prev,
+                                [project.id]: [...(prev[project.id] || []), { memberId: assigneeId, responsibility }],
+                              }));
+                              setNewTaskAssignee(prev => ({ ...prev, [project.id]: '' }));
+                              setNewTaskNotes(prev => ({ ...prev, [project.id]: '' }));
+                            }}
+                          >
+                            + הוסף אחראי נוסף
+                          </Button>
                         </div>
 
                         {/* Tasks list */}
