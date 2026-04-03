@@ -163,7 +163,31 @@ export function useSiteAppearance() {
     setModeState(nextMode);
   }, [mode, themeId]);
 
+  const [customColors, setCustomColorsState] = useState<Record<string, CustomColorOverrides>>(getStoredCustomColors);
+
+  const setCustomColor = useCallback((token: keyof CustomColorOverrides, hex: string) => {
+    setCustomColorsState(prev => {
+      const next = { ...prev, [themeId]: { ...(prev[themeId] || {}), [token]: hex } };
+      window.localStorage.setItem(STORAGE_CUSTOM_COLORS_KEY, JSON.stringify(next));
+      applyCustomColors(themeId, next);
+      window.dispatchEvent(new CustomEvent(SITE_APPEARANCE_EVENT));
+      return next;
+    });
+  }, [themeId]);
+
+  const resetCustomColors = useCallback(() => {
+    setCustomColorsState(prev => {
+      const next = { ...prev };
+      delete next[themeId];
+      window.localStorage.setItem(STORAGE_CUSTOM_COLORS_KEY, JSON.stringify(next));
+      applyCustomColors(themeId, next);
+      window.dispatchEvent(new CustomEvent(SITE_APPEARANCE_EVENT));
+      return next;
+    });
+  }, [themeId]);
+
   const currentTheme = SITE_THEME_PRESETS.find((theme) => theme.id === themeId) || SITE_THEME_PRESETS[0];
+  const currentCustomColors = customColors[themeId] || {};
 
   return {
     themeId,
@@ -174,5 +198,8 @@ export function useSiteAppearance() {
     setThemeId,
     setMode,
     toggleMode,
+    customColors: currentCustomColors,
+    setCustomColor,
+    resetCustomColors,
   };
 }
