@@ -53,7 +53,7 @@ const SettingsPanel = () => {
   const navTo = useNavigate();
   const { toggleTab, isTabVisible } = useUserPreferences();
   const { lang, setLang } = useLanguage();
-  const { themeId, mode, themes, setThemeId, setMode } = useSiteAppearance();
+  const { themeId, mode, themes, setThemeId, setMode, customColors, setCustomColor, resetCustomColors } = useSiteAppearance();
   const [pinEnabled, setPinEnabled] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -256,6 +256,43 @@ const SettingsPanel = () => {
                 כהה
               </Button>
             </div>
+          </div>
+          {/* Custom color overrides */}
+          <div className="space-y-3 pt-3 border-t">
+            <Label className="text-sm font-medium">התאמת צבעים אישית</Label>
+            <p className="text-xs text-muted-foreground">שנה צבעים ספציפיים לעיצוב הנוכחי. השינויים נשמרים אוטומטית.</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">צבע ראשי</Label>
+                <input
+                  type="color"
+                  value={customColors.primary || "#3b82f6"}
+                  onChange={(e) => setCustomColor("primary", e.target.value)}
+                  className="w-full h-9 rounded-md border border-input cursor-pointer"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">צבע רקע</Label>
+                <input
+                  type="color"
+                  value={customColors.background || "#f8f9fc"}
+                  onChange={(e) => setCustomColor("background", e.target.value)}
+                  className="w-full h-9 rounded-md border border-input cursor-pointer"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">צבע כרטיס</Label>
+                <input
+                  type="color"
+                  value={customColors.card || "#ffffff"}
+                  onChange={(e) => setCustomColor("card", e.target.value)}
+                  className="w-full h-9 rounded-md border border-input cursor-pointer"
+                />
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={resetCustomColors} className="text-xs">
+              איפוס לברירת מחדל
+            </Button>
           </div>
         </CardContent>
       </Card>

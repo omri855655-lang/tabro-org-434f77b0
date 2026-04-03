@@ -87,6 +87,8 @@ const ProjectsManager = () => {
   const [assignDialogProject, setAssignDialogProject] = useState<string | null>(null);
   const [assignMember, setAssignMember] = useState('');
   const [assignResponsibility, setAssignResponsibility] = useState('');
+  // Multi-assignee on new task creation
+  const [newTaskPreAssignees, setNewTaskPreAssignees] = useState<Record<string, { memberId: string; responsibility: string }[]>>({});
 
   useEffect(() => {
     if (user) {
@@ -257,6 +259,30 @@ const ProjectsManager = () => {
       return;
     }
 
+    // Create pre-assignees
+    const preAssignees = newTaskPreAssignees[projectId] || [];
+    if (preAssignees.length > 0 && data) {
+      const allAssignableForPre = getAssignableMembers(projectId);
+      const assignInserts = preAssignees.map(pa => {
+        const member = allAssignableForPre.find(m => m.id === pa.memberId);
+        return {
+          project_task_id: data.id,
+          project_id: projectId,
+          user_id: user?.id!,
+          assignee_email: member?.email || '',
+          assignee_name: member?.displayName === 'אני (בעל הפרויקט)' ? (user?.email?.split('@')[0] || 'אני') : (member?.displayName || ''),
+          responsibility: pa.responsibility || null,
+        };
+      });
+      const { data: newAssignments } = await supabase.from('project_task_assignments').insert(assignInserts).select();
+      if (newAssignments) {
+        setTaskAssignments(prev => ({
+          ...prev,
+          [data.id]: [...(prev[data.id] || []), ...(newAssignments as TaskAssignment[])],
+        }));
+      }
+    }
+
     // Also push to selected dashboard if chosen
     const pushTarget = newTaskPushToWork[projectId];
     if (pushTarget && typeof pushTarget === 'string' && pushTarget !== '__none__') {
@@ -307,6 +333,7 @@ const ProjectsManager = () => {
     setNewTaskAssignee(prev => ({ ...prev, [projectId]: '' }));
     setNewTaskNotes(prev => ({ ...prev, [projectId]: '' }));
     setNewTaskPushToWork(prev => ({ ...prev, [projectId]: '__none__' }));
+    setNewTaskPreAssignees(prev => ({ ...prev, [projectId]: [] }));
   };
 
   // Build full assignable list including project owner
@@ -766,6 +793,42 @@ const ProjectsManager = () => {
                               </SelectContent>
                             </Select>
                           </div>
+                          {/* Pre-assignees for new task */}
+                          {(newTaskPreAssignees[project.id] || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(newTaskPreAssignees[project.id] || []).map((pa, idx) => {
+                                const member = getAssignableMembers(project.id).find(m => m.id === pa.memberId);
+                                return (
+                                  <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground flex items-center gap-0.5">
+                                    {member?.displayName || pa.memberId}
+                                    {pa.responsibility && <span className="text-muted-foreground">({pa.responsibility})</span>}
+                                    <button onClick={() => setNewTaskPreAssignees(prev => ({
+                                      ...prev,
+                                      [project.id]: (prev[project.id] || []).filter((_, i) => i !== idx),
+                                    }))} className="hover:text-destructive ml-0.5">×</button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] h-6 px-2 mt-1"
+                            onClick={() => {
+                              const assigneeId = newTaskAssignee[project.id];
+                              if (!assigneeId) { toast.error('בחר חבר צוות קודם'); return; }
+                              const responsibility = newTaskNotes[project.id]?.trim() || '';
+                              setNewTaskPreAssignees(prev => ({
+                                ...prev,
+                                [project.id]: [...(prev[project.id] || []), { memberId: assigneeId, responsibility }],
+                              }));
+                              setNewTaskAssignee(prev => ({ ...prev, [project.id]: '' }));
+                              setNewTaskNotes(prev => ({ ...prev, [project.id]: '' }));
+                            }}
+                          >
+                            + הוסף אחראי נוסף
+                          </Button>
                         </div>
 
                         {/* Tasks list */}
