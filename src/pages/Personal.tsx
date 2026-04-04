@@ -362,6 +362,162 @@ const Personal = () => {
 
   const showOnboarding = !localStorage.getItem("tabro_onboarded");
 
+  // Build flat tab items for sidebar/compact layouts
+  const flatTabItems = useMemo(() => {
+    const items: { id: string; icon: React.ComponentType<{ className?: string }>; label: string }[] = [];
+    for (const tabId of allTabIds) {
+      const staticTab = STATIC_TABS.find(t => t.id === tabId);
+      if (staticTab) {
+        if (staticTab.visibilityKey && !isTabVisible(staticTab.visibilityKey)) continue;
+        items.push({ id: staticTab.id, icon: staticTab.icon, label: t(staticTab.label as any) });
+        continue;
+      }
+      if (tabId.startsWith("shared-")) {
+        const sheetId = tabId.replace("shared-", "");
+        const shared = sharedSheets.find(s => s.sheet_id === sheetId);
+        if (!shared) continue;
+        items.push({
+          id: tabId,
+          icon: shared.task_type === "work" ? Briefcase : ListTodo,
+          label: getSharedSheetLabel(shared),
+        });
+        continue;
+      }
+      if (tabId.startsWith("board-")) {
+        const boardId = tabId.replace("board-", "");
+        const board = customBoards.find(b => b.id === boardId);
+        if (!board) continue;
+        items.push({ id: tabId, icon: LayoutGrid, label: board.name });
+      }
+    }
+    return items;
+  }, [allTabIds, isTabVisible, sharedSheets, customBoards, t]);
+
+  // Render the active content
+  const renderContent = () => {
+    switch (activeTab) {
+      case "dashboard": return <Dashboard />;
+      case "tasks": return <TaskSpreadsheetDb title="משימות אישיות" taskType="personal" showYearSelector />;
+      case "work": return <TaskSpreadsheetDb title="משימות עבודה" taskType="work" showYearSelector />;
+      case "books": return <BooksManager />;
+      case "shows": return <ShowsManager />;
+      case "podcasts": return <PodcastsManager />;
+      case "routine": return <DailyRoutine />;
+      case "projects": return <ProjectsManager />;
+      case "planner": return <PersonalPlanner />;
+      case "courses": return <CoursesManager />;
+      case "deeply": return <DeeplyDashboard />;
+      case "settings": return <SettingsPanel />;
+      case "challenges": return <ChallengesManager />;
+      case "nutrition": return <NutritionDashboard />;
+      case "dreams": return <DreamRoadmapDashboard />;
+      case "shopping": return <ShoppingDashboard />;
+      case "payments": return <PaymentDashboard />;
+      case "notes": return <NotesDashboard />;
+      case "sharing": return <SharingManagement />;
+      case "contact": return <ContactForm />;
+      default:
+        if (activeTab.startsWith("shared-")) {
+          const sheetId = activeTab.replace("shared-", "");
+          const shared = sharedSheets.find(s => s.sheet_id === sheetId);
+          if (!shared) return null;
+          return (
+            <TaskSpreadsheetDb
+              title={getSharedSheetLabel(shared)}
+              taskType={shared.task_type as "work" | "personal"}
+              readOnly={shared.permission === "view"}
+              showYearSelector={false}
+              fixedSheetName={shared.sheet_name === ALL_SHEETS_VALUE ? null : shared.sheet_name}
+              fixedSheetOwnerId={shared.owner_id}
+              ownerDisplayName={shared.owner_display_name}
+            />
+          );
+        }
+        if (activeTab.startsWith("board-")) {
+          const boardId = activeTab.replace("board-", "");
+          const board = customBoards.find(b => b.id === boardId);
+          if (!board) return null;
+          return (
+            <CustomBoardManager
+              boardId={board.id}
+              boardName={board.name}
+              statuses={board.statuses}
+              theme={board.theme}
+              onThemeChange={(newTheme) => updateBoard(board.id, { theme: newTheme } as any)}
+            />
+          );
+        }
+        return null;
+    }
+  };
+
+  // Header right-side controls
+  const headerControls = (
+    <div className={`${dir === "rtl" ? "mr-auto" : "ml-auto"} flex items-center gap-2`}>
+      <Button variant="outline" size="sm" onClick={() => navigate("/install")} className="gap-2">
+        <Download className="h-4 w-4" />
+        <span className="hidden sm:inline">{t("installApp")}</span>
+      </Button>
+      <span className="text-sm text-muted-foreground hidden sm:block">{user.email}</span>
+      <NotificationBell />
+      <PushNotificationToggle />
+      <Button variant="ghost" size="icon" onClick={toggleMode}>
+        {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+      </Button>
+      <Button variant="ghost" size="icon" onClick={handleSignOut} title="התנתק">
+        <LogOut className="h-5 w-5" />
+      </Button>
+    </div>
+  );
+
+  const headerLeft = (
+    <>
+      <FileSpreadsheet className="h-6 w-6 text-primary" />
+      <h1 className="text-xl font-bold text-foreground">{t("personalArea")}</h1>
+    </>
+  );
+
+  // ---------- SIDEBAR LAYOUT ----------
+  if (layout === "sidebar") {
+    return (
+      <>
+        {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
+        <SidebarLayout
+          tabs={flatTabItems}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          dir={dir}
+          header={<>{headerLeft}{headerControls}</>}
+        >
+          <div className="h-full">{renderContent()}</div>
+        </SidebarLayout>
+        <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
+        <AiDailyPlanner />
+      </>
+    );
+  }
+
+  // ---------- COMPACT LAYOUT ----------
+  if (layout === "compact") {
+    return (
+      <>
+        {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
+        <CompactLayout
+          tabs={flatTabItems}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          dir={dir}
+          header={<>{headerLeft}{headerControls}</>}
+        >
+          <div className="h-full">{renderContent()}</div>
+        </CompactLayout>
+        <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
+        <AiDailyPlanner />
+      </>
+    );
+  }
+
+  // ---------- DEFAULT TABS LAYOUT ----------
   return (
     <>
     {showOnboarding && (
@@ -370,37 +526,8 @@ const Personal = () => {
     <div className={`flex flex-col h-screen bg-background`} dir={dir}>
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card shadow-sm">
-        <FileSpreadsheet className="h-6 w-6 text-primary" />
-        <h1 className="text-xl font-bold text-foreground">{t("personalArea")}</h1>
-        <div className={`${dir === "rtl" ? "mr-auto" : "ml-auto"} flex items-center gap-2`}>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/install")}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("installApp")}</span>
-          </Button>
-          <span className="text-sm text-muted-foreground hidden sm:block">{user.email}</span>
-          <NotificationBell />
-          <PushNotificationToggle />
-          <Button
-            variant="ghost"
-            size="icon"
-              onClick={toggleMode}
-          >
-            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleSignOut}
-            title="התנתק"
-          >
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
+        {headerLeft}
+        {headerControls}
       </header>
 
       {/* Main Tabs */}
@@ -547,124 +674,13 @@ const Personal = () => {
           </div>
         </div>
 
-        <TabsContent value="dashboard" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <Dashboard />
-        </TabsContent>
-
-        <TabsContent value="tasks" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <TaskSpreadsheetDb
-            title="משימות אישיות"
-            taskType="personal"
-            showYearSelector={true}
-          />
-        </TabsContent>
-
-        <TabsContent value="work" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <TaskSpreadsheetDb
-            title="משימות עבודה"
-            taskType="work"
-            showYearSelector={true}
-          />
-        </TabsContent>
-
-        {sharedSheets.map((shared) => (
-          <TabsContent key={`shared-${shared.sheet_id}`} value={`shared-${shared.sheet_id}`} className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-            <TaskSpreadsheetDb
-              title={getSharedSheetLabel(shared)}
-              taskType={shared.task_type as "work" | "personal"}
-              readOnly={shared.permission === "view"}
-              showYearSelector={false}
-              fixedSheetName={shared.sheet_name === ALL_SHEETS_VALUE ? null : shared.sheet_name}
-              fixedSheetOwnerId={shared.owner_id}
-              ownerDisplayName={shared.owner_display_name}
-            />
-          </TabsContent>
-        ))}
-
-        <TabsContent value="books" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <BooksManager />
-        </TabsContent>
-
-        <TabsContent value="shows" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <ShowsManager />
-        </TabsContent>
-
-        <TabsContent value="podcasts" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <PodcastsManager />
-        </TabsContent>
-
-        <TabsContent value="routine" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <DailyRoutine />
-        </TabsContent>
-
-        <TabsContent value="projects" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <ProjectsManager />
-        </TabsContent>
-
-        <TabsContent value="planner" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <PersonalPlanner />
-        </TabsContent>
-
-        <TabsContent value="courses" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-          <CoursesManager />
-        </TabsContent>
-
-        <TabsContent value="deeply" forceMount className="flex-1 min-h-0 overflow-hidden m-0 p-0 data-[state=inactive]:hidden">
-          <DeeplyDashboard />
-        </TabsContent>
-
-        <TabsContent value="settings" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <SettingsPanel />
-        </TabsContent>
-
-        <TabsContent value="challenges" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <ChallengesManager />
-        </TabsContent>
-
-        <TabsContent value="nutrition" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <NutritionDashboard />
-        </TabsContent>
-
-        <TabsContent value="dreams" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <DreamRoadmapDashboard />
-        </TabsContent>
-
-        <TabsContent value="shopping" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <ShoppingDashboard />
-        </TabsContent>
-
-        <TabsContent value="payments" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <PaymentDashboard />
-        </TabsContent>
-
-        <TabsContent value="notes" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <NotesDashboard />
-        </TabsContent>
-
-        <TabsContent value="sharing" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <SharingManagement />
-        </TabsContent>
-
-        <TabsContent value="contact" className="flex-1 min-h-0 overflow-auto m-0 p-0">
-          <ContactForm />
-        </TabsContent>
-
-        {customBoards.map((board) => (
-          <TabsContent key={`board-${board.id}`} value={`board-${board.id}`} className="flex-1 min-h-0 overflow-auto m-0 p-0">
-            <CustomBoardManager
-              boardId={board.id}
-              boardName={board.name}
-              statuses={board.statuses}
-              theme={board.theme}
-              onThemeChange={(newTheme) => updateBoard(board.id, { theme: newTheme } as any)}
-            />
-          </TabsContent>
-        ))}
+        {/* Tab content - rendered via activeTab matching */}
+        <div className="flex-1 min-h-0 overflow-auto m-0 p-0">
+          {renderContent()}
+        </div>
       </Tabs>
 
       <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
-
-      {/* AI Daily Planner floating button */}
       <AiDailyPlanner />
     </div>
     </>
