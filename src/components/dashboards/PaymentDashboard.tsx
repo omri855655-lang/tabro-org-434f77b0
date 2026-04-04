@@ -384,85 +384,113 @@ ${context}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
           <TabsTrigger value="overview" className="flex-1">תשלומים</TabsTrigger>
-          <TabsTrigger value="budget" className="flex-1 gap-1"><PiggyBank className="h-3 w-3" />תקציב</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3 w-3" />היסטוריה</TabsTrigger>
           <TabsTrigger value="add" className="flex-1 gap-1"><Plus className="h-3 w-3" />הוסף</TabsTrigger>
           <TabsTrigger value="guides" className="flex-1 gap-1"><BookOpen className="h-3 w-3" />מדריכים</TabsTrigger>
           <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3 w-3" />יועץ AI</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="budget" className="space-y-4">
-          <Card>
-            <CardContent className="py-4 space-y-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2"><PiggyBank className="h-4 w-4" />הגדרת תקציב</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">תקציב חודשי (₪)</label>
-                  <Input type="number" value={monthlyBudget || ''} onChange={(e) => { const v = Number(e.target.value) || 0; setMonthlyBudget(v); localStorage.setItem("payment-monthly-budget", String(v)); }} placeholder="0" />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">תקציב שבועי (₪)</label>
-                  <Input type="number" value={weeklyBudget || ''} onChange={(e) => { const v = Number(e.target.value) || 0; setWeeklyBudget(v); localStorage.setItem("payment-weekly-budget", String(v)); }} placeholder="0" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {monthlyBudget > 0 && (
-            <Card className={monthBudgetLeft >= 0 ? "border-green-200 dark:border-green-800" : "border-red-200 dark:border-red-800"}>
-              <CardContent className="py-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-sm font-semibold">תקציב חודשי</h3>
-                  <span className={`text-sm font-bold ${monthBudgetLeft >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {monthBudgetLeft >= 0 ? `נותרו ₪${monthBudgetLeft.toLocaleString()}` : `חריגה של ₪${Math.abs(monthBudgetLeft).toLocaleString()}`}
-                  </span>
-                </div>
-                <Progress value={monthPct} className="h-3 mb-1" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>₪{thisMonthExpenses.toLocaleString()} הוצאו</span>
-                  <span>₪{monthlyBudget.toLocaleString()} תקציב</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {weeklyBudget > 0 && (
-            <Card className={weekBudgetLeft >= 0 ? "border-green-200 dark:border-green-800" : "border-red-200 dark:border-red-800"}>
-              <CardContent className="py-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-sm font-semibold">תקציב שבועי</h3>
-                  <span className={`text-sm font-bold ${weekBudgetLeft >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {weekBudgetLeft >= 0 ? `נותרו ₪${weekBudgetLeft.toLocaleString()}` : `חריגה של ₪${Math.abs(weekBudgetLeft).toLocaleString()}`}
-                  </span>
-                </div>
-                <Progress value={weekPct} className="h-3 mb-1" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>₪{thisWeekExpenses.toLocaleString()} הוצאו</span>
-                  <span>₪{weeklyBudget.toLocaleString()} תקציב</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {(monthlyBudget > 0 || weeklyBudget > 0) && categoryBreakdown.length > 0 && (
-            <Card>
-              <CardContent className="py-4">
-                <h3 className="text-sm font-semibold mb-3">פילוח הוצאות החודש</h3>
-                <div className="space-y-2">
-                  {categoryBreakdown.map(([cat, amt]) => {
-                    const pct = monthlyBudget > 0 ? Math.round((amt / monthlyBudget) * 100) : 0;
-                    return (
-                      <div key={cat}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>{cat}</span>
-                          <span className="font-medium">₪{amt.toLocaleString()} {monthlyBudget > 0 && `(${pct}%)`}</span>
-                        </div>
-                        <Progress value={Math.min(pct, 100)} className="h-2" />
+        <TabsContent value="history" className="space-y-4">
+          {monthlyHistory.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">אין עדיין נתונים. הוסף הכנסות והוצאות כדי לראות היסטוריה חודשית.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {monthlyHistory.map(([key, data]) => {
+                  const balance = data.income - data.expenses;
+                  const isCurrent = key === currentMonthKey;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedHistoryMonth(selectedHistoryMonth === key ? "" : key)}
+                      className={`p-3 rounded-lg border text-right transition-all ${
+                        selectedHistoryMonth === key ? "border-primary bg-primary/10" :
+                        isCurrent ? "border-primary/50 bg-primary/5" : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      <div className="text-xs font-medium mb-1">
+                        {formatMonthLabel(key)}
+                        {isCurrent && <Badge variant="outline" className="mr-1 text-[9px] px-1">נוכחי</Badge>}
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-green-600">+₪{data.income.toLocaleString()}</span>
+                        <span className="text-red-600">-₪{data.expenses.toLocaleString()}</span>
+                      </div>
+                      <div className={`text-xs font-bold mt-1 ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {balance >= 0 ? "+" : ""}₪{balance.toLocaleString()}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedHistoryMonth && (() => {
+                const monthData = monthlyHistory.find(([k]) => k === selectedHistoryMonth);
+                if (!monthData) return null;
+                const [, data] = monthData;
+                const monthCats: Record<string, number> = {};
+                data.items.filter(p => p.payment_type === "expense").forEach(p => {
+                  const cat = p.category || "אחר";
+                  monthCats[cat] = (monthCats[cat] || 0) + p.amount;
+                });
+                const sortedCats = Object.entries(monthCats).sort(([, a], [, b]) => b - a);
+
+                return (
+                  <Card>
+                    <CardContent className="py-4 space-y-4">
+                      <h3 className="text-sm font-semibold">{formatMonthLabel(selectedHistoryMonth)} — פירוט</h3>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                          <p className="text-xs text-muted-foreground">הכנסות</p>
+                          <p className="font-bold text-green-600">₪{data.income.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">הוצאות</p>
+                          <p className="font-bold text-red-600">₪{data.expenses.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">מאזן</p>
+                          <p className={`font-bold ${data.income - data.expenses >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            ₪{(data.income - data.expenses).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      {sortedCats.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold text-muted-foreground">פילוח הוצאות</h4>
+                          {sortedCats.map(([cat, amt]) => {
+                            const pct = data.expenses > 0 ? Math.round((amt / data.expenses) * 100) : 0;
+                            return (
+                              <div key={cat}>
+                                <div className="flex justify-between text-sm mb-1">
+                                  <span>{cat}</span>
+                                  <span className="font-medium">₪{amt.toLocaleString()} ({pct}%)</span>
+                                </div>
+                                <Progress value={pct} className="h-2" />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                        <h4 className="text-xs font-semibold text-muted-foreground">כל הפריטים</h4>
+                        {data.items.map(p => (
+                          <div key={p.id} className="flex items-center justify-between py-1 text-sm border-b border-border/50 last:border-0">
+                            <div className="flex items-center gap-2">
+                              <span>{p.title}</span>
+                              {p.category && <Badge variant="outline" className="text-[9px]">{p.category}</Badge>}
+                            </div>
+                            <span className={`font-medium ${p.payment_type === "income" ? "text-green-600" : "text-red-600"}`}>
+                              {p.payment_type === "income" ? "+" : "-"}₪{p.amount.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+            </>
           )}
         </TabsContent>
 
