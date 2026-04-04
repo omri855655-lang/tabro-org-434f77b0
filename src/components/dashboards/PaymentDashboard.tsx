@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Trash2, CreditCard, TrendingUp, TrendingDown, DollarSign, Check, Calendar, Sparkles, MessageCircle, ChevronDown, ChevronUp, BookOpen, PiggyBank, AlertTriangle, Lightbulb, Wallet, BarChart3 } from "lucide-react";
+import { Plus, Trash2, CreditCard, TrendingUp, TrendingDown, DollarSign, Check, Calendar, Sparkles, MessageCircle, ChevronDown, ChevronUp, BookOpen, PiggyBank, AlertTriangle, Lightbulb, Wallet, BarChart3, Download } from "lucide-react";
+import { exportToExcel } from "@/lib/exportToExcel";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
@@ -89,6 +90,12 @@ const PaymentDashboard = () => {
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [monthlyIncome, setMonthlyIncome] = useState("");
   const [savingsGoal, setSavingsGoal] = useState("");
+  const [monthlyBudget, setMonthlyBudget] = useState(() => {
+    try { return Number(localStorage.getItem("payment-monthly-budget")) || 0; } catch { return 0; }
+  });
+  const [weeklyBudget, setWeeklyBudget] = useState(() => {
+    try { return Number(localStorage.getItem("payment-weekly-budget")) || 0; } catch { return 0; }
+  });
 
   const fetchPayments = useCallback(async () => {
     if (!user) return;
@@ -159,6 +166,21 @@ const PaymentDashboard = () => {
   const needsPercent = totalIncome > 0 ? Math.round((fixedExpenses / totalIncome) * 100) : 0;
   const wantsPercent = totalIncome > 0 ? Math.round((variableExpenses / totalIncome) * 100) : 0;
   const savingsPercent = totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
+
+  // Weekly/monthly budget tracking
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const dayOfWeek = now.getDay();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const thisMonthExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && new Date(p.created_at) >= startOfMonth).reduce((s, p) => s + p.amount, 0), [payments]);
+  const thisWeekExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && new Date(p.created_at) >= startOfWeek).reduce((s, p) => s + p.amount, 0), [payments]);
+  const monthBudgetLeft = monthlyBudget - thisMonthExpenses;
+  const weekBudgetLeft = weeklyBudget - thisWeekExpenses;
+  const monthPct = monthlyBudget > 0 ? Math.min(Math.round((thisMonthExpenses / monthlyBudget) * 100), 100) : 0;
+  const weekPct = weeklyBudget > 0 ? Math.min(Math.round((thisWeekExpenses / weeklyBudget) * 100), 100) : 0;
 
   const sendAiMessage = async () => {
     if (!aiChat.trim()) return;
@@ -251,6 +273,14 @@ ${context}
       <div className="flex items-center gap-3 mb-2">
         <Wallet className="h-6 w-6 text-primary" />
         <h2 className="text-2xl font-bold">ניהול תקציב</h2>
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
+          payments.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? 'הכנסה' : 'הוצאה', category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '' })),
+          [{ key: 'title', label: 'תיאור' }, { key: 'amount', label: 'סכום' }, { key: 'type', label: 'סוג' }, { key: 'category', label: 'קטגוריה' }, { key: 'paid', label: 'שולם' }, { key: 'due_date', label: 'תאריך' }, { key: 'recurring', label: 'קבוע' }, { key: 'method', label: 'אמצעי תשלום' }],
+          'תשלומים'
+        )}>
+          <Download className="h-3.5 w-3.5" />ייצוא
+        </Button>
       </div>
 
       {/* Hero balance card */}
@@ -351,10 +381,87 @@ ${context}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
           <TabsTrigger value="overview" className="flex-1">תשלומים</TabsTrigger>
+          <TabsTrigger value="budget" className="flex-1 gap-1"><PiggyBank className="h-3 w-3" />תקציב</TabsTrigger>
           <TabsTrigger value="add" className="flex-1 gap-1"><Plus className="h-3 w-3" />הוסף</TabsTrigger>
           <TabsTrigger value="guides" className="flex-1 gap-1"><BookOpen className="h-3 w-3" />מדריכים</TabsTrigger>
           <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3 w-3" />יועץ AI</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="budget" className="space-y-4">
+          <Card>
+            <CardContent className="py-4 space-y-4">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><PiggyBank className="h-4 w-4" />הגדרת תקציב</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">תקציב חודשי (₪)</label>
+                  <Input type="number" value={monthlyBudget || ''} onChange={(e) => { const v = Number(e.target.value) || 0; setMonthlyBudget(v); localStorage.setItem("payment-monthly-budget", String(v)); }} placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">תקציב שבועי (₪)</label>
+                  <Input type="number" value={weeklyBudget || ''} onChange={(e) => { const v = Number(e.target.value) || 0; setWeeklyBudget(v); localStorage.setItem("payment-weekly-budget", String(v)); }} placeholder="0" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {monthlyBudget > 0 && (
+            <Card className={monthBudgetLeft >= 0 ? "border-green-200 dark:border-green-800" : "border-red-200 dark:border-red-800"}>
+              <CardContent className="py-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-sm font-semibold">תקציב חודשי</h3>
+                  <span className={`text-sm font-bold ${monthBudgetLeft >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {monthBudgetLeft >= 0 ? `נותרו ₪${monthBudgetLeft.toLocaleString()}` : `חריגה של ₪${Math.abs(monthBudgetLeft).toLocaleString()}`}
+                  </span>
+                </div>
+                <Progress value={monthPct} className="h-3 mb-1" />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>₪{thisMonthExpenses.toLocaleString()} הוצאו</span>
+                  <span>₪{monthlyBudget.toLocaleString()} תקציב</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {weeklyBudget > 0 && (
+            <Card className={weekBudgetLeft >= 0 ? "border-green-200 dark:border-green-800" : "border-red-200 dark:border-red-800"}>
+              <CardContent className="py-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-sm font-semibold">תקציב שבועי</h3>
+                  <span className={`text-sm font-bold ${weekBudgetLeft >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {weekBudgetLeft >= 0 ? `נותרו ₪${weekBudgetLeft.toLocaleString()}` : `חריגה של ₪${Math.abs(weekBudgetLeft).toLocaleString()}`}
+                  </span>
+                </div>
+                <Progress value={weekPct} className="h-3 mb-1" />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>₪{thisWeekExpenses.toLocaleString()} הוצאו</span>
+                  <span>₪{weeklyBudget.toLocaleString()} תקציב</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {(monthlyBudget > 0 || weeklyBudget > 0) && categoryBreakdown.length > 0 && (
+            <Card>
+              <CardContent className="py-4">
+                <h3 className="text-sm font-semibold mb-3">פילוח הוצאות החודש</h3>
+                <div className="space-y-2">
+                  {categoryBreakdown.map(([cat, amt]) => {
+                    const pct = monthlyBudget > 0 ? Math.round((amt / monthlyBudget) * 100) : 0;
+                    return (
+                      <div key={cat}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>{cat}</span>
+                          <span className="font-medium">₪{amt.toLocaleString()} {monthlyBudget > 0 && `(${pct}%)`}</span>
+                        </div>
+                        <Progress value={Math.min(pct, 100)} className="h-2" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-2">
           {/* Fixed expenses */}

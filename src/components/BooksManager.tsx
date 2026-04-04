@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Search, BookOpen } from 'lucide-react';
+import { Plus, Trash2, Search, BookOpen, Download } from 'lucide-react';
+import { exportToExcel } from '@/lib/exportToExcel';
 import { toast } from 'sonner';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 
@@ -154,6 +155,14 @@ const BooksManager = () => {
         <BookOpen className="h-6 w-6 text-primary" />
         <h2 className="text-xl font-bold">הספרים שלי</h2>
         <span className="text-sm text-muted-foreground">({books.length} ספרים)</span>
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
+          books.map(b => ({ title: b.title, author: b.author || '', status: b.status || '', notes: b.notes || '' })),
+          [{ key: 'title', label: 'שם הספר' }, { key: 'author', label: 'מחבר' }, { key: 'status', label: 'סטטוס' }, { key: 'notes', label: 'הערות' }],
+          'ספרים'
+        )}>
+          <Download className="h-3.5 w-3.5" />ייצוא
+        </Button>
       </div>
 
       {/* Add new book */}

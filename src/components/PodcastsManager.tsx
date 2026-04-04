@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Search, Headphones } from 'lucide-react';
+import { Plus, Trash2, Search, Headphones, Download } from 'lucide-react';
+import { exportToExcel } from '@/lib/exportToExcel';
 import { toast } from 'sonner';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 
@@ -154,6 +155,14 @@ const PodcastsManager = () => {
         <Headphones className="h-6 w-6 text-primary" />
         <h2 className="text-xl font-bold">הפודקאסטים שלי</h2>
         <span className="text-sm text-muted-foreground">({podcasts.length} פודקאסטים)</span>
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
+          podcasts.map(p => ({ title: p.title, host: p.host || '', status: p.status || '', notes: p.notes || '' })),
+          [{ key: 'title', label: 'שם הפודקאסט' }, { key: 'host', label: 'מגיש/ה' }, { key: 'status', label: 'סטטוס' }, { key: 'notes', label: 'הערות' }],
+          'פודקאסטים'
+        )}>
+          <Download className="h-3.5 w-3.5" />ייצוא
+        </Button>
       </div>
 
       {/* Add new podcast */}

@@ -5,13 +5,14 @@ import { useNavigate } from "react-router-dom";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { useUserPreferences, DEFAULT_TABS } from "@/hooks/useUserPreferences";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
+import { useLayoutPreference, type LayoutMode } from "@/hooks/useLayoutPreference";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, Shield, LayoutGrid, Plus, Trash2, X, Eye, EyeOff, Globe, Palette, Moon, Sun, Key, UserX, Bell } from "lucide-react";
+import { Lock, Shield, LayoutGrid, Plus, Trash2, X, Eye, EyeOff, Globe, Palette, Moon, Sun, Key, UserX, Bell, PanelLeft, LayoutList, Columns } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
@@ -54,6 +55,7 @@ const SettingsPanel = () => {
   const { toggleTab, isTabVisible } = useUserPreferences();
   const { lang, setLang } = useLanguage();
   const { themeId, mode, themes, setThemeId, setMode, customColors, setCustomColor, resetCustomColors } = useSiteAppearance();
+  const { layout, setLayout } = useLayoutPreference();
   const [pinEnabled, setPinEnabled] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -257,6 +259,33 @@ const SettingsPanel = () => {
               </Button>
             </div>
           </div>
+
+          {/* Layout mode selector */}
+          <div className="space-y-2 pt-3 border-t">
+            <Label>מבנה ממשק</Label>
+            <p className="text-xs text-muted-foreground">בחר את סגנון הניווט שהכי נוח לך. השינוי מיידי.</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { id: "tabs" as LayoutMode, label: "לשוניות", desc: "סרגל עליון קלאסי", icon: LayoutList },
+                { id: "sidebar" as LayoutMode, label: "סרגל צד", desc: "תפריט צד מתקפל", icon: PanelLeft },
+                { id: "compact" as LayoutMode, label: "קומפקטי", desc: "תפריטים נפתחים", icon: Columns },
+              ]).map((opt) => {
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => setLayout(opt.id)}
+                    className={`p-3 rounded-lg border text-center transition-colors ${layout === opt.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted text-foreground"}`}
+                  >
+                    <Icon className="h-5 w-5 mx-auto mb-1" />
+                    <div className="text-xs font-medium">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Custom color overrides */}
           <div className="space-y-3 pt-3 border-t">
             <Label className="text-sm font-medium">התאמת צבעים אישית</Label>

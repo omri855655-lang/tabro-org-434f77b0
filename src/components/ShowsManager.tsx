@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Search, Tv, Film, ArrowUpDown, Tag, X, CalendarPlus } from 'lucide-react';
+import { Plus, Trash2, Search, Tv, Film, ArrowUpDown, Tag, X, CalendarPlus, Download } from 'lucide-react';
+import { exportToExcel } from '@/lib/exportToExcel';
 import { toast } from 'sonner';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 import { Badge } from '@/components/ui/badge';
@@ -210,6 +211,14 @@ const ShowsManager = () => {
         <Tv className="h-6 w-6 text-primary" />
         <h2 className="text-xl font-bold">הסדרות והסרטים שלי</h2>
         <span className="text-sm text-muted-foreground">({shows.length} פריטים)</span>
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
+          shows.map(s => ({ title: s.title, type: s.type || '', status: s.status || '', category: s.category || '', season: s.current_season, episode: s.current_episode, notes: s.notes || '' })),
+          [{ key: 'title', label: 'שם' }, { key: 'type', label: 'סוג' }, { key: 'status', label: 'סטטוס' }, { key: 'category', label: 'קטגוריה' }, { key: 'season', label: 'עונה' }, { key: 'episode', label: 'פרק' }, { key: 'notes', label: 'הערות' }],
+          'סדרות_וסרטים'
+        )}>
+          <Download className="h-3.5 w-3.5" />ייצוא
+        </Button>
       </div>
 
       {/* Tabs: All / Series / Movies */}
