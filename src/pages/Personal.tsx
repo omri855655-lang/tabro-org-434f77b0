@@ -105,6 +105,7 @@ const Personal = () => {
   const { isTabVisible } = useUserPreferences();
   const { t, dir } = useLanguage();
   const { isDark, toggleMode } = useSiteAppearance();
+  const { layout } = useLayoutPreference();
 
   // Fetch shared sheets (where someone shared with me)
   const fetchSharedSheets = useCallback(async () => {
