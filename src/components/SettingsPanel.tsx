@@ -260,69 +260,78 @@ const SettingsPanel = () => {
             </div>
           </div>
 
-          {/* Layout mode selector */}
-          <div className="space-y-2 pt-3 border-t">
-            <Label>מבנה ממשק</Label>
-            <p className="text-xs text-muted-foreground">בחר את סגנון הניווט שהכי נוח לך. השינוי מיידי.</p>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                { id: "tabs" as LayoutMode, label: "לשוניות", desc: "סרגל עליון קלאסי", icon: LayoutList },
-                { id: "sidebar" as LayoutMode, label: "סרגל צד", desc: "תפריט צד מתקפל", icon: PanelLeft },
-                { id: "compact" as LayoutMode, label: "קומפקטי", desc: "תפריטים נפתחים", icon: Columns },
-              ]).map((opt) => {
-                const Icon = opt.icon;
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => setLayout(opt.id)}
-                    className={`p-3 rounded-lg border text-center transition-colors ${layout === opt.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted text-foreground"}`}
-                  >
-                    <Icon className="h-5 w-5 mx-auto mb-1" />
-                    <div className="text-xs font-medium">{opt.label}</div>
-                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        </CardContent>
+      </Card>
 
-          {/* Custom color overrides */}
-          <div className="space-y-3 pt-3 border-t">
-            <Label className="text-sm font-medium">התאמת צבעים אישית</Label>
-            <p className="text-xs text-muted-foreground">שנה צבעים ספציפיים לעיצוב הנוכחי. השינויים נשמרים אוטומטית.</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">צבע ראשי</Label>
-                <input
-                  type="color"
-                  value={customColors.primary || "#3b82f6"}
-                  onChange={(e) => setCustomColor("primary", e.target.value)}
-                  className="w-full h-9 rounded-md border border-input cursor-pointer"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">צבע רקע</Label>
-                <input
-                  type="color"
-                  value={customColors.background || "#f8f9fc"}
-                  onChange={(e) => setCustomColor("background", e.target.value)}
-                  className="w-full h-9 rounded-md border border-input cursor-pointer"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">צבע כרטיס</Label>
-                <input
-                  type="color"
-                  value={customColors.card || "#ffffff"}
-                  onChange={(e) => setCustomColor("card", e.target.value)}
-                  className="w-full h-9 rounded-md border border-input cursor-pointer"
-                />
-              </div>
-            </div>
-            <Button variant="outline" size="sm" onClick={resetCustomColors} className="text-xs">
-              איפוס לברירת מחדל
-            </Button>
+      {/* Layout Card - SEPARATE */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />מבנה ממשק</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">בחר את סגנון הניווט שהכי נוח לך. השינוי מיידי.</p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { id: "tabs" as LayoutMode, label: "לשוניות", desc: "סרגל עליון קלאסי", icon: LayoutList },
+              { id: "sidebar" as LayoutMode, label: "סרגל צד", desc: "תפריט צד מתקפל", icon: PanelLeft },
+              { id: "compact" as LayoutMode, label: "קומפקטי", desc: "תפריטים נפתחים", icon: Columns },
+            ]).map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setLayout(opt.id)}
+                  className={`p-3 rounded-lg border text-center transition-colors ${layout === opt.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted text-foreground"}`}
+                >
+                  <Icon className="h-5 w-5 mx-auto mb-1" />
+                  <div className="text-xs font-medium">{opt.label}</div>
+                  <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                </button>
+              );
+            })}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Custom Colors Card - SEPARATE */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" />התאמת צבעים אישית</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">שנה צבעים ספציפיים לעיצוב הנוכחי. השינויים נשמרים אוטומטית.</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">צבע ראשי</Label>
+              <input
+                type="color"
+                value={customColors.primary || "#3b82f6"}
+                onChange={(e) => setCustomColor("primary", e.target.value)}
+                className="w-full h-9 rounded-md border border-input cursor-pointer"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">צבע רקע</Label>
+              <input
+                type="color"
+                value={customColors.background || "#f8f9fc"}
+                onChange={(e) => setCustomColor("background", e.target.value)}
+                className="w-full h-9 rounded-md border border-input cursor-pointer"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">צבע כרטיס</Label>
+              <input
+                type="color"
+                value={customColors.card || "#ffffff"}
+                onChange={(e) => setCustomColor("card", e.target.value)}
+                className="w-full h-9 rounded-md border border-input cursor-pointer"
+              />
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={resetCustomColors} className="text-xs">
+            איפוס לברירת מחדל
+          </Button>
         </CardContent>
       </Card>
 
