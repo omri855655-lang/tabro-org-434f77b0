@@ -160,20 +160,30 @@ const PaymentDashboard = () => {
   const wantsPercent = totalIncome > 0 ? Math.round((variableExpenses / totalIncome) * 100) : 0;
   const savingsPercent = totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
 
-  // Weekly/monthly budget tracking
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const dayOfWeek = now.getDay();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-  startOfWeek.setHours(0, 0, 0, 0);
+  // Monthly history breakdown
+  const monthlyHistory = useMemo(() => {
+    const months: Record<string, { income: number; expenses: number; items: Payment[] }> = {};
+    payments.forEach(p => {
+      const d = new Date(p.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!months[key]) months[key] = { income: 0, expenses: 0, items: [] };
+      months[key].items.push(p);
+      if (p.payment_type === "income") months[key].income += p.amount;
+      else months[key].expenses += p.amount;
+    });
+    return Object.entries(months).sort(([a], [b]) => b.localeCompare(a));
+  }, [payments]);
 
-  const thisMonthExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && new Date(p.created_at) >= startOfMonth).reduce((s, p) => s + p.amount, 0), [payments]);
-  const thisWeekExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && new Date(p.created_at) >= startOfWeek).reduce((s, p) => s + p.amount, 0), [payments]);
-  const monthBudgetLeft = monthlyBudget - thisMonthExpenses;
-  const weekBudgetLeft = weeklyBudget - thisWeekExpenses;
-  const monthPct = monthlyBudget > 0 ? Math.min(Math.round((thisMonthExpenses / monthlyBudget) * 100), 100) : 0;
-  const weekPct = weeklyBudget > 0 ? Math.min(Math.round((thisWeekExpenses / weeklyBudget) * 100), 100) : 0;
+  const currentMonthKey = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
+  const formatMonthLabel = (key: string) => {
+    const [y, m] = key.split("-");
+    const months = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+    return `${months[parseInt(m) - 1]} ${y}`;
+  };
 
   const sendAiMessage = async () => {
     if (!aiChat.trim()) return;
