@@ -88,14 +88,7 @@ const PaymentDashboard = () => {
   const { messages: aiMessages, setMessages: setAiMessages, clearHistory: clearAiHistory } = useDashboardChatHistory("payments");
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
-  const [monthlyIncome, setMonthlyIncome] = useState("");
-  const [savingsGoal, setSavingsGoal] = useState("");
-  const [monthlyBudget, setMonthlyBudget] = useState(() => {
-    try { return Number(localStorage.getItem("payment-monthly-budget")) || 0; } catch { return 0; }
-  });
-  const [weeklyBudget, setWeeklyBudget] = useState(() => {
-    try { return Number(localStorage.getItem("payment-weekly-budget")) || 0; } catch { return 0; }
-  });
+  const [selectedHistoryMonth, setSelectedHistoryMonth] = useState("");
 
   const fetchPayments = useCallback(async () => {
     if (!user) return;
