@@ -270,11 +270,15 @@ const SettingsPanel = () => {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">בחר את סגנון הניווט שהכי נוח לך. השינוי מיידי.</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {([
               { id: "tabs" as LayoutMode, label: "לשוניות", desc: "סרגל עליון קלאסי", icon: LayoutList },
               { id: "sidebar" as LayoutMode, label: "סרגל צד", desc: "תפריט צד מתקפל", icon: PanelLeft },
               { id: "compact" as LayoutMode, label: "קומפקטי", desc: "תפריטים נפתחים", icon: Columns },
+              { id: "bottom-nav" as LayoutMode, label: "סרגל תחתון", desc: "ניווט מסך קטן", icon: Smartphone },
+              { id: "hamburger" as LayoutMode, label: "המבורגר", desc: "תפריט נפתח", icon: Menu },
+              { id: "dashboard-cards" as LayoutMode, label: "כרטיסיות", desc: "דשבורד ראשי", icon: LayoutGrid },
+              { id: "split-view" as LayoutMode, label: "פאנל כפול", desc: "ניווט + תוכן", icon: PanelLeft },
             ]).map((opt) => {
               const Icon = opt.icon;
               return (
