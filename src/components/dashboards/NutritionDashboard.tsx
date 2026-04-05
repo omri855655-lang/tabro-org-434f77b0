@@ -223,67 +223,36 @@ const NutritionDashboard = () => {
 
         {/* Nutrition Tab */}
         <TabsContent value="nutrition" className="space-y-4">
-          <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2 justify-between"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />יועץ תזונה AI</div>{nutritionMessages.length > 0 && <Button variant="ghost" size="sm" className="text-xs h-6" onClick={clearNutrition}><Trash2 className="h-3 w-3 mr-1" />נקה היסטוריה</Button>}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {/* Quick prompts */}
-              <div className="flex gap-2 flex-wrap">
-                {quickNutritionPrompts.map(prompt => (
-                  <Button key={prompt} variant="outline" size="sm" className="text-xs h-7" onClick={() => { setNutritionChat(prompt); }}>
-                    {prompt}
-                  </Button>
-                ))}
-              </div>
-
-              <div className="border rounded-lg p-3 min-h-[250px] max-h-[500px] overflow-y-auto space-y-3">
-                {!nutritionLoaded ? <p className="text-sm text-muted-foreground text-center py-8">טוען שיחה...</p> : nutritionMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">שאל על תזונה, דיאטות, תפריטים ועוד</p>}
-                {nutritionMessages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  </div>
-                ))}
-                {aiLoading && <div className="text-sm text-muted-foreground animate-pulse">חושב...</div>}
-              </div>
-              <div className="flex gap-2">
-                <Input placeholder="שאל על תזונה..." value={nutritionChat} onChange={e => setNutritionChat(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage("nutrition")} />
-                <Button onClick={() => sendMessage("nutrition")} disabled={aiLoading}><MessageCircle className="h-4 w-4" /></Button>
-              </div>
-            </CardContent>
-          </Card>
+          <AiChatPanel
+            title="יועץ תזונה AI"
+            messages={nutritionChatHistory.messages}
+            loaded={nutritionChatHistory.loaded}
+            aiLoading={aiLoading}
+            archive={nutritionChatHistory.archive}
+            onSend={(msg) => sendMessage("nutrition", msg)}
+            onClearAndArchive={nutritionChatHistory.clearAndArchive}
+            onLoadConversation={nutritionChatHistory.loadConversation}
+            placeholder="שאל על תזונה..."
+            emptyText="שאל על תזונה, דיאטות, תפריטים ועוד"
+            quickPrompts={quickNutritionPrompts}
+          />
         </TabsContent>
 
         {/* Sleep Tab */}
         <TabsContent value="sleep" className="space-y-4">
-          <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2 justify-between"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />מדריך שינה AI</div>{sleepMessages.length > 0 && <Button variant="ghost" size="sm" className="text-xs h-6" onClick={clearSleep}><Trash2 className="h-3 w-3 mr-1" />נקה היסטוריה</Button>}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2 flex-wrap">
-                {quickSleepPrompts.map(prompt => (
-                  <Button key={prompt} variant="outline" size="sm" className="text-xs h-7" onClick={() => { setSleepChat(prompt); }}>
-                    {prompt}
-                  </Button>
-                ))}
-              </div>
-
-              <div className="border rounded-lg p-3 min-h-[250px] max-h-[500px] overflow-y-auto space-y-3">
-                {!sleepLoaded ? <p className="text-sm text-muted-foreground text-center py-8">טוען שיחה...</p> : sleepMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">שאל על שינה, הרגלים, מדריכים ועוד</p>}
-                {sleepMessages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  </div>
-                ))}
-                {aiLoading && <div className="text-sm text-muted-foreground animate-pulse">חושב...</div>}
-              </div>
-              <div className="flex gap-2">
-                <Input placeholder="שאל על שינה..." value={sleepChat} onChange={e => setSleepChat(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage("sleep")} />
-                <Button onClick={() => sendMessage("sleep")} disabled={aiLoading}><MessageCircle className="h-4 w-4" /></Button>
-              </div>
-            </CardContent>
-          </Card>
+          <AiChatPanel
+            title="מדריך שינה AI"
+            messages={sleepChatHistory.messages}
+            loaded={sleepChatHistory.loaded}
+            aiLoading={aiLoading}
+            archive={sleepChatHistory.archive}
+            onSend={(msg) => sendMessage("sleep", msg)}
+            onClearAndArchive={sleepChatHistory.clearAndArchive}
+            onLoadConversation={sleepChatHistory.loadConversation}
+            placeholder="שאל על שינה..."
+            emptyText="שאל על שינה, הרגלים, מדריכים ועוד"
+            quickPrompts={quickSleepPrompts}
+          />
         </TabsContent>
       </Tabs>
     </div>
