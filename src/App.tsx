@@ -69,6 +69,9 @@ const AppContent = () => {
         <Route path="/install/*" element={<InstallApp />} />
         <Route path="/Install/*" element={<InstallApp />} />
         <Route path="/unsubscribe" element={<Unsubscribe />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/accessibility" element={<Accessibility />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
