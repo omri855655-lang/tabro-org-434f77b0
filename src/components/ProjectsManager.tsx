@@ -986,6 +986,14 @@ const ProjectsManager = () => {
                           </div>
                         )}
 
+                        {/* Team Performance Dashboard */}
+                        <TeamPerformanceDashboard
+                          tasks={tasks}
+                          members={projectMembers[project.id] || []}
+                          taskAssignments={taskAssignments}
+                          ownerEmail={user?.email || undefined}
+                        />
+
                         {/* Project Members */}
                         <ProjectMembersPanel projectId={project.id} isOwner={project.user_id === user?.id} />
                       </div>
