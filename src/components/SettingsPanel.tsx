@@ -567,31 +567,8 @@ const SettingsPanel = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />התראות</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">בחר אילו התראות תרצה לקבל. שינויים נשמרים מיידית.</p>
-          {[
-            { key: "email", label: "התראות במייל", desc: "תזכורות, עדכוני משימות ואירועים" },
-            { key: "push", label: "התראות Push", desc: "התראות בזמן אמת בדפדפן/מכשיר" },
-            { key: "telegram", label: "התראות טלגרם", desc: "סיכום יומי ותזכורות בטלגרם" },
-          ].map(n => {
-            const storageKey = `notification-${n.key}-enabled`;
-            const isEnabled = localStorage.getItem(storageKey) !== "false";
-            return (
-              <div key={n.key} className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-sm">{n.label}</Label>
-                  <p className="text-xs text-muted-foreground">{n.desc}</p>
-                </div>
-                <Switch
-                  checked={isEnabled}
-                  onCheckedChange={(checked) => {
-                    localStorage.setItem(storageKey, String(checked));
-                    toast.success(checked ? `${n.label} הופעלו` : `${n.label} בוטלו`);
-                  }}
-                />
-              </div>
-            );
-          })}
+        <CardContent>
+          <NotificationSettings />
         </CardContent>
       </Card>
 
