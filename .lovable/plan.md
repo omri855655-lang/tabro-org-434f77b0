@@ -1,116 +1,82 @@
 
-# תוכנית יישום — השלמת כל השלבים שנותרו
+# תוכנית: תצוגות עובדות + עריכה בכל מצב + נגישות ישראלית + הסרת סימן Lovable
 
-## סיכום מה נותר
+## מה נמצא בבדיקה
 
-מתוך 9 שלבים שאושרו, שלב 1 יושם חלקית (ספרים, סדרות, פודקאסטים). להלן מה שעדיין חסר:
-
----
-
-## שלב 1 (השלמה) — תצוגות דשבורדים: קניות, תשלומים, תזונה
-
-**ShoppingDashboard.tsx, PaymentDashboard.tsx, NutritionDashboard.tsx** — כרגע יש `DashboardDisplayToolbar` + `useDashboardDisplay` אבל ה-viewMode לא משנה את הרינדור בפועל. צריך להוסיף רינדור מותנה לפי viewMode (table/list/cards/compact/kanban) בדיוק כמו שנעשה בספרים/סדרות/פודקאסטים, באמצעות הקומפוננטות `ListView`, `CardsView`, `CompactView`, `KanbanView`.
-
----
-
-## שלב 2+3 — דיאלוג משימה מתקדם בפרויקטים
-
-**קובץ חדש: `src/components/projects/ProjectTaskDialog.tsx`**
-
-דיאלוג שנפתח בלחיצה על משימה, כולל:
-- שם, תיאור מלא (`description`), הנחיות ביצוע (`instructions`) — כבר קיימים בDB
-- סטטוס, דחוף, תאריך יעד, אחראים
-- חיווי "נראה" — שמירת `viewed_by` (jsonb) + `started_by_name` בDB (כבר קיימים)
-- טאב AI למשימה: שיחה עם AI דרך `task-ai-helper` עם שמירת היסטוריה ב-`project_task_ai_history`
-- הערות צוות
-
-**עדכון ProjectsManager.tsx**: לחיצה על שורת משימה פותחת את הדיאלוג במקום סתם toggle.
+### בעיות שזוהו:
+1. **תצוגות לא עובדות בדשבורד משימות** — `TaskSpreadsheetDb` יש לו סרגל "עיצוב" אבל תמיד מרנדר טבלה בלבד. ה-`dashViewMode` נשמר אבל לא משמש לרינדור.
+2. **תצוגות לא עובדות בקניות/תשלומים/תזונה** — אותה בעיה: יש toolbar אבל רק טבלה מוצגת.
+3. **אי אפשר לערוך בתצוגות אחרות** — ב-ListView, CardsView, KanbanView, CompactView אין אפשרות לערוך הערות, לשנות שם, לעדכן שדות וכו'. רק בטבלה אפשר.
+4. **שם הטאב "סדרות"** — צריך להיות "סדרות וסרטים".
+5. **אין כפתור נגישות צף** — לפי תקן ישראלי (ת"י 5568) צריך כפתור ♿ צף קבוע שפותח תפריט נגישות (הגדלת גופן, ניגודיות, השבתת אנימציות וכו').
+6. **סימן Lovable** — ניתן להסתיר אותו (דורש תוכנית Pro).
 
 ---
 
-## שלב 4 — אבני דרך AI שמורות
+## שלבי יישום
 
-כרגע אבני הדרך הן state זמני (`aiMilestones` — Record client-side). צריך:
+### שלב 1 — הוספת עריכה לקומפוננטות תצוגה
+עדכון `ListView`, `CardsView`, `KanbanView`, `CompactView` כך שיתמכו ב:
+- עריכת הערות inline (onNotesChange callback)
+- עריכת כותרת inline (onTitleChange callback)
+- שינוי סטטוס (כבר קיים בחלקם)
+- אופציונלי: כל שדה נוסף שרלוונטי לסוג הדשבורד
 
-1. לשמור אבני דרך ב-`project_milestones` (כבר קיימת בDB)
-2. לטעון אותן מה-DB בעת פתיחת פרויקט
-3. להוסיף כפתורים: ערוך, מחק, "הוסף כמשימה", "הוסף הכל כמשימות"
-4. בהמרה למשימה — לבחור אחראי ולהגדיר ניתוב
+### שלב 2 — תצוגות עובדות בדשבורד משימות
+עדכון `TaskSpreadsheetDb.tsx`:
+- לייבא ListView, CardsView, KanbanView, CompactView
+- במקום לרנדר תמיד טבלה, לבדוק `dashViewMode` ולרנדר בהתאם
+- למפות משימות לפורמט של כל קומפוננטת תצוגה
+- סטטוסים לקנבן: טרם החל / בטיפול / בוצע
+- לשמור על כל הפונקציונליות: עריכה, מחיקה, שינוי סטטוס
 
-**עדכון ProjectsManager.tsx** — להחליף את `aiMilestones` state ב-fetch/save ל-DB.
+### שלב 3 — תצוגות עובדות בקניות/תשלומים/תזונה
+- `ShoppingDashboard.tsx` — רינדור מותנה לפי viewMode
+- `PaymentDashboard.tsx` — רינדור מותנה לפי viewMode
+- `NutritionDashboard.tsx` — רינדור מותנה לפי viewMode
 
----
+### שלב 4 — שינוי שם טאב
+- `useLanguage.tsx`: שינוי `shows: "סדרות"` ל-`shows: "סדרות וסרטים"` (בעברית בלבד, שאר השפות בהתאם)
 
-## שלב 5 — בקרת איכות (QA)
+### שלב 5 — כפתור נגישות צף (תקן ישראלי)
+יצירת `AccessibilityWidget.tsx`:
+- כפתור ♿ צף קבוע בפינה שמאלית תחתונה
+- בלחיצה נפתח תפריט עם:
+  - הגדלת/הקטנת גופן
+  - ניגודיות גבוהה
+  - השבתת אנימציות
+  - סמן מוגדל
+  - הדגשת קישורים
+  - קישור לדף הצהרת הנגישות
+- שמירת העדפות ב-localStorage
+- הוספה ב-`App.tsx` כך שמופיע בכל דף
 
-בדיקה ותיקון של כל זרימות הפרויקטים כדי לוודא שכל שדה חדש נשמר ונטען נכון.
-
----
-
-## שלב 6 — התאמה אישית ברורה
-
-עדכון `SettingsPanel.tsx` להפריד בין:
-- **מבנה ניווט** (layout mode — כבר קיים)
-- **תצוגת תוכן** (view mode per dashboard)
-- **ערכת נושא** (theme — כבר קיים)
-
-בעיקר סידור ויזואלי של ההגדרות כך שהמשתמש מבין מה כל דבר עושה.
-
----
-
-## שלב 7 — נגישות
-
-1. **Skip Link** — קומפוננטה `SkipLink` ב-`App.tsx` עם `id="main-content"` על אזור התוכן
-2. **ARIA labels** — הוספת `aria-label` לכפתורים אינטראקטיביים (ניווט, מחיקה, סגירה)
-3. **היררכיית כותרות** — וידוא h1 > h2 > h3 תקין
-4. **פוקוס מקלדת** — `focus-visible` rings
-5. **דף הצהרת נגישות** — `src/pages/Accessibility.tsx` + route
-
----
-
-## שלב 8 — דפים משפטיים
-
-1. **`src/pages/Terms.tsx`** — תנאי שימוש בעברית (שימוש בפלטפורמה, אחריות, קניין רוחני, AI כהמלצה)
-2. **`src/pages/Privacy.tsx`** — מדיניות פרטיות (מידע שנאסף, שימוש, שיתוף, אבטחה)
-3. Routes ב-`App.tsx`: `/terms`, `/privacy`, `/accessibility`
-4. קישורים ב-`Landing.tsx` ובדף ההרשמה
+### שלב 6 — הסרת סימן Lovable
+- שימוש ב-`set_badge_visibility` להסתרת הסימן (דורש תוכנית Pro — אם אין Pro, אודיע)
 
 ---
 
-## שלב 9 — עדכון הדרכה
-
-1. **Landing.tsx** — עדכון FEATURES עם תיאורים מדויקים (תצוגות דשבורד, דיאלוג משימה, אבני דרך)
-2. **OnboardingWizard.tsx** — הוספת שלב שמסביר על תצוגות דשבורד ונגישות
-3. **send-welcome-email** — סנכרון עם הפיצ'רים שבאמת עובדים
+## קבצים שישתנו
+- `src/components/views/ListView.tsx` — הוספת onNotesChange, onTitleChange
+- `src/components/views/CardsView.tsx` — הוספת onNotesChange, onTitleChange
+- `src/components/views/KanbanView.tsx` — הוספת onNotesChange
+- `src/components/views/CompactView.tsx` — הוספת onClick עם עריכה
+- `src/components/TaskSpreadsheetDb.tsx` — רינדור מותנה לפי dashViewMode
+- `src/components/dashboards/ShoppingDashboard.tsx` — רינדור מותנה
+- `src/components/dashboards/PaymentDashboard.tsx` — רינדור מותנה
+- `src/components/dashboards/NutritionDashboard.tsx` — רינדור מותנה
+- `src/hooks/useLanguage.tsx` — שם טאב "סדרות וסרטים"
+- **חדש**: `src/components/AccessibilityWidget.tsx`
+- `src/App.tsx` — הוספת AccessibilityWidget
+- `src/index.css` — CSS classes לנגישות (font-size, contrast, cursor)
 
 ---
 
-## פירוט טכני
+## לגבי משימות ישנות שלא בוצעו
+מהבדיקה, הנה מה שביקשת בעבר ועדיין לא עובד באמת:
+1. ✅ ספרים/סדרות/פודקאסטים — תצוגות עובדות (נעשה)
+2. ❌ משימות — תצוגות לא עובדות (יתוקן כאן)
+3. ❌ קניות/תשלומים/תזונה — תצוגות לא עובדות (יתוקן כאן)
+4. ❌ עריכה בתצוגות שאינן טבלה — לא קיימת (יתוקן כאן)
+5. ❌ כפתור נגישות ישראלי — לא קיים (יתוקן כאן)
 
-### קבצים חדשים
-- `src/components/projects/ProjectTaskDialog.tsx`
-- `src/pages/Terms.tsx`
-- `src/pages/Privacy.tsx`
-- `src/pages/Accessibility.tsx`
-- `src/components/SkipLink.tsx`
-
-### קבצים שיעודכנו
-- `src/components/dashboards/ShoppingDashboard.tsx` — view mode rendering
-- `src/components/dashboards/PaymentDashboard.tsx` — view mode rendering
-- `src/components/dashboards/NutritionDashboard.tsx` — view mode rendering
-- `src/components/ProjectsManager.tsx` — task dialog, persistent milestones, viewed_by
-- `src/App.tsx` — routes + SkipLink
-- `src/pages/Landing.tsx` — footer links + features update
-- `src/components/OnboardingWizard.tsx` — new step
-- `src/components/SettingsPanel.tsx` — separated sections
-
-### מיגרציות DB
-לא נדרשות — כל השדות כבר קיימים (`description`, `instructions`, `viewed_by`, `started_by_name` ב-project_tasks, וטבלת `project_milestones` + `project_task_ai_history`).
-
-### סדר ביצוע
-1. השלמת תצוגות דשבורדים (קניות/תשלומים/תזונה)
-2. דיאלוג משימה + viewed/started + AI per task
-3. אבני דרך שמורות + המרה למשימות
-4. SkipLink + ARIA + דף נגישות
-5. דפים משפטיים + routes
-6. עדכון Landing + Onboarding + Welcome email
