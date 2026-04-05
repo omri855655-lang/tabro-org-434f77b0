@@ -21,42 +21,47 @@ function getWelcomeEmailHtml(lang: string, fullName: string, username: string, o
         
         <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
           <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">✅ Personal & Work Tasks</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Create task sheets, organize by category, track progress with statuses (Not Started / In Progress / Done), set deadlines and urgency levels.</p>
-        </div>
-
-        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">👥 Sheet Sharing</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Share your task sheets with others by email. Set view or edit permissions. Collaborators see who created each task.</p>
-        </div>
-
-        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📚 Books, Shows & Podcasts</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Track your reading list, TV shows, and podcasts. Mark status changes with timestamps for annual statistics.</p>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Create task sheets, organize by category, track progress with statuses, set deadlines and urgency. Share sheets with others.</p>
         </div>
 
         <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
           <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📅 Personal Planner</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Visual daily/weekly schedule. Drag to resize events, 5-minute precision, color-coded categories.</p>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Visual daily/weekly schedule with color-coded categories, holiday support, event reminders (1-60 min) and multiple send hours.</p>
         </div>
 
         <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🤖 AI Assistant</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Get AI-powered task recommendations and mental coaching for difficult tasks.</p>
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📊 Customizable Dashboard</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Customize your dashboard — choose which blocks to show, reorder them, and pick display mode (default/compact/cards) for each section.</p>
         </div>
 
         <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📊 Dashboard & Projects</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Overview of all tasks, completion rates, project management with team members and task assignments.</p>
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📂 Project Management</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Projects with team, statuses (Not Started/In Progress/On Hold/Done), due dates, multi-assignee tasks and AI milestones.</p>
         </div>
 
         <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🎓 Courses & Challenges</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Manage your learning courses with syllabi, schedule lessons, and track 30-day challenges.</p>
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🤖 AI Agent</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">A smart AI agent that understands the entire system — adds tasks, notes, events and reminders for you in natural language.</p>
         </div>
 
         <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🎵 Deeply Focus</h3>
-          <p style="margin: 0; font-size: 13px; color: #6b7280;">Ambient sound presets for deep focus and concentration while working.</p>
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">📚 Books, Shows, Podcasts & Courses</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Track media with annual statistics. Courses with syllabus, lessons and calendar sync.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🛒 Shopping & Payments</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Shared shopping lists, budget management with income/expenses, recurring payments and AI analysis.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🔔 Smart Notifications</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Email, Push & Telegram — choose specific send hours, quiet hours, calendar reminders and customized content per channel.</p>
+        </div>
+
+        <div style="background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #111827;">🎵 Deeply, Notes, Dreams & More</h3>
+          <p style="margin: 0; font-size: 13px; color: #6b7280;">Focus music, colorful notes, dream roadmaps, daily routines, challenges, nutrition tracking and stopwatch.</p>
         </div>
 
         <div style="text-align: center; margin-top: 24px;">
