@@ -1037,6 +1037,7 @@ export type Database = {
           assigned_to: string | null
           completed: boolean | null
           created_at: string
+          due_date: string | null
           id: string
           notes: string | null
           project_id: string
@@ -1052,6 +1053,7 @@ export type Database = {
           assigned_to?: string | null
           completed?: boolean | null
           created_at?: string
+          due_date?: string | null
           id?: string
           notes?: string | null
           project_id: string
@@ -1067,6 +1069,7 @@ export type Database = {
           assigned_to?: string | null
           completed?: boolean | null
           created_at?: string
+          due_date?: string | null
           id?: string
           notes?: string | null
           project_id?: string

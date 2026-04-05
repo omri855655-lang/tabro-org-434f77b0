@@ -1,0 +1,1 @@
+ALTER TABLE public.project_tasks ADD COLUMN due_date date DEFAULT NULL;
