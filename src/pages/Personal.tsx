@@ -352,21 +352,6 @@ const Personal = () => {
   const canMoveActiveLeft = canMoveActive("left");
   const canMoveActiveRight = canMoveActive("right");
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">{t("loading")}</div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  const showOnboarding = !localStorage.getItem("tabro_onboarded");
-
-  // Build flat tab items for sidebar/compact layouts
   const flatTabItems = useMemo(() => {
     const items: { id: string; icon: React.ComponentType<{ className?: string }>; label: string }[] = [];
     for (const tabId of allTabIds) {
@@ -396,6 +381,20 @@ const Personal = () => {
     }
     return items;
   }, [allTabIds, isTabVisible, sharedSheets, customBoards, t]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">{t("loading")}</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const showOnboarding = !localStorage.getItem("tabro_onboarded");
 
   // Render the active content
   const renderContent = () => {
