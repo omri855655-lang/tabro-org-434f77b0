@@ -5,34 +5,55 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Bell, Clock, Moon, Mail, Smartphone, MessageCircle, Volume2, VolumeX } from "lucide-react";
+import { Clock, Moon, Mail, Smartphone, MessageCircle, Volume2, VolumeX, Plus, X, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 
 interface ChannelSettings {
   enabled: boolean;
-  sendTime: string; // "08:00"
-  content: string[]; // ["tasks","budget","weekly","projects"]
+  sendTime: string;
+  sendTimes: string[];
+  content: string[];
+}
+
+interface PlannerSettings {
+  enabled: boolean;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+  completionEnabled: boolean;
+  reminderMinutes: number[];
 }
 
 interface NotifPrefs {
   email: ChannelSettings;
   push: ChannelSettings;
   telegram: ChannelSettings;
-  quietHoursStart: string; // "22:00"
-  quietHoursEnd: string;   // "07:00"
+  quietHoursStart: string;
+  quietHoursEnd: string;
   quietHoursEnabled: boolean;
-  dailyLimit: number; // 0 = unlimited
+  dailyLimit: number;
+  planner: PlannerSettings;
 }
 
+type ChannelKey = "email" | "push" | "telegram";
+
 const DEFAULT_PREFS: NotifPrefs = {
-  email: { enabled: true, sendTime: "08:00", content: ["tasks", "budget", "weekly", "projects"] },
-  push: { enabled: true, sendTime: "08:00", content: ["tasks", "budget", "projects"] },
-  telegram: { enabled: false, sendTime: "09:00", content: ["weekly"] },
+  email: { enabled: true, sendTime: "08:00", sendTimes: ["08:00"], content: ["tasks", "budget", "weekly", "projects"] },
+  push: { enabled: true, sendTime: "08:00", sendTimes: ["08:00"], content: ["tasks", "budget", "projects"] },
+  telegram: { enabled: false, sendTime: "09:00", sendTimes: ["09:00"], content: ["weekly"] },
   quietHoursStart: "22:00",
   quietHoursEnd: "07:00",
   quietHoursEnabled: false,
   dailyLimit: 0,
+  planner: {
+    enabled: true,
+    emailEnabled: true,
+    pushEnabled: true,
+    completionEnabled: true,
+    reminderMinutes: [1, 10, 60],
+  },
 };
 
 const CONTENT_OPTIONS = [
@@ -63,68 +84,164 @@ const CHANNEL_META = [
   { key: "telegram" as const, label: "טלגרם", icon: MessageCircle, desc: "הודעות בטלגרם" },
 ];
 
+const REMINDER_OPTIONS = [1, 5, 10, 15, 30, 60];
+
+const uniqueTimes = (times: string[]) => [...new Set(times.filter(Boolean))].sort();
+
+const normalizeChannel = (channel: Partial<ChannelSettings> | undefined, defaults: ChannelSettings): ChannelSettings => {
+  const sendTimes = uniqueTimes(
+    Array.isArray(channel?.sendTimes) && channel.sendTimes.length
+      ? channel.sendTimes
+      : channel?.sendTime
+        ? [channel.sendTime]
+        : defaults.sendTimes,
+  );
+
+  return {
+    enabled: channel?.enabled ?? defaults.enabled,
+    sendTime: sendTimes[0] || defaults.sendTime,
+    sendTimes,
+    content: Array.isArray(channel?.content) && channel.content.length ? channel.content : defaults.content,
+  };
+};
+
+const normalizePrefs = (raw?: Partial<NotifPrefs> | null): NotifPrefs => ({
+  email: normalizeChannel(raw?.email, DEFAULT_PREFS.email),
+  push: normalizeChannel(raw?.push, DEFAULT_PREFS.push),
+  telegram: normalizeChannel(raw?.telegram, DEFAULT_PREFS.telegram),
+  quietHoursStart: raw?.quietHoursStart || DEFAULT_PREFS.quietHoursStart,
+  quietHoursEnd: raw?.quietHoursEnd || DEFAULT_PREFS.quietHoursEnd,
+  quietHoursEnabled: raw?.quietHoursEnabled ?? DEFAULT_PREFS.quietHoursEnabled,
+  dailyLimit: typeof raw?.dailyLimit === "number" ? raw.dailyLimit : DEFAULT_PREFS.dailyLimit,
+  planner: {
+    enabled: raw?.planner?.enabled ?? DEFAULT_PREFS.planner.enabled,
+    emailEnabled: raw?.planner?.emailEnabled ?? DEFAULT_PREFS.planner.emailEnabled,
+    pushEnabled: raw?.planner?.pushEnabled ?? DEFAULT_PREFS.planner.pushEnabled,
+    completionEnabled: raw?.planner?.completionEnabled ?? DEFAULT_PREFS.planner.completionEnabled,
+    reminderMinutes: Array.isArray(raw?.planner?.reminderMinutes) && raw.planner.reminderMinutes.length
+      ? [...new Set(raw.planner.reminderMinutes.filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b)
+      : DEFAULT_PREFS.planner.reminderMinutes,
+  },
+});
+
 const NotificationSettings = () => {
   const { user } = useAuth();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingTimes, setPendingTimes] = useState<Record<ChannelKey, string>>({
+    email: "08:00",
+    push: "08:00",
+    telegram: "09:00",
+  });
 
-  // Load from DB
   useEffect(() => {
-    if (!user) { setLoaded(true); return; }
+    if (!user) {
+      const local = localStorage.getItem("notification-prefs");
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          setPrefs(normalizePrefs(parsed));
+        } catch {
+          setPrefs(DEFAULT_PREFS);
+        }
+      }
+      setLoaded(true);
+      return;
+    }
+
     const load = async () => {
       const { data } = await supabase
         .from("user_preferences")
         .select("notification_settings")
         .eq("user_id", user.id)
         .maybeSingle();
-      if (data?.notification_settings) {
-        setPrefs(prev => ({ ...prev, ...(data.notification_settings as any) }));
-      }
+
+      const nextPrefs = normalizePrefs((data?.notification_settings as Partial<NotifPrefs> | null) || null);
+      setPrefs(nextPrefs);
+      setPendingTimes({
+        email: nextPrefs.email.sendTimes[0] || "08:00",
+        push: nextPrefs.push.sendTimes[0] || "08:00",
+        telegram: nextPrefs.telegram.sendTimes[0] || "09:00",
+      });
       setLoaded(true);
     };
+
     load();
   }, [user]);
 
-  // Save to DB
   const save = useCallback(async (newPrefs: NotifPrefs) => {
-    setPrefs(newPrefs);
+    const normalized = normalizePrefs(newPrefs);
+    setPrefs(normalized);
+
     if (!user) {
-      localStorage.setItem("notification-prefs", JSON.stringify(newPrefs));
+      localStorage.setItem("notification-prefs", JSON.stringify(normalized));
       return;
     }
+
     setSaving(true);
     await supabase
       .from("user_preferences")
-      .upsert(
-        { user_id: user.id, notification_settings: newPrefs as any },
-        { onConflict: "user_id" }
-      );
+      .upsert({ user_id: user.id, notification_settings: normalized as any }, { onConflict: "user_id" });
     setSaving(false);
-    // Also sync legacy localStorage keys for backward compat
-    localStorage.setItem("notification-email-enabled", String(newPrefs.email.enabled));
-    localStorage.setItem("notification-push-enabled", String(newPrefs.push.enabled));
-    localStorage.setItem("notification-telegram-enabled", String(newPrefs.telegram.enabled));
+
+    localStorage.setItem("notification-email-enabled", String(normalized.email.enabled));
+    localStorage.setItem("notification-push-enabled", String(normalized.push.enabled));
+    localStorage.setItem("notification-telegram-enabled", String(normalized.telegram.enabled));
   }, [user]);
 
-  const updateChannel = (channel: "email" | "push" | "telegram", patch: Partial<ChannelSettings>) => {
-    const newPrefs = { ...prefs, [channel]: { ...prefs[channel], ...patch } };
-    save(newPrefs);
+  const updateChannel = (channel: ChannelKey, patch: Partial<ChannelSettings>) => {
+    save({
+      ...prefs,
+      [channel]: normalizeChannel({ ...prefs[channel], ...patch }, DEFAULT_PREFS[channel]),
+    });
   };
 
-  const toggleContent = (channel: "email" | "push" | "telegram", contentKey: string) => {
+  const toggleContent = (channel: ChannelKey, contentKey: string) => {
     const current = prefs[channel].content;
     const newContent = current.includes(contentKey)
-      ? current.filter(c => c !== contentKey)
+      ? current.filter((c) => c !== contentKey)
       : [...current, contentKey];
     updateChannel(channel, { content: newContent });
+  };
+
+  const addSendTime = (channel: ChannelKey) => {
+    const nextTime = pendingTimes[channel];
+    if (prefs[channel].sendTimes.includes(nextTime)) {
+      toast.error("השעה כבר נוספה");
+      return;
+    }
+    updateChannel(channel, { sendTimes: [...prefs[channel].sendTimes, nextTime] });
+  };
+
+  const removeSendTime = (channel: ChannelKey, time: string) => {
+    const next = prefs[channel].sendTimes.filter((entry) => entry !== time);
+    if (next.length === 0) {
+      toast.error("חייבת להישאר לפחות שעה אחת");
+      return;
+    }
+    updateChannel(channel, { sendTimes: next, sendTime: next[0] });
+  };
+
+  const togglePlannerMinute = (minutes: number) => {
+    const exists = prefs.planner.reminderMinutes.includes(minutes);
+    const nextMinutes = exists
+      ? prefs.planner.reminderMinutes.filter((m) => m !== minutes)
+      : [...prefs.planner.reminderMinutes, minutes].sort((a, b) => a - b);
+
+    save({
+      ...prefs,
+      planner: {
+        ...prefs.planner,
+        reminderMinutes: nextMinutes.length ? nextMinutes : [minutes],
+      },
+    });
   };
 
   if (!loaded) return null;
 
   return (
     <div className="space-y-4">
-      {/* Per-channel settings */}
       {CHANNEL_META.map(({ key, label, icon: Icon, desc }) => (
         <Card key={key}>
           <CardHeader className="py-3">
@@ -143,34 +260,48 @@ const NotificationSettings = () => {
             </CardTitle>
             <p className="text-xs text-muted-foreground">{desc}</p>
           </CardHeader>
+
           {prefs[key].enabled && (
             <CardContent className="space-y-3 pt-0">
-              {/* Send time */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <Label className="text-xs">שעת שליחה</Label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Label className="text-xs">שעות שליחה</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={pendingTimes[key]} onValueChange={(v) => setPendingTimes((prev) => ({ ...prev, [key]: v }))}>
+                      <SelectTrigger className="w-24 h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HOURS.map((h) => (
+                          <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => addSendTime(key)}>
+                      <Plus className="h-3 w-3" />הוסף שעה
+                    </Button>
+                  </div>
                 </div>
-                <Select
-                  value={prefs[key].sendTime}
-                  onValueChange={(v) => updateChannel(key, { sendTime: v })}
-                >
-                  <SelectTrigger className="w-24 h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOURS.map(h => (
-                      <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+                <div className="flex flex-wrap gap-2">
+                  {prefs[key].sendTimes.map((time) => (
+                    <Badge key={time} variant="secondary" className="gap-1 pr-2">
+                      {time}
+                      <button onClick={() => removeSendTime(key, time)} className="rounded-full hover:bg-background/70 p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
               </div>
 
-              {/* Content types */}
               <Separator />
               <p className="text-xs font-medium text-muted-foreground">תוכן ההתראות:</p>
               <div className="grid grid-cols-2 gap-2">
-                {CONTENT_OPTIONS.map(opt => (
+                {CONTENT_OPTIONS.map((opt) => (
                   <button
                     key={opt.key}
                     onClick={() => toggleContent(key, opt.key)}
@@ -190,7 +321,60 @@ const NotificationSettings = () => {
         </Card>
       ))}
 
-      {/* Quiet hours */}
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-primary" />
+              תזכורות מתכנן לו״ז
+            </div>
+            <Switch
+              checked={prefs.planner.enabled}
+              onCheckedChange={(checked) => {
+                save({ ...prefs, planner: { ...prefs.planner, enabled: checked } });
+                toast.success(checked ? "תזכורות הלוז הופעלו" : "תזכורות הלוז בוטלו");
+              }}
+            />
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">ברירת המחדל נשארת כמו עכשיו: הלוז ממשיך לשלוח תזכורות גם אם שאר ההתראות כבויות, אבל עכשיו אפשר לכוון את זה כאן.</p>
+        </CardHeader>
+
+        {prefs.planner.enabled && (
+          <CardContent className="space-y-4 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                onClick={() => save({ ...prefs, planner: { ...prefs.planner, pushEnabled: !prefs.planner.pushEnabled } })}
+                className={`rounded-lg border p-3 text-right text-xs ${prefs.planner.pushEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+              >Push לפני אירוע</button>
+              <button
+                onClick={() => save({ ...prefs, planner: { ...prefs.planner, emailEnabled: !prefs.planner.emailEnabled } })}
+                className={`rounded-lg border p-3 text-right text-xs ${prefs.planner.emailEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+              >מייל לפני אירוע</button>
+              <button
+                onClick={() => save({ ...prefs, planner: { ...prefs.planner, completionEnabled: !prefs.planner.completionEnabled } })}
+                className={`rounded-lg border p-3 text-right text-xs ${prefs.planner.completionEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+              >התראת סיום אירוע</button>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">כמה זמן לפני האירוע תרצה תזכורת?</Label>
+              <div className="flex flex-wrap gap-2">
+                {REMINDER_OPTIONS.map((minutes) => (
+                  <Badge
+                    key={minutes}
+                    variant={prefs.planner.reminderMinutes.includes(minutes) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => togglePlannerMinute(minutes)}
+                  >
+                    {minutes === 60 ? "שעה" : `${minutes} דק׳`}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
       <Card>
         <CardHeader className="py-3">
           <CardTitle className="text-sm flex items-center justify-between">
@@ -216,7 +400,7 @@ const NotificationSettings = () => {
                 <Select value={prefs.quietHoursStart} onValueChange={(v) => save({ ...prefs, quietHoursStart: v })}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {HOURS.map(h => <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>)}
+                    {HOURS.map((h) => <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -225,7 +409,7 @@ const NotificationSettings = () => {
                 <Select value={prefs.quietHoursEnd} onValueChange={(v) => save({ ...prefs, quietHoursEnd: v })}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {HOURS.map(h => <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>)}
+                    {HOURS.map((h) => <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -238,7 +422,6 @@ const NotificationSettings = () => {
         )}
       </Card>
 
-      {/* Daily limit */}
       <Card>
         <CardHeader className="py-3">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -257,7 +440,7 @@ const NotificationSettings = () => {
           >
             <SelectTrigger className="h-8 text-xs w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {LIMIT_OPTIONS.map(o => (
+              {LIMIT_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
               ))}
             </SelectContent>
@@ -265,9 +448,7 @@ const NotificationSettings = () => {
         </CardContent>
       </Card>
 
-      {saving && (
-        <p className="text-xs text-muted-foreground text-center animate-pulse">שומר...</p>
-      )}
+      {saving && <p className="text-xs text-muted-foreground text-center animate-pulse">שומר...</p>}
     </div>
   );
 };
