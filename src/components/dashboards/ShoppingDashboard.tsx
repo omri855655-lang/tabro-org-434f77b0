@@ -376,12 +376,10 @@ const ShoppingDashboard = () => {
     toast.success(`שוחזרו ${groupItems.length} פריטים לרשימה`);
   };
 
-  const sendAiMessage = async () => {
-    if (!aiChat.trim()) return;
-    const userMsg = { role: "user", content: aiChat };
-    const newMessages = [...aiMessages, userMsg];
-    setAiMessages(newMessages);
-    setAiChat("");
+  const sendAiMessage = async (chatInput: string) => {
+    if (!chatInput.trim()) return;
+    const userMsg = { role: "user", content: chatInput };
+    aiChatHistory.setMessages(prev => [...prev, userMsg]);
     setAiLoading(true);
     try {
       const dreamItems = items.filter(i => i.is_dream);
@@ -390,15 +388,16 @@ const ShoppingDashboard = () => {
       const context = `רשימת קניות: ${shoppingItems.map(i => `${i.title} (${i.status})`).join(", ")}. רשימת סופר: ${superItems.map(i => `${i.title} (${i.status}${i.category ? ", " + i.category : ""})`).join(", ")}. רשימת חלומות: ${dreamItems.map(i => `${i.title} (מחיר: ${i.price || "לא ידוע"})`).join(", ")}.`;
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
-          taskDescription: aiChat,
+          taskDescription: chatInput,
           taskCategory: "shopping",
-          customPrompt: `אתה יועץ קניות חכם. עזור למשתמש עם רשימת הקניות, הסופר והחלומות שלו. ${context}\n\nהמשתמש שואל: ${aiChat}`,
+          conversationHistory: [...aiChatHistory.messages, userMsg].slice(-20),
+          customPrompt: `אתה יועץ קניות חכם. עזור למשתמש עם רשימת הקניות, הסופר והחלומות שלו. ${context}\n\nהמשתמש שואל: ${chatInput}`,
         },
       });
       if (error) throw error;
-      setAiMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
+      aiChatHistory.setMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
     } catch {
-      setAiMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת עם AI" }]);
+      aiChatHistory.setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת עם AI" }]);
     }
     setAiLoading(false);
   };
