@@ -889,3 +889,25 @@ All colors MUST be HSL.
 .deeply-light .hover\:bg-white\/10:hover { background-color: rgba(0, 0, 0, 0.06); }
 .deeply-light .ring-white\/30 { --tw-ring-color: rgba(0, 0, 0, 0.15); }
 .deeply-light .text-white { color: white; } /* Keep white text on colored buttons */
+
+/* Accessibility classes */
+.a11y-high-contrast {
+  filter: contrast(1.4) !important;
+}
+.a11y-high-contrast * {
+  border-color: currentColor !important;
+}
+.a11y-no-animations,
+.a11y-no-animations * {
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}
+.a11y-big-cursor,
+.a11y-big-cursor * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cpath d='M5 2l20 14-9 2-5 10z' fill='black' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 5 2, auto !important;
+}
+.a11y-highlight-links a {
+  outline: 2px solid hsl(var(--primary)) !important;
+  outline-offset: 2px;
+  text-decoration: underline !important;
+}
