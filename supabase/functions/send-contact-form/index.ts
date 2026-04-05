@@ -5,9 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// NOTE: Resend free plan only allows sending to verified account email.
-// Once tabro.org domain is verified on Resend, add: 'info@tabro.org', 'tabro855@gmail.com'
-const ADMIN_EMAILS = ['omri855655@gmail.com']
+const ADMIN_EMAILS = ['omri855655@gmail.com', 'tabro855@gmail.com', 'info@tabro.org']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
