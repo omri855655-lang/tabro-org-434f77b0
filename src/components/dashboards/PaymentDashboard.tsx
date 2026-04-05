@@ -672,37 +672,23 @@ ${context}
         </TabsContent>
 
         <TabsContent value="ai">
-          <Card>
-            <CardHeader className="py-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-5 w-5" />יועץ פיננסי AI</CardTitle>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" onClick={getMonthlyInsight} disabled={aiLoading} className="text-xs gap-1">
-                    <BarChart3 className="h-3 w-3" />סיכום חודשי
-                  </Button>
-                  {aiMessages.length > 0 && <Button size="sm" variant="ghost" onClick={clearAiHistory} className="text-xs">נקה</Button>}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">שאל על תקציב, חיסכון, השקעות, או בקש סיכום חודשי. ⚠️ המלצה בלבד, לא ייעוץ מקצועי.</p>
-              <div className="border rounded-lg p-3 min-h-[200px] max-h-[400px] overflow-y-auto space-y-3">
-                {aiMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">לחץ "סיכום חודשי" לקבל ניתוח מלא, או שאל שאלה...</p>}
-                {aiMessages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  </div>
-                ))}
-                {aiLoading && <div className="text-sm text-muted-foreground animate-pulse">מנתח את הנתונים שלך...</div>}
-              </div>
-              <div className="flex gap-2">
-                <Input placeholder="שאל שאלה על הכסף שלך..." value={aiChat} onChange={e => setAiChat(e.target.value)} onKeyDown={e => e.key === "Enter" && sendAiMessage()} />
-                <Button onClick={sendAiMessage} disabled={aiLoading}><MessageCircle className="h-4 w-4" /></Button>
-              </div>
-            </CardContent>
-          </Card>
+          <AiChatPanel
+            title="יועץ פיננסי AI"
+            messages={aiChatHistory.messages}
+            loaded={aiChatHistory.loaded}
+            aiLoading={aiLoading}
+            archive={aiChatHistory.archive}
+            onSend={sendAiMessage}
+            onClearAndArchive={aiChatHistory.clearAndArchive}
+            onLoadConversation={aiChatHistory.loadConversation}
+            placeholder="שאל שאלה על הכסף שלך..."
+            emptyText="לחץ 'סיכום חודשי' לקבל ניתוח מלא, או שאל שאלה..."
+            extraActions={
+              <Button size="sm" variant="outline" onClick={getMonthlyInsight} disabled={aiLoading} className="text-xs gap-1 h-7">
+                <BarChart3 className="h-3 w-3" />סיכום חודשי
+              </Button>
+            }
+          />
         </TabsContent>
       </Tabs>
     </div>
