@@ -1215,6 +1215,15 @@ const ProjectsManager = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Project Task Dialog */}
+      <ProjectTaskDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        task={selectedTask}
+        members={(selectedTask ? projectMembers[selectedTask.project_id] : []) || []}
+        onUpdate={handleTaskUpdate}
+      />
     </div>
   );
 };
