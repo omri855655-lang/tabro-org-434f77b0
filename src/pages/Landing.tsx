@@ -57,6 +57,7 @@ const Landing = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [scrolled, setScrolled] = useState(false);
+  const { themeId, setThemeId, isDark, toggleMode } = useSiteAppearance();
 
   useEffect(() => {
     if (!loading && user) {
