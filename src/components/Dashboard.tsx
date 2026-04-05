@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookOpen, Tv, CheckCircle, Clock, Eye, TrendingUp, LayoutGrid, CalendarDays } from 'lucide-react';
 import { getHebrewDate } from '@/lib/hebrewDate';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { useSiteAppearance } from '@/hooks/useSiteAppearance';
 import TasksDashboards from '@/components/dashboard/TasksDashboards';
 import ProductivityDashboard from '@/components/dashboard/ProductivityDashboard';
 import CheckedItemsArchive from '@/components/CheckedItemsArchive';
