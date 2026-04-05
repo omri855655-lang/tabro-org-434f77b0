@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil, Check, X } from 'lucide-react';
+import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 
 export interface CardViewItem {
   id: string;
@@ -20,6 +22,8 @@ interface CardsViewProps {
   onStatusChange?: (id: string, status: string) => void;
   onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
+  onNotesChange?: (id: string, notes: string) => void;
+  onTitleChange?: (id: string, title: string) => void;
 }
 
 const statusColor = (status: string | null | undefined) => {
@@ -29,7 +33,10 @@ const statusColor = (status: string | null | undefined) => {
   return 'bg-orange-500/15 text-orange-700';
 };
 
-const CardsView = ({ items, emptyText = 'אין פריטים', onStatusChange, onDelete, onClick }: CardsViewProps) => {
+const CardsView = ({ items, emptyText = 'אין פריטים', onStatusChange, onDelete, onClick, onNotesChange, onTitleChange }: CardsViewProps) => {
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [editTitleValue, setEditTitleValue] = useState('');
+
   if (items.length === 0) {
     return <div className="p-8 text-center text-muted-foreground">{emptyText}</div>;
   }
@@ -43,7 +50,31 @@ const CardsView = ({ items, emptyText = 'אין פריטים', onStatusChange, o
           onClick={() => onClick?.(item.id)}
         >
           <div className="flex items-start justify-between gap-2">
-            <h4 className="font-semibold text-sm leading-tight flex-1">{item.title}</h4>
+            {editingTitle === item.id ? (
+              <div className="flex items-center gap-1 flex-1" onClick={e => e.stopPropagation()}>
+                <input
+                  value={editTitleValue}
+                  onChange={e => setEditTitleValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { onTitleChange?.(item.id, editTitleValue); setEditingTitle(null); }
+                    if (e.key === 'Escape') setEditingTitle(null);
+                  }}
+                  className="flex-1 bg-transparent border-b border-primary outline-none text-sm font-semibold"
+                  autoFocus
+                  dir="auto"
+                />
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { onTitleChange?.(item.id, editTitleValue); setEditingTitle(null); }}><Check className="h-3 w-3" /></Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                <h4 className="font-semibold text-sm leading-tight flex-1 truncate">{item.title}</h4>
+                {onTitleChange && (
+                  <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-60 hover:opacity-100" onClick={e => { e.stopPropagation(); setEditTitleValue(item.title); setEditingTitle(item.id); }}>
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            )}
             {onDelete && (
               <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}>
                 <Trash2 className="h-3 w-3" />
@@ -51,7 +82,18 @@ const CardsView = ({ items, emptyText = 'אין פריטים', onStatusChange, o
             )}
           </div>
           {item.subtitle && <p className="text-xs text-muted-foreground">{item.subtitle}</p>}
-          {item.notes && <p className="text-xs text-muted-foreground line-clamp-2">{item.notes}</p>}
+          {onNotesChange ? (
+            <div onClick={e => e.stopPropagation()}>
+              <InlineNotesTextarea
+                initialValue={item.notes}
+                placeholder="הערות..."
+                className="min-h-[36px] text-xs bg-muted/30 border-muted"
+                onCommit={(val) => onNotesChange(item.id, val)}
+              />
+            </div>
+          ) : (
+            item.notes && <p className="text-xs text-muted-foreground line-clamp-2">{item.notes}</p>
+          )}
           <div className="flex items-center justify-between mt-auto pt-1">
             {item.status && (
               item.statusOptions && onStatusChange ? (

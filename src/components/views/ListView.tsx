@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil, Check, X } from 'lucide-react';
+import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 
 export interface ListViewItem {
   id: string;
@@ -20,6 +22,8 @@ interface ListViewProps {
   onStatusChange?: (id: string, status: string) => void;
   onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
+  onNotesChange?: (id: string, notes: string) => void;
+  onTitleChange?: (id: string, title: string) => void;
 }
 
 const statusColor = (status: string | null | undefined) => {
@@ -29,7 +33,10 @@ const statusColor = (status: string | null | undefined) => {
   return 'bg-orange-500/15 text-orange-700 border-orange-500/30';
 };
 
-const ListView = ({ items, emptyText = 'אין פריטים', onStatusChange, onDelete, onClick }: ListViewProps) => {
+const ListView = ({ items, emptyText = 'אין פריטים', onStatusChange, onDelete, onClick, onNotesChange, onTitleChange }: ListViewProps) => {
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [editTitleValue, setEditTitleValue] = useState('');
+
   if (items.length === 0) {
     return <div className="p-8 text-center text-muted-foreground">{emptyText}</div>;
   }
@@ -39,13 +46,49 @@ const ListView = ({ items, emptyText = 'אין פריטים', onStatusChange, on
       {items.map(item => (
         <div
           key={item.id}
-          className={`flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer ${item.urgent ? 'border-destructive/40 bg-destructive/5' : ''}`}
+          className={`flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer ${item.urgent ? 'border-destructive/40 bg-destructive/5' : ''}`}
           onClick={() => onClick?.(item.id)}
         >
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm truncate">{item.title}</div>
+          <div className="flex-1 min-w-0 space-y-1">
+            {editingTitle === item.id ? (
+              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <input
+                  value={editTitleValue}
+                  onChange={e => setEditTitleValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { onTitleChange?.(item.id, editTitleValue); setEditingTitle(null); }
+                    if (e.key === 'Escape') setEditingTitle(null);
+                  }}
+                  className="flex-1 bg-transparent border-b border-primary outline-none text-sm font-medium"
+                  autoFocus
+                  dir="auto"
+                />
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { onTitleChange?.(item.id, editTitleValue); setEditingTitle(null); }}><Check className="h-3 w-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditingTitle(null)}><X className="h-3 w-3" /></Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <span className="font-medium text-sm truncate">{item.title}</span>
+                {onTitleChange && (
+                  <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100" onClick={e => { e.stopPropagation(); setEditTitleValue(item.title); setEditingTitle(item.id); }}>
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            )}
             {item.subtitle && <div className="text-xs text-muted-foreground truncate">{item.subtitle}</div>}
-            {item.notes && <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.notes}</div>}
+            {onNotesChange ? (
+              <div onClick={e => e.stopPropagation()}>
+                <InlineNotesTextarea
+                  initialValue={item.notes}
+                  placeholder="הערות..."
+                  className="min-h-[36px] text-xs bg-muted/30 border-muted"
+                  onCommit={(val) => onNotesChange(item.id, val)}
+                />
+              </div>
+            ) : (
+              item.notes && <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.notes}</div>
+            )}
           </div>
           {item.status && (
             item.statusOptions && onStatusChange ? (

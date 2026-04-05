@@ -8,6 +8,7 @@ export interface CompactViewItem {
   status?: string | null;
   subtitle?: string | null;
   urgent?: boolean;
+  notes?: string | null;
 }
 
 interface CompactViewProps {
