@@ -30,10 +30,10 @@ import {
 } from "lucide-react";
 
 const FEATURES = [
-  { icon: ListTodo, title: "משימות חכמות", desc: "נהל משימות אישיות ועבודה עם סטטוסים, קטגוריות, שיתוף גליונות ו-AI שמציע ומנתח", color: "from-blue-500 to-cyan-500" },
-  { icon: CalendarDays, title: "מתכנן יומי + לוז", desc: "תכנן את היום עם AI, נהל אירועים ביומן כולל ימי הולדת, חגים ותזכורות", color: "from-violet-500 to-purple-500" },
+  { icon: ListTodo, title: "משימות חכמות", desc: "נהל משימות אישיות ועבודה עם סטטוסים, קטגוריות, שיתוף גליונות, תאריכי יעד ו-AI שמציע ומנתח", color: "from-blue-500 to-cyan-500" },
+  { icon: CalendarDays, title: "מתכנן יומי + לוז", desc: "תכנן את היום עם AI, נהל אירועים ביומן כולל חגים, תזכורות לפני אירוע (1-60 דק׳) ושליחה במספר שעות", color: "from-violet-500 to-purple-500" },
   { icon: Focus, title: "Deeply — מצב ריכוז", desc: "תדרים בינאורליים, פומודורו, מוזיקת רקע ומאמן AI לעבודה עמוקה", color: "from-emerald-500 to-teal-500" },
-  { icon: FolderKanban, title: "ניהול פרויקטים", desc: "פרויקטים עם צוות, ריבוי אחראים למשימה, קישורים, אבני דרך AI וסנכרון לדשבורדים", color: "from-sky-500 to-indigo-500" },
+  { icon: FolderKanban, title: "ניהול פרויקטים", desc: "פרויקטים עם צוות, סטטוסים (לא התחיל/בטיפול/בהמתנה/בוצע), תאריכי יעד, אבני דרך AI וסנכרון", color: "from-sky-500 to-indigo-500" },
   { icon: Bot, title: "סוכן AI חכם", desc: "סוכן שמבין את כל המערכת — מוסיף משימות, פתקים, אירועים ותזכורות בשבילך", color: "from-fuchsia-500 to-pink-500" },
   { icon: ShoppingCart, title: "רשימת קניות", desc: "קטלוג קבוע לפי קטגוריות, הוספה מהירה, היסטוריה, סל מחזור ושיתוף", color: "from-orange-500 to-red-500" },
   { icon: StickyNote, title: "פתקים", desc: "פתקים צבעוניים עם הצמדה, ארכיון, קטגוריות וחיפוש — כמו לוח מודעות דיגיטלי", color: "from-yellow-500 to-amber-500" },
@@ -41,7 +41,7 @@ const FEATURES = [
   { icon: Trophy, title: "אתגרים והישגים", desc: "רצפים, אתגרים מותאמים אישית ואנליטיקה שדוחפים אותך קדימה", color: "from-amber-500 to-orange-500" },
   { icon: Target, title: "מפת דרכים לחלומות", desc: "הגדר חלומות, צור אבני דרך עם AI, סנכרן ללוז ועקוב אחרי ההתקדמות", color: "from-indigo-500 to-violet-500" },
   { icon: CreditCard, title: "ניהול תשלומים", desc: "מעקב הכנסות והוצאות, תשלומים חוזרים, קטגוריות וניתוח תקציב AI", color: "from-green-500 to-emerald-500" },
-  { icon: Apple, title: "תזונה וסט חיים", desc: "מעקב ארוחות, חישוב קלוריות AI, שגרה יומית חוזרת וסטופר יומי", color: "from-lime-500 to-green-500" },
+  { icon: Apple, title: "תזונה ושגרה", desc: "מעקב ארוחות, חישוב קלוריות AI, שגרה יומית חוזרת, סטופר וסטטיסטיקות", color: "from-lime-500 to-green-500" },
 ];
 
 const HIGHLIGHTS = [
