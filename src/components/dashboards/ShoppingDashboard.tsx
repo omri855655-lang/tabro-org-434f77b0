@@ -163,7 +163,7 @@ const ShoppingDashboard = () => {
   const [newPrice, setNewPrice] = useState("");
   const [activeTab, setActiveTab] = useState("shopping");
   const [aiChat, setAiChat] = useState("");
-  const { messages: aiMessages, setMessages: setAiMessages, clearHistory: clearAiHistory } = useDashboardChatHistory("shopping");
+  const aiChatHistory = useDashboardChatHistory("shopping");
   const [aiLoading, setAiLoading] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareSheetName, setShareSheetName] = useState("ראשי");
