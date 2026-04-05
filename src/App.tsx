@@ -15,6 +15,7 @@ import ResetPassword from "./pages/ResetPassword";
 import InstallApp from "./pages/InstallApp";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
+import Unsubscribe from "./pages/Unsubscribe";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ const AppContent = () => {
         <Route path="/creator-admin" element={<AdminDashboard />} />
         <Route path="/install/*" element={<InstallApp />} />
         <Route path="/Install/*" element={<InstallApp />} />
+        <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
