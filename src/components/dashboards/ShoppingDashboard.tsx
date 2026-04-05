@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AutocompleteInput from "@/components/AutocompleteInput";
 import ShoppingShareDialog from "@/components/dashboards/ShoppingShareDialog";
+import AiChatPanel from "@/components/AiChatPanel";
 
 interface ShoppingItem {
   id: string;
