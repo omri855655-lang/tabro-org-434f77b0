@@ -41,7 +41,10 @@ interface ProjectTask {
   urgent: boolean;
   status: string | null;
   notes: string | null;
+  due_date: string | null;
 }
+
+const TASK_STATUSES = ['לא התחיל', 'בטיפול', 'בהמתנה', 'בוצע'] as const;
 
 interface ProjectMember {
   id: string;
