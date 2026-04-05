@@ -217,6 +217,34 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error(`Resend error: ${resendError}`);
     }
 
+    // Notify admin about new signup
+    const adminHtml = `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px;">
+        <h2>🆕 הרשמה חדשה למערכת</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">שם:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${fullName}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">אימייל:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${user.email}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">שם משתמש:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">@${username}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">שפה:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${lang}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">תאריך:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td></tr>
+        </table>
+      </div>
+    `;
+
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: "Tabro System <onboarding@resend.dev>",
+        to: ADMIN_EMAILS,
+        subject: `🆕 הרשמה חדשה: ${fullName} (${user.email})`,
+        html: adminHtml,
+      }),
+    }).catch((e) => console.error("Admin notification error:", e));
+
     await supabase
       .from("profiles")
       .update({ welcome_email_sent: true })
