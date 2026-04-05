@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Target, Sparkles, MessageCircle, ChevronDown, ChevronUp, MapPin, CheckCircle2, Calendar, FolderKanban } from "lucide-react";
+import { Plus, Trash2, Target, Sparkles, ChevronDown, ChevronUp, MapPin, CheckCircle2, Calendar, FolderKanban } from "lucide-react";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
+import AiChatPanel from "@/components/AiChatPanel";
 
 interface DreamMilestone {
   id: string;
@@ -43,24 +45,14 @@ const DreamRoadmapDashboard = () => {
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
-  const [aiChat, setAiChat] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [generatingRoadmap, setGeneratingRoadmap] = useState<string | null>(null);
   const [milestoneCount, setMilestoneCount] = useState<Record<string, string>>({});
   const [pendingRoadmap, setPendingRoadmap] = useState<{ goalId: string; milestones: DreamMilestone[] } | null>(null);
 
-  const [goalChats, setGoalChats] = useState<Record<string, { role: string; content: string }[]>>(() => {
-    try {
-      const raw = localStorage.getItem("dashboard-chat-dreams-goals");
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem("dashboard-chat-dreams-goals", JSON.stringify(goalChats));
-  }, [goalChats]);
+  // Use DB-persisted chat history per goal (keyed by "dreams-{goalId}")
+  const [activeGoalChatId, setActiveGoalChatId] = useState<string | null>(null);
+  const dreamChatHistory = useDashboardChatHistory(`dreams-${activeGoalChatId || "none"}`);
 
   const fetchGoals = useCallback(async () => {
     if (!user) return;
@@ -86,18 +78,12 @@ const DreamRoadmapDashboard = () => {
 
   const addGoal = async () => {
     if (!user || !newTitle.trim()) return;
-
     const { error } = await supabase.from("dream_goals").insert({
       user_id: user.id,
       title: newTitle.trim(),
       description: newDescription.trim() || null,
     });
-
-    if (error) {
-      toast.error("שגיאה");
-      return;
-    }
-
+    if (error) { toast.error("שגיאה"); return; }
     setNewTitle("");
     setNewDescription("");
     toast.success("חלום חדש נוסף! 🌟");
@@ -112,89 +98,42 @@ const DreamRoadmapDashboard = () => {
 
   const normalizeMilestones = (items: any[], requestedCount: number): DreamMilestone[] => {
     const cleaned = items
-      .map((item, index) => {
-        const title = typeof item?.title === "string" ? item.title.trim() : "";
-        return {
-          id: `ms-${Date.now()}-${index}`,
-          title: title || `שלב ${index + 1}`,
-          done: false,
-          week: Number(item?.week) || index + 1,
-        };
-      })
+      .map((item, index) => ({
+        id: `ms-${Date.now()}-${index}`,
+        title: (typeof item?.title === "string" ? item.title.trim() : "") || `שלב ${index + 1}`,
+        done: false,
+        week: Number(item?.week) || index + 1,
+      }))
       .filter((item) => item.title.length > 0);
 
-    if (cleaned.length >= requestedCount) {
-      return cleaned.slice(0, requestedCount);
-    }
-
+    if (cleaned.length >= requestedCount) return cleaned.slice(0, requestedCount);
     const padded = [...cleaned];
     while (padded.length < requestedCount) {
-      padded.push({
-        id: `ms-${Date.now()}-pad-${padded.length}`,
-        title: `שלב ${padded.length + 1}`,
-        done: false,
-        week: padded.length + 1,
-      });
+      padded.push({ id: `ms-${Date.now()}-pad-${padded.length}`, title: `שלב ${padded.length + 1}`, done: false, week: padded.length + 1 });
     }
-
     return padded;
   };
 
   const generateRoadmap = async (goal: DreamGoal) => {
     const requestedCount = parseInt(milestoneCount[goal.id] || "15", 10);
-    if (requestedCount < 10 || requestedCount > 100) {
-      toast.error("בחר מספר בין 10 ל-100");
-      return;
-    }
-
+    if (requestedCount < 10 || requestedCount > 100) { toast.error("בחר מספר בין 10 ל-100"); return; }
     setGeneratingRoadmap(goal.id);
-
     try {
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
-        body: {
-          taskDescription: goal.title,
-          taskCategory: "dream_roadmap",
-          customPrompt: goal.description || "",
-          milestoneCount: requestedCount,
-        },
+        body: { taskDescription: goal.title, taskCategory: "dream_roadmap", customPrompt: goal.description || "", milestoneCount: requestedCount },
       });
-
       if (error) throw error;
-
-      const generatedMilestones = Array.isArray(data?.milestones) ? data.milestones : [];
-      const milestones = normalizeMilestones(generatedMilestones, requestedCount);
-
-      if (milestones.length !== requestedCount) {
-        throw new Error("Invalid milestone count returned");
-      }
-
+      const milestones = normalizeMilestones(Array.isArray(data?.milestones) ? data.milestones : [], requestedCount);
       setPendingRoadmap({ goalId: goal.id, milestones });
       toast.success(`נוצרו ${milestones.length} אבני דרך - בדוק ואשר ✅`);
-    } catch (error) {
-      console.error("Roadmap generation error:", error);
-      toast.error("שגיאה ביצירת מפת דרכים");
-    } finally {
-      setGeneratingRoadmap(null);
-    }
+    } catch { toast.error("שגיאה ביצירת מפת דרכים"); } finally { setGeneratingRoadmap(null); }
   };
 
   const approveRoadmap = async () => {
     if (!pendingRoadmap) return;
-
     const { goalId, milestones } = pendingRoadmap;
-    const { error } = await supabase
-      .from("dream_goals")
-      .update({
-        milestones: milestones as any,
-        ai_roadmap: { generated: true, count: milestones.length } as any,
-      })
-      .eq("id", goalId);
-
-    if (error) {
-      toast.error("שגיאה בשמירה");
-      return;
-    }
-
+    const { error } = await supabase.from("dream_goals").update({ milestones: milestones as any, ai_roadmap: { generated: true, count: milestones.length } as any }).eq("id", goalId);
+    if (error) { toast.error("שגיאה בשמירה"); return; }
     setGoals((prev) => prev.map((goal) => (goal.id === goalId ? { ...goal, milestones, ai_roadmap: { generated: true } } : goal)));
     setPendingRoadmap(null);
     toast.success("מפת הדרכים אושרה! 🎯");
@@ -210,114 +149,75 @@ const DreamRoadmapDashboard = () => {
   const toggleMilestone = async (goalId: string, milestoneId: string) => {
     const goal = goals.find((item) => item.id === goalId);
     if (!goal) return;
-
-    const updatedMilestones = goal.milestones.map((milestone) =>
-      milestone.id === milestoneId ? { ...milestone, done: !milestone.done } : milestone,
-    );
-    const progress = Math.round((updatedMilestones.filter((milestone) => milestone.done).length / updatedMilestones.length) * 100);
-
+    const updatedMilestones = goal.milestones.map((m) => m.id === milestoneId ? { ...m, done: !m.done } : m);
+    const progress = Math.round((updatedMilestones.filter((m) => m.done).length / updatedMilestones.length) * 100);
     await supabase.from("dream_goals").update({ milestones: updatedMilestones as any, progress }).eq("id", goalId);
-    setGoals((prev) => prev.map((goalItem) => (goalItem.id === goalId ? { ...goalItem, milestones: updatedMilestones, progress } : goalItem)));
+    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, milestones: updatedMilestones, progress } : g)));
   };
 
   const addMilestoneToCalendar = async (goal: DreamGoal, milestone: DreamMilestone) => {
     if (!user) return;
-
     const startDate = new Date();
     if (milestone.week) startDate.setDate(startDate.getDate() + (milestone.week - 1) * 7);
     const endDate = new Date(startDate);
     endDate.setHours(endDate.getHours() + 1);
-
     const { error } = await supabase.from("calendar_events").insert({
-      user_id: user.id,
-      title: `🎯 ${goal.title}: ${milestone.title}`,
-      start_time: startDate.toISOString(),
-      end_time: endDate.toISOString(),
-      category: "חלום",
-      source_type: "dream",
-      source_id: goal.id,
+      user_id: user.id, title: `🎯 ${goal.title}: ${milestone.title}`,
+      start_time: startDate.toISOString(), end_time: endDate.toISOString(),
+      category: "חלום", source_type: "dream", source_id: goal.id,
     });
-
-    if (error) {
-      toast.error("שגיאה בהוספה ללוז");
-      return;
-    }
-
+    if (error) { toast.error("שגיאה בהוספה ללוז"); return; }
     toast.success("נוסף למתכנן הלוז! 📅");
   };
 
   const addAllMilestonesToCalendar = async (goal: DreamGoal) => {
     if (!user) return;
-
-    const events = goal.milestones
-      .filter((milestone) => !milestone.done)
-      .map((milestone) => {
-        const startDate = new Date();
-        if (milestone.week) startDate.setDate(startDate.getDate() + (milestone.week - 1) * 7);
-        const endDate = new Date(startDate);
-        endDate.setHours(endDate.getHours() + 1);
-
-        return {
-          user_id: user.id,
-          title: `🎯 ${goal.title}: ${milestone.title}`,
-          start_time: startDate.toISOString(),
-          end_time: endDate.toISOString(),
-          category: "חלום",
-          source_type: "dream",
-          source_id: goal.id,
-        };
-      });
-
+    const events = goal.milestones.filter((m) => !m.done).map((m) => {
+      const startDate = new Date();
+      if (m.week) startDate.setDate(startDate.getDate() + (m.week - 1) * 7);
+      const endDate = new Date(startDate);
+      endDate.setHours(endDate.getHours() + 1);
+      return { user_id: user.id, title: `🎯 ${goal.title}: ${m.title}`, start_time: startDate.toISOString(), end_time: endDate.toISOString(), category: "חלום", source_type: "dream", source_id: goal.id };
+    });
     if (events.length === 0) return;
-
     const { error } = await supabase.from("calendar_events").insert(events);
-    if (error) {
-      toast.error("שגיאה");
-      return;
-    }
-
+    if (error) { toast.error("שגיאה"); return; }
     toast.success(`${events.length} אבני דרך נוספו ללוז! 📅`);
   };
 
-  const sendAiMessage = async (goalId: string) => {
-    if (!aiChat.trim()) return;
+  const sendAiMessage = async (goalId: string, message: string) => {
     const goal = goals.find((item) => item.id === goalId);
     if (!goal) return;
 
-    const userMessage = { role: "user", content: aiChat };
-    setGoalChats((prev) => ({ ...prev, [goalId]: [...(prev[goalId] || []), userMessage] }));
-    setAiChat("");
+    // Make sure the active goal is set for the hook
+    if (activeGoalChatId !== goalId) setActiveGoalChatId(goalId);
+
+    const userMessage = { role: "user", content: message };
+    dreamChatHistory.setMessages(prev => [...prev, userMessage]);
     setAiLoading(true);
 
     try {
-      const completedMilestones = goal.milestones.filter((milestone) => milestone.done).length;
+      const completedMilestones = goal.milestones.filter((m) => m.done).length;
       const totalMilestones = goal.milestones.length;
       const context = `החלום: ${goal.title}. התקדמות: ${completedMilestones}/${totalMilestones} אבני דרך הושלמו (${goal.progress}%).`;
 
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
-          taskDescription: aiChat,
+          taskDescription: message,
+          conversationHistory: [...dreamChatHistory.messages, userMessage].slice(-20),
           customPrompt: `אתה מאמן אישי להגשמת חלומות. ${context}
 
 בסיס הידע שלך כולל: The 7 Habits (סטיבן קאבי), Think and Grow Rich (נפוליאון היל), The 4-Hour Workweek (טים פריס), Start with Why (סיימון סינק), Grit (אנג'לה דאקוורת').
 
 תן עצות מעשיות וספציפיות. השתמש באימוג'ים. דבר בעברית.
 
-המשתמש שואל: ${aiChat}`,
+המשתמש שואל: ${message}`,
         },
       });
-
       if (error) throw error;
-
-      setGoalChats((prev) => ({
-        ...prev,
-        [goalId]: [...(prev[goalId] || []), { role: "assistant", content: data?.suggestion || "אין תשובה" }],
-      }));
+      dreamChatHistory.setMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
     } catch {
-      setGoalChats((prev) => ({
-        ...prev,
-        [goalId]: [...(prev[goalId] || []), { role: "assistant", content: "שגיאה" }],
-      }));
+      dreamChatHistory.setMessages(prev => [...prev, { role: "assistant", content: "שגיאה" }]);
     } finally {
       setAiLoading(false);
     }
@@ -344,8 +244,7 @@ const DreamRoadmapDashboard = () => {
         <Card className="border-2 border-primary/50 bg-primary/5">
           <CardHeader className="py-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-5 w-5" />
-              מפת דרכים מוכנה - {pendingRoadmap.milestones.length} אבני דרך
+              <Sparkles className="h-5 w-5" />מפת דרכים מוכנה - {pendingRoadmap.milestones.length} אבני דרך
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -358,12 +257,8 @@ const DreamRoadmapDashboard = () => {
               ))}
             </div>
             <div className="flex gap-2 pt-2">
-              <Button onClick={approveRoadmap} className="flex-1 gap-2">
-                <CheckCircle2 className="h-4 w-4" />מרוצה! אשר ושמור
-              </Button>
-              <Button variant="outline" onClick={regeneratePendingRoadmap} className="flex-1 gap-2">
-                <Sparkles className="h-4 w-4" />צור מחדש
-              </Button>
+              <Button onClick={approveRoadmap} className="flex-1 gap-2"><CheckCircle2 className="h-4 w-4" />מרוצה! אשר ושמור</Button>
+              <Button variant="outline" onClick={regeneratePendingRoadmap} className="flex-1 gap-2"><Sparkles className="h-4 w-4" />צור מחדש</Button>
               <Button variant="ghost" onClick={() => setPendingRoadmap(null)}>ביטול</Button>
             </div>
           </CardContent>
@@ -373,7 +268,10 @@ const DreamRoadmapDashboard = () => {
       <div className="space-y-4">
         {goals.map((goal) => (
           <Card key={goal.id} className="overflow-hidden">
-            <Collapsible open={expandedGoal === goal.id} onOpenChange={() => setExpandedGoal(expandedGoal === goal.id ? null : goal.id)}>
+            <Collapsible open={expandedGoal === goal.id} onOpenChange={() => {
+              setExpandedGoal(expandedGoal === goal.id ? null : goal.id);
+              if (expandedGoal !== goal.id) setActiveGoalChatId(goal.id);
+            }}>
               <CollapsibleTrigger className="w-full">
                 <CardHeader className="py-3 px-4 cursor-pointer hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3">
@@ -398,18 +296,15 @@ const DreamRoadmapDashboard = () => {
                     <div className="space-y-2">
                       <div className="flex gap-2 items-center">
                         <span className="text-sm text-muted-foreground whitespace-nowrap">כמה אבני דרך?</span>
-                        <Select value={milestoneCount[goal.id] || "15"} onValueChange={(value) => setMilestoneCount((prev) => ({ ...prev, [goal.id]: value }))}>
+                        <Select value={milestoneCount[goal.id] || "15"} onValueChange={(v) => setMilestoneCount((prev) => ({ ...prev, [goal.id]: v }))}>
                           <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {MILESTONE_OPTIONS.map((count) => (
-                              <SelectItem key={count} value={String(count)}>{count}</SelectItem>
-                            ))}
+                            {MILESTONE_OPTIONS.map((count) => (<SelectItem key={count} value={String(count)}>{count}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
                       <Button onClick={() => generateRoadmap(goal)} disabled={generatingRoadmap === goal.id} className="gap-2 w-full" variant="outline">
-                        <Sparkles className="h-4 w-4" />
-                        {generatingRoadmap === goal.id ? "יוצר מפת דרכים..." : "צור מפת דרכים עם AI 🗺️"}
+                        <Sparkles className="h-4 w-4" />{generatingRoadmap === goal.id ? "יוצר מפת דרכים..." : "צור מפת דרכים עם AI 🗺️"}
                       </Button>
                     </div>
                   )}
@@ -436,66 +331,48 @@ const DreamRoadmapDashboard = () => {
                           </div>
                         ))}
                       </div>
-
                       <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => generateRoadmap(goal)} disabled={generatingRoadmap === goal.id}>
                         <Sparkles className="h-3 w-3" />צור מחדש
                       </Button>
                     </div>
                   )}
 
-                  <div className="border-t pt-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold flex items-center gap-2"><MessageCircle className="h-4 w-4" />מאמן AI</h4>
-                      {(goalChats[goal.id] || []).length > 0 && (
-                        <Button size="sm" variant="ghost" className="text-xs" onClick={() => setGoalChats((prev) => ({ ...prev, [goal.id]: [] }))}>נקה</Button>
-                      )}
-                    </div>
-                    <div className="border rounded-lg p-2 min-h-[100px] max-h-[200px] overflow-y-auto space-y-2">
-                      {(goalChats[goal.id] || []).length === 0 && <p className="text-xs text-muted-foreground text-center py-4">שאל את המאמן כל שאלה על איך להגשים את החלום...</p>}
-                      {(goalChats[goal.id] || []).map((msg, index) => (
-                        <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                          <div className={`max-w-[80%] rounded-lg px-3 py-1.5 text-xs ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                            <p className="whitespace-pre-wrap">{msg.content}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input placeholder="שאל את המאמן..." value={aiChat} onChange={(e) => setAiChat(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendAiMessage(goal.id)} className="text-sm" />
-                      <Button size="sm" onClick={() => sendAiMessage(goal.id)} disabled={aiLoading}><MessageCircle className="h-3 w-3" /></Button>
-                    </div>
-                  </div>
+                  {/* AI Coach - using AiChatPanel with DB persistence */}
+                  {activeGoalChatId === goal.id && (
+                    <AiChatPanel
+                      title="מאמן AI"
+                      messages={dreamChatHistory.messages}
+                      loaded={dreamChatHistory.loaded}
+                      aiLoading={aiLoading}
+                      archive={dreamChatHistory.archive}
+                      onSend={(msg) => sendAiMessage(goal.id, msg)}
+                      onClearAndArchive={dreamChatHistory.clearAndArchive}
+                      onLoadConversation={dreamChatHistory.loadConversation}
+                      placeholder="שאל את המאמן..."
+                      emptyText="שאל את המאמן כל שאלה על איך להגשים את החלום..."
+                    />
+                  )}
 
                   <div className="flex justify-between pt-2 border-t">
                     <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1 text-xs"
+                      size="sm" variant="outline" className="gap-1 text-xs"
                       onClick={async () => {
                         if (!user) return;
                         const { data, error } = await supabase.from("projects").insert({
-                          user_id: user.id,
-                          title: goal.title,
+                          user_id: user.id, title: goal.title,
                           description: goal.description || `חלום שהפך לפרויקט`,
                         }).select().single();
                         if (error) { toast.error("שגיאה ביצירת פרויקט"); return; }
-                        // Add milestones as project tasks
                         if (goal.milestones.length > 0 && data) {
                           const tasks = goal.milestones.filter(m => !m.done).map((m, i) => ({
-                            project_id: data.id,
-                            user_id: user.id,
-                            title: m.title,
-                            sort_order: i,
+                            project_id: data.id, user_id: user.id, title: m.title, sort_order: i,
                           }));
-                          if (tasks.length > 0) {
-                            await supabase.from("project_tasks").insert(tasks);
-                          }
+                          if (tasks.length > 0) await supabase.from("project_tasks").insert(tasks);
                         }
                         toast.success(`הפרויקט "${goal.title}" נוצר עם ${goal.milestones.filter(m => !m.done).length} משימות! 🚀`);
                       }}
                     >
-                      <FolderKanban className="h-3 w-3" />
-                      הפוך לפרויקט
+                      <FolderKanban className="h-3 w-3" />הפוך לפרויקט
                     </Button>
                     <Button size="sm" variant="ghost" className="text-destructive gap-1" onClick={() => deleteGoal(goal.id)}>
                       <Trash2 className="h-3 w-3" />מחק

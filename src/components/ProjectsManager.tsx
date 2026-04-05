@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import ProjectMembersPanel from '@/components/ProjectMembersPanel';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
+import TeamPerformanceDashboard from '@/components/projects/TeamPerformanceDashboard';
 
 interface Project {
   id: string;
@@ -984,6 +985,14 @@ const ProjectsManager = () => {
                             ))}
                           </div>
                         )}
+
+                        {/* Team Performance Dashboard */}
+                        <TeamPerformanceDashboard
+                          tasks={tasks}
+                          members={projectMembers[project.id] || []}
+                          taskAssignments={taskAssignments}
+                          ownerEmail={user?.email || undefined}
+                        />
 
                         {/* Project Members */}
                         <ProjectMembersPanel projectId={project.id} isOwner={project.user_id === user?.id} />

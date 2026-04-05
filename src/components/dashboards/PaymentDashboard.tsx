@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
+import BudgetCharts from "@/components/dashboards/BudgetCharts";
 
 interface Payment {
   id: string;
@@ -412,6 +413,9 @@ ${context}
           </CardContent>
         </Card>
       )}
+
+      {/* Charts - Pie, Bar comparison, Trend */}
+      <BudgetCharts payments={payments as any} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
