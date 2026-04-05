@@ -16,6 +16,7 @@ import SampleDataImport from "@/components/SampleDataImport";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
+import AiChatPanel from "@/components/AiChatPanel";
 
 interface Payment {
   id: string;
