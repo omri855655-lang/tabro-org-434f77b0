@@ -862,13 +862,24 @@ const ProjectsManager = () => {
                       {/* AI Milestones List */}
                       {aiMilestones[project.id] && aiMilestones[project.id].length > 0 && (
                         <div className="mt-2 mr-11 space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground">אבני דרך מומלצות:</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">אבני דרך מומלצות:</p>
+                            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-0.5" onClick={() => convertAllMilestonesToTasks(project.id)}>
+                              <ArrowDownToLine className="h-3 w-3" />הוסף הכל כמשימות
+                            </Button>
+                          </div>
                           {aiMilestones[project.id].map((ms, idx) => (
-                            <div key={idx} className="flex items-center gap-2 text-xs">
+                            <div key={idx} className="flex items-center gap-2 text-xs group">
                               <button onClick={() => toggleAiMilestone(project.id, idx)}>
                                 {ms.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
                               </button>
-                              <span className={ms.done ? 'line-through text-muted-foreground' : ''}>{ms.title}</span>
+                              <span className={cn("flex-1", ms.done && 'line-through text-muted-foreground')}>{ms.title}</span>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => convertMilestoneToTask(project.id, idx)} title="הוסף כמשימה">
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => deleteMilestone(project.id, idx)} title="מחק">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             </div>
                           ))}
                           <Progress
