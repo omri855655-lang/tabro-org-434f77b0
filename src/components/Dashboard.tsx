@@ -106,13 +106,13 @@ const Dashboard = () => {
     { name: 'סדרות/סרטים', total: stats.totalShows, completed: stats.showsWatched },
   ];
 
-  if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">טוען נתונים...</div>;
-  }
-
   const hebrewDate = getHebrewDate(new Date());
   const today = new Date();
   const gregorianDate = today.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  if (loading) {
+    return <div className="p-8 text-center text-muted-foreground">טוען נתונים...</div>;
+  }
 
   return (
     <div className="p-4 space-y-6">
