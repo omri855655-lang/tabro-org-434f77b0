@@ -25,6 +25,7 @@ import YearSelector from "@/components/YearSelector";
 import TaskTabs from "@/components/TaskTabs";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import SheetSharingDialog from "@/components/SheetSharingDialog";
+import FileImport from "@/components/FileImport";
 
 interface TaskSpreadsheetDbProps {
   title: string;
@@ -424,6 +425,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     link.href = URL.createObjectURL(blob);
     link.download = `${title}.csv`;
     link.click();
+  };
+
+  const handleImportTasks = async (rows: Record<string, string>[]) => {
+    if (!user) return;
+    for (const row of rows) {
+      const desc = row['תיאור'] || row['משימה'] || row['description'] || row['title'] || Object.values(row)[0] || '';
+      if (!desc.trim()) continue;
+      await addTask(effectiveSheet ?? undefined, { description: desc.trim() });
+    }
+    refetch();
   };
 
   const completedCount = tasks.filter((t) => t.status === "בוצע").length;
@@ -948,6 +959,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             <Download className="h-4 w-4 ml-1" />
             ייצוא
           </Button>
+          {!readOnly && <FileImport onImport={handleImportTasks} label="ייבוא משימות" />}
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, Search, BookOpen, Download } from 'lucide-react';
+import FileImport from '@/components/FileImport';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { toast } from 'sonner';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
@@ -118,6 +119,25 @@ const BooksManager = () => {
     setBooks((prev) => prev.filter((b) => b.id !== id));
   };
 
+  const handleImportBooks = async (rows: Record<string, string>[]) => {
+    if (!user) return;
+    const inserts = rows.map(row => ({
+      user_id: user.id,
+      title: row['שם הספר'] || row['title'] || row['שם'] || Object.values(row)[0] || '',
+      author: row['מחבר'] || row['author'] || null,
+      status: row['סטטוס'] || row['status'] || 'לקרוא',
+      notes: row['הערות'] || row['notes'] || null,
+    })).filter(r => r.title.trim());
+
+    const { error } = await supabase.from('books').insert(inserts);
+    if (error) {
+      toast.error('שגיאה בייבוא הספרים');
+      console.error(error);
+    } else {
+      fetchBooks();
+    }
+  };
+
   const filteredBooks = books.filter(
     (book) =>
       book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -163,6 +183,7 @@ const BooksManager = () => {
         )}>
           <Download className="h-3.5 w-3.5" />ייצוא
         </Button>
+        <FileImport onImport={handleImportBooks} label="ייבוא ספרים" />
       </div>
 
       {/* Add new book */}
