@@ -658,11 +658,15 @@ export type Database = {
         Row: {
           amount: number
           archived: boolean
+          billing_day: number | null
           category: string | null
           created_at: string
           currency: string
           due_date: string | null
           id: string
+          installment_number: number | null
+          installment_total: number | null
+          month_key: string | null
           notes: string | null
           paid: boolean
           payment_method: string | null
@@ -677,11 +681,15 @@ export type Database = {
         Insert: {
           amount?: number
           archived?: boolean
+          billing_day?: number | null
           category?: string | null
           created_at?: string
           currency?: string
           due_date?: string | null
           id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          month_key?: string | null
           notes?: string | null
           paid?: boolean
           payment_method?: string | null
@@ -696,11 +704,15 @@ export type Database = {
         Update: {
           amount?: number
           archived?: boolean
+          billing_day?: number | null
           category?: string | null
           created_at?: string
           currency?: string
           due_date?: string | null
           id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          month_key?: string | null
           notes?: string | null
           paid?: boolean
           payment_method?: string | null
@@ -1540,6 +1552,7 @@ export type Database = {
           custom_categories: Json
           hidden_tabs: Json
           id: string
+          notification_settings: Json | null
           updated_at: string
           user_id: string
         }
@@ -1548,6 +1561,7 @@ export type Database = {
           custom_categories?: Json
           hidden_tabs?: Json
           id?: string
+          notification_settings?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -1556,6 +1570,7 @@ export type Database = {
           custom_categories?: Json
           hidden_tabs?: Json
           id?: string
+          notification_settings?: Json | null
           updated_at?: string
           user_id?: string
         }

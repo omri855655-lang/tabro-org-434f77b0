@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Menu, X } from "lucide-react";
+import { Menu, X, GripVertical } from "lucide-react";
 
 interface TabItem {
   id: string;
@@ -13,13 +13,15 @@ interface HamburgerLayoutProps {
   tabs: TabItem[];
   activeTab: string;
   onTabChange: (id: string) => void;
+  onReorder?: (newOrder: string[]) => void;
   header: React.ReactNode;
   children: React.ReactNode;
   dir?: string;
 }
 
-const HamburgerLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "rtl" }: HamburgerLayoutProps) => {
+const HamburgerLayout = ({ tabs, activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: HamburgerLayoutProps) => {
   const [open, setOpen] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,9 +35,20 @@ const HamburgerLayout = ({ tabs, activeTab, onTabChange, header, children, dir =
 
   const activeTabObj = tabs.find(t => t.id === activeTab);
 
+  const handleDrop = (targetId: string) => {
+    if (!draggedId || draggedId === targetId || !onReorder) return;
+    const ids = tabs.map(t => t.id);
+    const fromIdx = ids.indexOf(draggedId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, draggedId);
+    onReorder(ids);
+    setDraggedId(null);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background" dir={dir}>
-      {/* Fixed top bar */}
       <header className="h-14 flex items-center gap-3 px-4 border-b border-border bg-card shrink-0 relative z-40">
         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setOpen(!open)}>
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -53,7 +66,6 @@ const HamburgerLayout = ({ tabs, activeTab, onTabChange, header, children, dir =
         {header}
       </header>
 
-      {/* Overlay menu */}
       {open && (
         <div className="fixed inset-0 z-30 bg-black/30" onClick={() => setOpen(false)}>
           <div
@@ -72,11 +84,19 @@ const HamburgerLayout = ({ tabs, activeTab, onTabChange, header, children, dir =
                   <button
                     key={tab.id}
                     onClick={() => { onTabChange(tab.id); setOpen(false); }}
+                    draggable={!!onReorder}
+                    onDragStart={() => setDraggedId(tab.id)}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                    onDrop={() => handleDrop(tab.id)}
+                    onDragEnd={() => setDraggedId(null)}
                     className={cn(
-                      "flex items-center gap-3 w-full px-5 py-3 text-sm transition-colors",
-                      isActive ? "bg-primary/10 text-primary font-medium border-r-2 border-primary" : "text-foreground hover:bg-muted"
+                      "flex items-center gap-3 w-full px-5 py-3 text-sm transition-colors group",
+                      isActive ? "bg-primary/10 text-primary font-medium border-r-2 border-primary" : "text-foreground hover:bg-muted",
+                      draggedId === tab.id && "opacity-50",
+                      onReorder && "cursor-grab active:cursor-grabbing"
                     )}
                   >
+                    {onReorder && <GripVertical className="h-3 w-3 shrink-0 opacity-30 group-hover:opacity-60" />}
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{tab.label}</span>
                   </button>

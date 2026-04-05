@@ -490,10 +490,11 @@ const Personal = () => {
           tabs={flatTabItems}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }}
           dir={dir}
           header={<>{headerLeft}{headerControls}</>}
         >
-          <div className="h-full">{renderContent()}</div>
+          <div className="min-h-full pb-8">{renderContent()}</div>
         </SidebarLayout>
         <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
         <AiDailyPlanner />
@@ -507,7 +508,7 @@ const Personal = () => {
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
         <CompactLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
-          <div className="h-full">{renderContent()}</div>
+          <div className="min-h-full pb-8">{renderContent()}</div>
         </CompactLayout>
         <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
         <AiDailyPlanner />
@@ -521,7 +522,7 @@ const Personal = () => {
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
         <BottomNavLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
-          <div className="h-full">{renderContent()}</div>
+          <div className="min-h-full pb-20">{renderContent()}</div>
         </BottomNavLayout>
         <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
         <AiDailyPlanner />
@@ -534,8 +535,8 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <HamburgerLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerControls}</>}>
-          <div className="h-full">{renderContent()}</div>
+        <HamburgerLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerControls}</>}>
+          <div className="min-h-full pb-8">{renderContent()}</div>
         </HamburgerLayout>
         <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
         <AiDailyPlanner />
@@ -549,7 +550,7 @@ const Personal = () => {
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
         <DashboardCardsLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
-          <div className="h-full">{renderContent()}</div>
+          <div className="min-h-full pb-8">{renderContent()}</div>
         </DashboardCardsLayout>
         <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
         <AiDailyPlanner />
@@ -562,8 +563,8 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <SplitViewLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
-          <div className="h-full">{renderContent()}</div>
+        <SplitViewLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerLeft}{headerControls}</>}>
+          <div className="min-h-full pb-8">{renderContent()}</div>
         </SplitViewLayout>
         <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
         <AiDailyPlanner />

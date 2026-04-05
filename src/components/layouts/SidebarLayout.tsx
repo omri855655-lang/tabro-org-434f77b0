@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PanelLeftClose, PanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeft, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TabItem {
@@ -15,18 +15,33 @@ interface SidebarLayoutProps {
   tabs: TabItem[];
   activeTab: string;
   onTabChange: (id: string) => void;
+  onReorder?: (newOrder: string[]) => void;
   header: React.ReactNode;
   children: React.ReactNode;
   dir?: string;
 }
 
-const SidebarLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "rtl" }: SidebarLayoutProps) => {
+const SidebarLayout = ({ tabs, activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: SidebarLayoutProps) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
   const isRtl = dir === "rtl";
+
+  const handleDragStart = (id: string) => setDraggedId(id);
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+  const handleDrop = (targetId: string) => {
+    if (!draggedId || draggedId === targetId || !onReorder) return;
+    const ids = tabs.map(t => t.id);
+    const fromIdx = ids.indexOf(draggedId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, draggedId);
+    onReorder(ids);
+    setDraggedId(null);
+  };
 
   return (
     <div className="flex h-screen bg-background" dir={dir}>
-      {/* Sidebar */}
       <aside
         className={cn(
           "flex flex-col border-border bg-card transition-all duration-200 shrink-0",
@@ -34,7 +49,6 @@ const SidebarLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
           collapsed ? "w-14" : "w-56"
         )}
       >
-        {/* Sidebar header */}
         <div className={cn("flex items-center h-14 border-b border-border px-2", collapsed ? "justify-center" : "justify-between px-3")}>
           {!collapsed && <span className="text-sm font-bold text-foreground truncate">Tabro</span>}
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setCollapsed(!collapsed)}>
@@ -42,7 +56,6 @@ const SidebarLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
           </Button>
         </div>
 
-        {/* Nav items */}
         <ScrollArea className="flex-1 py-2">
           <nav className="flex flex-col gap-0.5 px-2">
             {tabs.map((tab) => {
@@ -52,13 +65,21 @@ const SidebarLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
                 <button
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
+                  draggable={!!onReorder}
+                  onDragStart={() => handleDragStart(tab.id)}
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(tab.id)}
+                  onDragEnd={() => setDraggedId(null)}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors w-full text-start",
+                    "flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors w-full text-start group",
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    draggedId === tab.id && "opacity-50",
+                    onReorder && "cursor-grab active:cursor-grabbing"
                   )}
                 >
+                  {onReorder && !collapsed && <GripVertical className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-50 transition-opacity" />}
                   <Icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span className="truncate">{tab.label}</span>}
                 </button>
@@ -78,7 +99,6 @@ const SidebarLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
         </ScrollArea>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 flex items-center gap-3 px-4 border-b border-border bg-card shrink-0">
           {header}
