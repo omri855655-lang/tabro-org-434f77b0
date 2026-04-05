@@ -169,9 +169,11 @@ const NutritionDashboard = () => {
 
   return (
     <div className="p-4 space-y-4 max-w-4xl mx-auto" dir="rtl">
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <Apple className="h-6 w-6 text-primary" />
         <h2 className="text-2xl font-bold">תזונה ושינה</h2>
+        <div className="flex-1" />
+        <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
       </div>
 
       {/* Health Profile Collapsible */}
