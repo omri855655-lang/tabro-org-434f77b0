@@ -83,11 +83,11 @@ const TeamPerformanceDashboard = ({ tasks, members, taskAssignments, ownerEmail 
               <Progress value={stat.pct} className="h-2.5" />
               <div className="flex gap-3 text-[11px] flex-wrap">
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="w-2 h-2 rounded-full bg-primary" />
                   בוצע: {stat.completed}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span className="w-2 h-2 rounded-full bg-accent" />
                   בטיפול: {stat.inProgress}
                 </span>
                 <span className="flex items-center gap-1">
