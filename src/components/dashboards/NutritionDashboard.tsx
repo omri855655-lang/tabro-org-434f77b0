@@ -13,6 +13,7 @@ import { Apple, Sparkles, MessageCircle, User, ChevronDown, ChevronUp, Save, Ute
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
+import AiChatPanel from "@/components/AiChatPanel";
 
 interface HealthProfile {
   age: number | null;
