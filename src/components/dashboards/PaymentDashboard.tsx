@@ -208,11 +208,10 @@ const PaymentDashboard = () => {
     return `${months[parseInt(m) - 1]} ${y}`;
   };
 
-  const sendAiMessage = async () => {
-    if (!aiChat.trim()) return;
-    const userMsg = { role: "user", content: aiChat };
-    setAiMessages(prev => [...prev, userMsg]);
-    setAiChat("");
+  const sendAiMessage = async (chatInput: string) => {
+    if (!chatInput.trim()) return;
+    const userMsg = { role: "user", content: chatInput };
+    aiChatHistory.setMessages(prev => [...prev, userMsg]);
     setAiLoading(true);
 
     try {
@@ -230,7 +229,8 @@ const PaymentDashboard = () => {
 
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
-          taskDescription: aiChat,
+          taskDescription: chatInput,
+          conversationHistory: [...aiChatHistory.messages, userMsg].slice(-20),
           customPrompt: `אתה יועץ פיננסי חכם ומקצועי. הנה המצב הפיננסי המפורט של המשתמש:
 ${context}
 
@@ -245,51 +245,19 @@ ${context}
 
 השתמש באימוג'ים. דבר בעברית. ציין שזו המלצה בלבד ולא ייעוץ מקצועי.
 
-המשתמש שואל: ${aiChat}`,
+המשתמש שואל: ${chatInput}`,
         },
       });
       if (error) throw error;
-      setAiMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
+      aiChatHistory.setMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
     } catch {
-      setAiMessages(prev => [...prev, { role: "assistant", content: "שגיאה בקבלת תשובה" }]);
+      aiChatHistory.setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בקבלת תשובה" }]);
     }
     setAiLoading(false);
   };
 
-  const getMonthlyInsight = async () => {
-    setAiLoading(true);
-    const prompt = "תן לי סיכום חודשי מפורט: מה הייתי צריך לשפר, מה עשיתי טוב, ומה הצעדים הבאים שלי. תתייחס להוצאות הגדולות ביותר ותציע איך לחסוך.";
-    setAiMessages(prev => [...prev, { role: "user", content: prompt }]);
-    setAiChat(prompt);
-    // Trigger sendAiMessage logic
-    const userMsg = { role: "user", content: prompt };
-    setAiMessages(prev => {
-      // Remove last duplicate
-      const filtered = prev.filter(m => m.content !== prompt);
-      return [...filtered, userMsg];
-    });
-    
-    try {
-      const catBreakdown = categoryBreakdown.map(([cat, amt]) => `${cat}: ₪${amt.toLocaleString()}`).join(", ");
-      const { data, error } = await supabase.functions.invoke("task-ai-helper", {
-        body: {
-          taskDescription: prompt,
-          customPrompt: `אתה יועץ פיננסי. נתח את החודש:
-הכנסות: ₪${totalIncome.toLocaleString()}, הוצאות: ₪${totalExpenses.toLocaleString()}, מאזן: ₪${balance.toLocaleString()}
-קבועות: ₪${fixedExpenses.toLocaleString()}, משתנות: ₪${variableExpenses.toLocaleString()}
-קטגוריות: ${catBreakdown}
-50/30/20: צרכים ${needsPercent}%, רצונות ${wantsPercent}%, חיסכון ${savingsPercent}%
-
-תן סיכום חודשי: ✅ מה טוב, ⚠️ מה צריך שיפור, 💡 צעדים הבאים. השתמש באימוג'ים. עברית. ציין שזו המלצה בלבד.`,
-        },
-      });
-      if (error) throw error;
-      setAiMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
-    } catch {
-      setAiMessages(prev => [...prev, { role: "assistant", content: "שגיאה" }]);
-    }
-    setAiChat("");
-    setAiLoading(false);
+  const getMonthlyInsight = () => {
+    sendAiMessage("תן לי סיכום חודשי מפורט: מה הייתי צריך לשפר, מה עשיתי טוב, ומה הצעדים הבאים שלי. תתייחס להוצאות הגדולות ביותר ותציע איך לחסוך.");
   };
 
   if (loading) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
