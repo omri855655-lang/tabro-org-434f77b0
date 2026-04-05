@@ -903,6 +903,11 @@ const ProjectsManager = () => {
                                   {task.notes && (
                                     <span className="text-[10px] text-muted-foreground block">{task.notes}</span>
                                   )}
+                                  {task.due_date && (
+                                    <span className="text-[10px] text-muted-foreground block">
+                                      יעד: {new Date(task.due_date).toLocaleDateString('he-IL')}
+                                    </span>
+                                  )}
                                   {/* Multi-assignee chips with colored dots */}
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     {task.assigned_email && (() => {
@@ -935,6 +940,43 @@ const ProjectsManager = () => {
                                     </button>
                                   </div>
                                 </div>
+                                <Select
+                                  value={task.status || 'לא התחיל'}
+                                  onValueChange={async (value) => {
+                                    const completed = value === 'בוצע';
+                                    await supabase.from('project_tasks').update({ status: value, completed }).eq('id', task.id);
+                                    setProjectTasks(prev => ({
+                                      ...prev,
+                                      [task.project_id]: prev[task.project_id].map(t =>
+                                        t.id === task.id ? { ...t, status: value, completed } : t
+                                      )
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[100px] h-7 text-[10px] shrink-0">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {TASK_STATUSES.map(s => (
+                                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="date"
+                                  value={task.due_date || ''}
+                                  onChange={async (e) => {
+                                    const due_date = e.target.value || null;
+                                    await supabase.from('project_tasks').update({ due_date } as any).eq('id', task.id);
+                                    setProjectTasks(prev => ({
+                                      ...prev,
+                                      [task.project_id]: prev[task.project_id].map(t =>
+                                        t.id === task.id ? { ...t, due_date } : t
+                                      )
+                                    }));
+                                  }}
+                                  className="w-[120px] h-7 text-[10px] shrink-0"
+                                />
                                 <Button
                                   variant="ghost"
                                   size="icon"
