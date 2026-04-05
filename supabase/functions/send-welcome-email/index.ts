@@ -2,7 +2,9 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const ADMIN_EMAILS = ['omri855655@gmail.com', 'info@tabro.org', 'tabro855@gmail.com'];
+// NOTE: Resend free plan only allows sending to verified account email.
+// Once tabro.org domain is verified on Resend, add: 'info@tabro.org', 'tabro855@gmail.com'
+const ADMIN_EMAILS = ['omri855655@gmail.com'];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
