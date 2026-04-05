@@ -233,6 +233,12 @@ export function useSiteAppearance() {
     });
   }, [themeId]);
 
+  const setShowHebrewDate = useCallback((show: boolean) => {
+    window.localStorage.setItem(STORAGE_HEBREW_DATE_KEY, String(show));
+    setShowHebrewDateState(show);
+    window.dispatchEvent(new CustomEvent(SITE_APPEARANCE_EVENT));
+  }, []);
+
   const currentTheme = SITE_THEME_PRESETS.find((theme) => theme.id === themeId) || SITE_THEME_PRESETS[0];
   const currentCustomColors = customColors[themeId] || {};
   const currentFont = SITE_FONT_OPTIONS.find((f) => f.id === fontId) || SITE_FONT_OPTIONS[0];
@@ -253,5 +259,7 @@ export function useSiteAppearance() {
     customColors: currentCustomColors,
     setCustomColor,
     resetCustomColors,
+    showHebrewDate,
+    setShowHebrewDate,
   };
 }
