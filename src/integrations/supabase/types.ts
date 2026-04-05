@@ -980,6 +980,88 @@ export type Database = {
           },
         ]
       }
+      project_milestones: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          project_id: string
+          sort_order: number | null
+          status: string | null
+          suggested_assignees: Json | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          project_id: string
+          sort_order?: number | null
+          status?: string | null
+          suggested_assignees?: Json | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          project_id?: string
+          sort_order?: number | null
+          status?: string | null
+          suggested_assignees?: Json | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_task_ai_history: {
+        Row: {
+          created_at: string
+          id: string
+          messages: Json
+          project_task_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          project_task_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          project_task_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_task_ai_history_project_task_id_fkey"
+            columns: ["project_task_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_task_assignments: {
         Row: {
           assignee_email: string
@@ -1037,48 +1119,60 @@ export type Database = {
           assigned_to: string | null
           completed: boolean | null
           created_at: string
+          description: string | null
           due_date: string | null
           id: string
+          instructions: string | null
           notes: string | null
           project_id: string
           sort_order: number | null
+          started_by_name: string | null
           status: string | null
           title: string
           updated_at: string
           urgent: boolean | null
           user_id: string
+          viewed_by: Json | null
         }
         Insert: {
           assigned_email?: string | null
           assigned_to?: string | null
           completed?: boolean | null
           created_at?: string
+          description?: string | null
           due_date?: string | null
           id?: string
+          instructions?: string | null
           notes?: string | null
           project_id: string
           sort_order?: number | null
+          started_by_name?: string | null
           status?: string | null
           title: string
           updated_at?: string
           urgent?: boolean | null
           user_id: string
+          viewed_by?: Json | null
         }
         Update: {
           assigned_email?: string | null
           assigned_to?: string | null
           completed?: boolean | null
           created_at?: string
+          description?: string | null
           due_date?: string | null
           id?: string
+          instructions?: string | null
           notes?: string | null
           project_id?: string
           sort_order?: number | null
+          started_by_name?: string | null
           status?: string | null
           title?: string
           updated_at?: string
           urgent?: boolean | null
           user_id?: string
+          viewed_by?: Json | null
         }
         Relationships: [
           {
