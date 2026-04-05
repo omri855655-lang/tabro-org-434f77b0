@@ -8,6 +8,7 @@ import { LanguageProvider } from "@/hooks/useLanguage";
 import PinGate, { usePinGate, PinSetup } from "@/components/PinGate";
 
 import TabroAiAgent from "@/components/TabroAiAgent";
+import SkipLink from "@/components/SkipLink";
 import Landing from "./pages/Landing";
 import Personal from "./pages/Personal";
 import Auth from "./pages/Auth";
@@ -16,6 +17,9 @@ import InstallApp from "./pages/InstallApp";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
 import Unsubscribe from "./pages/Unsubscribe";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Accessibility from "./pages/Accessibility";
 
 const queryClient = new QueryClient();
 
