@@ -964,6 +964,23 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             ייצוא
           </Button>
           {!readOnly && <FileImport onImport={handleImportTasks} label="ייבוא משימות" />}
+          {/* Dashboard display controls */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className="h-8 gap-1 text-xs">
+                <Palette className="h-3.5 w-3.5" />עיצוב
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2 max-h-[300px] overflow-y-auto" align="end">
+              <p className="text-xs font-semibold text-muted-foreground px-2 pb-1">בחר עיצוב</p>
+              {BOARD_THEMES.map((t) => (
+                <button key={t.value} onClick={() => setDashTheme(t.value)}
+                  className={`w-full text-right px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between ${dashTheme === t.value ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}>
+                  <span>{t.label}</span><span className="text-xs text-muted-foreground">{t.description}</span>
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
