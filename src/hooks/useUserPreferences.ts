@@ -18,7 +18,7 @@ export const DEFAULT_TABS = [
   { id: "nutrition", name: "תזונה ושינה", removable: true },
   { id: "dreams", name: "מפת חלומות", removable: true },
   { id: "shopping", name: "קניות", removable: true },
-  { id: "payments", name: "תשלומים", removable: true },
+  { id: "payments", name: "הכנסות והוצאות", removable: true },
   { id: "settings", name: "הגדרות", removable: false },
 ];
 
