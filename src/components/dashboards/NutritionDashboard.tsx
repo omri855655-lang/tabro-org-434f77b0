@@ -106,17 +106,13 @@ const NutritionDashboard = () => {
     return parts.join(". ");
   };
 
-  const sendMessage = async (type: "nutrition" | "sleep") => {
-    const chat = type === "nutrition" ? nutritionChat : sleepChat;
-    const setChat = type === "nutrition" ? setNutritionChat : setSleepChat;
-    const messages = type === "nutrition" ? nutritionMessages : sleepMessages;
-    const setMessages = type === "nutrition" ? setNutritionMessages : setSleepMessages;
+  const sendMessage = async (type: "nutrition" | "sleep", chatInput: string) => {
+    const history = type === "nutrition" ? nutritionChatHistory : sleepChatHistory;
 
-    if (!chat.trim()) return;
-    const userMsg = { role: "user", content: chat };
-    const nextMessages = [...messages, userMsg];
-    setMessages(nextMessages);
-    setChat("");
+    if (!chatInput.trim()) return;
+    const userMsg = { role: "user", content: chatInput };
+    const nextMessages = [...history.messages, userMsg];
+    history.setMessages(nextMessages);
     setAiLoading(true);
 
     const profileCtx = getProfileContext();
@@ -132,16 +128,16 @@ const NutritionDashboard = () => {
     try {
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
-          taskDescription: chat,
+          taskDescription: chatInput,
           taskCategory: type,
           conversationHistory: nextMessages.slice(-20),
-          customPrompt: `${systemPrompt}\n\nהמשתמש שואל: ${chat}`,
+          customPrompt: `${systemPrompt}\n\nהמשתמש שואל: ${chatInput}`,
         },
       });
       if (error) throw error;
-      setMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
+      history.setMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת" }]);
+      history.setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת" }]);
     }
     setAiLoading(false);
   };
