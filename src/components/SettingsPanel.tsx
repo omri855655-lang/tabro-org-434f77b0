@@ -16,6 +16,7 @@ import { Lock, Shield, LayoutGrid, Plus, Trash2, X, Eye, EyeOff, Globe, Palette,
 import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
+import NotificationSettings from "@/components/NotificationSettings";
 
 const ChangePasswordForm = () => {
   const [currentPw, setCurrentPw] = useState("");
