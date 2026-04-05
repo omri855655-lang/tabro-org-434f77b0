@@ -143,6 +143,7 @@ const ProjectsManager = () => {
             assigned_email: task.assigned_email ?? null,
             status: task.status ?? null,
             notes: task.notes ?? null,
+            due_date: (task as any).due_date ?? null,
           });
         });
         setProjectTasks(tasksByProject);
