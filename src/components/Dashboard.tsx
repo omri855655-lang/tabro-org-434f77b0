@@ -128,9 +128,17 @@ const Dashboard = () => {
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">דשבורד</h2>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-6 w-6 text-primary" />
+          <h2 className="text-xl font-bold">דשבורד</h2>
+        </div>
+        {stats.totalBooks === 0 && stats.totalShows === 0 && (
+          <div className="flex gap-2 flex-wrap">
+            <SampleDataImport type="books" />
+            <SampleDataImport type="shows" />
+          </div>
+        )}
       </div>
 
       {/* Quick Stats */}
