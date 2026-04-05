@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, Shield, LayoutGrid, Plus, Trash2, X, Eye, EyeOff, Globe, Palette, Moon, Sun, Key, UserX, Bell, PanelLeft, LayoutList, Columns, Smartphone, Menu, Type } from "lucide-react";
+import { Lock, Shield, LayoutGrid, Plus, Trash2, X, Eye, EyeOff, Globe, Palette, Moon, Sun, Key, UserX, Bell, PanelLeft, LayoutList, Columns, Smartphone, Menu, Type, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
