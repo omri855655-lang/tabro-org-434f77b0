@@ -15,6 +15,10 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
+import ListView from '@/components/views/ListView';
+import CardsView from '@/components/views/CardsView';
+import KanbanView from '@/components/views/KanbanView';
+import CompactView from '@/components/views/CompactView';
 
 interface Show {
   id: string;
