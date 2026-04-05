@@ -55,6 +55,7 @@ type SortDir = 'asc' | 'desc';
 const DEFAULT_CATEGORIES = ['דרמה', 'קומדיה', 'אקשן', 'מתח', 'דוקומנטרי', 'מדע בדיוני', 'אנימציה', 'רומנטי', 'פשע', 'אימה'];
 
 const ShowsManager = () => {
+  const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("shows");
   const { user } = useAuth();
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);

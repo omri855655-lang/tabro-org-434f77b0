@@ -30,6 +30,7 @@ const formatDateTime = (dateStr: string) => {
 };
 
 const PodcastsManager = () => {
+  const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("podcasts");
   const { user } = useAuth();
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);

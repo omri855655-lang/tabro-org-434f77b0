@@ -154,6 +154,7 @@ const CATEGORY_ITEMS: Record<string, string[]> = {
 };
 
 const ShoppingDashboard = () => {
+  const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("shopping");
   const { user } = useAuth();
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [archivedItems, setArchivedItems] = useState<ShoppingItem[]>([]);
