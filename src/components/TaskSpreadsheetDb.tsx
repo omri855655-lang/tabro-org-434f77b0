@@ -6,6 +6,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useDashboardDisplay, type DashboardViewMode } from "@/hooks/useDashboardDisplay";
 import { cn } from "@/lib/utils";
 import { useTasks, Task } from "@/hooks/useTasks";
+import ListView from "@/components/views/ListView";
+import CardsView from "@/components/views/CardsView";
+import KanbanView from "@/components/views/KanbanView";
+import CompactView from "@/components/views/CompactView";
 import { useAuth } from "@/hooks/useAuth";
 import { taskHeaders } from "@/data/initialTasks";
 import { supabase } from "@/integrations/supabase/client";
