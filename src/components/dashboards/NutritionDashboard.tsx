@@ -30,6 +30,7 @@ interface HealthProfile {
 }
 
 const NutritionDashboard = () => {
+  const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("nutrition");
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("nutrition");
   const [profile, setProfile] = useState<HealthProfile>({
