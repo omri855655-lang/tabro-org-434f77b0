@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { useSiteAppearance, SITE_THEME_PRESETS } from "@/hooks/useSiteAppearance";
 import {
   LogIn,
   UserPlus,
@@ -23,7 +24,9 @@ import {
   Shield,
   Zap,
   Globe,
-  ArrowLeft,
+  Palette,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 const FEATURES = [
@@ -54,6 +57,7 @@ const Landing = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [scrolled, setScrolled] = useState(false);
+  const { themeId, setThemeId, isDark, toggleMode } = useSiteAppearance();
 
   useEffect(() => {
     if (!loading && user) {
@@ -206,6 +210,46 @@ const Landing = () => {
               <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${color} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-300 -z-10`} />
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Theme Customization */}
+      <section className="border-y border-border/50 bg-card/50 backdrop-blur-sm py-16">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="text-center mb-8 space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm font-medium">
+              <Palette className="h-4 w-4" />
+              התאמה אישית
+            </div>
+            <h2 className="text-3xl font-bold text-foreground">
+              עצב את המערכת <span className="text-primary">כמו שנוח לך</span>
+            </h2>
+            <p className="text-muted-foreground">בחר ערכת עיצוב, שנה בין מצב בהיר לכהה — הכל מתעדכן מיד</p>
+          </div>
+
+          <div className="flex justify-center mb-6">
+            <Button variant="outline" size="sm" className="gap-2" onClick={toggleMode}>
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {isDark ? "מצב בהיר" : "מצב כהה"}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+            {SITE_THEME_PRESETS.slice(0, 12).map((theme) => (
+              <button
+                key={theme.id}
+                onClick={() => setThemeId(theme.id)}
+                className={`p-2.5 rounded-xl border text-center transition-all text-xs font-medium ${
+                  themeId === theme.id
+                    ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/30"
+                    : "border-border hover:border-primary/40 hover:bg-muted"
+                }`}
+              >
+                {theme.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-center text-xs text-muted-foreground mt-4">+ עוד {SITE_THEME_PRESETS.length - 12} ערכות עיצוב זמינות בהגדרות</p>
         </div>
       </section>
 

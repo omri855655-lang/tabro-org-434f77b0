@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Progress } from "@/components/ui/progress";
 import { Plus, Trash2, CreditCard, TrendingUp, TrendingDown, DollarSign, Check, Calendar, Sparkles, MessageCircle, ChevronDown, ChevronUp, BookOpen, PiggyBank, AlertTriangle, Lightbulb, Wallet, BarChart3, Download, History } from "lucide-react";
 import { exportToExcel } from "@/lib/exportToExcel";
+import SampleDataImport from "@/components/SampleDataImport";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
@@ -89,6 +90,27 @@ const PaymentDashboard = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [selectedHistoryMonth, setSelectedHistoryMonth] = useState("");
+  const [budgetTarget, setBudgetTarget] = useState<number>(0);
+  const [budgetPeriod, setBudgetPeriod] = useState("monthly");
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [budgetInput, setBudgetInput] = useState("");
+
+  // Fetch budget target
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("budget_targets").select("*").eq("user_id", user.id).eq("period", budgetPeriod).is("category", null).maybeSingle().then(({ data }) => {
+      if (data) { setBudgetTarget(data.amount); setBudgetInput(String(data.amount)); }
+      else { setBudgetTarget(0); setBudgetInput(""); }
+    });
+  }, [user, budgetPeriod]);
+
+  const saveBudgetTarget = async () => {
+    if (!user) return;
+    const amount = parseFloat(budgetInput);
+    if (isNaN(amount) || amount <= 0) return;
+    const { error } = await supabase.from("budget_targets").upsert({ user_id: user.id, period: budgetPeriod, amount, category: null }, { onConflict: "user_id,period,category" });
+    if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success("יעד תקציב נשמר ✅"); }
+  };
 
   const fetchPayments = useCallback(async () => {
     if (!user) return;
@@ -311,6 +333,47 @@ ${context}
               <p className="font-semibold text-amber-600">{overdue.length}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Budget Target */}
+      <Card className="border-primary/20">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><PiggyBank className="h-4 w-4 text-primary" />יעד תקציב</h3>
+            <div className="flex gap-1">
+              {(["weekly", "monthly", "quarterly", "yearly"] as const).map(p => (
+                <button key={p} onClick={() => setBudgetPeriod(p)} className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${budgetPeriod === p ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                  {p === "weekly" ? "שבועי" : p === "monthly" ? "חודשי" : p === "quarterly" ? "רבעוני" : "שנתי"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {editingBudget ? (
+            <div className="flex gap-2">
+              <Input placeholder="סכום יעד" type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)} dir="ltr" className="flex-1" />
+              <Button size="sm" onClick={saveBudgetTarget}>שמור</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditingBudget(false)}>ביטול</Button>
+            </div>
+          ) : budgetTarget > 0 ? (
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span>הוצאות: ₪{totalExpenses.toLocaleString()}</span>
+                <span>יעד: ₪{budgetTarget.toLocaleString()}</span>
+              </div>
+              <Progress value={Math.min((totalExpenses / budgetTarget) * 100, 100)} className={`h-3 ${totalExpenses > budgetTarget ? "[&>div]:bg-red-500" : "[&>div]:bg-green-500"}`} />
+              <div className="flex justify-between mt-2">
+                <span className={`text-sm font-semibold ${totalExpenses > budgetTarget ? "text-red-600" : "text-green-600"}`}>
+                  {totalExpenses > budgetTarget ? `חריגה של ₪${(totalExpenses - budgetTarget).toLocaleString()} ⚠️` : `נותרו ₪${(budgetTarget - totalExpenses).toLocaleString()} ✅`}
+                </span>
+                <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => { setEditingBudget(true); setBudgetInput(String(budgetTarget)); }}>עריכה</Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" className="w-full gap-1" onClick={() => setEditingBudget(true)}>
+              <Plus className="h-3 w-3" />הגדר יעד תקציב {budgetPeriod === "weekly" ? "שבועי" : budgetPeriod === "monthly" ? "חודשי" : budgetPeriod === "quarterly" ? "רבעוני" : "שנתי"}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -568,7 +631,12 @@ ${context}
             </div>
           )}
 
-          {payments.length === 0 && <p className="text-center text-muted-foreground py-8">אין תשלומים עדיין. הוסף הכנסה או הוצאה כדי להתחיל!</p>}
+          {payments.length === 0 && (
+            <div className="text-center py-8 space-y-3">
+              <p className="text-muted-foreground">אין תשלומים עדיין. הוסף הכנסה או הוצאה כדי להתחיל!</p>
+              <SampleDataImport type="payments" />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="add">

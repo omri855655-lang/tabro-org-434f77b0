@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Tv, CheckCircle, Clock, Eye, TrendingUp, LayoutGrid } from 'lucide-react';
+import { BookOpen, Tv, CheckCircle, Clock, Eye, TrendingUp, LayoutGrid, CalendarDays } from 'lucide-react';
+import { getHebrewDate } from '@/lib/hebrewDate';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import TasksDashboards from '@/components/dashboard/TasksDashboards';
 import ProductivityDashboard from '@/components/dashboard/ProductivityDashboard';
 import CheckedItemsArchive from '@/components/CheckedItemsArchive';
+import SampleDataImport from '@/components/SampleDataImport';
 
 interface Stats {
   totalBooks: number;
@@ -105,15 +107,38 @@ const Dashboard = () => {
     { name: 'סדרות/סרטים', total: stats.totalShows, completed: stats.showsWatched },
   ];
 
+  const hebrewDate = getHebrewDate(new Date());
+  const today = new Date();
+  const gregorianDate = today.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">טוען נתונים...</div>;
   }
 
   return (
     <div className="p-4 space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">דשבורד</h2>
+      {/* Hebrew & Gregorian Date */}
+      <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+        <CardContent className="py-4 text-center">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <CalendarDays className="h-5 w-5 text-primary" />
+            <span className="text-lg font-bold text-foreground">{hebrewDate.display}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">{gregorianDate}</p>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-6 w-6 text-primary" />
+          <h2 className="text-xl font-bold">דשבורד</h2>
+        </div>
+        {stats.totalBooks === 0 && stats.totalShows === 0 && (
+          <div className="flex gap-2 flex-wrap">
+            <SampleDataImport type="books" />
+            <SampleDataImport type="shows" />
+          </div>
+        )}
       </div>
 
       {/* Quick Stats */}
