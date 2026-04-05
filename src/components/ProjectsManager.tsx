@@ -496,9 +496,24 @@ const ProjectsManager = () => {
       if (error) throw error;
       const text = data?.suggestion || '';
       const lines = text.split('\n').map((l: string) => l.replace(/^\s*[-*•\d\.\)\-]+\s*/, '').trim()).filter((l: string) => l.length > 2);
-      const milestones = lines.slice(0, 10).map((title: string) => ({ title, done: false }));
-      setAiMilestones(prev => ({ ...prev, [project.id]: milestones }));
-      toast.success(`נוצרו ${milestones.length} אבני דרך`);
+      const milestones = lines.slice(0, 10).map((title: string, idx: number) => ({ title, done: false, description: null }));
+      
+      // Save to DB
+      const inserts = milestones.map((m: any, idx: number) => ({
+        project_id: project.id,
+        user_id: user?.id!,
+        title: m.title,
+        sort_order: idx,
+        status: 'pending',
+      }));
+      
+      // Delete old milestones first
+      await supabase.from('project_milestones').delete().eq('project_id', project.id).eq('user_id', user?.id!);
+      const { data: savedMs } = await supabase.from('project_milestones').insert(inserts).select();
+      
+      const saved = (savedMs || []).map((m: any) => ({ id: m.id, title: m.title, done: m.status === 'done', description: m.description }));
+      setAiMilestones(prev => ({ ...prev, [project.id]: saved }));
+      toast.success(`נוצרו ${saved.length} אבני דרך ונשמרו`);
     } catch {
       toast.error('שגיאה ביצירת אבני דרך');
     } finally {
@@ -506,11 +521,111 @@ const ProjectsManager = () => {
     }
   };
 
-  const toggleAiMilestone = (projectId: string, index: number) => {
+  // Load milestones from DB when expanding
+  const loadMilestones = async (projectId: string) => {
+    if (aiMilestones[projectId]) return;
+    const { data } = await supabase
+      .from('project_milestones')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('sort_order', { ascending: true });
+    if (data && data.length > 0) {
+      setAiMilestones(prev => ({
+        ...prev,
+        [projectId]: data.map((m: any) => ({ id: m.id, title: m.title, done: m.status === 'done', description: m.description })),
+      }));
+    }
+  };
+
+  const toggleAiMilestone = async (projectId: string, index: number) => {
+    const ms = aiMilestones[projectId];
+    if (!ms) return;
+    const milestone = ms[index];
+    const newDone = !milestone.done;
     setAiMilestones(prev => ({
       ...prev,
-      [projectId]: prev[projectId].map((m, i) => i === index ? { ...m, done: !m.done } : m),
+      [projectId]: prev[projectId].map((m, i) => i === index ? { ...m, done: newDone } : m),
     }));
+    if (milestone.id) {
+      await supabase.from('project_milestones').update({ status: newDone ? 'done' : 'pending' }).eq('id', milestone.id);
+    }
+  };
+
+  const deleteMilestone = async (projectId: string, index: number) => {
+    const ms = aiMilestones[projectId];
+    if (!ms) return;
+    const milestone = ms[index];
+    if (milestone.id) {
+      await supabase.from('project_milestones').delete().eq('id', milestone.id);
+    }
+    setAiMilestones(prev => ({
+      ...prev,
+      [projectId]: prev[projectId].filter((_, i) => i !== index),
+    }));
+    toast.success('אבן דרך נמחקה');
+  };
+
+  const convertMilestoneToTask = async (projectId: string, index: number) => {
+    const ms = aiMilestones[projectId];
+    if (!ms || !user) return;
+    const milestone = ms[index];
+    const currentTasks = projectTasks[projectId] || [];
+    const maxOrder = currentTasks.length > 0 ? Math.max(...currentTasks.map(t => t.sort_order)) : 0;
+    
+    const { data, error } = await supabase.from('project_tasks').insert({
+      project_id: projectId,
+      user_id: user.id,
+      title: milestone.title,
+      description: milestone.description || null,
+      sort_order: maxOrder + 1,
+    }).select().single();
+    
+    if (error) { toast.error('שגיאה בהוספת משימה'); return; }
+    
+    setProjectTasks(prev => ({
+      ...prev,
+      [projectId]: [...(prev[projectId] || []), data as ProjectTask],
+    }));
+    toast.success(`"${milestone.title}" נוספה כמשימה`);
+  };
+
+  const convertAllMilestonesToTasks = async (projectId: string) => {
+    const ms = aiMilestones[projectId];
+    if (!ms || !user) return;
+    const currentTasks = projectTasks[projectId] || [];
+    const maxOrder = currentTasks.length > 0 ? Math.max(...currentTasks.map(t => t.sort_order)) : 0;
+    
+    const inserts = ms.filter(m => !m.done).map((m, idx) => ({
+      project_id: projectId,
+      user_id: user.id,
+      title: m.title,
+      description: m.description || null,
+      sort_order: maxOrder + idx + 1,
+    }));
+    
+    if (inserts.length === 0) { toast.info('אין אבני דרך לא מושלמות'); return; }
+    
+    const { data, error } = await supabase.from('project_tasks').insert(inserts).select();
+    if (error) { toast.error('שגיאה'); return; }
+    
+    setProjectTasks(prev => ({
+      ...prev,
+      [projectId]: [...(prev[projectId] || []), ...(data as ProjectTask[])],
+    }));
+    toast.success(`נוספו ${inserts.length} משימות`);
+  };
+
+  const handleTaskUpdate = (taskId: string, updates: Record<string, any>) => {
+    setProjectTasks(prev => {
+      const newTasks = { ...prev };
+      for (const projId of Object.keys(newTasks)) {
+        newTasks[projId] = newTasks[projId].map(t => t.id === taskId ? { ...t, ...updates } : t);
+      }
+      return newTasks;
+    });
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(prev => prev ? { ...prev, ...updates } : prev);
+    }
   };
 
   const toggleExpanded = (projectId: string) => {
