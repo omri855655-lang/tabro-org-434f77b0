@@ -863,27 +863,18 @@ const ShoppingDashboard = () => {
 
         {/* AI */}
         <TabsContent value="ai" className="space-y-4">
-          <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2 justify-between"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />יועץ קניות AI</div>{aiMessages.length > 0 && <Button variant="ghost" size="sm" className="text-xs h-6" onClick={clearAiHistory}><Trash2 className="h-3 w-3 mr-1" />נקה</Button>}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">שאל אותי על תקציב, חלופות זולות, איפה הכי משתלם, או איך לחסוך.</p>
-              <div className="border rounded-lg p-3 min-h-[200px] max-h-[400px] overflow-y-auto space-y-3">
-                {aiMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">התחל שיחה...</p>}
-                {aiMessages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  </div>
-                ))}
-                {aiLoading && <div className="text-sm text-muted-foreground animate-pulse">חושב...</div>}
-              </div>
-              <div className="flex gap-2">
-                <Input placeholder="שאל שאלה..." value={aiChat} onChange={e => setAiChat(e.target.value)} onKeyDown={e => e.key === "Enter" && sendAiMessage()} />
-                <Button onClick={sendAiMessage} disabled={aiLoading}><MessageCircle className="h-4 w-4" /></Button>
-              </div>
-            </CardContent>
-          </Card>
+          <AiChatPanel
+            title="יועץ קניות AI"
+            messages={aiChatHistory.messages}
+            loaded={aiChatHistory.loaded}
+            aiLoading={aiLoading}
+            archive={aiChatHistory.archive}
+            onSend={sendAiMessage}
+            onClearAndArchive={aiChatHistory.clearAndArchive}
+            onLoadConversation={aiChatHistory.loadConversation}
+            placeholder="שאל שאלה..."
+            emptyText="שאל על תקציב, חלופות זולות, איפה הכי משתלם..."
+          />
         </TabsContent>
       </Tabs>
 
