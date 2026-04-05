@@ -25,6 +25,7 @@ import YearSelector from "@/components/YearSelector";
 import TaskTabs from "@/components/TaskTabs";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import SheetSharingDialog from "@/components/SheetSharingDialog";
+import FileImport from "@/components/FileImport";
 
 interface TaskSpreadsheetDbProps {
   title: string;
