@@ -1000,10 +1000,11 @@ const ProjectsManager = () => {
                               <div
                                 key={task.id}
                                 className={cn(
-                                  "flex items-center gap-2 p-2 rounded bg-background",
+                                  "flex items-center gap-2 p-2 rounded bg-background cursor-pointer hover:bg-accent/30 transition-colors",
                                   task.completed && "opacity-60",
                                   task.urgent && !task.completed && "bg-destructive/10 border border-destructive/30"
                                 )}
+                                onClick={() => { setSelectedTask(task); setTaskDialogOpen(true); }}
                               >
                                 <button onClick={() => toggleTaskCompletion(task)}>
                                   {task.completed ? (
