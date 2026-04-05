@@ -90,6 +90,27 @@ const PaymentDashboard = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [selectedHistoryMonth, setSelectedHistoryMonth] = useState("");
+  const [budgetTarget, setBudgetTarget] = useState<number>(0);
+  const [budgetPeriod, setBudgetPeriod] = useState("monthly");
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [budgetInput, setBudgetInput] = useState("");
+
+  // Fetch budget target
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("budget_targets").select("*").eq("user_id", user.id).eq("period", budgetPeriod).is("category", null).maybeSingle().then(({ data }) => {
+      if (data) { setBudgetTarget(data.amount); setBudgetInput(String(data.amount)); }
+      else { setBudgetTarget(0); setBudgetInput(""); }
+    });
+  }, [user, budgetPeriod]);
+
+  const saveBudgetTarget = async () => {
+    if (!user) return;
+    const amount = parseFloat(budgetInput);
+    if (isNaN(amount) || amount <= 0) return;
+    const { error } = await supabase.from("budget_targets").upsert({ user_id: user.id, period: budgetPeriod, amount, category: null }, { onConflict: "user_id,period,category" });
+    if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success("יעד תקציב נשמר ✅"); }
+  };
 
   const fetchPayments = useCallback(async () => {
     if (!user) return;
