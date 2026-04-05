@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { useSiteAppearance, SITE_THEME_PRESETS } from "@/hooks/useSiteAppearance";
 import {
   LogIn,
   UserPlus,
@@ -23,7 +24,9 @@ import {
   Shield,
   Zap,
   Globe,
-  ArrowLeft,
+  Palette,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 const FEATURES = [
