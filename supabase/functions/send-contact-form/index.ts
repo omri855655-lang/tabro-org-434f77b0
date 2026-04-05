@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const ADMIN_EMAIL = 'omri855655@gmail.com'
+const ADMIN_EMAILS = ['info@tabro.org', 'tabro855@gmail.com']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -52,8 +52,8 @@ Deno.serve(async (req) => {
         'Authorization': `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: 'Contact Form <onboarding@resend.dev>',
-        to: [ADMIN_EMAIL],
+        from: 'Tabro Contact <onboarding@resend.dev>',
+        to: ADMIN_EMAILS,
         subject: `[פנייה] ${categoryLabels[category] || ''} - ${subject || 'ללא נושא'}`,
         html: emailBody,
         reply_to: userEmail !== 'אנונימי' ? userEmail : undefined,

@@ -56,8 +56,8 @@ const CompactLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
       </header>
 
       {/* Compact nav bar */}
-      <div className="border-b border-border bg-card px-4 py-1.5 shrink-0" ref={dropdownRef}>
-        <div className="flex items-center gap-1 overflow-x-auto">
+      <div className="border-b border-border bg-card px-4 py-1.5 shrink-0 relative" ref={dropdownRef}>
+        <div className="flex items-center gap-1 overflow-x-auto overflow-y-visible">
           {TAB_GROUPS.map((group) => {
             const groupTabs = tabs.filter(t => group.tabIds.includes(t.id));
             if (groupTabs.length === 0) return null;
