@@ -563,7 +563,7 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <SplitViewLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
+        <SplitViewLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerLeft}{headerControls}</>}>
           <div className="min-h-full pb-8">{renderContent()}</div>
         </SplitViewLayout>
         <FloatingMusicMini visible={activeTab !== 'deeply'} onGoToDeeply={() => setActiveTab('deeply')} />
