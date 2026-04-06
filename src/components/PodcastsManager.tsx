@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Trash2, Search, Headphones, Download } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { toast } from 'sonner';
+import { useRecycleBin } from '@/hooks/useRecycleBin';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
