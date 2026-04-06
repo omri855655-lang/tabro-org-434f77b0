@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Trash2, Edit2, Check, X, LayoutGrid, List, Palette, Grid3X3, Clock, AlignJustify, CreditCard, Archive, ArchiveRestore, FolderPlus, FileText, ChevronDown, ChevronUp, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { useRecycleBin } from "@/hooks/useRecycleBin";
 import { type BoardTheme, BOARD_THEMES } from "@/hooks/useCustomBoards";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
