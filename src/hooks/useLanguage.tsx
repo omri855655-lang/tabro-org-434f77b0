@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 
-type Language = "he" | "en" | "es" | "zh" | "ar";
+type Language = "he" | "en" | "es" | "zh" | "ar" | "ru";
 
 const translations = {
   he: {
@@ -17,6 +17,12 @@ const translations = {
     addCourse: "הוסף קורס", courseName: "שם הקורס", syllabus: "סילבוס", lessons: "שיעורים",
     add: "הוסף", edit: "ערוך", remove: "הסר", confirm: "אשר", close: "סגור", search: "חיפוש", filter: "סינון", all: "הכל", none: "ללא",
     contactForm: "פנייה / תמיכה",
+    // Recycle bin
+    recycleBin: "סל מחזור", emptyBin: "רוקן סל", recycleBinEmpty: "סל המחזור ריק", recycleBinNote: "פריטים נמחקים אוטומטית לאחר 7 ימים", restore: "שחזר", deletedAt: "נמחק", permanentDelete: "מחק לצמיתות",
+    // Email
+    email: "מייל", emailAccounts: "חשבונות מייל", addConnection: "חבר חשבון", connectEmail: "חיבור חשבון מייל", chooseProvider: "בחר ספק מייל:", emailAddress: "כתובת מייל", noEmailConnections: "אין חשבונות מייל מחוברים", connectEmailDesc: "חבר Gmail, Outlook או IMAP לניתוח אוטומטי", lastSync: "סנכרון אחרון", neverSynced: "לא סונכרן", sync: "סנכרן", confirmDisconnect: "לנתק את חשבון המייל?", emailSummary: "סיכום מיילים", recentEmails: "מיילים אחרונים", emailInsights: "תובנות מייל", emailsAnalyzed: "מיילים נותחו", oauthNote: "לאחר שמירה, תתבצע הפנייה לאימות חשבון.", password: "סיסמה", back: "חזור", connect: "חבר",
+    // Item detail
+    editItem: "עריכת פריט",
   },
   en: {
     personalArea: "Personal Area", installApp: "Install App", signOut: "Sign Out", signedOutSuccess: "Signed out successfully", loading: "Loading...",
@@ -32,6 +38,9 @@ const translations = {
     addCourse: "Add Course", courseName: "Course Name", syllabus: "Syllabus", lessons: "Lessons",
     add: "Add", edit: "Edit", remove: "Remove", confirm: "Confirm", close: "Close", search: "Search", filter: "Filter", all: "All", none: "None",
     contactForm: "Contact / Support",
+    recycleBin: "Recycle Bin", emptyBin: "Empty Bin", recycleBinEmpty: "Recycle bin is empty", recycleBinNote: "Items are automatically deleted after 7 days", restore: "Restore", deletedAt: "Deleted", permanentDelete: "Delete permanently",
+    email: "Email", emailAccounts: "Email Accounts", addConnection: "Connect Account", connectEmail: "Connect Email Account", chooseProvider: "Choose email provider:", emailAddress: "Email Address", noEmailConnections: "No email accounts connected", connectEmailDesc: "Connect Gmail, Outlook or IMAP for automatic analysis", lastSync: "Last sync", neverSynced: "Never synced", sync: "Sync", confirmDisconnect: "Disconnect email account?", emailSummary: "Email Summary", recentEmails: "Recent Emails", emailInsights: "Email Insights", emailsAnalyzed: "emails analyzed", oauthNote: "After saving, you'll be redirected for authentication.", password: "Password", back: "Back", connect: "Connect",
+    editItem: "Edit Item",
   },
   es: {
     personalArea: "Área Personal", installApp: "Instalar App", signOut: "Cerrar Sesión", signedOutSuccess: "Sesión cerrada", loading: "Cargando...",
@@ -47,6 +56,9 @@ const translations = {
     addCourse: "Agregar Curso", courseName: "Nombre del Curso", syllabus: "Programa", lessons: "Lecciones",
     add: "Agregar", edit: "Editar", remove: "Eliminar", confirm: "Confirmar", close: "Cerrar", search: "Buscar", filter: "Filtrar", all: "Todo", none: "Ninguno",
     contactForm: "Contacto / Soporte",
+    recycleBin: "Papelera", emptyBin: "Vaciar papelera", recycleBinEmpty: "La papelera está vacía", recycleBinNote: "Los elementos se eliminan automáticamente después de 7 días", restore: "Restaurar", deletedAt: "Eliminado", permanentDelete: "Eliminar permanentemente",
+    email: "Correo", emailAccounts: "Cuentas de correo", addConnection: "Conectar cuenta", connectEmail: "Conectar cuenta de correo", chooseProvider: "Elige proveedor:", emailAddress: "Dirección de correo", noEmailConnections: "Sin cuentas conectadas", connectEmailDesc: "Conecta Gmail, Outlook o IMAP para análisis automático", lastSync: "Última sincronización", neverSynced: "Nunca sincronizado", sync: "Sincronizar", confirmDisconnect: "¿Desconectar cuenta?", emailSummary: "Resumen de correos", recentEmails: "Correos recientes", emailInsights: "Análisis de correos", emailsAnalyzed: "correos analizados", oauthNote: "Después de guardar, serás redirigido para autenticación.", password: "Contraseña", back: "Atrás", connect: "Conectar",
+    editItem: "Editar elemento",
   },
   zh: {
     personalArea: "个人区域", installApp: "安装应用", signOut: "退出登录", signedOutSuccess: "已成功退出", loading: "加载中...",
@@ -62,6 +74,9 @@ const translations = {
     addCourse: "添加课程", courseName: "课程名称", syllabus: "大纲", lessons: "课时",
     add: "添加", edit: "编辑", remove: "移除", confirm: "确认", close: "关闭", search: "搜索", filter: "筛选", all: "全部", none: "无",
     contactForm: "联系 / 支持",
+    recycleBin: "回收站", emptyBin: "清空回收站", recycleBinEmpty: "回收站为空", recycleBinNote: "项目将在7天后自动删除", restore: "恢复", deletedAt: "已删除", permanentDelete: "永久删除",
+    email: "邮件", emailAccounts: "邮件账户", addConnection: "连接账户", connectEmail: "连接邮件账户", chooseProvider: "选择邮件提供商：", emailAddress: "邮件地址", noEmailConnections: "没有连接的邮件账户", connectEmailDesc: "连接Gmail、Outlook或IMAP进行自动分析", lastSync: "上次同步", neverSynced: "从未同步", sync: "同步", confirmDisconnect: "断开邮件账户？", emailSummary: "邮件摘要", recentEmails: "最近邮件", emailInsights: "邮件洞察", emailsAnalyzed: "封邮件已分析", oauthNote: "保存后将跳转至身份验证页面。", password: "密码", back: "返回", connect: "连接",
+    editItem: "编辑项目",
   },
   ar: {
     personalArea: "المنطقة الشخصية", installApp: "تثبيت التطبيق", signOut: "تسجيل الخروج", signedOutSuccess: "تم تسجيل الخروج بنجاح", loading: "جاري التحميل...",
@@ -77,6 +92,27 @@ const translations = {
     addCourse: "إضافة دورة", courseName: "اسم الدورة", syllabus: "المنهج", lessons: "الدروس",
     add: "إضافة", edit: "تعديل", remove: "إزالة", confirm: "تأكيد", close: "إغلاق", search: "بحث", filter: "تصفية", all: "الكل", none: "لا شيء",
     contactForm: "اتصل بنا / دعم",
+    recycleBin: "سلة المحذوفات", emptyBin: "إفراغ السلة", recycleBinEmpty: "سلة المحذوفات فارغة", recycleBinNote: "تُحذف العناصر تلقائياً بعد 7 أيام", restore: "استعادة", deletedAt: "حُذف", permanentDelete: "حذف نهائي",
+    email: "البريد", emailAccounts: "حسابات البريد", addConnection: "ربط حساب", connectEmail: "ربط حساب بريد", chooseProvider: "اختر مزود البريد:", emailAddress: "عنوان البريد", noEmailConnections: "لا توجد حسابات بريد مرتبطة", connectEmailDesc: "اربط Gmail أو Outlook أو IMAP للتحليل التلقائي", lastSync: "آخر مزامنة", neverSynced: "لم تتم المزامنة", sync: "مزامنة", confirmDisconnect: "فصل حساب البريد؟", emailSummary: "ملخص البريد", recentEmails: "رسائل حديثة", emailInsights: "تحليل البريد", emailsAnalyzed: "رسالة تم تحليلها", oauthNote: "بعد الحفظ، ستتم إعادة التوجيه للمصادقة.", password: "كلمة المرور", back: "رجوع", connect: "ربط",
+    editItem: "تعديل العنصر",
+  },
+  ru: {
+    personalArea: "Личный кабинет", installApp: "Установить приложение", signOut: "Выйти", signedOutSuccess: "Вы успешно вышли", loading: "Загрузка...",
+    dashboard: "Панель управления", personalTasks: "Личные задачи", workTasks: "Рабочие задачи", books: "Книги", shows: "Сериалы и фильмы", podcasts: "Подкасты", dailyRoutine: "Ежедневный распорядок", projects: "Проекты", courses: "Курсы", planner: "Планировщик", deeply: "Deeply", settings: "Настройки", challenges: "Вызовы",
+    security: "Безопасность", pinCode: "Код доступа (PIN)", pinDescription: "Требовать 4-значный код при каждом входе", changePin: "Изменить PIN", setPin: "Установить PIN", enterNewCode: "Введите новый код:", cancel: "Отмена",
+    customDashboards: "Пользовательские панели", customDashboardsDesc: "Создавайте панели для отслеживания чего угодно.", newDashboard: "Новая панель", chooseTemplate: "Выбрать шаблон", taskList: "Список задач", trackingList: "Список отслеживания", kanban: "Канбан", custom: "Пользовательский", dashboardName: "Название панели", dashboardNamePlaceholder: 'Напр.: "Учёба", "Фитнес"', statuses: "Статусы (через запятую)", statusesDesc: "Статусы в меню выбора", showInMainDashboard: "Показать на главной панели", createDashboard: "Создать панель", addNewDashboard: "Добавить новую панель",
+    showTabs: "Видимость вкладок", showTabsDesc: "Выберите, какие вкладки отображать.", displayedInDashboard: "Отображается на панели", language: "Язык", languageDesc: "Выберите язык интерфейса", hebrew: "עברית", english: "English",
+    newTask: "Новая задача", deleteTask: "Удалить задачу", export: "Экспорт", noSort: "Без сортировки", byStatus: "По статусу", byPlannedEnd: "По сроку", byCreatedAt: "По дате создания", byOverdue: "По просрочке", byUrgent: "По срочности", done: "Выполнено", notStarted: "Не начато", inProgress: "В работе", completionRate: "Процент выполнения", activeTasks: "Активные задачи", completed: "Завершённые", archive: "Архив", noTasksYet: "Задач пока нет", noArchivedTasks: "Нет архивных задач", noCompletedTasks: "Нет завершённых задач", addFirstTask: "Добавить первую задачу", share: "Поделиться", similarTasks: "Похожие задачи:", moveToSheet: "Переместить на другой лист", task: "Задача:", moveToSheetLabel: "Переместить на лист:", moveTask: "Переместить задачу", aiHelp: "Помощь ИИ", gettingSuggestions: "Получение предложений...", loadingTasks: "Загрузка задач...",
+    addEvent: "Добавить событие", deleteEvent: "Удалить событие", eventTitle: "Заголовок", eventDescription: "Описание", startTime: "Начало", endTime: "Окончание", category: "Категория", allDay: "Весь день", save: "Сохранить", delete: "Удалить", today: "Сегодня", day: "День", week: "Неделя", month: "Месяц", year: "Год",
+    addRecurringTask: "Добавить повторяющуюся задачу", frequency: "Частота", daily: "Ежедневно", weekly: "Еженедельно", monthly: "Ежемесячно", yearly: "Ежегодно", thriceWeekly: "3 раза в неделю", flexible: "Гибкий", selectDays: "Выбрать дни", sun: "Вс", mon: "Пн", tue: "Вт", wed: "Ср", thu: "Чт", fri: "Пт", sat: "Сб",
+    addBook: "Добавить книгу", addShow: "Добавить сериал", addPodcast: "Добавить подкаст", title: "Название", author: "Автор", host: "Ведущий", status: "Статус", notes: "Заметки", toRead: "К прочтению", reading: "Читаю", read: "Прочитано", toWatch: "К просмотру", watching: "Смотрю", watched: "Просмотрено", toListen: "К прослушиванию", listening: "Слушаю", listened: "Прослушано",
+    addProject: "Добавить проект", projectName: "Название проекта", description: "Описание", targetDate: "Целевая дата", active: "Активный", onHold: "На паузе", completedStatus: "Завершён",
+    addCourse: "Добавить курс", courseName: "Название курса", syllabus: "Программа", lessons: "Уроки",
+    add: "Добавить", edit: "Редактировать", remove: "Удалить", confirm: "Подтвердить", close: "Закрыть", search: "Поиск", filter: "Фильтр", all: "Все", none: "Нет",
+    contactForm: "Связаться / Поддержка",
+    recycleBin: "Корзина", emptyBin: "Очистить корзину", recycleBinEmpty: "Корзина пуста", recycleBinNote: "Элементы автоматически удаляются через 7 дней", restore: "Восстановить", deletedAt: "Удалено", permanentDelete: "Удалить навсегда",
+    email: "Почта", emailAccounts: "Почтовые аккаунты", addConnection: "Подключить аккаунт", connectEmail: "Подключить почту", chooseProvider: "Выберите почтовый сервис:", emailAddress: "Адрес электронной почты", noEmailConnections: "Нет подключённых аккаунтов", connectEmailDesc: "Подключите Gmail, Outlook или IMAP для автоматического анализа", lastSync: "Последняя синхронизация", neverSynced: "Не синхронизировано", sync: "Синхронизировать", confirmDisconnect: "Отключить почтовый аккаунт?", emailSummary: "Сводка по почте", recentEmails: "Недавние письма", emailInsights: "Аналитика почты", emailsAnalyzed: "писем проанализировано", oauthNote: "После сохранения вы будете перенаправлены для аутентификации.", password: "Пароль", back: "Назад", connect: "Подключить",
+    editItem: "Редактировать элемент",
   },
 } as const;
 
