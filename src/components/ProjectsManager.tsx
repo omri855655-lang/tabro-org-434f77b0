@@ -12,6 +12,7 @@ import { Plus, Trash2, Search, FolderKanban, ChevronDown, ChevronLeft, Link2, Ex
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useRecycleBin } from '@/hooks/useRecycleBin';
 import ProjectMembersPanel from '@/components/ProjectMembersPanel';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
 import TeamPerformanceDashboard from '@/components/projects/TeamPerformanceDashboard';
