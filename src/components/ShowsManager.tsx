@@ -62,6 +62,7 @@ const DEFAULT_CATEGORIES = ['דרמה', 'קומדיה', 'אקשן', 'מתח', '�
 const ShowsManager = () => {
   const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("shows");
   const { user } = useAuth();
+  const { softDelete } = useRecycleBin();
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
