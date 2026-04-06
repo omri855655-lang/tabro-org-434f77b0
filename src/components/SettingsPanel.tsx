@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
 import NotificationSettings from "@/components/NotificationSettings";
+import RecycleBin from "@/components/RecycleBin";
 
 const ChangePasswordForm = () => {
   const [currentPw, setCurrentPw] = useState("");
