@@ -91,6 +91,7 @@ const STATIC_TABS: TabDef[] = [
   { id: "shopping", icon: ShoppingCart, label: "קניות", visibilityKey: "shopping" },
   { id: "payments", icon: CreditCard, label: "הכנסות והוצאות", visibilityKey: "payments" },
   { id: "notes", icon: StickyNote, label: "פתקים", visibilityKey: "notes" },
+  { id: "email", icon: Mail, label: "email", visibilityKey: "email" },
   { id: "sharing", icon: Share2, label: "שיתופים" },
   { id: "contact", icon: MessageSquare, label: "contactForm" },
   { id: "settings", icon: Settings, label: "settings" },
