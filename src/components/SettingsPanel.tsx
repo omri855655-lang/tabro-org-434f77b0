@@ -604,9 +604,13 @@ const SettingsPanel = () => {
             <Button variant={lang === "es" ? "default" : "outline"} onClick={() => setLang("es" as any)} className="flex-1 min-w-[80px]">Español</Button>
             <Button variant={lang === "zh" ? "default" : "outline"} onClick={() => setLang("zh" as any)} className="flex-1 min-w-[80px]">中文</Button>
             <Button variant={lang === "ar" ? "default" : "outline"} onClick={() => setLang("ar" as any)} className="flex-1 min-w-[80px]">العربية</Button>
+            <Button variant={lang === "ru" ? "default" : "outline"} onClick={() => setLang("ru" as any)} className="flex-1 min-w-[80px]">Русский</Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Recycle Bin */}
+      <RecycleBin />
     </div>
   );
 };
