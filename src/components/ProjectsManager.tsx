@@ -81,6 +81,7 @@ const getTaskPriorityScore = (task: ProjectTask) => {
 
 const ProjectsManager = () => {
   const { user } = useAuth();
+  const { softDelete } = useRecycleBin();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<Record<string, ProjectTask[]>>({});
   const [loading, setLoading] = useState(true);
