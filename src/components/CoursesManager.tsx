@@ -48,6 +48,7 @@ const formatDateTime = (dateStr: string) => {
 
 const CoursesManager = () => {
   const { user } = useAuth();
+  const { softDelete } = useRecycleBin();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseLessons, setCourseLessons] = useState<Record<string, CourseLesson[]>>({});
   const [loading, setLoading] = useState(true);
