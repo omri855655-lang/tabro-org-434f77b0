@@ -117,15 +117,13 @@ const BooksManager = () => {
   };
 
   const deleteBook = async (id: string) => {
-    const { error } = await supabase.from('books').delete().eq('id', id);
-
-    if (error) {
-      toast.error('שגיאה במחיקת הספר');
-      return;
+    const book = books.find(b => b.id === id);
+    if (!book) return;
+    const success = await softDelete('books', id, book);
+    if (success) {
+      toast.success('הספר הועבר לסל המחזור');
+      setBooks((prev) => prev.filter((b) => b.id !== id));
     }
-
-    toast.success('הספר נמחק');
-    setBooks((prev) => prev.filter((b) => b.id !== id));
   };
 
   const handleImportBooks = async (rows: Record<string, string>[]) => {
