@@ -20,6 +20,7 @@ export function useLayoutPreference() {
   const setLayout = useCallback((mode: LayoutMode) => {
     setLayoutState(mode);
     localStorage.setItem(STORAGE_KEY, mode);
+    window.dispatchEvent(new CustomEvent("site-appearance-change"));
   }, []);
 
   return { layout, setLayout };

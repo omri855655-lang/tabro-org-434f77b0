@@ -475,12 +475,15 @@ const RTL_LANGS: Language[] = ["he", "ar"];
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Language>(() => {
-    return (localStorage.getItem("app-language") as Language) || "he";
+    return (localStorage.getItem("ui-language") as Language) || (localStorage.getItem("app-language") as Language) || "he";
   });
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
+    localStorage.setItem("ui-language", newLang);
     localStorage.setItem("app-language", newLang);
+    // Trigger sync to DB
+    window.dispatchEvent(new CustomEvent("site-appearance-change"));
   };
 
   useEffect(() => {
