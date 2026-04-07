@@ -67,6 +67,23 @@ Deno.serve(async (req) => {
         .order('logged_in_at', { ascending: false })
         .limit(50)
 
+      // Recent email activity for admin mailbox
+      const { data: rawEmailLog } = await adminClient
+        .from('email_send_log')
+        .select('message_id, template_name, recipient_email, status, error_message, created_at')
+        .order('created_at', { ascending: false })
+        .limit(200)
+
+      const seenMessageIds = new Set<string>()
+      const recentEmailLog = []
+      for (const row of (rawEmailLog || [])) {
+        const dedupeKey = row.message_id || `${row.template_name}:${row.recipient_email}:${row.created_at}`
+        if (seenMessageIds.has(dedupeKey)) continue
+        seenMessageIds.add(dedupeKey)
+        recentEmailLog.push(row)
+        if (recentEmailLog.length >= 30) break
+      }
+
       // Tasks count
       const { count: totalTasks } = await adminClient.from('tasks').select('*', { count: 'exact', head: true })
 
@@ -94,6 +111,8 @@ Deno.serve(async (req) => {
         loginLogs: loginLogs || [],
         adminEmails,
         userList,
+        mailboxAddress: 'info@tabro.org',
+        recentEmailLog,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 

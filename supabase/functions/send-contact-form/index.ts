@@ -14,6 +14,7 @@ Deno.serve(async (req) => {
 
   try {
     const { subject, message, category, userEmail } = await req.json()
+    const messageId = crypto.randomUUID()
 
     if (!message?.trim()) {
       return new Response(JSON.stringify({ error: 'Message required' }), { status: 400, headers: corsHeaders })
@@ -63,8 +64,32 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const err = await res.text()
       console.error('Resend error:', err)
+      const serviceClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      )
+      await serviceClient.from('email_send_log').insert({
+        message_id: messageId,
+        template_name: 'contact-form',
+        recipient_email: 'info@tabro.org',
+        status: 'failed',
+        error_message: err.slice(0, 1000),
+        metadata: { subject, category, userEmail },
+      })
       return new Response(JSON.stringify({ error: 'Failed to send email' }), { status: 500, headers: corsHeaders })
     }
+
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+    await serviceClient.from('email_send_log').insert({
+      message_id: messageId,
+      template_name: 'contact-form',
+      recipient_email: 'info@tabro.org',
+      status: 'sent',
+      metadata: { subject, category, userEmail, recipients: ADMIN_EMAILS },
+    })
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {

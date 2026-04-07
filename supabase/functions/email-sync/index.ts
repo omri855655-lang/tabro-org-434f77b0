@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
 
       if (accessToken) {
         // Fetch recent messages
-        const listRes = await fetch(`${GMAIL_API}/messages?maxResults=20&q=newer_than:7d`, {
+        const listRes = await fetch(`${GMAIL_API}/messages?maxResults=50&q=newer_than:14d`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         

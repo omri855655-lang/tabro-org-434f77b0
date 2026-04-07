@@ -24,6 +24,8 @@ import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
 import FinancialCsvImport from "@/components/FinancialCsvImport";
 import ManualTransactionForm from "@/components/ManualTransactionForm";
+import CreditCardConnect from "@/components/dashboards/CreditCardConnect";
+import CreditCardImport from "@/components/dashboards/CreditCardImport";
 
 interface Payment {
   id: string;
@@ -222,6 +224,62 @@ const PaymentDashboard = () => {
     const [y, m] = key.split("-");
     const monthKeys = ["january","february","march","april","may","june","july","august","september","october","november","december"] as const;
     return `${t(monthKeys[parseInt(m) - 1] as any)} ${y}`;
+  };
+
+  const getCategoryLabel = (category: string | null) => {
+    if (!category) return "-";
+
+    const categoryKeyMap: Record<string, string> = {
+      "משכורת": "catSalary",
+      "פרילנס": "catFreelance",
+      "דיור": "catHousing",
+      "שכירות": "catRent",
+      "משכנתא": "catMortgage",
+      "סופר": "catGroceries",
+      "אוכל": "catFood",
+      "דלק": "catFuel",
+      "תחבורה": "catTransport",
+      "חשמל": "catElectricity",
+      "מים": "catWater",
+      "גז": "catGas",
+      "אינטרנט": "catInternet",
+      "טלפון": "catPhone",
+      "ביטוחים": "catInsurance",
+      "חשבונות": "catBills",
+      "קניות": "catShopping",
+      "בילויים": "catEntertainment",
+      "חינוך": "catEducation",
+      "בריאות": "catHealth",
+      "חיסכון": "catSavings",
+      "השקעות": "catInvestments",
+      "אחר": "catOther",
+      "Salary": "catSalary",
+      "Freelance": "catFreelance",
+      "Housing": "catHousing",
+      "Rent": "catRent",
+      "Mortgage": "catMortgage",
+      "Groceries": "catGroceries",
+      "Food": "catFood",
+      "Fuel": "catFuel",
+      "Transport": "catTransport",
+      "Electricity": "catElectricity",
+      "Water": "catWater",
+      "Gas": "catGas",
+      "Internet": "catInternet",
+      "Phone": "catPhone",
+      "Insurance": "catInsurance",
+      "Bills": "catBills",
+      "Shopping": "catShopping",
+      "Entertainment": "catEntertainment",
+      "Education": "catEducation",
+      "Health": "catHealth",
+      "Savings": "catSavings",
+      "Investments": "catInvestments",
+      "Other": "catOther",
+    };
+
+    const key = categoryKeyMap[category];
+    return key ? t(key as any) : category;
   };
 
   const sendAiMessage = async (chatInput: string) => {
@@ -435,17 +493,17 @@ ${context}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
-          <TabsTrigger value="overview" className="flex-1">הכנסות והוצאות</TabsTrigger>
-          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3 w-3" />היסטוריה</TabsTrigger>
-          <TabsTrigger value="add" className="flex-1 gap-1"><Plus className="h-3 w-3" />הוסף</TabsTrigger>
-          <TabsTrigger value="guides" className="flex-1 gap-1"><BookOpen className="h-3 w-3" />מדריכים</TabsTrigger>
-          <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3 w-3" />יועץ AI</TabsTrigger>
-          <TabsTrigger value="credit-cards" className="flex-1 gap-1"><CreditCard className="h-3 w-3" />בנק ואשראי</TabsTrigger>
+          <TabsTrigger value="overview" className="flex-1">{t("incomeTab" as any)}</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3 w-3" />{t("historyTab" as any)}</TabsTrigger>
+          <TabsTrigger value="add" className="flex-1 gap-1"><Plus className="h-3 w-3" />{t("addTab" as any)}</TabsTrigger>
+          <TabsTrigger value="guides" className="flex-1 gap-1"><BookOpen className="h-3 w-3" />{t("guidesTab" as any)}</TabsTrigger>
+          <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3 w-3" />{t("aiAdvisor" as any)}</TabsTrigger>
+          <TabsTrigger value="credit-cards" className="flex-1 gap-1"><CreditCard className="h-3 w-3" />{t("bankCreditTab" as any)}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="history" className="space-y-4">
           {monthlyHistory.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">אין עדיין נתונים. הוסף הכנסות והוצאות כדי לראות היסטוריה חודשית.</p>
+            <p className="text-center text-muted-foreground py-8">{t("noHistoryYet" as any)}</p>
           ) : (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -463,7 +521,7 @@ ${context}
                     >
                       <div className="text-xs font-medium mb-1">
                         {formatMonthLabel(key)}
-                        {isCurrent && <Badge variant="outline" className="mr-1 text-[9px] px-1">נוכחי</Badge>}
+                        {isCurrent && <Badge variant="outline" className="mr-1 text-[9px] px-1">{t("current" as any)}</Badge>}
                       </div>
                       <div className="flex justify-between text-[11px]">
                         <span className="text-green-600">+₪{data.income.toLocaleString()}</span>
@@ -491,18 +549,18 @@ ${context}
                 return (
                   <Card>
                     <CardContent className="py-4 space-y-4">
-                      <h3 className="text-sm font-semibold">{formatMonthLabel(selectedHistoryMonth)} — פירוט</h3>
+                      <h3 className="text-sm font-semibold">{formatMonthLabel(selectedHistoryMonth)} — {t("detail" as any)}</h3>
                       <div className="grid grid-cols-3 gap-3 text-center">
                         <div>
-                          <p className="text-xs text-muted-foreground">הכנסות</p>
+                          <p className="text-xs text-muted-foreground">{t("income" as any)}</p>
                           <p className="font-bold text-green-600">₪{data.income.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">הוצאות</p>
+                          <p className="text-xs text-muted-foreground">{t("expenses" as any)}</p>
                           <p className="font-bold text-red-600">₪{data.expenses.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">מאזן</p>
+                          <p className="text-xs text-muted-foreground">{t("balance" as any)}</p>
                           <p className={`font-bold ${data.income - data.expenses >= 0 ? "text-green-600" : "text-red-600"}`}>
                             ₪{(data.income - data.expenses).toLocaleString()}
                           </p>
@@ -510,13 +568,13 @@ ${context}
                       </div>
                       {sortedCats.length > 0 && (
                         <div className="space-y-2">
-                          <h4 className="text-xs font-semibold text-muted-foreground">פילוח הוצאות</h4>
+                          <h4 className="text-xs font-semibold text-muted-foreground">{t("expenseBreakdown" as any)}</h4>
                           {sortedCats.map(([cat, amt]) => {
                             const pct = data.expenses > 0 ? Math.round((amt / data.expenses) * 100) : 0;
                             return (
                               <div key={cat}>
                                 <div className="flex justify-between text-sm mb-1">
-                                  <span>{cat}</span>
+                                  <span>{getCategoryLabel(cat)}</span>
                                   <span className="font-medium">₪{amt.toLocaleString()} ({pct}%)</span>
                                 </div>
                                 <Progress value={pct} className="h-2" />
@@ -526,12 +584,12 @@ ${context}
                         </div>
                       )}
                       <div className="space-y-1 max-h-[300px] overflow-y-auto">
-                        <h4 className="text-xs font-semibold text-muted-foreground">כל הפריטים</h4>
+                        <h4 className="text-xs font-semibold text-muted-foreground">{t("allItems" as any)}</h4>
                         {data.items.map(p => (
                           <div key={p.id} className="flex items-center justify-between py-1 text-sm border-b border-border/50 last:border-0">
                             <div className="flex items-center gap-2">
                               <span>{p.title}</span>
-                              {p.category && <Badge variant="outline" className="text-[9px]">{p.category}</Badge>}
+                              {p.category && <Badge variant="outline" className="text-[9px]">{getCategoryLabel(p.category)}</Badge>}
                             </div>
                             <span className={`font-medium ${p.payment_type === "income" ? "text-green-600" : "text-red-600"}`}>
                               {p.payment_type === "income" ? "+" : "-"}₪{p.amount.toLocaleString()}
@@ -551,7 +609,7 @@ ${context}
           {/* Fixed expenses */}
           {payments.filter(p => p.recurring && p.payment_type === "expense").length > 0 && (
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-muted-foreground">הוצאות קבועות</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground">{t("fixedExpenses" as any)}</h3>
               {payments.filter(p => p.recurring && p.payment_type === "expense").map(p => (
                 <Card key={p.id} className="border-muted">
                   <CardContent className="py-2 px-3 flex items-center gap-3">
@@ -561,7 +619,7 @@ ${context}
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
                       <div className="flex gap-2 items-center flex-wrap">
-                        {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
+                        {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
                         {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
                       </div>
                     </div>
@@ -576,7 +634,7 @@ ${context}
           {/* Variable expenses */}
           {payments.filter(p => !p.recurring && p.payment_type === "expense").length > 0 && (
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-muted-foreground mt-3">הוצאות משתנות</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground mt-3">{t("variableExpenses" as any)}</h3>
               {payments.filter(p => !p.recurring && p.payment_type === "expense").map(p => (
                 <Card key={p.id}>
                   <CardContent className="py-2 px-3 flex items-center gap-3">
@@ -586,7 +644,7 @@ ${context}
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
                       <div className="flex gap-2 items-center flex-wrap">
-                        {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
+                        {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
                         {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
                         {p.payment_method && <span className="text-[10px] text-muted-foreground">{p.payment_method}</span>}
                       </div>
@@ -602,7 +660,7 @@ ${context}
           {/* Income */}
           {payments.filter(p => p.payment_type === "income").length > 0 && (
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-muted-foreground mt-3">הכנסות</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground mt-3">{t("income" as any)}</h3>
               {payments.filter(p => p.payment_type === "income").map(p => (
                 <Card key={p.id} className="border-green-200 dark:border-green-800">
                   <CardContent className="py-2 px-3 flex items-center gap-3">
@@ -611,7 +669,7 @@ ${context}
                     </Button>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
-                      {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
+                      {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
                     </div>
                     <span className="font-bold text-sm text-green-600 whitespace-nowrap">+₪{p.amount.toLocaleString()}</span>
                     <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}><Trash2 className="h-3 w-3" /></Button>
@@ -623,7 +681,7 @@ ${context}
 
           {payments.length === 0 && (
             <div className="text-center py-8 space-y-3">
-              <p className="text-muted-foreground">אין תשלומים עדיין. הוסף הכנסה או הוצאה כדי להתחיל!</p>
+              <p className="text-muted-foreground">{t("noPaymentsYet" as any)}</p>
               <SampleDataImport type="payments" />
             </div>
           )}
@@ -694,7 +752,7 @@ ${context}
 
         <TabsContent value="ai">
           <AiChatPanel
-            title="יועץ פיננסי AI"
+            title={t("aiFinancialAdvisor" as any)}
             messages={aiChatHistory.messages}
             loaded={aiChatHistory.loaded}
             aiLoading={aiLoading}
@@ -702,18 +760,25 @@ ${context}
             onSend={sendAiMessage}
             onClearAndArchive={aiChatHistory.clearAndArchive}
             onLoadConversation={aiChatHistory.loadConversation}
-            placeholder="שאל שאלה על הכסף שלך..."
-            emptyText="לחץ 'סיכום חודשי' לקבל ניתוח מלא, או שאל שאלה..."
+            placeholder={t("askAboutMoney" as any)}
+            emptyText={t("monthlySummaryPrompt" as any)}
             extraActions={
               <Button size="sm" variant="outline" onClick={getMonthlyInsight} disabled={aiLoading} className="text-xs gap-1 h-7">
-                <BarChart3 className="h-3 w-3" />סיכום חודשי
+                <BarChart3 className="h-3 w-3" />{t("monthlySummaryBtn" as any)}
               </Button>
             }
           />
         </TabsContent>
 
         <TabsContent value="credit-cards" className="space-y-4">
-          <BankConnect />
+          <div className="grid gap-4 md:grid-cols-2">
+            <BankConnect />
+            <CreditCardConnect />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <FinancialCsvImport />
+            <CreditCardImport />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

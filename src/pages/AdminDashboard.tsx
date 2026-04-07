@@ -25,14 +25,15 @@ interface Stats {
   loginLogs: { user_email: string; logged_in_at: string }[];
   adminEmails: { email: string; user_id: string; created_at: string }[];
   userList: { email: string; created_at: string; last_sign_in_at: string | null }[];
-}
-
-interface EmailAnalysis {
-  id: string;
-  email_subject: string | null;
-  email_from: string | null;
-  email_date: string | null;
-  category: string;
+  mailboxAddress: string;
+  recentEmailLog: {
+    message_id: string | null;
+    template_name: string;
+    recipient_email: string;
+    status: string;
+    error_message: string | null;
+    created_at: string;
+  }[];
 }
 
 const AdminDashboard = () => {
@@ -44,10 +45,6 @@ const AdminDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
-
-  // Email inbox for admin
-  const [emails, setEmails] = useState<EmailAnalysis[]>([]);
-  const [emailsLoading, setEmailsLoading] = useState(false);
 
   const fetchStats = useCallback(async () => {
     if (!user) return;
@@ -69,31 +66,11 @@ const AdminDashboard = () => {
     setLoading(false);
   }, [user, t]);
 
-  const fetchAdminEmails = useCallback(async () => {
-    if (!user) return;
-    setEmailsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("email_analyses")
-        .select("id, email_subject, email_from, email_date, category")
-        .eq("user_id", user.id)
-        .order("email_date", { ascending: false })
-        .limit(30);
-      if (!error && data) {
-        setEmails(data as EmailAnalysis[]);
-      }
-    } catch (e) {
-      console.error("Error fetching admin emails:", e);
-    }
-    setEmailsLoading(false);
-  }, [user]);
-
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate("/auth"); return; }
     fetchStats();
-    fetchAdminEmails();
-  }, [user, authLoading, navigate, fetchStats, fetchAdminEmails]);
+  }, [user, authLoading, navigate, fetchStats]);
 
   const handleAddAdmin = async () => {
     if (!newAdminEmail.trim()) return;
@@ -170,7 +147,7 @@ const AdminDashboard = () => {
             <h1 className="text-2xl md:text-3xl font-bold">{isHe ? "דשבורד יוצר" : "Creator Dashboard"}</h1>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => { fetchStats(); fetchAdminEmails(); }} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => { fetchStats(); }} className="gap-2">
               <RefreshCw className="h-4 w-4" /> {isHe ? "רענן" : "Refresh"}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/personal")}>
@@ -227,28 +204,24 @@ const AdminDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {emailsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : emails.length === 0 ? (
+            <div className="mb-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+              <span className="font-medium">{isHe ? "מייל ראשי:" : "Primary inbox:"}</span>{" "}
+              <span dir="ltr">{stats?.mailboxAddress || "info@tabro.org"}</span>
+            </div>
+            {!(stats?.recentEmailLog?.length) ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Mail className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">{isHe ? "אין מיילים. חבר Gmail באזור המייל כדי לראות כאן את ההודעות שלך." : "No emails. Connect Gmail in the email section to see your messages here."}</p>
+                <p className="text-sm">{isHe ? "עדיין אין אירועי מייל שנשמרו במערכת." : "No email events have been logged yet."}</p>
               </div>
             ) : (
               <div className="space-y-1 max-h-80 overflow-auto">
-                {emails.map((e) => (
-                  <div key={e.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm">
+                {stats.recentEmailLog.map((e, index) => (
+                  <div key={`${e.message_id || e.created_at}-${index}`} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm">
                     <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="flex-1 truncate">{e.email_subject || (isHe ? "(ללא נושא)" : "(No subject)")}</span>
-                    <span className="text-xs text-muted-foreground truncate max-w-[150px]">{e.email_from}</span>
-                    {e.email_date && (
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(e.email_date).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit" })}
-                      </span>
-                    )}
-                    <Badge variant="outline" className="text-[9px]">{e.category}</Badge>
+                    <span className="flex-1 truncate">{e.template_name}</span>
+                    <span className="text-xs text-muted-foreground truncate max-w-[170px]" dir="ltr">{e.recipient_email}</span>
+                    <span className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit" })}</span>
+                    <Badge variant={e.status === "sent" ? "default" : "secondary"} className="text-[9px]">{e.status}</Badge>
                   </div>
                 ))}
               </div>

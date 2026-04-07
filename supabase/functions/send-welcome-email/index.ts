@@ -222,6 +222,15 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error(`Resend error: ${resendError}`);
     }
 
+    const welcomeMessageId = crypto.randomUUID();
+    await supabase.from("email_send_log").insert({
+      message_id: welcomeMessageId,
+      template_name: "welcome-email",
+      recipient_email: user.email,
+      status: "sent",
+      metadata: { fullName, username, lang },
+    });
+
     // Notify admin about new signup
     const adminHtml = `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px;">
@@ -236,6 +245,7 @@ serve(async (req: Request): Promise<Response> => {
       </div>
     `;
 
+    const adminMessageId = crypto.randomUUID();
     await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -249,6 +259,14 @@ serve(async (req: Request): Promise<Response> => {
         html: adminHtml,
       }),
     }).catch((e) => console.error("Admin notification error:", e));
+
+    await supabase.from("email_send_log").insert({
+      message_id: adminMessageId,
+      template_name: "new-signup-admin",
+      recipient_email: "info@tabro.org",
+      status: "sent",
+      metadata: { fullName, userEmail: user.email, username, lang, recipients: ADMIN_EMAILS },
+    });
 
     await supabase
       .from("profiles")

@@ -9,7 +9,6 @@ import { Mail, Server, Loader2 } from "lucide-react";
 import { useEmailIntegration } from "@/hooks/useEmailIntegration";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 
 interface EmailConnectionDialogProps {
@@ -23,7 +22,7 @@ const PROVIDERS = [
 ];
 
 const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { addConnection, refetch } = useEmailIntegration();
   const [provider, setProvider] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -32,82 +31,48 @@ const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) =>
   const [imapPassword, setImapPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const isHe = lang === "he" || lang === "ar";
 
-  // After Google OAuth redirect, capture provider_token and save connection
   useEffect(() => {
-    const handleOAuthReturn = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.provider_token || session?.user?.app_metadata?.provider !== "google") return;
-
-      const providerToken = session.provider_token;
-      const userEmail = session.user.email;
-      if (!userEmail) return;
-
-      // Save the Gmail connection with access token
-      try {
-        const { error } = await supabase
-          .from("email_connections")
-          .upsert({
-            user_id: session.user.id,
-            provider: "gmail",
-            email_address: userEmail,
-            access_token: providerToken,
-            refresh_token: session.provider_refresh_token || null,
-            settings: { connected_via: "oauth", token_expiry: Date.now() + 3600000 },
-          } as any, { onConflict: "user_id,provider,email_address" });
-
-        if (error) throw error;
-        toast.success(`${t("emailConnected" as any)}: ${userEmail}`);
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "gmail-connected") {
+        toast.success(`${t("emailConnected" as any)}: ${event.data.email}`);
         refetch();
-      } catch (e) {
-        console.error("Error saving Gmail connection:", e);
+        onClose();
+      }
+
+      if (event.data?.type === "gmail-error") {
+        toast.error(isHe ? "שגיאה בחיבור Gmail" : "Error connecting Gmail");
       }
     };
 
-    handleOAuthReturn();
-  }, [refetch, t]);
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [isHe, onClose, refetch, t]);
 
   const handleGmailOAuth = async () => {
     setOauthLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-        extraParams: {
-          prompt: "consent",
-          access_type: "offline",
-        },
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error(t("loginRequired" as any));
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("gmail-auth", {
+        body: { action: "get_auth_url" },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
-      if (result.error) {
+      if (error || !data?.url) {
         toast.error(t("oauthError" as any));
         return;
       }
 
-      if (result.redirected) {
-        // Browser will redirect to Google — just return
+      const popup = window.open(data.url, "gmail-oauth", "width=620,height=760");
+      if (!popup) {
+        toast.error(isHe ? "הדפדפן חסם את חלון ההרשאות" : "The browser blocked the permissions popup");
         return;
-      }
-
-      // Tokens received — session is set, check for provider_token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.provider_token) {
-        const userEmail = session.user?.email;
-        if (userEmail) {
-          await supabase
-            .from("email_connections")
-            .upsert({
-              user_id: session.user!.id,
-              provider: "gmail",
-              email_address: userEmail,
-              access_token: session.provider_token,
-              refresh_token: session.provider_refresh_token || null,
-              settings: { connected_via: "oauth", token_expiry: Date.now() + 3600000 },
-            } as any, { onConflict: "user_id,provider,email_address" });
-
-          toast.success(`${t("emailConnected" as any)}: ${userEmail}`);
-          refetch();
-          onClose();
-        }
       }
     } catch {
       toast.error(t("oauthError" as any));
