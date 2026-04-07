@@ -68,6 +68,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_connections: {
+        Row: {
+          created_at: string
+          id: string
+          last_sync: string | null
+          provider_name: string | null
+          salt_edge_connection_id: string | null
+          salt_edge_customer_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          provider_name?: string | null
+          salt_edge_connection_id?: string | null
+          salt_edge_customer_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          provider_name?: string | null
+          salt_edge_connection_id?: string | null
+          salt_edge_customer_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       books: {
         Row: {
           author: string | null
