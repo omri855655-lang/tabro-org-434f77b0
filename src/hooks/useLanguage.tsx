@@ -30,6 +30,9 @@ const translations = {
     bankConnections: "חיבורי בנק ואשראי", connectBank: "חבר בנק", bankConnectStarted: "נפתח חלון חיבור בנק", bankConnectError: "שגיאה בחיבור בנק", bankDisconnected: "חיבור בנק נמחק", noBankConnections: "אין חיבורי בנק. לחץ 'חבר בנק' כדי להתחיל.", syncComplete: "סנכרון הושלם", deleteError: "שגיאה במחיקה", loginRequired: "יש להתחבר מחדש", emailConnected: "חשבון מייל חובר", oauthError: "שגיאה בפתיחת OAuth", bankAndCredit: "בנק ואשראי",
     // Settings extras
     changePassword: "שנה סיסמה", currentPassword: "סיסמה נוכחית", newPassword: "סיסמה חדשה", confirmPassword: "אימות סיסמה", passwordChanged: "הסיסמה שונתה בהצלחה", passwordMismatch: "הסיסמאות לא תואמות", theme: "ערכת נושא", darkMode: "מצב כהה", lightMode: "מצב בהיר", systemMode: "לפי המערכת",
+    // Accessibility page
+    a11yCommitment: "מחויבות לנגישות", a11yCommitmentText: "אנו מחויבים להנגיש את מערכת Tabro לכלל האוכלוסייה, כולל אנשים עם מוגבלויות, בהתאם לתקן הישראלי (ת\"י 5568) ולהנחיות WCAG 2.1 ברמה AA.", a11yWhatWeDid: "מה עשינו", a11yLimitations: "מגבלות ידועות", a11yLimitationsText: "ייתכנו רכיבים מסוימים שעדיין אינם מונגשים באופן מלא. אנו עובדים באופן שוטף על שיפור הנגישות.", a11yContact: "יצירת קשר", a11yContactText: "נתקלת בבעיית נגישות? נשמח לשמוע ממך. ניתן לפנות דרך טופס יצירת הקשר באתר.", lastUpdated: "עדכון אחרון",
+    a11yFeatureKeyboard: "תמיכה מלאה בניווט מקלדת", a11yFeatureRtl: "תמיכה ב-RTL (ימין לשמאל) לעברית", a11yFeatureHeadings: "היררכיית כותרות תקינה (H1-H6)", a11yFeatureAria: "תוויות ARIA באלמנטים אינטראקטיביים", a11yFeatureContrast: "ניגודיות צבעים מספקת", a11yFeatureSkip: "כפתור \"דלג לתוכן\" (Skip Link) לניווט מהיר", a11yFeatureTheme: "מצב כהה ובהיר לנוחות צפייה", a11yFeatureForms: "טפסים עם תוויות ברורות והודעות שגיאה",
   },
   en: {
     personalArea: "Personal Area", installApp: "Install App", signOut: "Sign Out", signedOutSuccess: "Signed out successfully", loading: "Loading...",
