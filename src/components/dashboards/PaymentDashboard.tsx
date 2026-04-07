@@ -120,7 +120,7 @@ const PaymentDashboard = () => {
     const amount = parseFloat(budgetInput);
     if (isNaN(amount) || amount <= 0) return;
     const { error } = await supabase.from("budget_targets").upsert({ user_id: user.id, period: budgetPeriod, amount, category: null }, { onConflict: "user_id,period,category" });
-    if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success("יעד תקציב נשמר ✅"); }
+    if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success(t("budgetSaved" as any)); }
   };
 
   const fetchPayments = useCallback(async () => {
