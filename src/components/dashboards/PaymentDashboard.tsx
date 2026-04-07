@@ -365,9 +365,9 @@ ${context}
 
       {/* 50/30/20 Rule visual */}
       {totalIncome > 0 && (
-        <Card>
+         <Card>
           <CardContent className="py-4">
-            <h3 className="text-sm font-semibold mb-3 text-center">כלל 50/30/20</h3>
+            <h3 className="text-sm font-semibold mb-3 text-center">{t("rule503020" as any)}</h3>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div>
                 <div className="relative mx-auto w-16 h-16">
@@ -377,8 +377,8 @@ ${context}
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{needsPercent}%</span>
                 </div>
-                <p className="text-xs font-medium mt-1">צרכים</p>
-                <p className="text-[10px] text-muted-foreground">יעד: 50%</p>
+                <p className="text-xs font-medium mt-1">{t("needs" as any)}</p>
+                <p className="text-[10px] text-muted-foreground">{t("targetPercent" as any)}: 50%</p>
               </div>
               <div>
                 <div className="relative mx-auto w-16 h-16">
@@ -388,8 +388,8 @@ ${context}
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{wantsPercent}%</span>
                 </div>
-                <p className="text-xs font-medium mt-1">רצונות</p>
-                <p className="text-[10px] text-muted-foreground">יעד: 30%</p>
+                <p className="text-xs font-medium mt-1">{t("wants" as any)}</p>
+                <p className="text-[10px] text-muted-foreground">{t("targetPercent" as any)}: 30%</p>
               </div>
               <div>
                 <div className="relative mx-auto w-16 h-16">
@@ -399,8 +399,8 @@ ${context}
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{savingsPercent}%</span>
                 </div>
-                <p className="text-xs font-medium mt-1">חיסכון</p>
-                <p className="text-[10px] text-muted-foreground">יעד: 20%</p>
+                <p className="text-xs font-medium mt-1">{t("savings" as any)}</p>
+                <p className="text-[10px] text-muted-foreground">{t("targetPercent" as any)}: 20%</p>
               </div>
             </div>
           </CardContent>
