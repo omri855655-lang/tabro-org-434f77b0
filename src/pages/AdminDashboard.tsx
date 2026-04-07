@@ -5,14 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Users, LogIn, ClipboardList, ShieldCheck, ArrowRight,
-  UserPlus, Trash2, RefreshCw, Crown
+  UserPlus, Trash2, RefreshCw, Crown, Mail, Loader2, Sparkles
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface Stats {
   totalUsers: number;
@@ -25,14 +27,27 @@ interface Stats {
   userList: { email: string; created_at: string; last_sign_in_at: string | null }[];
 }
 
+interface EmailAnalysis {
+  id: string;
+  email_subject: string | null;
+  email_from: string | null;
+  email_date: string | null;
+  category: string;
+}
+
 const AdminDashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { t, dir } = useLanguage();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
+
+  // Email inbox for admin
+  const [emails, setEmails] = useState<EmailAnalysis[]>([]);
+  const [emailsLoading, setEmailsLoading] = useState(false);
 
   const fetchStats = useCallback(async () => {
     if (!user) return;
@@ -44,7 +59,7 @@ const AdminDashboard = () => {
       if (data?.error === "Forbidden") {
         setIsAdmin(false);
       } else {
-        toast.error("שגיאה בטעינת נתונים");
+        toast.error(t("error" as any));
       }
       setLoading(false);
       return;
@@ -52,13 +67,33 @@ const AdminDashboard = () => {
     setIsAdmin(true);
     setStats(data);
     setLoading(false);
+  }, [user, t]);
+
+  const fetchAdminEmails = useCallback(async () => {
+    if (!user) return;
+    setEmailsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("email_analyses")
+        .select("id, email_subject, email_from, email_date, category")
+        .eq("user_id", user.id)
+        .order("email_date", { ascending: false })
+        .limit(30);
+      if (!error && data) {
+        setEmails(data as EmailAnalysis[]);
+      }
+    } catch (e) {
+      console.error("Error fetching admin emails:", e);
+    }
+    setEmailsLoading(false);
   }, [user]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate("/auth"); return; }
     fetchStats();
-  }, [user, authLoading, navigate, fetchStats]);
+    fetchAdminEmails();
+  }, [user, authLoading, navigate, fetchStats, fetchAdminEmails]);
 
   const handleAddAdmin = async () => {
     if (!newAdminEmail.trim()) return;
@@ -68,10 +103,10 @@ const AdminDashboard = () => {
     });
     setAddingAdmin(false);
     if (error || data?.error) {
-      toast.error(data?.error || "שגיאה בהוספת מנהל");
+      toast.error(data?.error || t("error" as any));
       return;
     }
-    toast.success("מנהל נוסף בהצלחה!");
+    toast.success("Admin added successfully!");
     setNewAdminEmail("");
     fetchStats();
   };
@@ -81,30 +116,33 @@ const AdminDashboard = () => {
       body: { action: "remove_admin", user_id: userId },
     });
     if (error || data?.error) {
-      toast.error(data?.error || "שגיאה בהסרת מנהל");
+      toast.error(data?.error || t("error" as any));
       return;
     }
-    toast.success("מנהל הוסר בהצלחה");
+    toast.success("Admin removed");
     fetchStats();
   };
 
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">טוען...</div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-background" dir={dir}>
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <ShieldCheck className="h-16 w-16 mx-auto text-destructive" />
-            <h2 className="text-xl font-bold">אין לך הרשאה לצפות בדף זה</h2>
+            <h2 className="text-xl font-bold">
+              {dir === "rtl" ? "אין לך הרשאה לצפות בדף זה" : "You don't have permission to view this page"}
+            </h2>
             <Button onClick={() => navigate("/personal")} className="gap-2">
-              <ArrowRight className="h-4 w-4" /> חזרה לאזור האישי
+              <ArrowRight className="h-4 w-4" />
+              {dir === "rtl" ? "חזרה לאזור האישי" : "Back to Personal Area"}
             </Button>
           </CardContent>
         </Card>
@@ -114,27 +152,29 @@ const AdminDashboard = () => {
 
   const formatDate = (d: string | null) => {
     if (!d) return "—";
-    return new Date(d).toLocaleDateString("he-IL", {
+    return new Date(d).toLocaleDateString(dir === "rtl" ? "he-IL" : "en-US", {
       day: "2-digit", month: "2-digit", year: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
   };
 
+  const isHe = dir === "rtl";
+
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
+    <div className="min-h-screen bg-background p-4 md:p-8" dir={dir}>
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <Crown className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl md:text-3xl font-bold">דשבורד יוצר</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">{isHe ? "דשבורד יוצר" : "Creator Dashboard"}</h1>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={fetchStats} className="gap-2">
-              <RefreshCw className="h-4 w-4" /> רענן
+            <Button variant="outline" size="sm" onClick={() => { fetchStats(); fetchAdminEmails(); }} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> {isHe ? "רענן" : "Refresh"}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/personal")}>
-              חזרה לאזור האישי
+              {isHe ? "חזרה לאזור האישי" : "Back to Personal"}
             </Button>
           </div>
         </div>
@@ -146,7 +186,7 @@ const AdminDashboard = () => {
               <Users className="h-8 w-8 text-blue-500" />
               <div>
                 <p className="text-2xl font-bold">{stats?.totalUsers ?? 0}</p>
-                <p className="text-xs text-muted-foreground">משתמשים רשומים</p>
+                <p className="text-xs text-muted-foreground">{isHe ? "משתמשים רשומים" : "Registered Users"}</p>
               </div>
             </CardContent>
           </Card>
@@ -155,7 +195,7 @@ const AdminDashboard = () => {
               <UserPlus className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-2xl font-bold">{stats?.recentSignups ?? 0}</p>
-                <p className="text-xs text-muted-foreground">הרשמות (30 יום)</p>
+                <p className="text-xs text-muted-foreground">{isHe ? "הרשמות (30 יום)" : "Signups (30d)"}</p>
               </div>
             </CardContent>
           </Card>
@@ -164,7 +204,7 @@ const AdminDashboard = () => {
               <LogIn className="h-8 w-8 text-orange-500" />
               <div>
                 <p className="text-2xl font-bold">{stats?.recentLogins ?? 0}</p>
-                <p className="text-xs text-muted-foreground">כניסות (30 יום)</p>
+                <p className="text-xs text-muted-foreground">{isHe ? "כניסות (30 יום)" : "Logins (30d)"}</p>
               </div>
             </CardContent>
           </Card>
@@ -173,38 +213,75 @@ const AdminDashboard = () => {
               <ClipboardList className="h-8 w-8 text-purple-500" />
               <div>
                 <p className="text-2xl font-bold">{stats?.totalTasks ?? 0}</p>
-                <p className="text-xs text-muted-foreground">משימות במערכת</p>
+                <p className="text-xs text-muted-foreground">{isHe ? "משימות במערכת" : "Total Tasks"}</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Email Inbox for Admin */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" /> {isHe ? "תיבת מייל" : "Email Inbox"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {emailsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : emails.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Mail className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">{isHe ? "אין מיילים. חבר Gmail באזור המייל כדי לראות כאן את ההודעות שלך." : "No emails. Connect Gmail in the email section to see your messages here."}</p>
+              </div>
+            ) : (
+              <div className="space-y-1 max-h-80 overflow-auto">
+                {emails.map((e) => (
+                  <div key={e.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="flex-1 truncate">{e.email_subject || (isHe ? "(ללא נושא)" : "(No subject)")}</span>
+                    <span className="text-xs text-muted-foreground truncate max-w-[150px]">{e.email_from}</span>
+                    {e.email_date && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(e.email_date).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit" })}
+                      </span>
+                    )}
+                    <Badge variant="outline" className="text-[9px]">{e.category}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Admin Management */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" /> ניהול מנהלים
+              <ShieldCheck className="h-5 w-5" /> {isHe ? "ניהול מנהלים" : "Admin Management"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="אימייל של מנהל חדש..."
+                placeholder={isHe ? "אימייל של מנהל חדש..." : "New admin email..."}
                 value={newAdminEmail}
                 onChange={(e) => setNewAdminEmail(e.target.value)}
                 dir="ltr"
                 className="max-w-sm"
               />
               <Button onClick={handleAddAdmin} disabled={addingAdmin || !newAdminEmail.trim()}>
-                {addingAdmin ? "מוסיף..." : "הוסף מנהל"}
+                {addingAdmin ? <Loader2 className="h-4 w-4 animate-spin" /> : (isHe ? "הוסף מנהל" : "Add Admin")}
               </Button>
             </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>אימייל</TableHead>
-                  <TableHead>נוסף בתאריך</TableHead>
-                  <TableHead>פעולות</TableHead>
+                  <TableHead>{isHe ? "אימייל" : "Email"}</TableHead>
+                  <TableHead>{isHe ? "נוסף בתאריך" : "Added"}</TableHead>
+                  <TableHead>{isHe ? "פעולות" : "Actions"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -214,16 +291,11 @@ const AdminDashboard = () => {
                     <TableCell>{formatDate(admin.created_at)}</TableCell>
                     <TableCell>
                       {admin.email !== user?.email ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveAdmin(admin.user_id)}
-                          className="text-destructive hover:text-destructive"
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveAdmin(admin.user_id)} className="text-destructive hover:text-destructive">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       ) : (
-                        <span className="text-xs text-muted-foreground">את/ה</span>
+                        <span className="text-xs text-muted-foreground">{isHe ? "את/ה" : "You"}</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -237,7 +309,7 @@ const AdminDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" /> רשימת משתמשים
+              <Users className="h-5 w-5" /> {isHe ? "רשימת משתמשים" : "User List"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -245,9 +317,9 @@ const AdminDashboard = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>אימייל</TableHead>
-                    <TableHead>תאריך הרשמה</TableHead>
-                    <TableHead>כניסה אחרונה</TableHead>
+                    <TableHead>{isHe ? "אימייל" : "Email"}</TableHead>
+                    <TableHead>{isHe ? "תאריך הרשמה" : "Registered"}</TableHead>
+                    <TableHead>{isHe ? "כניסה אחרונה" : "Last Login"}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
