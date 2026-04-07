@@ -7,6 +7,7 @@ import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
+import { useSyncedPreferences } from "@/hooks/useSyncedPreferences";
 import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
 import BooksManager from "@/components/BooksManager";
 import ShowsManager from "@/components/ShowsManager";
@@ -112,6 +113,9 @@ const Personal = () => {
   const { t, dir } = useLanguage();
   const { isDark, toggleMode } = useSiteAppearance();
   const { layout } = useLayoutPreference();
+
+  // Sync preferences across devices
+  useSyncedPreferences();
 
   // Fetch shared sheets (where someone shared with me)
   const fetchSharedSheets = useCallback(async () => {

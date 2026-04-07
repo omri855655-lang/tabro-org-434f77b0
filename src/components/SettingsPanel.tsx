@@ -20,33 +20,33 @@ import NotificationSettings from "@/components/NotificationSettings";
 import RecycleBin from "@/components/RecycleBin";
 
 const ChangePasswordForm = () => {
-  const [currentPw, setCurrentPw] = useState("");
+  const { t } = useLanguage();
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [saving, setSaving] = useState(false);
 
   const handleChange = async () => {
-    if (newPw.length < 6) { toast.error("סיסמה חייבת להכיל לפחות 6 תווים"); return; }
-    if (newPw !== confirmPw) { toast.error("הסיסמאות לא תואמות"); return; }
+    if (newPw.length < 6) { toast.error(t("passwordMinLength" as any)); return; }
+    if (newPw !== confirmPw) { toast.error(t("passwordMismatch" as any)); return; }
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ password: newPw });
     setSaving(false);
-    if (error) { toast.error("שגיאה: " + error.message); return; }
-    setCurrentPw(""); setNewPw(""); setConfirmPw("");
-    toast.success("הסיסמה שונתה בהצלחה!");
+    if (error) { toast.error(t("error" as any) + ": " + error.message); return; }
+    setNewPw(""); setConfirmPw("");
+    toast.success(t("passwordChanged" as any));
   };
 
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label>סיסמה חדשה</Label>
+        <Label>{t("newPassword" as any)}</Label>
         <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="••••••" dir="ltr" />
       </div>
       <div className="space-y-1">
-        <Label>אימות סיסמה חדשה</Label>
+        <Label>{t("confirmPassword" as any)}</Label>
         <Input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="••••••" dir="ltr" />
       </div>
-      <Button onClick={handleChange} disabled={saving || !newPw}>{saving ? "משנה..." : "שנה סיסמה"}</Button>
+      <Button onClick={handleChange} disabled={saving || !newPw}>{saving ? t("changing" as any) : t("changePassword" as any)}</Button>
     </div>
   );
 };
@@ -55,7 +55,7 @@ const SettingsPanel = () => {
   const { user, signOut } = useAuth();
   const navTo = useNavigate();
   const { toggleTab, isTabVisible } = useUserPreferences();
-  const { lang, setLang } = useLanguage();
+  const { lang, setLang, t, dir } = useLanguage();
   const { themeId, mode, themes, setThemeId, setMode, fontId, fonts, setFontId, customColors, setCustomColor, resetCustomColors, showHebrewDate, setShowHebrewDate } = useSiteAppearance();
   const { layout, setLayout } = useLayoutPreference();
   const [pinEnabled, setPinEnabled] = useState(true);
@@ -65,7 +65,6 @@ const SettingsPanel = () => {
   const [newPin, setNewPin] = useState(["", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Custom boards
   const { boards, addBoard, deleteBoard, updateBoard } = useCustomBoards();
   const [showAddBoard, setShowAddBoard] = useState(false);
   const [newBoardName, setNewBoardName] = useState("");
@@ -73,7 +72,6 @@ const SettingsPanel = () => {
   const [newBoardDashboard, setNewBoardDashboard] = useState(false);
   const [boardTemplate, setBoardTemplate] = useState("custom");
 
-  // Profile name fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [nameLoaded, setNameLoaded] = useState(false);
@@ -101,7 +99,6 @@ const SettingsPanel = () => {
       if (!cancelled) setLoading(false);
     };
     fetchProfile();
-    // Safety timeout in case fetch hangs
     const timer = setTimeout(() => { if (!cancelled) setLoading(false); }, 5000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [user]);
@@ -114,9 +111,9 @@ const SettingsPanel = () => {
       return;
     }
     const { error } = await supabase.from("profiles").update({ pin_enabled: enabled }).eq("user_id", user.id);
-    if (error) { toast.error("שגיאה בעדכון ההגדרות"); return; }
+    if (error) { toast.error(t("settingsError" as any)); return; }
     setPinEnabled(enabled);
-    toast.success(enabled ? "קוד גישה הופעל" : "קוד גישה בוטל");
+    toast.success(enabled ? t("pinActivated" as any) : t("pinDeactivated" as any));
   };
 
   const handlePinChange = (index: number, value: string) => {
@@ -139,56 +136,56 @@ const SettingsPanel = () => {
   const saveNewPin = async (pinCode: string) => {
     if (!user) return;
     const { error } = await supabase.from("profiles").update({ pin_code: pinCode, pin_enabled: true }).eq("user_id", user.id);
-    if (error) { toast.error("שגיאה בשמירת הקוד"); return; }
+    if (error) { toast.error(t("settingsError" as any)); return; }
     setHasPin(true);
     setPinEnabled(true);
     setChangingPin(false);
     setNewPin(["", "", "", ""]);
-    toast.success("קוד הגישה עודכן בהצלחה!");
+    toast.success(t("pinUpdated" as any));
   };
 
   const handleAddBoard = async () => {
-    if (!newBoardName.trim()) { toast.error("יש להזין שם"); return; }
+    if (!newBoardName.trim()) { toast.error(t("enterName" as any)); return; }
     const statuses = newBoardStatuses.split(",").map(s => s.trim()).filter(Boolean);
-    if (statuses.length === 0) { toast.error("יש להזין לפחות סטטוס אחד"); return; }
+    if (statuses.length === 0) { toast.error(t("enterStatus" as any)); return; }
     try {
       await addBoard(newBoardName.trim(), statuses, newBoardDashboard);
       setShowAddBoard(false);
       setNewBoardName("");
       setNewBoardStatuses("לביצוע,בתהליך,הושלם");
       setNewBoardDashboard(false);
-      toast.success("הדשבורד נוסף בהצלחה!");
+      toast.success(t("dashboardAdded" as any));
     } catch {
-      toast.error("שגיאה ביצירת דשבורד");
+      toast.error(t("dashboardCreateError" as any));
     }
   };
 
   const handleDeleteBoard = async (id: string, name: string) => {
-    if (!confirm(`למחוק את "${name}"? כל הפריטים בו יימחקו.`)) return;
+    if (!confirm(t("deleteConfirmBoard" as any).replace("{name}", name))) return;
     try {
       await deleteBoard(id);
-      toast.success("נמחק בהצלחה");
+      toast.success(t("deletedSuccessfully" as any));
     } catch {
-      toast.error("שגיאה במחיקה");
+      toast.error(t("deleteError2" as any));
     }
   };
 
-  if (loading) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
+  if (loading) return <div className="p-6 text-center text-muted-foreground">{t("loading" as any)}</div>;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6" dir="rtl">
+    <div className="p-6 max-w-2xl mx-auto space-y-6" dir={dir}>
       {/* Profile Name Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />פרטים אישיים</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />{t("personalDetails" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">השם שלך יוצג בגליונות משותפים כדי שאחרים ידעו מי הוסיף או עדכן משימות.</p>
+          <p className="text-sm text-muted-foreground">{t("personalDetailsDesc" as any)}</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>שם פרטי</Label>
+              <Label>{t("firstName" as any)}</Label>
               <Input
-                placeholder="שם פרטי"
+                placeholder={t("firstName" as any)}
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 onBlur={async () => {
@@ -196,13 +193,12 @@ const SettingsPanel = () => {
                   const displayName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || null;
                   await supabase.from("profiles").update({ first_name: firstName.trim() || null, display_name: displayName }).eq("user_id", user.id);
                 }}
-                dir="rtl"
               />
             </div>
             <div className="space-y-1">
-              <Label>שם משפחה</Label>
+              <Label>{t("lastName" as any)}</Label>
               <Input
-                placeholder="שם משפחה"
+                placeholder={t("lastName" as any)}
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 onBlur={async () => {
@@ -210,7 +206,6 @@ const SettingsPanel = () => {
                   const displayName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || null;
                   await supabase.from("profiles").update({ last_name: lastName.trim() || null, display_name: displayName }).eq("user_id", user.id);
                 }}
-                dir="rtl"
               />
             </div>
           </div>
@@ -219,16 +214,14 @@ const SettingsPanel = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" />עיצוב וצבעים</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" />{t("designAndColors" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">אפשר לבחור ערכת צבעים לכל האתר ולעבור בין מראה בהיר וכהה — כמו ב-Deeply, אבל לכל המערכת.</p>
+          <p className="text-sm text-muted-foreground">{t("designDesc" as any)}</p>
           <div className="space-y-2">
-            <Label>ערכת צבעים</Label>
+            <Label>{t("colorScheme" as any)}</Label>
             <Select value={themeId} onValueChange={setThemeId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {themes.map((theme) => (
                   <SelectItem key={theme.id} value={theme.id}>
@@ -239,39 +232,26 @@ const SettingsPanel = () => {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>מצב תצוגה</Label>
+            <Label>{t("displayMode" as any)}</Label>
             <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={mode === "light" ? "default" : "outline"}
-                className="gap-2"
-                onClick={() => setMode("light")}
-              >
-                <Sun className="h-4 w-4" />
-                בהיר
+              <Button type="button" variant={mode === "light" ? "default" : "outline"} className="gap-2" onClick={() => setMode("light")}>
+                <Sun className="h-4 w-4" />{t("light" as any)}
               </Button>
-              <Button
-                type="button"
-                variant={mode === "dark" ? "default" : "outline"}
-                className="gap-2"
-                onClick={() => setMode("dark")}
-              >
-                <Moon className="h-4 w-4" />
-                כהה
+              <Button type="button" variant={mode === "dark" ? "default" : "outline"} className="gap-2" onClick={() => setMode("dark")}>
+                <Moon className="h-4 w-4" />{t("dark" as any)}
               </Button>
             </div>
           </div>
-
         </CardContent>
       </Card>
 
-      {/* Font Card - SEPARATE */}
+      {/* Font Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Type className="h-5 w-5" />גופן</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Type className="h-5 w-5" />{t("font" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">בחר את הגופן שמתאים לך. השינוי חל על כל האתר.</p>
+          <p className="text-xs text-muted-foreground">{t("fontDesc" as any)}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {fonts.map((font) => (
               <button
@@ -288,22 +268,22 @@ const SettingsPanel = () => {
         </CardContent>
       </Card>
 
-      {/* Layout Card - SEPARATE */}
+      {/* Layout Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />מבנה ממשק</CardTitle>
+          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />{t("interfaceLayout" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">בחר את סגנון הניווט שהכי נוח לך. השינוי מיידי.</p>
+          <p className="text-xs text-muted-foreground">{t("layoutDesc" as any)}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {([
-              { id: "tabs" as LayoutMode, label: "לשוניות", desc: "סרגל עליון קלאסי", icon: LayoutList },
-              { id: "sidebar" as LayoutMode, label: "סרגל צד", desc: "תפריט צד מתקפל", icon: PanelLeft },
-              { id: "compact" as LayoutMode, label: "קומפקטי", desc: "תפריטים נפתחים", icon: Columns },
-              { id: "bottom-nav" as LayoutMode, label: "סרגל תחתון", desc: "ניווט מסך קטן", icon: Smartphone },
-              { id: "hamburger" as LayoutMode, label: "המבורגר", desc: "תפריט נפתח", icon: Menu },
-              { id: "dashboard-cards" as LayoutMode, label: "כרטיסיות", desc: "דשבורד ראשי", icon: LayoutGrid },
-              { id: "split-view" as LayoutMode, label: "פאנל כפול", desc: "ניווט + תוכן", icon: PanelLeft },
+              { id: "tabs" as LayoutMode, label: t("layoutTabs" as any), desc: t("layoutTabsDesc" as any), icon: LayoutList },
+              { id: "sidebar" as LayoutMode, label: t("layoutSidebar" as any), desc: t("layoutSidebarDesc" as any), icon: PanelLeft },
+              { id: "compact" as LayoutMode, label: t("layoutCompact" as any), desc: t("layoutCompactDesc" as any), icon: Columns },
+              { id: "bottom-nav" as LayoutMode, label: t("layoutBottomNav" as any), desc: t("layoutBottomNavDesc" as any), icon: Smartphone },
+              { id: "hamburger" as LayoutMode, label: t("layoutHamburger" as any), desc: t("layoutHamburgerDesc" as any), icon: Menu },
+              { id: "dashboard-cards" as LayoutMode, label: t("layoutCards" as any), desc: t("layoutCardsDesc" as any), icon: LayoutGrid },
+              { id: "split-view" as LayoutMode, label: t("layoutSplitView" as any), desc: t("layoutSplitViewDesc" as any), icon: PanelLeft },
             ]).map((opt) => {
               const Icon = opt.icon;
               return (
@@ -322,58 +302,41 @@ const SettingsPanel = () => {
         </CardContent>
       </Card>
 
-      {/* Custom Colors Card - SEPARATE */}
+      {/* Custom Colors Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" />התאמת צבעים אישית</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" />{t("customColorsTitle" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">שנה צבעים ספציפיים לעיצוב הנוכחי. השינויים נשמרים אוטומטית.</p>
+          <p className="text-xs text-muted-foreground">{t("customColorsDesc" as any)}</p>
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">צבע ראשי</Label>
-              <input
-                type="color"
-                value={customColors.primary || "#3b82f6"}
-                onChange={(e) => setCustomColor("primary", e.target.value)}
-                className="w-full h-9 rounded-md border border-input cursor-pointer"
-              />
+              <Label className="text-xs">{t("primaryColor" as any)}</Label>
+              <input type="color" value={customColors.primary || "#3b82f6"} onChange={(e) => setCustomColor("primary", e.target.value)} className="w-full h-9 rounded-md border border-input cursor-pointer" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">צבע רקע</Label>
-              <input
-                type="color"
-                value={customColors.background || "#f8f9fc"}
-                onChange={(e) => setCustomColor("background", e.target.value)}
-                className="w-full h-9 rounded-md border border-input cursor-pointer"
-              />
+              <Label className="text-xs">{t("backgroundColor" as any)}</Label>
+              <input type="color" value={customColors.background || "#f8f9fc"} onChange={(e) => setCustomColor("background", e.target.value)} className="w-full h-9 rounded-md border border-input cursor-pointer" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">צבע כרטיס</Label>
-              <input
-                type="color"
-                value={customColors.card || "#ffffff"}
-                onChange={(e) => setCustomColor("card", e.target.value)}
-                className="w-full h-9 rounded-md border border-input cursor-pointer"
-              />
+              <Label className="text-xs">{t("cardColor" as any)}</Label>
+              <input type="color" value={customColors.card || "#ffffff"} onChange={(e) => setCustomColor("card", e.target.value)} className="w-full h-9 rounded-md border border-input cursor-pointer" />
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={resetCustomColors} className="text-xs">
-            איפוס לברירת מחדל
-          </Button>
+          <Button variant="outline" size="sm" onClick={resetCustomColors} className="text-xs">{t("resetToDefault" as any)}</Button>
         </CardContent>
       </Card>
 
       {/* Security Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />אבטחה</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />{t("security" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label className="text-base">קוד גישה (PIN)</Label>
-              <p className="text-sm text-muted-foreground">דרוש קוד 4 ספרות בכל כניסה לאתר</p>
+              <Label className="text-base">{t("pinCode" as any)}</Label>
+              <p className="text-sm text-muted-foreground">{t("pinDescription" as any)}</p>
             </div>
             <Switch checked={pinEnabled} onCheckedChange={togglePin} />
           </div>
@@ -381,17 +344,17 @@ const SettingsPanel = () => {
             <div className="space-y-3 pt-2 border-t">
               {!changingPin ? (
                 <Button variant="outline" size="sm" onClick={() => { setChangingPin(true); setNewPin(["","","",""]); setTimeout(() => inputRefs.current[0]?.focus(), 100); }} className="gap-2">
-                  <Lock className="h-4 w-4" />{hasPin ? "שנה קוד גישה" : "הגדר קוד גישה"}
+                  <Lock className="h-4 w-4" />{hasPin ? t("changePin" as any) : t("setPin" as any)}
                 </Button>
               ) : (
                 <div className="space-y-3">
-                  <Label>הזן קוד חדש:</Label>
+                  <Label>{t("enterNewCode" as any)}</Label>
                   <div className="flex gap-3" dir="ltr">
                     {newPin.map((digit, i) => (
                       <Input key={i} ref={(el) => { inputRefs.current[i] = el; }} type="text" inputMode="numeric" maxLength={1} value={digit} onChange={(e) => handlePinChange(i, e.target.value)} onKeyDown={(e) => handleKeyDown(i, e)} className="w-12 h-12 text-center text-xl font-bold" autoComplete="off" />
                     ))}
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => { setChangingPin(false); setNewPin(["","","",""]); }}>ביטול</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setChangingPin(false); setNewPin(["","","",""]); }}>{t("cancel" as any)}</Button>
                 </div>
               )}
             </div>
@@ -402,7 +365,7 @@ const SettingsPanel = () => {
       {/* Change Password Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Key className="h-5 w-5" />שינוי סיסמה</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Key className="h-5 w-5" />{t("changePasswordTitle" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <ChangePasswordForm />
@@ -412,40 +375,41 @@ const SettingsPanel = () => {
       {/* Delete Account Card */}
       <Card className="border-destructive/30">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive"><UserX className="h-5 w-5" />מחיקת חשבון</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-destructive"><UserX className="h-5 w-5" />{t("deleteAccount" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">מחיקת החשבון תסיר את כל הנתונים שלך לצמיתות. פעולה זו אינה ניתנת לביטול.</p>
+          <p className="text-sm text-muted-foreground">{t("deleteAccountDesc" as any)}</p>
           <Button
             variant="destructive"
             onClick={async () => {
-              if (!confirm("⚠️ פעולה זו תמחק את כל הנתונים שלך לצמיתות. לא ניתן לבטל פעולה זו.\n\nהאם להמשיך?")) return;
-              if (!confirm("אישור אחרון - האם אתה בטוח שברצונך למחוק את החשבון? תישלח הודעת אימייל לאישור סופי.")) return;
+              if (!confirm(t("deleteConfirmFirst" as any))) return;
+              if (!confirm(t("deleteConfirmFinal" as any))) return;
               try {
                 const { data: { session } } = await supabase.auth.getSession();
-                if (!session) { toast.error("יש להתחבר מחדש"); return; }
+                if (!session) { toast.error(t("loginRequired" as any)); return; }
                 const { error } = await supabase.functions.invoke('delete-account-confirm', {
                   headers: { Authorization: `Bearer ${session.access_token}` },
                 });
                 if (error) throw error;
-                toast.success("נשלח אימייל אישור מחיקה לכתובת המייל שלך. לחץ על הקישור באימייל כדי לאשר.");
+                toast.success(t("deleteEmailSent" as any));
               } catch {
-                toast.error("שגיאה בשליחת בקשת מחיקה");
+                toast.error(t("deleteRequestError" as any));
               }
             }}
           >
-            מחק את החשבון שלי
+            {t("deleteMyAccount" as any)}
           </Button>
-          <p className="text-xs text-muted-foreground">לאחר לחיצה, תישלח הודעת אימייל עם קישור אישור. רק לאחר לחיצה על הקישור החשבון יימחק.</p>
+          <p className="text-xs text-muted-foreground">{t("deleteEmailSentShort" as any)}</p>
         </CardContent>
       </Card>
+
+      {/* Custom Boards */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />רשימות ודשבורדים מותאמים אישית</CardTitle>
+          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />{t("customListsDashboards" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">צור קטגוריות רשימות ודשבורדים מותאמים לעקוב אחר כל דבר שתרצה (למידה, כושר, מתכונים ועוד). הן יופיעו כלשוניות בסרגל העליון.</p>
-
+          <p className="text-sm text-muted-foreground">{t("customListsDesc" as any)}</p>
           {boards.length > 0 && (
             <div className="space-y-2">
               {boards.map((board) => (
@@ -458,16 +422,14 @@ const SettingsPanel = () => {
                         const newName = e.target.value.trim();
                         if (newName && newName !== board.name) {
                           updateBoard(board.id, { name: newName });
-                          toast.success(`שם שונה ל"${newName}"`);
+                          toast.success(t("nameChanged" as any));
                         }
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                     />
                     <span className="text-xs text-muted-foreground">({board.statuses.join(", ")})</span>
                     {board.show_in_dashboard && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">מוצג בדשבורד</span>
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">{t("displayedInDashboardBadge" as any)}</span>
                     )}
                   </div>
                   <div className="flex gap-1">
@@ -482,16 +444,14 @@ const SettingsPanel = () => {
               ))}
             </div>
           )}
-
           {showAddBoard ? (
             <div className="space-y-3 p-4 rounded-lg border bg-card">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">דשבורד חדש</Label>
+                <Label className="text-base font-semibold">{t("newDashboard" as any)}</Label>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowAddBoard(false)}><X className="h-4 w-4" /></Button>
               </div>
-
               <div className="space-y-2">
-                <Label>בחר תבנית</Label>
+                <Label>{t("chooseTemplate" as any)}</Label>
                 <Select value={boardTemplate} onValueChange={(v) => {
                   setBoardTemplate(v);
                   if (v === "tasks") { setNewBoardStatuses("טרם החל,בטיפול,בוצע"); setNewBoardDashboard(true); }
@@ -504,59 +464,51 @@ const SettingsPanel = () => {
                 }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tasks">רשימת משימות (כולל דשבורד)</SelectItem>
-                    <SelectItem value="todo">רשימת To-Do</SelectItem>
-                    <SelectItem value="shopping">רשימת קניות</SelectItem>
-                    <SelectItem value="tracking">קטגוריית רשימות</SelectItem>
-                    <SelectItem value="learning-reading">רשימת למידה/קריאה</SelectItem>
-                    <SelectItem value="kanban">קנבן</SelectItem>
-                    <SelectItem value="custom">מותאם אישית</SelectItem>
+                    <SelectItem value="tasks">{t("templateTasks" as any)}</SelectItem>
+                    <SelectItem value="todo">{t("templateTodo" as any)}</SelectItem>
+                    <SelectItem value="shopping">{t("templateShopping" as any)}</SelectItem>
+                    <SelectItem value="tracking">{t("templateTracking" as any)}</SelectItem>
+                    <SelectItem value="learning-reading">{t("templateLearning" as any)}</SelectItem>
+                    <SelectItem value="kanban">{t("templateKanban" as any)}</SelectItem>
+                    <SelectItem value="custom">{t("templateCustom" as any)}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
-                <Label>שם הדשבורד</Label>
-                <Input placeholder='לדוגמה: "לימודים", "כושר", "מתכונים"' value={newBoardName} onChange={(e) => setNewBoardName(e.target.value)} />
+                <Label>{t("dashboardName" as any)}</Label>
+                <Input placeholder={t("dashboardNamePlaceholder" as any)} value={newBoardName} onChange={(e) => setNewBoardName(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>סטטוסים (מופרדים בפסיק)</Label>
-                <Input placeholder="לביצוע,בתהליך,הושלם" value={newBoardStatuses} onChange={(e) => setNewBoardStatuses(e.target.value)} dir="rtl" />
-                <p className="text-xs text-muted-foreground">הסטטוסים שיופיעו בתפריט הבחירה של כל פריט</p>
+                <Label>{t("statuses" as any)}</Label>
+                <Input placeholder="To Do, In Progress, Done" value={newBoardStatuses} onChange={(e) => setNewBoardStatuses(e.target.value)} />
+                <p className="text-xs text-muted-foreground">{t("statusesDesc" as any)}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={newBoardDashboard} onCheckedChange={setNewBoardDashboard} />
-                <Label>הצג סיכום בדשבורד הראשי</Label>
+                <Label>{t("showInMainDashboard" as any)}</Label>
               </div>
-              <Button onClick={handleAddBoard} className="w-full gap-2"><Plus className="h-4 w-4" />צור קטגוריה</Button>
+              <Button onClick={handleAddBoard} className="w-full gap-2"><Plus className="h-4 w-4" />{t("createCategory" as any)}</Button>
             </div>
           ) : (
-            <Button variant="outline" onClick={() => setShowAddBoard(true)} className="w-full gap-2"><Plus className="h-4 w-4" />הוסף קטגוריית רשימות/דשבורד חדש</Button>
+            <Button variant="outline" onClick={() => setShowAddBoard(true)} className="w-full gap-2"><Plus className="h-4 w-4" />{t("addListDashboard" as any)}</Button>
           )}
         </CardContent>
       </Card>
 
-      {/* Tab Visibility Card */}
+      {/* Tab Visibility */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Eye className="h-5 w-5" />הצגת לשוניות</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Eye className="h-5 w-5" />{t("tabVisibility" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">בחר אילו לשוניות יוצגו בסרגל העליון. לשוניות מוסתרות לא יופיעו אבל הנתונים שלהן נשמרים.</p>
+          <p className="text-sm text-muted-foreground">{t("tabVisibilityDesc" as any)}</p>
           <div className="space-y-2">
-            {DEFAULT_TABS.filter(t => t.removable).map((tab) => (
+            {DEFAULT_TABS.filter(tab => tab.removable).map((tab) => (
               <div key={tab.id} className="flex items-center justify-between p-2 rounded-lg border bg-muted/20">
                 <span className="text-sm font-medium">{tab.name}</span>
                 <div className="flex items-center gap-2">
-                  {isTabVisible(tab.id) ? (
-                    <Eye className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <Switch
-                    checked={isTabVisible(tab.id)}
-                    onCheckedChange={() => toggleTab(tab.id)}
-                  />
+                  {isTabVisible(tab.id) ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                  <Switch checked={isTabVisible(tab.id)} onCheckedChange={() => toggleTab(tab.id)} />
                 </div>
               </div>
             ))}
@@ -564,40 +516,39 @@ const SettingsPanel = () => {
         </CardContent>
       </Card>
 
-      {/* Notifications Card */}
+      {/* Notifications */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />התראות</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />{t("notifications" as any)}</CardTitle>
         </CardHeader>
         <CardContent>
           <NotificationSettings />
         </CardContent>
       </Card>
 
-      {/* Telegram Card */}
       <TelegramSettings />
 
-      {/* Hebrew Date Toggle */}
+      {/* Hebrew Date */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />תאריך עברי</CardTitle>
+          <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />{t("hebrewDate" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">הצג תאריך עברי בדשבורד הראשי (לפי הלוח העברי).</p>
+          <p className="text-sm text-muted-foreground">{t("hebrewDateDesc" as any)}</p>
           <div className="flex items-center justify-between">
-            <Label>הצג תאריך עברי</Label>
+            <Label>{t("showHebrewDate" as any)}</Label>
             <Switch checked={showHebrewDate} onCheckedChange={setShowHebrewDate} />
           </div>
         </CardContent>
       </Card>
 
-      {/* Language Card */}
+      {/* Language */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />שפה / Language</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />{t("languageTitle" as any)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">בחר את שפת הממשק / Choose interface language</p>
+          <p className="text-sm text-muted-foreground">{t("languageChoose" as any)}</p>
           <div className="flex flex-wrap gap-2">
             <Button variant={lang === "he" ? "default" : "outline"} onClick={() => setLang("he")} className="flex-1 min-w-[80px]">עברית</Button>
             <Button variant={lang === "en" ? "default" : "outline"} onClick={() => setLang("en")} className="flex-1 min-w-[80px]">English</Button>
@@ -609,7 +560,6 @@ const SettingsPanel = () => {
         </CardContent>
       </Card>
 
-      {/* Recycle Bin */}
       <RecycleBin />
     </div>
   );

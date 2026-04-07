@@ -2075,6 +2075,7 @@ export type Database = {
           hidden_tabs: Json
           id: string
           notification_settings: Json | null
+          site_preferences: Json
           updated_at: string
           user_id: string
         }
@@ -2084,6 +2085,7 @@ export type Database = {
           hidden_tabs?: Json
           id?: string
           notification_settings?: Json | null
+          site_preferences?: Json
           updated_at?: string
           user_id: string
         }
@@ -2093,6 +2095,7 @@ export type Database = {
           hidden_tabs?: Json
           id?: string
           notification_settings?: Json | null
+          site_preferences?: Json
           updated_at?: string
           user_id?: string
         }
