@@ -301,6 +301,48 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_card_connections: {
+        Row: {
+          card_last_digits: string | null
+          created_at: string
+          display_name: string | null
+          encrypted_credentials: string | null
+          id: string
+          last_sync: string | null
+          provider: string
+          sync_error: string | null
+          sync_status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          card_last_digits?: string | null
+          created_at?: string
+          display_name?: string | null
+          encrypted_credentials?: string | null
+          id?: string
+          last_sync?: string | null
+          provider: string
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          card_last_digits?: string | null
+          created_at?: string
+          display_name?: string | null
+          encrypted_credentials?: string | null
+          id?: string
+          last_sync?: string | null
+          provider?: string
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_board_items: {
         Row: {
           archived: boolean
