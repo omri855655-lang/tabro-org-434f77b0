@@ -214,8 +214,8 @@ const PaymentDashboard = () => {
 
   const formatMonthLabel = (key: string) => {
     const [y, m] = key.split("-");
-    const months = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
-    return `${months[parseInt(m) - 1]} ${y}`;
+    const monthKeys = ["january","february","march","april","may","june","july","august","september","october","november","december"] as const;
+    return `${t(monthKeys[parseInt(m) - 1] as any)} ${y}`;
   };
 
   const sendAiMessage = async (chatInput: string) => {
