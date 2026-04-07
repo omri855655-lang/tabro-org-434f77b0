@@ -84,6 +84,8 @@ const FINANCIAL_GUIDES = [
 const PaymentDashboard = () => {
   const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("payments");
   const { user } = useAuth();
+  const { t, lang } = useLanguage();
+  const isRtl = lang === "he" || lang === "ar";
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
