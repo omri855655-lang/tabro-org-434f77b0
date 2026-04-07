@@ -43,40 +43,46 @@ interface Payment {
   created_at: string;
 }
 
-const CATEGORIES = ["משכורת", "פרילנס", "דיור", "שכירות", "משכנתא", "סופר", "אוכל", "דלק", "תחבורה", "חשמל", "מים", "גז", "אינטרנט", "טלפון", "ביטוחים", "חשבונות", "קניות", "בילויים", "חינוך", "בריאות", "חיסכון", "השקעות", "אחר"];
+const CATEGORY_KEYS = [
+  "catSalary", "catFreelance", "catHousing", "catRent", "catMortgage", "catGroceries", "catFood", "catFuel", "catTransport", "catElectricity", "catWater", "catGas", "catInternet", "catPhone", "catInsurance", "catBills", "catShopping", "catEntertainment", "catEducation", "catHealth", "catSavings", "catInvestments", "catOther"
+] as const;
 
-const FINANCIAL_GUIDES = [
+const CATEGORY_IDS = [
+  "משכורת", "פרילנס", "דיור", "שכירות", "משכנתא", "סופר", "אוכל", "דלק", "תחבורה", "חשמל", "מים", "גז", "אינטרנט", "טלפון", "ביטוחים", "חשבונות", "קניות", "בילויים", "חינוך", "בריאות", "חיסכון", "השקעות", "אחר"
+];
+
+const GUIDE_DEFS = [
   {
-    id: "saving", icon: PiggyBank, title: "מדריך לחיסכון כסף", color: "text-green-600", bgColor: "bg-green-50 dark:bg-green-950/20",
+    id: "saving", icon: PiggyBank, titleKey: "guideSaving", color: "text-green-600", bgColor: "bg-green-50 dark:bg-green-950/20",
     sections: [
-      { title: "כלל 50/30/20", content: "חלק את ההכנסה: 50% לצרכים, 30% לרצונות, 20% לחיסכון. זה הבסיס לכל תקציב בריא." },
-      { title: "שלם לעצמך קודם", content: "ברגע שהמשכורת נכנסת, העבר אוטומטית 10-20% לחשבון חיסכון נפרד." },
-      { title: "כלל 24 השעות", content: "לפני כל קנייה מעל ₪100, חכה 24 שעות. ב-70% מהמקרים תגלה שאתה לא באמת צריך את זה." },
-      { title: "אתגר 52 שבועות", content: "שבוע 1 = חסוך ₪10, שבוע 2 = ₪20... בסוף השנה יהיו לך אלפי שקלים." },
+      { titleKey: "guide503020Rule", contentKey: "guide503020Text" },
+      { titleKey: "guidePayYourselfFirst", contentKey: "guidePayYourselfFirstText" },
+      { titleKey: "guide24HourRule", contentKey: "guide24HourRuleText" },
+      { titleKey: "guide52WeekChallenge", contentKey: "guide52WeekChallengeText" },
     ]
   },
   {
-    id: "invest", icon: TrendingUp, title: "איך להשקיע נכון", color: "text-blue-600", bgColor: "bg-blue-50 dark:bg-blue-950/20",
+    id: "invest", icon: TrendingUp, titleKey: "guideInvest", color: "text-blue-600", bgColor: "bg-blue-50 dark:bg-blue-950/20",
     sections: [
-      { title: "קרן חירום קודם", content: "לפני כל השקעה, בנה קרן חירום של 3-6 חודשי הוצאות." },
-      { title: "ריבית דריבית", content: "₪500/חודש עם 8% תשואה = ₪450,000 אחרי 20 שנה. הזמן הוא הנכס הכי חשוב." },
-      { title: "קרנות מחקות (ETF)", content: "90% מהמשקיעים לא מנצחים את המדד. השקע בקרנות שמחקות S&P 500 או ת\"א 125." },
+      { titleKey: "guideEmergencyFund", contentKey: "guideEmergencyFundText" },
+      { titleKey: "guideCompoundInterest", contentKey: "guideCompoundInterestText" },
+      { titleKey: "guideETF", contentKey: "guideETFText" },
     ]
   },
   {
-    id: "impulse", icon: AlertTriangle, title: "הימנעות מקניות אימפולסיביות", color: "text-amber-600", bgColor: "bg-amber-50 dark:bg-amber-950/20",
+    id: "impulse", icon: AlertTriangle, titleKey: "guideImpulse", color: "text-amber-600", bgColor: "bg-amber-50 dark:bg-amber-950/20",
     sections: [
-      { title: "זהה את הטריגרים", content: "שעמום, עצב, FOMO. כשאתה מרגיש דחף לקנות - שאל 'מה אני מרגיש עכשיו?'" },
-      { title: "חשב בשעות עבודה", content: "מוצר ב-₪300 ואתה מרוויח ₪60/שעה = 5 שעות עבודה. שווה?" },
-      { title: "מחק אפליקציות קניות", content: "הקושי הנוסף של לפתוח דפדפן = פחות קניות דחף." },
+      { titleKey: "guideIdentifyTriggers", contentKey: "guideIdentifyTriggersText" },
+      { titleKey: "guideWorkHours", contentKey: "guideWorkHoursText" },
+      { titleKey: "guideDeleteApps", contentKey: "guideDeleteAppsText" },
     ]
   },
   {
-    id: "tips", icon: Lightbulb, title: "טיפים פיננסיים", color: "text-purple-600", bgColor: "bg-purple-50 dark:bg-purple-950/20",
+    id: "tips", icon: Lightbulb, titleKey: "guideTips", color: "text-purple-600", bgColor: "bg-purple-50 dark:bg-purple-950/20",
     sections: [
-      { title: "אוטומציה פיננסית", content: "הגדר העברות אוטומטיות ביום המשכורת: חיסכון, השקעות, ביטוחים." },
-      { title: "שיטת המפולת לחובות", content: "שלם קודם את החוב עם הריבית הגבוהה ביותר." },
-      { title: "⚠️ הערה", content: "כל המידע כאן הוא לצרכי למידה בלבד ואינו מהווה ייעוץ השקעות מקצועי." },
+      { titleKey: "guideAutomation", contentKey: "guideAutomationText" },
+      { titleKey: "guideAvalanche", contentKey: "guideAvalancheText" },
+      { titleKey: "guideDisclaimer", contentKey: "guideDisclaimerText" },
     ]
   },
 ];
