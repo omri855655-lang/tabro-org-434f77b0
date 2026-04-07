@@ -68,7 +68,7 @@ const SettingsPanel = () => {
   const { boards, addBoard, deleteBoard, updateBoard } = useCustomBoards();
   const [showAddBoard, setShowAddBoard] = useState(false);
   const [newBoardName, setNewBoardName] = useState("");
-  const [newBoardStatuses, setNewBoardStatuses] = useState("לביצוע,בתהליך,הושלם");
+  const [newBoardStatuses, setNewBoardStatuses] = useState(() => (lang === "en" ? "To Do,In Progress,Done" : "לביצוע,בתהליך,הושלם"));
   const [newBoardDashboard, setNewBoardDashboard] = useState(false);
   const [boardTemplate, setBoardTemplate] = useState("custom");
 
