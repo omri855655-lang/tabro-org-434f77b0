@@ -43,40 +43,46 @@ interface Payment {
   created_at: string;
 }
 
-const CATEGORIES = ["משכורת", "פרילנס", "דיור", "שכירות", "משכנתא", "סופר", "אוכל", "דלק", "תחבורה", "חשמל", "מים", "גז", "אינטרנט", "טלפון", "ביטוחים", "חשבונות", "קניות", "בילויים", "חינוך", "בריאות", "חיסכון", "השקעות", "אחר"];
+const CATEGORY_KEYS = [
+  "catSalary", "catFreelance", "catHousing", "catRent", "catMortgage", "catGroceries", "catFood", "catFuel", "catTransport", "catElectricity", "catWater", "catGas", "catInternet", "catPhone", "catInsurance", "catBills", "catShopping", "catEntertainment", "catEducation", "catHealth", "catSavings", "catInvestments", "catOther"
+] as const;
 
-const FINANCIAL_GUIDES = [
+const CATEGORY_IDS = [
+  "משכורת", "פרילנס", "דיור", "שכירות", "משכנתא", "סופר", "אוכל", "דלק", "תחבורה", "חשמל", "מים", "גז", "אינטרנט", "טלפון", "ביטוחים", "חשבונות", "קניות", "בילויים", "חינוך", "בריאות", "חיסכון", "השקעות", "אחר"
+];
+
+const GUIDE_DEFS = [
   {
-    id: "saving", icon: PiggyBank, title: "מדריך לחיסכון כסף", color: "text-green-600", bgColor: "bg-green-50 dark:bg-green-950/20",
+    id: "saving", icon: PiggyBank, titleKey: "guideSaving", color: "text-green-600", bgColor: "bg-green-50 dark:bg-green-950/20",
     sections: [
-      { title: "כלל 50/30/20", content: "חלק את ההכנסה: 50% לצרכים, 30% לרצונות, 20% לחיסכון. זה הבסיס לכל תקציב בריא." },
-      { title: "שלם לעצמך קודם", content: "ברגע שהמשכורת נכנסת, העבר אוטומטית 10-20% לחשבון חיסכון נפרד." },
-      { title: "כלל 24 השעות", content: "לפני כל קנייה מעל ₪100, חכה 24 שעות. ב-70% מהמקרים תגלה שאתה לא באמת צריך את זה." },
-      { title: "אתגר 52 שבועות", content: "שבוע 1 = חסוך ₪10, שבוע 2 = ₪20... בסוף השנה יהיו לך אלפי שקלים." },
+      { titleKey: "guide503020Rule", contentKey: "guide503020Text" },
+      { titleKey: "guidePayYourselfFirst", contentKey: "guidePayYourselfFirstText" },
+      { titleKey: "guide24HourRule", contentKey: "guide24HourRuleText" },
+      { titleKey: "guide52WeekChallenge", contentKey: "guide52WeekChallengeText" },
     ]
   },
   {
-    id: "invest", icon: TrendingUp, title: "איך להשקיע נכון", color: "text-blue-600", bgColor: "bg-blue-50 dark:bg-blue-950/20",
+    id: "invest", icon: TrendingUp, titleKey: "guideInvest", color: "text-blue-600", bgColor: "bg-blue-50 dark:bg-blue-950/20",
     sections: [
-      { title: "קרן חירום קודם", content: "לפני כל השקעה, בנה קרן חירום של 3-6 חודשי הוצאות." },
-      { title: "ריבית דריבית", content: "₪500/חודש עם 8% תשואה = ₪450,000 אחרי 20 שנה. הזמן הוא הנכס הכי חשוב." },
-      { title: "קרנות מחקות (ETF)", content: "90% מהמשקיעים לא מנצחים את המדד. השקע בקרנות שמחקות S&P 500 או ת\"א 125." },
+      { titleKey: "guideEmergencyFund", contentKey: "guideEmergencyFundText" },
+      { titleKey: "guideCompoundInterest", contentKey: "guideCompoundInterestText" },
+      { titleKey: "guideETF", contentKey: "guideETFText" },
     ]
   },
   {
-    id: "impulse", icon: AlertTriangle, title: "הימנעות מקניות אימפולסיביות", color: "text-amber-600", bgColor: "bg-amber-50 dark:bg-amber-950/20",
+    id: "impulse", icon: AlertTriangle, titleKey: "guideImpulse", color: "text-amber-600", bgColor: "bg-amber-50 dark:bg-amber-950/20",
     sections: [
-      { title: "זהה את הטריגרים", content: "שעמום, עצב, FOMO. כשאתה מרגיש דחף לקנות - שאל 'מה אני מרגיש עכשיו?'" },
-      { title: "חשב בשעות עבודה", content: "מוצר ב-₪300 ואתה מרוויח ₪60/שעה = 5 שעות עבודה. שווה?" },
-      { title: "מחק אפליקציות קניות", content: "הקושי הנוסף של לפתוח דפדפן = פחות קניות דחף." },
+      { titleKey: "guideIdentifyTriggers", contentKey: "guideIdentifyTriggersText" },
+      { titleKey: "guideWorkHours", contentKey: "guideWorkHoursText" },
+      { titleKey: "guideDeleteApps", contentKey: "guideDeleteAppsText" },
     ]
   },
   {
-    id: "tips", icon: Lightbulb, title: "טיפים פיננסיים", color: "text-purple-600", bgColor: "bg-purple-50 dark:bg-purple-950/20",
+    id: "tips", icon: Lightbulb, titleKey: "guideTips", color: "text-purple-600", bgColor: "bg-purple-50 dark:bg-purple-950/20",
     sections: [
-      { title: "אוטומציה פיננסית", content: "הגדר העברות אוטומטיות ביום המשכורת: חיסכון, השקעות, ביטוחים." },
-      { title: "שיטת המפולת לחובות", content: "שלם קודם את החוב עם הריבית הגבוהה ביותר." },
-      { title: "⚠️ הערה", content: "כל המידע כאן הוא לצרכי למידה בלבד ואינו מהווה ייעוץ השקעות מקצועי." },
+      { titleKey: "guideAutomation", contentKey: "guideAutomationText" },
+      { titleKey: "guideAvalanche", contentKey: "guideAvalancheText" },
+      { titleKey: "guideDisclaimer", contentKey: "guideDisclaimerText" },
     ]
   },
 ];
@@ -331,27 +337,27 @@ ${context}
           </div>
           {editingBudget ? (
             <div className="flex gap-2">
-              <Input placeholder="סכום יעד" type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)} dir="ltr" className="flex-1" />
-              <Button size="sm" onClick={saveBudgetTarget}>שמור</Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditingBudget(false)}>ביטול</Button>
+              <Input placeholder={t("amount" as any)} type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)} dir="ltr" className="flex-1" />
+              <Button size="sm" onClick={saveBudgetTarget}>{t("saveBudget" as any)}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditingBudget(false)}>{t("cancelBudget" as any)}</Button>
             </div>
           ) : budgetTarget > 0 ? (
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span>הוצאות: ₪{totalExpenses.toLocaleString()}</span>
-                <span>יעד: ₪{budgetTarget.toLocaleString()}</span>
+                <span>{t("expensesLabel" as any)}: ₪{totalExpenses.toLocaleString()}</span>
+                <span>{t("targetLabel" as any)}: ₪{budgetTarget.toLocaleString()}</span>
               </div>
               <Progress value={Math.min((totalExpenses / budgetTarget) * 100, 100)} className={`h-3 ${totalExpenses > budgetTarget ? "[&>div]:bg-red-500" : "[&>div]:bg-green-500"}`} />
               <div className="flex justify-between mt-2">
                 <span className={`text-sm font-semibold ${totalExpenses > budgetTarget ? "text-red-600" : "text-green-600"}`}>
-                  {totalExpenses > budgetTarget ? `חריגה של ₪${(totalExpenses - budgetTarget).toLocaleString()} ⚠️` : `נותרו ₪${(budgetTarget - totalExpenses).toLocaleString()} ✅`}
+                  {totalExpenses > budgetTarget ? `${t("budgetExceeded" as any)} ₪${(totalExpenses - budgetTarget).toLocaleString()} ⚠️` : `${t("budgetRemaining" as any)} ₪${(budgetTarget - totalExpenses).toLocaleString()} ✅`}
                 </span>
-                <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => { setEditingBudget(true); setBudgetInput(String(budgetTarget)); }}>עריכה</Button>
+                <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => { setEditingBudget(true); setBudgetInput(String(budgetTarget)); }}>{t("editing" as any)}</Button>
               </div>
             </div>
           ) : (
             <Button variant="outline" size="sm" className="w-full gap-1" onClick={() => setEditingBudget(true)}>
-              <Plus className="h-3 w-3" />הגדר יעד תקציב {budgetPeriod === "weekly" ? "שבועי" : budgetPeriod === "monthly" ? "חודשי" : budgetPeriod === "quarterly" ? "רבעוני" : "שנתי"}
+              <Plus className="h-3 w-3" />{t("setBudgetTarget" as any)} {budgetPeriod === "weekly" ? t("weeklyPeriod" as any) : budgetPeriod === "monthly" ? t("monthlyPeriod" as any) : budgetPeriod === "quarterly" ? t("quarterlyPeriod" as any) : t("yearlyPeriod" as any)}
             </Button>
           )}
         </CardContent>
@@ -359,9 +365,9 @@ ${context}
 
       {/* 50/30/20 Rule visual */}
       {totalIncome > 0 && (
-        <Card>
+         <Card>
           <CardContent className="py-4">
-            <h3 className="text-sm font-semibold mb-3 text-center">כלל 50/30/20</h3>
+            <h3 className="text-sm font-semibold mb-3 text-center">{t("rule503020" as any)}</h3>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div>
                 <div className="relative mx-auto w-16 h-16">
@@ -371,8 +377,8 @@ ${context}
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{needsPercent}%</span>
                 </div>
-                <p className="text-xs font-medium mt-1">צרכים</p>
-                <p className="text-[10px] text-muted-foreground">יעד: 50%</p>
+                <p className="text-xs font-medium mt-1">{t("needs" as any)}</p>
+                <p className="text-[10px] text-muted-foreground">{t("targetPercent" as any)}: 50%</p>
               </div>
               <div>
                 <div className="relative mx-auto w-16 h-16">
@@ -382,8 +388,8 @@ ${context}
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{wantsPercent}%</span>
                 </div>
-                <p className="text-xs font-medium mt-1">רצונות</p>
-                <p className="text-[10px] text-muted-foreground">יעד: 30%</p>
+                <p className="text-xs font-medium mt-1">{t("wants" as any)}</p>
+                <p className="text-[10px] text-muted-foreground">{t("targetPercent" as any)}: 30%</p>
               </div>
               <div>
                 <div className="relative mx-auto w-16 h-16">
@@ -393,8 +399,8 @@ ${context}
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{savingsPercent}%</span>
                 </div>
-                <p className="text-xs font-medium mt-1">חיסכון</p>
-                <p className="text-[10px] text-muted-foreground">יעד: 20%</p>
+                <p className="text-xs font-medium mt-1">{t("savings" as any)}</p>
+                <p className="text-[10px] text-muted-foreground">{t("targetPercent" as any)}: 20%</p>
               </div>
             </div>
           </CardContent>
@@ -628,20 +634,20 @@ ${context}
             <CardContent className="pt-4 space-y-3">
               {/* Type selector - prominent */}
               <div className="grid grid-cols-2 gap-2">
-                <Button variant={newType === "income" ? "default" : "outline"} className={`gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => setNewType("income")}>
-                  <TrendingUp className="h-4 w-4" />הכנסה
+              <Button variant={newType === "income" ? "default" : "outline"} className={`gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => setNewType("income")}>
+                  <TrendingUp className="h-4 w-4" />{t("incomeType" as any)}
                 </Button>
                 <Button variant={newType === "expense" ? "default" : "outline"} className={`gap-2 ${newType === "expense" ? "bg-red-600 hover:bg-red-700" : ""}`} onClick={() => setNewType("expense")}>
-                  <TrendingDown className="h-4 w-4" />הוצאה
+                  <TrendingDown className="h-4 w-4" />{t("expenseType" as any)}
                 </Button>
               </div>
-              <AutocompleteInput fieldName="payment-title" value={newTitle} onChange={setNewTitle} placeholder={newType === "income" ? "שם ההכנסה (משכורת, פרילנס...)" : "שם ההוצאה (שכירות, חשמל...)"} />
-              <Input placeholder="סכום" type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} dir="ltr" />
-              <AutocompleteInput fieldName="payment-method" value={newMethod} onChange={setNewMethod} placeholder="אמצעי תשלום (אשראי, מזומן...)" />
+              <AutocompleteInput fieldName="payment-title" value={newTitle} onChange={setNewTitle} placeholder={newType === "income" ? t("incomeName" as any) : t("expenseName" as any)} />
+              <Input placeholder={t("amount" as any)} type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} dir="ltr" />
+              <AutocompleteInput fieldName="payment-method" value={newMethod} onChange={setNewMethod} placeholder={t("paymentMethod" as any)} />
               <Select value={newCategory} onValueChange={setNewCategory}>
-                <SelectTrigger><SelectValue placeholder="בחר קטגוריה" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("chooseCategory" as any)} /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {CATEGORY_IDS.map((c, i) => <SelectItem key={c} value={c}>{t(CATEGORY_KEYS[i] as any)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="flex gap-2">
@@ -649,23 +655,23 @@ ${context}
               </div>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" checked={newRecurring} onChange={e => setNewRecurring(e.target.checked)} className="rounded" />
-                הוצאה/הכנסה קבועה (חוזרת כל חודש)
+                {t("recurringExpense" as any)}
               </label>
               <Button onClick={addPayment} className={`w-full gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`}>
-                <Plus className="h-4 w-4" />{newType === "income" ? "הוסף הכנסה" : "הוסף הוצאה"}
+                <Plus className="h-4 w-4" />{newType === "income" ? t("addIncome" as any) : t("addExpense" as any)}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="guides" className="space-y-3">
-          {FINANCIAL_GUIDES.map(guide => (
+          {GUIDE_DEFS.map(guide => (
             <Collapsible key={guide.id} open={expandedGuide === guide.id} onOpenChange={() => setExpandedGuide(expandedGuide === guide.id ? null : guide.id)}>
               <CollapsibleTrigger className="w-full">
                 <Card className={`${guide.bgColor} cursor-pointer hover:shadow-md transition-all`}>
                   <CardContent className="py-3 px-4 flex items-center gap-3">
                     <guide.icon className={`h-6 w-6 ${guide.color} shrink-0`} />
-                    <span className="font-semibold flex-1 text-right">{guide.title}</span>
+                    <span className={`font-semibold flex-1 ${isRtl ? "text-right" : "text-left"}`}>{t(guide.titleKey as any)}</span>
                     {expandedGuide === guide.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </CardContent>
                 </Card>
@@ -675,8 +681,8 @@ ${context}
                   {guide.sections.map((section, i) => (
                     <Card key={i} className="border-muted">
                       <CardContent className="py-3 px-4">
-                        <h4 className="font-semibold text-sm mb-1">{section.title}</h4>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{section.content}</p>
+                        <h4 className="font-semibold text-sm mb-1">{t(section.titleKey as any)}</h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{t(section.contentKey as any)}</p>
                       </CardContent>
                     </Card>
                   ))}
