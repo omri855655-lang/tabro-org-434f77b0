@@ -273,18 +273,18 @@ ${context}
   if (loading) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
 
   return (
-    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir="rtl">
+    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
       <div className="flex items-center gap-3 mb-2 flex-wrap">
         <Wallet className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">הכנסות והוצאות</h2>
+        <h2 className="text-2xl font-bold">{t("incomeAndExpenses" as any)}</h2>
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          payments.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? 'הכנסה' : 'הוצאה', category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '' })),
-          [{ key: 'title', label: 'תיאור' }, { key: 'amount', label: 'סכום' }, { key: 'type', label: 'סוג' }, { key: 'category', label: 'קטגוריה' }, { key: 'paid', label: 'שולם' }, { key: 'due_date', label: 'תאריך' }, { key: 'recurring', label: 'קבוע' }, { key: 'method', label: 'אמצעי תשלום' }],
-          'תשלומים'
+          payments.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '' })),
+          [{ key: 'title', label: t("descriptionCol" as any) }, { key: 'amount', label: t("amountCol" as any) }, { key: 'type', label: t("typeCol" as any) }, { key: 'category', label: t("categoryCol" as any) }, { key: 'paid', label: t("paidCol" as any) }, { key: 'due_date', label: t("dateCol" as any) }, { key: 'recurring', label: t("recurringCol" as any) }, { key: 'method', label: t("methodCol" as any) }],
+          t("paymentsSheet" as any)
         )}>
-          <Download className="h-3.5 w-3.5" />ייצוא
+          <Download className="h-3.5 w-3.5" />{t("exportLabel" as any)}
         </Button>
       </div>
 
