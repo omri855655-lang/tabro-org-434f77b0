@@ -21,6 +21,78 @@ async function saltEdgeRequest(path: string, method: string, body?: any) {
 }
 
 Deno.serve(async (req) => {
+  const url = new URL(req.url);
+  const urlAction = url.searchParams.get("action");
+
+  // Handle GET callback from Salt Edge (user returns after connecting)
+  if (req.method === "GET" && urlAction === "callback") {
+    const connectionId = url.searchParams.get("connection_id");
+    const customerId = url.searchParams.get("customer_id");
+
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    if (connectionId && customerId) {
+      // Fetch connection details from Salt Edge
+      let providerName = "Bank";
+      try {
+        const connResult = await saltEdgeRequest(`/connections/${connectionId}`, "GET");
+        if (connResult.data?.provider_name) {
+          providerName = connResult.data.provider_name;
+        }
+      } catch (e) {
+        console.error("Failed to fetch connection details:", e);
+      }
+
+      // Update the pending bank_connection record
+      const { error } = await serviceClient
+        .from("bank_connections")
+        .update({
+          salt_edge_connection_id: connectionId,
+          provider_name: providerName,
+          status: "active",
+          last_sync: new Date().toISOString(),
+        })
+        .eq("salt_edge_customer_id", customerId)
+        .eq("status", "pending");
+
+      if (error) {
+        // Maybe no pending row — insert a new one
+        // Find user_id from customer identifier
+        try {
+          const custResult = await saltEdgeRequest(`/customers/${customerId}`, "GET");
+          const identifier = custResult.data?.identifier || "";
+          const userId = identifier.replace("user_", "");
+          if (userId) {
+            await serviceClient.from("bank_connections").upsert({
+              user_id: userId,
+              salt_edge_customer_id: customerId,
+              salt_edge_connection_id: connectionId,
+              provider_name: providerName,
+              status: "active",
+              last_sync: new Date().toISOString(),
+            } as any);
+          }
+        } catch (e2) {
+          console.error("Fallback insert failed:", e2);
+        }
+      }
+
+      return new Response(
+        `<html><body><script>window.opener&&window.opener.postMessage({type:'bank-connected',provider:'${providerName}'},'*');window.close();</script><p>Connected! You can close this window.</p></body></html>`,
+        { headers: { "Content-Type": "text/html" } }
+      );
+    }
+
+    // Error or cancelled
+    return new Response(
+      `<html><body><script>window.opener&&window.opener.postMessage({type:'bank-error'},'*');window.close();</script><p>Connection was not completed. You can close this window.</p></body></html>`,
+      { headers: { "Content-Type": "text/html" } }
+    );
+  }
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsH });
 
   try {
@@ -44,7 +116,6 @@ Deno.serve(async (req) => {
     );
 
     if (action === "create_customer") {
-      // Check if user already has a customer
       const { data: existing } = await serviceClient
         .from("bank_connections")
         .select("salt_edge_customer_id")
@@ -68,7 +139,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create_connect_session") {
-      // Get or create customer first
       const { data: existing } = await serviceClient
         .from("bank_connections")
         .select("salt_edge_customer_id")
@@ -86,11 +156,13 @@ Deno.serve(async (req) => {
         customerId = custResult.data.id;
       }
 
+      const returnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/salt-edge-connect?action=callback`;
+
       const result = await saltEdgeRequest("/connect_sessions/create", "POST", {
         data: {
           customer_id: customerId,
           consent: { scopes: ["account_details", "transactions_details"] },
-          attempt: { return_to: `${Deno.env.get("SUPABASE_URL")}/functions/v1/salt-edge-connect?action=callback` },
+          attempt: { return_to: returnUrl },
         },
       });
 
@@ -113,6 +185,7 @@ Deno.serve(async (req) => {
         .from("bank_connections")
         .select("*")
         .eq("user_id", user.id)
+        .neq("status", "pending")
         .order("created_at", { ascending: false });
 
       return new Response(JSON.stringify({ success: true, connections: bankConns || [] }), {
@@ -129,13 +202,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (!conn || !conn.salt_edge_connection_id) {
-        return new Response(JSON.stringify({ error: "Connection not found" }), { status: 404, headers: corsH });
+        return new Response(JSON.stringify({ error: "Connection not found or not active" }), { status: 404, headers: corsH });
       }
-
-      // Fetch accounts
-      const accountsResult = await saltEdgeRequest(
-        `/accounts?connection_id=${conn.salt_edge_connection_id}`, "GET"
-      );
 
       // Fetch transactions
       const txResult = await saltEdgeRequest(
@@ -143,21 +211,23 @@ Deno.serve(async (req) => {
         "GET"
       );
 
+      let txCount = 0;
       if (txResult.data && Array.isArray(txResult.data)) {
         for (const tx of txResult.data) {
           const isIncome = tx.amount > 0;
           await serviceClient.from("payment_tracking").upsert({
             user_id: user.id,
-            title: tx.description || tx.extra?.merchant_id || "עסקה בנקאית",
+            title: tx.description || tx.extra?.merchant_id || "Bank Transaction",
             amount: Math.abs(tx.amount),
             currency: tx.currency_code || "ILS",
             payment_type: isIncome ? "income" : "expense",
-            category: tx.category || "אחר",
+            category: tx.category || null,
             due_date: tx.made_on,
             paid: true,
-            sheet_name: "בנק",
+            sheet_name: conn.provider_name || "Bank",
             notes: `Salt Edge: ${tx.id}`,
           } as any, { onConflict: "id" });
+          txCount++;
         }
       }
 
@@ -168,8 +238,7 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
-        accounts: accountsResult.data || [],
-        transactions_count: txResult.data?.length || 0,
+        transactions_count: txCount,
       }), {
         headers: { ...corsH, "Content-Type": "application/json" },
       });
@@ -184,7 +253,9 @@ Deno.serve(async (req) => {
         .single();
 
       if (conn?.salt_edge_connection_id) {
-        await saltEdgeRequest(`/connections/${conn.salt_edge_connection_id}`, "DELETE");
+        try {
+          await saltEdgeRequest(`/connections/${conn.salt_edge_connection_id}`, "DELETE");
+        } catch {}
       }
 
       await serviceClient.from("bank_connections").delete().eq("id", connectionId);
@@ -196,6 +267,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: corsH });
   } catch (e) {
+    console.error("salt-edge-connect error:", e);
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsH });
   }
 });

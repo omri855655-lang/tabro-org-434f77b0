@@ -10,6 +10,7 @@ const CATEGORY_ICONS: Record<string, typeof Mail> = {
   shopping: ShoppingCart,
   bill: FileText,
   personal: User,
+  newsletter: Mail,
 };
 
 const CATEGORY_LABELS: Record<string, Record<string, string>> = {
@@ -18,6 +19,7 @@ const CATEGORY_LABELS: Record<string, Record<string, string>> = {
   shopping: { he: "קניות", en: "Shopping", es: "Compras", zh: "购物", ar: "تسوق", ru: "Покупки" },
   bill: { he: "חשבונות", en: "Bills", es: "Facturas", zh: "账单", ar: "فواتير", ru: "Счета" },
   personal: { he: "אישי", en: "Personal", es: "Personal", zh: "个人", ar: "شخصي", ru: "Личное" },
+  newsletter: { he: "ניוזלטרים", en: "Newsletters", es: "Boletines", zh: "新闻简报", ar: "نشرات", ru: "Рассылки" },
 };
 
 const EmailInsightsWidget = () => {
@@ -34,7 +36,7 @@ const EmailInsightsWidget = () => {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <Mail className="h-4 w-4" />
-          {t("emailInsights" as any) || "תובנות מייל"}
+          {t("emailInsights" as any)}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -51,7 +53,7 @@ const EmailInsightsWidget = () => {
           })}
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          {total} {t("emailsAnalyzed" as any) || "מיילים נותחו"}
+          {total} {t("emailsAnalyzed" as any)}
         </p>
       </CardContent>
     </Card>
