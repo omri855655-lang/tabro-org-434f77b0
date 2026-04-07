@@ -755,6 +755,120 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_sync_logs: {
+        Row: {
+          connection_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          imported_count: number | null
+          provider: string | null
+          status: string
+          sync_finished_at: string | null
+          sync_started_at: string
+          user_id: string
+        }
+        Insert: {
+          connection_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          imported_count?: number | null
+          provider?: string | null
+          status?: string
+          sync_finished_at?: string | null
+          sync_started_at?: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          imported_count?: number | null
+          provider?: string | null
+          status?: string
+          sync_finished_at?: string | null
+          sync_started_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      financial_transactions: {
+        Row: {
+          amount: number
+          billing_day: number | null
+          category: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          direction: string
+          external_transaction_id: string | null
+          id: string
+          installment_number: number | null
+          installment_total: number | null
+          merchant: string | null
+          month_key: string | null
+          posted_date: string | null
+          provider: string | null
+          raw_data: Json | null
+          source_connection_id: string | null
+          source_type: string
+          subcategory: string | null
+          transaction_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          billing_day?: number | null
+          category?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          direction?: string
+          external_transaction_id?: string | null
+          id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          merchant?: string | null
+          month_key?: string | null
+          posted_date?: string | null
+          provider?: string | null
+          raw_data?: Json | null
+          source_connection_id?: string | null
+          source_type?: string
+          subcategory?: string | null
+          transaction_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          billing_day?: number | null
+          category?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          direction?: string
+          external_transaction_id?: string | null
+          id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          merchant?: string | null
+          month_key?: string | null
+          posted_date?: string | null
+          provider?: string | null
+          raw_data?: Json | null
+          source_connection_id?: string | null
+          source_type?: string
+          subcategory?: string | null
+          transaction_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       health_profiles: {
         Row: {
           activity_level: string | null

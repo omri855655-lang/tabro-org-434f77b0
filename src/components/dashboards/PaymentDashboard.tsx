@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import BankConnect from "@/components/dashboards/BankConnect";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,8 @@ import AiChatPanel from "@/components/AiChatPanel";
 import BudgetCharts from "@/components/dashboards/BudgetCharts";
 import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
+import FinancialCsvImport from "@/components/FinancialCsvImport";
+import ManualTransactionForm from "@/components/ManualTransactionForm";
 
 interface Payment {
   id: string;
@@ -81,6 +84,8 @@ const FINANCIAL_GUIDES = [
 const PaymentDashboard = () => {
   const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("payments");
   const { user } = useAuth();
+  const { t, lang } = useLanguage();
+  const isRtl = lang === "he" || lang === "ar";
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
@@ -115,7 +120,7 @@ const PaymentDashboard = () => {
     const amount = parseFloat(budgetInput);
     if (isNaN(amount) || amount <= 0) return;
     const { error } = await supabase.from("budget_targets").upsert({ user_id: user.id, period: budgetPeriod, amount, category: null }, { onConflict: "user_id,period,category" });
-    if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success("יעד תקציב נשמר ✅"); }
+    if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success(t("budgetSaved" as any)); }
   };
 
   const fetchPayments = useCallback(async () => {
@@ -144,9 +149,9 @@ const PaymentDashboard = () => {
       due_date: newDueDate || null,
       recurring: newRecurring,
     });
-    if (error) { toast.error("שגיאה"); return; }
+    if (error) { toast.error(t("error" as any)); return; }
     setNewTitle(""); setNewAmount(""); setNewCategory(""); setNewMethod(""); setNewDueDate("");
-    toast.success(newType === "income" ? "הכנסה נוספה ✅" : "הוצאה נוספה");
+    toast.success(newType === "income" ? t("incomeAdded" as any) : t("expenseAdded" as any));
     fetchPayments();
   };
 
@@ -209,8 +214,8 @@ const PaymentDashboard = () => {
 
   const formatMonthLabel = (key: string) => {
     const [y, m] = key.split("-");
-    const months = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
-    return `${months[parseInt(m) - 1]} ${y}`;
+    const monthKeys = ["january","february","march","april","may","june","july","august","september","october","november","december"] as const;
+    return `${t(monthKeys[parseInt(m) - 1] as any)} ${y}`;
   };
 
   const sendAiMessage = async (chatInput: string) => {
@@ -265,46 +270,46 @@ ${context}
     sendAiMessage("תן לי סיכום חודשי מפורט: מה הייתי צריך לשפר, מה עשיתי טוב, ומה הצעדים הבאים שלי. תתייחס להוצאות הגדולות ביותר ותציע איך לחסוך.");
   };
 
-  if (loading) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
+  if (loading) return <div className="p-6 text-center text-muted-foreground">{t("loading" as any)}</div>;
 
   return (
-    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir="rtl">
+    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
       <div className="flex items-center gap-3 mb-2 flex-wrap">
         <Wallet className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">הכנסות והוצאות</h2>
+        <h2 className="text-2xl font-bold">{t("incomeAndExpenses" as any)}</h2>
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          payments.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? 'הכנסה' : 'הוצאה', category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '' })),
-          [{ key: 'title', label: 'תיאור' }, { key: 'amount', label: 'סכום' }, { key: 'type', label: 'סוג' }, { key: 'category', label: 'קטגוריה' }, { key: 'paid', label: 'שולם' }, { key: 'due_date', label: 'תאריך' }, { key: 'recurring', label: 'קבוע' }, { key: 'method', label: 'אמצעי תשלום' }],
-          'תשלומים'
+          payments.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '' })),
+          [{ key: 'title', label: t("descriptionCol" as any) }, { key: 'amount', label: t("amountCol" as any) }, { key: 'type', label: t("typeCol" as any) }, { key: 'category', label: t("categoryCol" as any) }, { key: 'paid', label: t("paidCol" as any) }, { key: 'due_date', label: t("dateCol" as any) }, { key: 'recurring', label: t("recurringCol" as any) }, { key: 'method', label: t("methodCol" as any) }],
+          t("paymentsSheet" as any)
         )}>
-          <Download className="h-3.5 w-3.5" />ייצוא
+          <Download className="h-3.5 w-3.5" />{t("exportLabel" as any)}
         </Button>
       </div>
 
       {/* Hero balance card */}
       <Card className={`${balance >= 0 ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200" : "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 border-red-200"}`}>
         <CardContent className="py-6 text-center">
-          <p className="text-sm text-muted-foreground mb-1">סה״כ נותר</p>
+          <p className="text-sm text-muted-foreground mb-1">{t("totalRemaining" as any)}</p>
           <p className={`text-4xl font-bold ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
             ₪{Math.abs(balance).toLocaleString()}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">{balance >= 0 ? "מצוין! יש לך עודף 👏" : "שים לב - ההוצאות עולות על ההכנסות ⚠️"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{balance >= 0 ? t("excellentSurplus" as any) : t("warningOverspend" as any)}</p>
           <div className="flex justify-center gap-6 mt-4">
             <div className="text-center">
               <TrendingUp className="h-4 w-4 text-green-500 mx-auto mb-1" />
-              <p className="text-xs text-muted-foreground">הכנסות</p>
+              <p className="text-xs text-muted-foreground">{t("income" as any)}</p>
               <p className="font-semibold text-green-600">₪{totalIncome.toLocaleString()}</p>
             </div>
             <div className="text-center">
               <TrendingDown className="h-4 w-4 text-red-500 mx-auto mb-1" />
-              <p className="text-xs text-muted-foreground">הוצאות</p>
+              <p className="text-xs text-muted-foreground">{t("expenses" as any)}</p>
               <p className="font-semibold text-red-600">₪{totalExpenses.toLocaleString()}</p>
             </div>
             <div className="text-center">
               <Calendar className="h-4 w-4 text-amber-500 mx-auto mb-1" />
-              <p className="text-xs text-muted-foreground">באיחור</p>
+              <p className="text-xs text-muted-foreground">{t("overdue" as any)}</p>
               <p className="font-semibold text-amber-600">{overdue.length}</p>
             </div>
           </div>
@@ -315,11 +320,11 @@ ${context}
       <Card className="border-primary/20">
         <CardContent className="py-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2"><PiggyBank className="h-4 w-4 text-primary" />יעד תקציב</h3>
+            <h3 className="text-sm font-semibold flex items-center gap-2"><PiggyBank className="h-4 w-4 text-primary" />{t("budgetTarget" as any)}</h3>
             <div className="flex gap-1">
               {(["weekly", "monthly", "quarterly", "yearly"] as const).map(p => (
                 <button key={p} onClick={() => setBudgetPeriod(p)} className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${budgetPeriod === p ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                  {p === "weekly" ? "שבועי" : p === "monthly" ? "חודשי" : p === "quarterly" ? "רבעוני" : "שנתי"}
+                  {p === "weekly" ? t("weeklyPeriod" as any) : p === "monthly" ? t("monthlyPeriod" as any) : p === "quarterly" ? t("quarterlyPeriod" as any) : t("yearlyPeriod" as any)}
                 </button>
               ))}
             </div>
