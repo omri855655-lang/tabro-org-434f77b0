@@ -17,12 +17,18 @@ const translations = {
     addCourse: "הוסף קורס", courseName: "שם הקורס", syllabus: "סילבוס", lessons: "שיעורים",
     add: "הוסף", edit: "ערוך", remove: "הסר", confirm: "אשר", close: "סגור", search: "חיפוש", filter: "סינון", all: "הכל", none: "ללא",
     contactForm: "פנייה / תמיכה",
-    // Recycle bin
     recycleBin: "סל מחזור", emptyBin: "רוקן סל", recycleBinEmpty: "סל המחזור ריק", recycleBinNote: "פריטים נמחקים אוטומטית לאחר 7 ימים", restore: "שחזר", deletedAt: "נמחק", permanentDelete: "מחק לצמיתות",
-    // Email
     email: "מייל", emailAccounts: "חשבונות מייל", addConnection: "חבר חשבון", connectEmail: "חיבור חשבון מייל", chooseProvider: "בחר ספק מייל:", emailAddress: "כתובת מייל", noEmailConnections: "אין חשבונות מייל מחוברים", connectEmailDesc: "חבר Gmail, Outlook או IMAP לניתוח אוטומטי", lastSync: "סנכרון אחרון", neverSynced: "לא סונכרן", sync: "סנכרן", confirmDisconnect: "לנתק את חשבון המייל?", emailSummary: "סיכום מיילים", recentEmails: "מיילים אחרונים", emailInsights: "תובנות מייל", emailsAnalyzed: "מיילים נותחו", oauthNote: "לאחר שמירה, תתבצע הפנייה לאימות חשבון.", password: "סיסמה", back: "חזור", connect: "חבר",
-    // Item detail
     editItem: "עריכת פריט",
+    // New keys - tabs
+    nutrition: "תזונה ושינה", dreams: "מפת חלומות", shopping: "קניות", payments: "הכנסות והוצאות", notesTab: "פתקים", sharingTab: "שיתופים",
+    // Accessibility
+    accessibilitySettings: "הגדרות נגישות", fontSize: "גודל גופן", highContrast: "ניגודיות גבוהה", disableAnimations: "השבת אנימציות", bigCursor: "סמן מוגדל", highlightLinks: "הדגש קישורים", reset: "איפוס", accessibilityStatement: "הצהרת נגישות", skipToContent: "דלג לתוכן הראשי", reduceFontSize: "הקטן גופן", increaseFontSize: "הגדל גופן",
+    // Credit card
+    creditCard: "כרטיס אשראי", connectCreditCard: "חבר כרטיס אשראי", creditCardProvider: "חברת אשראי", username: "שם משתמש", syncNow: "סנכרן עכשיו", importCSV: "ייבוא קובץ CSV", importCreditCard: "ייבוא פירוט אשראי", transactions: "עסקאות", noTransactions: "אין עסקאות", lastFourDigits: "4 ספרות אחרונות", cardDisplayName: "שם הכרטיס", syncing: "מסנכרן...", syncSuccess: "סנכרון הושלם", syncError: "שגיאה בסנכרון", disconnectCard: "נתק כרטיס", confirmDisconnectCard: "לנתק את כרטיס האשראי?",
+    // Accessibility page
+    a11yCommitment: "מחויבות לנגישות", a11yCommitmentText: "אנו מחויבים להנגיש את מערכת Tabro לכלל האוכלוסייה, כולל אנשים עם מוגבלויות, בהתאם לתקן הישראלי (ת\"י 5568) ולהנחיות WCAG 2.1 ברמה AA.", a11yWhatWeDid: "מה עשינו", a11yLimitations: "מגבלות ידועות", a11yLimitationsText: "ייתכנו רכיבים מסוימים שעדיין אינם מונגשים באופן מלא. אנו עובדים באופן שוטף על שיפור הנגישות.", a11yContact: "יצירת קשר", a11yContactText: "נתקלת בבעיית נגישות? נשמח לשמוע ממך. ניתן לפנות דרך טופס יצירת הקשר באתר.", lastUpdated: "עדכון אחרון",
+    a11yFeatureKeyboard: "תמיכה מלאה בניווט מקלדת", a11yFeatureRtl: "תמיכה ב-RTL (ימין לשמאל) לעברית", a11yFeatureHeadings: "היררכיית כותרות תקינה (H1-H6)", a11yFeatureAria: "תוויות ARIA באלמנטים אינטראקטיביים", a11yFeatureContrast: "ניגודיות צבעים מספקת", a11yFeatureSkip: "כפתור \"דלג לתוכן\" (Skip Link) לניווט מהיר", a11yFeatureTheme: "מצב כהה ובהיר לנוחות צפייה", a11yFeatureForms: "טפסים עם תוויות ברורות והודעות שגיאה",
   },
   en: {
     personalArea: "Personal Area", installApp: "Install App", signOut: "Sign Out", signedOutSuccess: "Signed out successfully", loading: "Loading...",
