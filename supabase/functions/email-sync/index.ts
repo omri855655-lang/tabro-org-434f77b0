@@ -5,6 +5,38 @@ const corsH = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
+
+async function refreshGmailToken(refreshToken: string): Promise<string | null> {
+  const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
+  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
+  if (!clientId || !clientSecret || !refreshToken) return null;
+
+  const res = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  const data = await res.json();
+  return data.access_token || null;
+}
+
+async function classifyEmail(subject: string, from: string): Promise<string> {
+  const lower = `${subject} ${from}`.toLowerCase();
+  if (/invoice|receipt|payment|חשבונית|תשלום|קבלה/.test(lower)) return "payments";
+  if (/task|todo|action|משימה|לביצוע/.test(lower)) return "tasks";
+  if (/order|shipping|delivery|הזמנה|משלוח/.test(lower)) return "shopping";
+  if (/bill|utility|חשבון|חשמל|מים/.test(lower)) return "bills";
+  if (/newsletter|unsubscribe|עדכון/.test(lower)) return "newsletter";
+  return "personal";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsH });
 
@@ -24,8 +56,12 @@ Deno.serve(async (req) => {
     const { connectionId } = await req.json();
     if (!connectionId) return new Response(JSON.stringify({ error: "connectionId required" }), { status: 400, headers: corsH });
 
-    // Fetch connection details
-    const { data: conn, error: connErr } = await supabase
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: conn, error: connErr } = await serviceClient
       .from("email_connections")
       .select("*")
       .eq("id", connectionId)
@@ -36,27 +72,75 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Connection not found" }), { status: 404, headers: corsH });
     }
 
-    // For IMAP connections, we would connect and fetch email headers here.
-    // For Gmail/Outlook OAuth, we'd use their APIs with the stored tokens.
-    // This is a placeholder implementation that marks the sync as complete.
+    let emailsProcessed = 0;
 
-    // Update last_sync timestamp
-    const serviceClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    // Gmail OAuth flow
+    if (conn.provider === "gmail" && conn.refresh_token) {
+      let accessToken = conn.access_token;
+      const settings = (conn.settings as any) || {};
 
-    await serviceClient
-      .from("email_connections")
+      // Refresh token if expired
+      if (!accessToken || (settings.token_expiry && Date.now() > settings.token_expiry)) {
+        accessToken = await refreshGmailToken(conn.refresh_token);
+        if (accessToken) {
+          await serviceClient.from("email_connections").update({
+            access_token: accessToken,
+            settings: { ...settings, token_expiry: Date.now() + 3500000 },
+          }).eq("id", connectionId);
+        }
+      }
+
+      if (accessToken) {
+        // Fetch recent messages
+        const listRes = await fetch(`${GMAIL_API}/messages?maxResults=20&q=newer_than:7d`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const listData = await listRes.json();
+
+        if (listData.messages && Array.isArray(listData.messages)) {
+          for (const msg of listData.messages.slice(0, 20)) {
+            const msgRes = await fetch(`${GMAIL_API}/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const msgData = await msgRes.json();
+
+            const headers = msgData.payload?.headers || [];
+            const subject = headers.find((h: any) => h.name === "Subject")?.value || "";
+            const from = headers.find((h: any) => h.name === "From")?.value || "";
+            const date = headers.find((h: any) => h.name === "Date")?.value || "";
+
+            const category = await classifyEmail(subject, from);
+
+            await serviceClient.from("email_analyses").upsert({
+              user_id: user.id,
+              connection_id: connectionId,
+              email_subject: subject,
+              email_from: from,
+              email_date: date ? new Date(date).toISOString() : new Date().toISOString(),
+              category,
+              is_processed: true,
+              suggested_action: category === "payments"
+                ? { type: "add_expense", description: `הוסף הוצאה מ: ${subject}` }
+                : category === "tasks"
+                ? { type: "create_task", description: `צור משימה: ${subject}` }
+                : null,
+            } as any);
+
+            emailsProcessed++;
+          }
+        }
+      }
+    }
+
+    // Update last_sync
+    await serviceClient.from("email_connections")
       .update({ last_sync: new Date().toISOString() })
       .eq("id", connectionId);
 
-    // TODO: Implement actual IMAP fetching and AI categorization
-    // For now, return success with a note
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: "Email sync placeholder - IMAP/OAuth integration pending",
-      emails_processed: 0,
+    return new Response(JSON.stringify({
+      success: true,
+      emails_processed: emailsProcessed,
+      message: emailsProcessed > 0 ? "Emails synced and classified" : "No new emails or connection not configured",
     }), {
       headers: { ...corsH, "Content-Type": "application/json" },
     });
