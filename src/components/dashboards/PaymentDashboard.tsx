@@ -270,7 +270,7 @@ ${context}
     sendAiMessage("תן לי סיכום חודשי מפורט: מה הייתי צריך לשפר, מה עשיתי טוב, ומה הצעדים הבאים שלי. תתייחס להוצאות הגדולות ביותר ותציע איך לחסוך.");
   };
 
-  if (loading) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
+  if (loading) return <div className="p-6 text-center text-muted-foreground">{t("loading" as any)}</div>;
 
   return (
     <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
