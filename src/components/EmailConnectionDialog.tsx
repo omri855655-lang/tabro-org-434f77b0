@@ -9,6 +9,7 @@ import { Mail, Server, Loader2 } from "lucide-react";
 import { useEmailIntegration } from "@/hooks/useEmailIntegration";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 
 interface EmailConnectionDialogProps {
@@ -16,7 +17,6 @@ interface EmailConnectionDialogProps {
   onClose: () => void;
 }
 
-// Only show providers that actually work end-to-end
 const PROVIDERS = [
   { id: "gmail", name: "Gmail", icon: Mail, color: "text-red-500", oauth: true },
   { id: "imap", name: "IMAP", icon: Server, color: "text-gray-500", oauth: false },
@@ -33,34 +33,81 @@ const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) =>
   const [saving, setSaving] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
 
-  // Listen for Gmail OAuth callback
+  // After Google OAuth redirect, capture provider_token and save connection
   useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type === "gmail-connected") {
-        toast.success(`${t("emailConnected" as any)}: ${event.data.email}`);
+    const handleOAuthReturn = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.provider_token || session?.user?.app_metadata?.provider !== "google") return;
+
+      const providerToken = session.provider_token;
+      const userEmail = session.user.email;
+      if (!userEmail) return;
+
+      // Save the Gmail connection with access token
+      try {
+        const { error } = await supabase
+          .from("email_connections")
+          .upsert({
+            user_id: session.user.id,
+            provider: "gmail",
+            email_address: userEmail,
+            access_token: providerToken,
+            refresh_token: session.provider_refresh_token || null,
+            settings: { connected_via: "oauth", token_expiry: Date.now() + 3600000 },
+          } as any, { onConflict: "user_id,provider,email_address" });
+
+        if (error) throw error;
+        toast.success(`${t("emailConnected" as any)}: ${userEmail}`);
         refetch();
-        setProvider(null);
-        onClose();
+      } catch (e) {
+        console.error("Error saving Gmail connection:", e);
       }
     };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [refetch, onClose, t]);
+
+    handleOAuthReturn();
+  }, [refetch, t]);
 
   const handleGmailOAuth = async () => {
     setOauthLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { toast.error(t("loginRequired" as any)); return; }
-
-      const { data, error } = await supabase.functions.invoke("gmail-auth", {
-        body: { action: "get_auth_url" },
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: {
+          prompt: "consent",
+          access_type: "offline",
+        },
       });
 
-      if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank", "width=500,height=600");
+      if (result.error) {
+        toast.error(t("oauthError" as any));
+        return;
+      }
+
+      if (result.redirected) {
+        // Browser will redirect to Google — just return
+        return;
+      }
+
+      // Tokens received — session is set, check for provider_token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.provider_token) {
+        const userEmail = session.user?.email;
+        if (userEmail) {
+          await supabase
+            .from("email_connections")
+            .upsert({
+              user_id: session.user!.id,
+              provider: "gmail",
+              email_address: userEmail,
+              access_token: session.provider_token,
+              refresh_token: session.provider_refresh_token || null,
+              settings: { connected_via: "oauth", token_expiry: Date.now() + 3600000 },
+            } as any, { onConflict: "user_id,provider,email_address" });
+
+          toast.success(`${t("emailConnected" as any)}: ${userEmail}`);
+          refetch();
+          onClose();
+        }
       }
     } catch {
       toast.error(t("oauthError" as any));
