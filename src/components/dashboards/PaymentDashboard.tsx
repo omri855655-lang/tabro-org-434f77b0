@@ -337,27 +337,27 @@ ${context}
           </div>
           {editingBudget ? (
             <div className="flex gap-2">
-              <Input placeholder="סכום יעד" type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)} dir="ltr" className="flex-1" />
-              <Button size="sm" onClick={saveBudgetTarget}>שמור</Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditingBudget(false)}>ביטול</Button>
+              <Input placeholder={t("amount" as any)} type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)} dir="ltr" className="flex-1" />
+              <Button size="sm" onClick={saveBudgetTarget}>{t("saveBudget" as any)}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditingBudget(false)}>{t("cancelBudget" as any)}</Button>
             </div>
           ) : budgetTarget > 0 ? (
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span>הוצאות: ₪{totalExpenses.toLocaleString()}</span>
-                <span>יעד: ₪{budgetTarget.toLocaleString()}</span>
+                <span>{t("expensesLabel" as any)}: ₪{totalExpenses.toLocaleString()}</span>
+                <span>{t("targetLabel" as any)}: ₪{budgetTarget.toLocaleString()}</span>
               </div>
               <Progress value={Math.min((totalExpenses / budgetTarget) * 100, 100)} className={`h-3 ${totalExpenses > budgetTarget ? "[&>div]:bg-red-500" : "[&>div]:bg-green-500"}`} />
               <div className="flex justify-between mt-2">
                 <span className={`text-sm font-semibold ${totalExpenses > budgetTarget ? "text-red-600" : "text-green-600"}`}>
-                  {totalExpenses > budgetTarget ? `חריגה של ₪${(totalExpenses - budgetTarget).toLocaleString()} ⚠️` : `נותרו ₪${(budgetTarget - totalExpenses).toLocaleString()} ✅`}
+                  {totalExpenses > budgetTarget ? `${t("budgetExceeded" as any)} ₪${(totalExpenses - budgetTarget).toLocaleString()} ⚠️` : `${t("budgetRemaining" as any)} ₪${(budgetTarget - totalExpenses).toLocaleString()} ✅`}
                 </span>
-                <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => { setEditingBudget(true); setBudgetInput(String(budgetTarget)); }}>עריכה</Button>
+                <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => { setEditingBudget(true); setBudgetInput(String(budgetTarget)); }}>{t("editing" as any)}</Button>
               </div>
             </div>
           ) : (
             <Button variant="outline" size="sm" className="w-full gap-1" onClick={() => setEditingBudget(true)}>
-              <Plus className="h-3 w-3" />הגדר יעד תקציב {budgetPeriod === "weekly" ? "שבועי" : budgetPeriod === "monthly" ? "חודשי" : budgetPeriod === "quarterly" ? "רבעוני" : "שנתי"}
+              <Plus className="h-3 w-3" />{t("setBudgetTarget" as any)} {budgetPeriod === "weekly" ? t("weeklyPeriod" as any) : budgetPeriod === "monthly" ? t("monthlyPeriod" as any) : budgetPeriod === "quarterly" ? t("quarterlyPeriod" as any) : t("yearlyPeriod" as any)}
             </Button>
           )}
         </CardContent>
