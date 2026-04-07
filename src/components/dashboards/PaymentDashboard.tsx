@@ -634,20 +634,20 @@ ${context}
             <CardContent className="pt-4 space-y-3">
               {/* Type selector - prominent */}
               <div className="grid grid-cols-2 gap-2">
-                <Button variant={newType === "income" ? "default" : "outline"} className={`gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => setNewType("income")}>
-                  <TrendingUp className="h-4 w-4" />הכנסה
+              <Button variant={newType === "income" ? "default" : "outline"} className={`gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => setNewType("income")}>
+                  <TrendingUp className="h-4 w-4" />{t("incomeType" as any)}
                 </Button>
                 <Button variant={newType === "expense" ? "default" : "outline"} className={`gap-2 ${newType === "expense" ? "bg-red-600 hover:bg-red-700" : ""}`} onClick={() => setNewType("expense")}>
-                  <TrendingDown className="h-4 w-4" />הוצאה
+                  <TrendingDown className="h-4 w-4" />{t("expenseType" as any)}
                 </Button>
               </div>
-              <AutocompleteInput fieldName="payment-title" value={newTitle} onChange={setNewTitle} placeholder={newType === "income" ? "שם ההכנסה (משכורת, פרילנס...)" : "שם ההוצאה (שכירות, חשמל...)"} />
-              <Input placeholder="סכום" type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} dir="ltr" />
-              <AutocompleteInput fieldName="payment-method" value={newMethod} onChange={setNewMethod} placeholder="אמצעי תשלום (אשראי, מזומן...)" />
+              <AutocompleteInput fieldName="payment-title" value={newTitle} onChange={setNewTitle} placeholder={newType === "income" ? t("incomeName" as any) : t("expenseName" as any)} />
+              <Input placeholder={t("amount" as any)} type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} dir="ltr" />
+              <AutocompleteInput fieldName="payment-method" value={newMethod} onChange={setNewMethod} placeholder={t("paymentMethod" as any)} />
               <Select value={newCategory} onValueChange={setNewCategory}>
-                <SelectTrigger><SelectValue placeholder="בחר קטגוריה" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("chooseCategory" as any)} /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {CATEGORY_IDS.map((c, i) => <SelectItem key={c} value={c}>{t(CATEGORY_KEYS[i] as any)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="flex gap-2">
@@ -655,23 +655,23 @@ ${context}
               </div>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" checked={newRecurring} onChange={e => setNewRecurring(e.target.checked)} className="rounded" />
-                הוצאה/הכנסה קבועה (חוזרת כל חודש)
+                {t("recurringExpense" as any)}
               </label>
               <Button onClick={addPayment} className={`w-full gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`}>
-                <Plus className="h-4 w-4" />{newType === "income" ? "הוסף הכנסה" : "הוסף הוצאה"}
+                <Plus className="h-4 w-4" />{newType === "income" ? t("addIncome" as any) : t("addExpense" as any)}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="guides" className="space-y-3">
-          {FINANCIAL_GUIDES.map(guide => (
+          {GUIDE_DEFS.map(guide => (
             <Collapsible key={guide.id} open={expandedGuide === guide.id} onOpenChange={() => setExpandedGuide(expandedGuide === guide.id ? null : guide.id)}>
               <CollapsibleTrigger className="w-full">
                 <Card className={`${guide.bgColor} cursor-pointer hover:shadow-md transition-all`}>
                   <CardContent className="py-3 px-4 flex items-center gap-3">
                     <guide.icon className={`h-6 w-6 ${guide.color} shrink-0`} />
-                    <span className="font-semibold flex-1 text-right">{guide.title}</span>
+                    <span className={`font-semibold flex-1 ${isRtl ? "text-right" : "text-left"}`}>{t(guide.titleKey as any)}</span>
                     {expandedGuide === guide.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </CardContent>
                 </Card>
@@ -681,8 +681,8 @@ ${context}
                   {guide.sections.map((section, i) => (
                     <Card key={i} className="border-muted">
                       <CardContent className="py-3 px-4">
-                        <h4 className="font-semibold text-sm mb-1">{section.title}</h4>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{section.content}</p>
+                        <h4 className="font-semibold text-sm mb-1">{t(section.titleKey as any)}</h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{t(section.contentKey as any)}</p>
                       </CardContent>
                     </Card>
                   ))}
