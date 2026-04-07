@@ -68,13 +68,58 @@ const SettingsPanel = () => {
   const { boards, addBoard, deleteBoard, updateBoard } = useCustomBoards();
   const [showAddBoard, setShowAddBoard] = useState(false);
   const [newBoardName, setNewBoardName] = useState("");
-  const [newBoardStatuses, setNewBoardStatuses] = useState("לביצוע,בתהליך,הושלם");
+  const [newBoardStatuses, setNewBoardStatuses] = useState(() => (lang === "en" ? "To Do,In Progress,Done" : "לביצוע,בתהליך,הושלם"));
   const [newBoardDashboard, setNewBoardDashboard] = useState(false);
   const [boardTemplate, setBoardTemplate] = useState("custom");
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [nameLoaded, setNameLoaded] = useState(false);
+
+  const isEnglish = lang === "en";
+
+  const getDefaultBoardStatuses = (template: string) => {
+    if (isEnglish) {
+      if (template === "tasks") return "Not Started,In Progress,Done";
+      if (template === "todo") return "To Do,Done";
+      if (template === "shopping") return "To Buy,Purchased";
+      if (template === "tracking") return "Planned,Active,Completed";
+      if (template === "learning-reading") return "To Read,Learning,Completed";
+      if (template === "kanban") return "To Do,In Progress,Review,Done";
+      return "To Do,In Progress,Done";
+    }
+
+    if (template === "tasks") return "טרם החל,בטיפול,בוצע";
+    if (template === "todo") return "לביצוע,הושלם";
+    if (template === "shopping") return "לקנות,נקנה";
+    if (template === "tracking") return "לצפות,צופה,נצפה";
+    if (template === "learning-reading") return "לקריאה,בלמידה,הושלם";
+    if (template === "kanban") return "לביצוע,בתהליך,בבדיקה,הושלם";
+    return "לביצוע,בתהליך,הושלם";
+  };
+
+  const getTabLabel = (tabId: string) => {
+    const keyMap: Record<string, string> = {
+      dashboard: "dashboard",
+      tasks: "personalTasks",
+      work: "workTasks",
+      books: "books",
+      shows: "shows",
+      podcasts: "podcasts",
+      routine: "dailyRoutine",
+      projects: "projects",
+      courses: "courses",
+      planner: "planner",
+      deeply: "deeply",
+      nutrition: "nutrition",
+      dreams: "dreams",
+      shopping: "shopping",
+      payments: "payments",
+      settings: "settings",
+    };
+
+    return t((keyMap[tabId] || tabId) as any);
+  };
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -152,7 +197,7 @@ const SettingsPanel = () => {
       await addBoard(newBoardName.trim(), statuses, newBoardDashboard);
       setShowAddBoard(false);
       setNewBoardName("");
-      setNewBoardStatuses("לביצוע,בתהליך,הושלם");
+      setNewBoardStatuses(getDefaultBoardStatuses("custom"));
       setNewBoardDashboard(false);
       toast.success(t("dashboardAdded" as any));
     } catch {
@@ -454,13 +499,13 @@ const SettingsPanel = () => {
                 <Label>{t("chooseTemplate" as any)}</Label>
                 <Select value={boardTemplate} onValueChange={(v) => {
                   setBoardTemplate(v);
-                  if (v === "tasks") { setNewBoardStatuses("טרם החל,בטיפול,בוצע"); setNewBoardDashboard(true); }
-                  else if (v === "todo") { setNewBoardStatuses("לביצוע,הושלם"); setNewBoardDashboard(true); }
-                  else if (v === "shopping") { setNewBoardStatuses("לקנות,נקנה"); setNewBoardDashboard(false); }
-                  else if (v === "tracking") { setNewBoardStatuses("לצפות,צופה,נצפה"); setNewBoardDashboard(false); }
-                  else if (v === "learning-reading") { setNewBoardStatuses("לקריאה,בלמידה,הושלם"); setNewBoardDashboard(false); }
-                  else if (v === "kanban") { setNewBoardStatuses("לביצוע,בתהליך,בבדיקה,הושלם"); setNewBoardDashboard(true); }
-                  else { setNewBoardStatuses("לביצוע,בתהליך,הושלם"); setNewBoardDashboard(false); }
+                   if (v === "tasks") { setNewBoardStatuses(getDefaultBoardStatuses(v)); setNewBoardDashboard(true); }
+                   else if (v === "todo") { setNewBoardStatuses(getDefaultBoardStatuses(v)); setNewBoardDashboard(true); }
+                   else if (v === "shopping") { setNewBoardStatuses(getDefaultBoardStatuses(v)); setNewBoardDashboard(false); }
+                   else if (v === "tracking") { setNewBoardStatuses(getDefaultBoardStatuses(v)); setNewBoardDashboard(false); }
+                   else if (v === "learning-reading") { setNewBoardStatuses(getDefaultBoardStatuses(v)); setNewBoardDashboard(false); }
+                   else if (v === "kanban") { setNewBoardStatuses(getDefaultBoardStatuses(v)); setNewBoardDashboard(true); }
+                   else { setNewBoardStatuses(getDefaultBoardStatuses(v)); setNewBoardDashboard(false); }
                 }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -505,7 +550,7 @@ const SettingsPanel = () => {
           <div className="space-y-2">
             {DEFAULT_TABS.filter(tab => tab.removable).map((tab) => (
               <div key={tab.id} className="flex items-center justify-between p-2 rounded-lg border bg-muted/20">
-                <span className="text-sm font-medium">{tab.name}</span>
+                <span className="text-sm font-medium">{getTabLabel(tab.id)}</span>
                 <div className="flex items-center gap-2">
                   {isTabVisible(tab.id) ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
                   <Switch checked={isTabVisible(tab.id)} onCheckedChange={() => toggleTab(tab.id)} />

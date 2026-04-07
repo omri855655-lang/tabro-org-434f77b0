@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 export type LayoutMode = "tabs" | "sidebar" | "compact" | "bottom-nav" | "hamburger" | "dashboard-cards" | "split-view";
 
@@ -16,6 +16,18 @@ const getStored = (): LayoutMode => {
 
 export function useLayoutPreference() {
   const [layout, setLayoutState] = useState<LayoutMode>(getStored);
+
+  useEffect(() => {
+    const syncLayout = () => setLayoutState(getStored());
+
+    window.addEventListener("storage", syncLayout);
+    window.addEventListener("site-appearance-change", syncLayout);
+
+    return () => {
+      window.removeEventListener("storage", syncLayout);
+      window.removeEventListener("site-appearance-change", syncLayout);
+    };
+  }, []);
 
   const setLayout = useCallback((mode: LayoutMode) => {
     setLayoutState(mode);

@@ -2,6 +2,12 @@ import { useState, useEffect, createContext, useContext, ReactNode } from "react
 
 type Language = "he" | "en" | "es" | "zh" | "ar" | "ru";
 
+const getStoredLanguage = (): Language => {
+  const stored = localStorage.getItem("ui-language") as Language | null;
+  const fallback = localStorage.getItem("app-language") as Language | null;
+  return stored || fallback || "he";
+};
+
 const translations = {
   he: {
     personalArea: "אזור אישי", installApp: "התקנת אפליקציה", signOut: "התנתק", signedOutSuccess: "התנתקת בהצלחה", loading: "טוען...",
@@ -474,9 +480,7 @@ const LanguageContext = createContext<LanguageContextType>({
 const RTL_LANGS: Language[] = ["he", "ar"];
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Language>(() => {
-    return (localStorage.getItem("ui-language") as Language) || (localStorage.getItem("app-language") as Language) || "he";
-  });
+  const [lang, setLangState] = useState<Language>(getStoredLanguage);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
@@ -491,6 +495,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.dir = isRtl ? "rtl" : "ltr";
     document.documentElement.lang = lang;
   }, [lang]);
+
+  useEffect(() => {
+    const syncLanguage = () => setLangState(getStoredLanguage());
+
+    window.addEventListener("storage", syncLanguage);
+    window.addEventListener("site-appearance-change", syncLanguage);
+
+    return () => {
+      window.removeEventListener("storage", syncLanguage);
+      window.removeEventListener("site-appearance-change", syncLanguage);
+    };
+  }, []);
 
   const t = (key: TranslationKey): string => {
     return translations[lang]?.[key] || translations.he[key] || key;

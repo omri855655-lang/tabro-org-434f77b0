@@ -50,33 +50,43 @@ function applyPrefsToLocal(prefs: SitePreferences) {
 
 export function useSyncedPreferences() {
   const { user } = useAuth();
-  const hasLoadedRef = useRef(false);
+  const loadedForUserRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Load from DB on login
   useEffect(() => {
-    if (!user || hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
+    if (!user) {
+      loadedForUserRef.current = null;
+      return;
+    }
+
+    if (loadedForUserRef.current === user.id) return;
+    loadedForUserRef.current = user.id;
+
+    let cancelled = false;
 
     (async () => {
       const { data } = await supabase
         .from("user_preferences")
         .select("site_preferences")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (data?.site_preferences && typeof data.site_preferences === "object") {
-        const dbPrefs = data.site_preferences as SitePreferences;
-        // Only apply if DB has non-empty prefs
-        if (dbPrefs.themeId || dbPrefs.layout || dbPrefs.lang) {
-          applyPrefsToLocal(dbPrefs);
-          // Trigger re-render by dispatching storage event
-          window.dispatchEvent(new CustomEvent("site-appearance-change"));
-          // Reload to apply all settings cleanly
-          window.location.reload();
-        }
+      if (cancelled || !data?.site_preferences || typeof data.site_preferences !== "object") {
+        return;
       }
+
+      const dbPrefs = data.site_preferences as SitePreferences;
+      applyPrefsToLocal({
+        ...getLocalPrefs(),
+        ...dbPrefs,
+      });
+      window.dispatchEvent(new CustomEvent("site-appearance-change"));
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   // Save to DB when local prefs change (debounced)

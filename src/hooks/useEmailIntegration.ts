@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "sonner";
 
 export interface EmailConnection {
@@ -25,9 +26,11 @@ export interface EmailAnalysis {
 
 export function useEmailIntegration() {
   const { user } = useAuth();
+  const { lang, t } = useLanguage();
   const [connections, setConnections] = useState<EmailConnection[]>([]);
   const [analyses, setAnalyses] = useState<EmailAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
+  const isHe = lang === "he" || lang === "ar";
 
   const fetchConnections = useCallback(async () => {
     if (!user) return;
@@ -84,29 +87,29 @@ export function useEmailIntegration() {
         .single();
       if (error) throw error;
       await fetchConnections();
-      toast.success("חשבון מייל חובר בהצלחה");
+      toast.success(t("emailConnected" as any));
       return data;
     } catch (e: any) {
-      toast.error("שגיאה בחיבור חשבון מייל");
+      toast.error(isHe ? "שגיאה בחיבור חשבון מייל" : "Error connecting email account");
       return null;
     }
-  }, [user, fetchConnections]);
+  }, [user, fetchConnections, isHe, t]);
 
   const removeConnection = useCallback(async (connectionId: string) => {
     try {
       const { error } = await supabase.from("email_connections").delete().eq("id", connectionId);
       if (error) throw error;
       await fetchConnections();
-      toast.success("חשבון מייל נותק");
+      toast.success(isHe ? "חשבון המייל נותק" : "Email account disconnected");
     } catch (e: any) {
-      toast.error("שגיאה בניתוק חשבון מייל");
+      toast.error(isHe ? "שגיאה בניתוק חשבון מייל" : "Error disconnecting email account");
     }
-  }, [fetchConnections]);
+  }, [fetchConnections, isHe]);
 
   const syncEmails = useCallback(async (connectionId: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { toast.error("יש להתחבר מחדש"); return; }
+      if (!session) { toast.error(t("loginRequired" as any)); return; }
       
       const { error } = await supabase.functions.invoke("email-sync", {
         body: { connectionId },
@@ -114,11 +117,11 @@ export function useEmailIntegration() {
       });
       if (error) throw error;
       await fetchAnalyses();
-      toast.success("סנכרון מיילים הושלם");
+      toast.success(isHe ? "סנכרון המיילים הושלם" : "Email sync completed");
     } catch (e: any) {
-      toast.error("שגיאה בסנכרון מיילים");
+      toast.error(isHe ? "שגיאה בסנכרון מיילים" : "Error syncing emails");
     }
-  }, [fetchAnalyses]);
+  }, [fetchAnalyses, isHe, t]);
 
   const categorySummary = analyses.reduce((acc, a) => {
     acc[a.category] = (acc[a.category] || 0) + 1;
