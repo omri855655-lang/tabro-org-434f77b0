@@ -124,9 +124,9 @@ export function DeeplyMusicPlayer({ onPlayingChange, themeCard, themeMuted, them
       // MediaSession for lock screen
       if ("mediaSession" in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: `Deeply — ${file.name}`,
+          title: `ZoneFlow — ${file.name}`,
           artist: "Tabro",
-          album: "Deeply Music",
+          album: "ZoneFlow Music",
           artwork: [
             { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },
             { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png" },
