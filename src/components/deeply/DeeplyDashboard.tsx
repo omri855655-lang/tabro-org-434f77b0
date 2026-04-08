@@ -828,7 +828,7 @@ const DeeplyDashboard = () => {
                         <div className="flex gap-2 items-end flex-wrap">
                           <input
                             type="text"
-                            placeholder="קישור YouTube..."
+                            placeholder={t("youtubeLink" as any)}
                             value={addYtUrl}
                             onChange={(e) => setAddYtUrl(e.target.value)}
                             className="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30"
