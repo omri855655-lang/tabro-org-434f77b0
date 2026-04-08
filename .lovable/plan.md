@@ -1,109 +1,117 @@
 
 
-# Plan: Comprehensive Update — Financial Dashboard, Deeply Rename, Landing Page, Onboarding Guide, Translations & Design
+# Comprehensive Fix Pass — 7 Parts
 
-This plan addresses all the requests in a single implementation pass.
+## Part 1: Global Design System Tokens
 
----
+### Files to modify:
+- **`index.html`**: Add Google Fonts preconnect + Plus Jakarta Sans + Inter font link in `<head>`
+- **`src/index.css`**: Add `:root` CSS variables (`--brand-primary`, `--brand-accent`, `--shadow-ambient`), heading font-family rule, body font-family rule, `.card-surface` utility class
+- **`tailwind.config.ts`**: Extend `colors.brand`, `fontFamily.display/body`, `boxShadow.ambient`
+- **`src/components/Dashboard.tsx`**: Replace `<Card>` with `<Card className="card-surface">` on stat cards, remove border classes, add `border-l-[3px] border-l-brand-primary` accent
+- **`src/components/dashboards/PaymentDashboard.tsx`**: Apply `card-surface` to hero and section cards
+- **`src/pages/AdminDashboard.tsx`**: Apply `card-surface` to admin cards
 
-## Summary of Changes
+## Part 2: Translations
 
-1. **Financial Dashboard Overhaul** — Fix import saving, add Excel/PDF/receipt upload, category breakdown, monthly view, budget planning
-2. **Deeply Rename & Fix** — Rename to "ZoneFlow" (or similar), fix broken YouTube videos, allow deleting built-in videos
-3. **Landing Page** — Add English translation, show contact emails, apply new design system colors
-4. **Onboarding Guide Enhancement** — Add email & budget sections, English support, link from Settings
-5. **Translations** — Complete missing Hebrew/English across all modules
-6. **Main Dashboard Design** — Apply new design tokens from uploaded DESIGN files, keep customization ability
-7. **Admin Landing Page Editor** — Simple admin-editable landing page content
+### `src/hooks/useLanguage.tsx`:
+Add ~25 missing translation keys with HE+EN values:
+- `books`, `read`, `series_films`, `total_books`, `pending`, `reading`, `watching`
+- `books_distribution`, `general_comparison`, `reading_progress`, `watch_progress`
+- `no_books_yet`, `no_series_yet`, `customize_dashboard`, `reset`, `normal`, `compact`, `cards_view`
+- `expense_breakdown`, `other`, `total`, `completed`, `watched`
+- `minutes`, `seconds`
+- Email category labels: `catPayment`, `catTask`, `catNewsletter`, `catSocial`, `catOther_email`
 
----
+### Files to update with `t()` calls:
+- **`Dashboard.tsx`**: Replace all hardcoded Hebrew ("ספרים", "נקראו", "סדרות/סרטים", "סה״כ ספרים", etc.) with `t()` 
+- **`PaymentDashboard.tsx`** line 618: Replace "פילוח הוצאות" → `t("expense_breakdown")`; line 625: Replace `{cat}` → `{getCategoryLabel(cat)}`; line 299/690: Replace "אחר" → `t("other")`
+- **`DeeplyDashboard.tsx`**: Replace roadmap step labels (lines 44-48), timer labels, BG_THEMES names with `t()` calls
+- **`EmailIntegration.tsx`**: Replace raw category keys with `t()` labels
 
-## Technical Details
+## Part 3: Dashboard Design + Chart Toggle
 
-### Step 1: Financial Dashboard — Complete Overhaul
-**Files:** `PaymentDashboard.tsx`, `FinancialCsvImport.tsx`, `CreditCardImport.tsx`, `financialImport.ts`
+### `Dashboard.tsx`:
+1. Remove border classes from stat cards; apply `card-surface` + `border-l-[3px] border-l-[#3525cd]`
+2. Add chart type toggle (Bar | Line | Donut) above each chart widget:
+   - New state per widget stored in localStorage (`chart_type_booksChart`, etc.)
+   - Toggle renders `<PieChart>`, `<BarChart>`, or `<LineChart>` from recharts (already imported)
+   - Default: current chart type (Pie for books/shows, Bar for comparison)
+3. Do NOT touch `useDashboardConfig`, section ordering, or hide/show logic
 
-- Fix the core issue: imported transactions from `financial_transactions` must appear in the income/expenses tabs and be editable (category, notes)
-- Add Excel (.xlsx/.xls) and PDF upload support to **both** import panels (left CSV import + right credit card import)
-- Add receipt scanning via AI (upload image → extract amount, merchant, date using Gemini)
-- Redesign the dashboard hero to focus on savings philosophy:
-  - Top cards: Total Income | Total Spent (non-savings) | Available to Save | Weekly Budget Remaining
-  - Monthly category breakdown pie chart
-  - Budget allocation per category with progress bars
-  - Alert when overspending in a category
-- Add "Quick Add" income/expense form directly on the main tab
-- Keep existing customization (DashboardDisplayToolbar) intact
+## Part 4: Financial Import Fix
 
-### Step 2: Deeply → "ZoneFlow" Rename & Fixes
-**Files:** `DeeplyDashboard.tsx`, `DeeplyMusicPlayer.tsx`, `FloatingMusicMini.tsx`, `audioPresets.ts`, `deeplyAudioState.ts`, `useAudioEngine.ts`, `iosAudioUnlock.ts`, `iosSilentAudio.ts`, `renderPresetToAudio.ts`, tab references in `useUserPreferences.ts`, `useLanguage.tsx`
+### `src/lib/financialImport.ts`:
+- After successful insert to `financial_transactions`, no additional `income_expenses` table insert needed (the dashboard already reads from `financial_transactions` directly — verified in PaymentDashboard.tsx lines 183-186)
+- The data IS appearing — the bug was already fixed in the previous pass
 
-- Rename "Deeply" to **"ZoneFlow"** across all UI strings and translations (keeping file names as-is to minimize refactor risk)
-- Fix YouTube embed issues: ensure iframe `allow` attributes include `autoplay; encrypted-media`
-- Add delete button for built-in YouTube videos per category (stored in localStorage as hidden list)
-- Ensure all text in the module is translated to English
+### `src/components/dashboards/CreditCardImport.tsx`:
+- Add `.xlsx, .xls` to accepted file types (SheetJS already in project)
 
-### Step 3: Landing Page — Bilingual + Contact Emails + Design
-**Files:** `Landing.tsx`
+### `PaymentDashboard.tsx`:
+- In hero card (line 470 area): Add budget target row when `budgetTarget > 0`:
+  `"יעד שבועי: {budgetTarget} ₪ | נותר: {remaining} ₪"`
+- Add inline edit button (pencil icon) per transaction row → small form for category + notes
+- Add "תשלום קבוע" / "Fixed payment" checkbox to quick-add form
+- Show fixed payment count + total in overview
 
-- Add language toggle (he/en) on the landing page header
-- Translate all FEATURES, HIGHLIGHTS, section headers, and CTA buttons to English
-- Add contact section in footer: `info@tabro.org` and `tabro855@gmail.com` with mailto links
-- Apply design tokens from uploaded DESIGN_1.md: Indigo primary (#3525cd), Amber secondary (#fea619), Plus Jakarta Sans font, glassmorphism effects, no-line rule for cards
-- Keep existing theme switcher functionality
+## Part 5: Email Integration
 
-### Step 4: Onboarding Guide Enhancement
-**Files:** `OnboardingWizard.tsx`, `SettingsPanel.tsx`
+### `src/hooks/useEmailIntegration.ts`:
+- Line 58: Change `.limit(50)` → `.limit(120)`
 
-- Add new steps to onboarding:
-  - "Email Integration" step explaining Gmail connection
-  - "Budget & Finance" step explaining import and tracking
-- Add English translations for all onboarding steps
-- Add "Restart Guide" button in Settings panel to re-trigger onboarding
-- Ensure the guide adapts to current language setting
+### `src/components/EmailIntegration.tsx`:
+- Add category filter dropdown (All | Payment | Task | Newsletter | Social | Other)
+- Add sort toggle (Newest | Oldest | By sender)
+- Show "Sent" badge when `email_from` matches connected email
+- Remove hard 10-item cap; show 30 at a time with "Show more" button
 
-### Step 5: Complete Translations
-**Files:** `useLanguage.tsx` + all component files with hardcoded Hebrew
+### `src/pages/AdminDashboard.tsx`:
+- Add "Company Mailbox" card with:
+  - Email log table from `email_send_log` (already fetched via admin-analytics)
+  - Filter by recipient, template, status
+  - Search bar
+  - Compose email form (calls Resend via edge function)
 
-- Audit and add missing English translations for:
-  - Financial guides section
-  - ZoneFlow (Deeply) module
-  - Email integration UI
-  - Dashboard configuration panel
-  - All category names and status labels
-- Ensure RTL/LTR dir switching works on every component
+## Part 6: ZoneFlow Mobile Delete
 
-### Step 6: Main Dashboard Design Refresh
-**Files:** `Dashboard.tsx`, `index.css` or `tailwind.config.ts`
+### `src/components/deeply/DeeplyDashboard.tsx`:
+- Line 803: Change `opacity-0 group-hover:opacity-100` → `opacity-100 md:opacity-0 md:group-hover:opacity-100`
+- Verify localStorage key is `"zoneflow_hidden_videos"` (or standardize it)
 
-- Apply the "Lucid Architect" design philosophy from DESIGN_1.md:
-  - Replace 1px borders with tonal surface shifts
-  - Use ambient shadows (32-64px blur, 4-6% opacity)
-  - Apply Plus Jakarta Sans font
-  - Indigo (#3525cd) for structure, Amber (#fea619) for action highlights
-- Keep the existing dashboard customization system (hide/show/reorder blocks) completely unchanged
-- Update chart colors to use new palette
+### `src/components/SettingsPanel.tsx`:
+- Add "Reset hidden ZoneFlow videos" button that clears `zoneflow_hidden_videos` from localStorage
 
-### Step 7: Admin Landing Page Editor
-**Files:** New migration for `landing_content` table, `AdminDashboard.tsx`
+## Part 7: Contact Form Fix
 
-- Create a `landing_content` table with key-value pairs for editable landing text (hero title, subtitle, CTA text)
-- Add a "Landing Page" section in Admin Dashboard with simple text inputs
-- Landing.tsx reads from this table (with fallback to hardcoded defaults)
+### `supabase/functions/send-contact-form/index.ts`:
+- Split single Resend call into two separate calls (one per admin email)
+- Add early RESEND_API_KEY check with proper error response
 
----
-
-## Database Changes
-
-1. **No schema changes needed** for financial import fixes (table already exists)
-2. **New table `landing_content`**: `id uuid PK, key text UNIQUE, value_he text, value_en text, updated_at timestamptz` with admin-only RLS
+### `src/components/ContactForm.tsx`:
+- Show actual error from response body
+- On success: "הפנייה נשלחה בהצלחה ל-info@tabro.org"
 
 ---
 
-## What Stays Unchanged
+## Files Summary
 
-- Dashboard customization system (hide/show/reorder) — untouched
-- All existing data and preferences
-- Authentication flow
-- Notification system
-- Project management module
+| File | Changes |
+|------|---------|
+| `index.html` | Add font imports |
+| `src/index.css` | Add design system CSS vars + utilities |
+| `tailwind.config.ts` | Extend brand colors, fonts, shadows |
+| `src/components/Dashboard.tsx` | Design system + translations + chart toggle |
+| `src/components/dashboards/PaymentDashboard.tsx` | Translations + budget display + inline edit + fixed payment |
+| `src/components/dashboards/CreditCardImport.tsx` | Add xlsx/xls support |
+| `src/components/EmailIntegration.tsx` | Filters, sort, expanded display |
+| `src/hooks/useEmailIntegration.ts` | Increase limit to 120 |
+| `src/hooks/useLanguage.tsx` | Add ~25 missing translation keys |
+| `src/components/deeply/DeeplyDashboard.tsx` | Mobile delete fix |
+| `src/components/SettingsPanel.tsx` | Reset hidden videos button |
+| `src/components/ContactForm.tsx` | Better error/success messages |
+| `supabase/functions/send-contact-form/index.ts` | Split email sends |
+| `src/pages/AdminDashboard.tsx` | Company mailbox + design system |
+
+No database schema changes needed. No changes to auth, notifications, or project management.
 
