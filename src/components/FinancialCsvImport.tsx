@@ -110,7 +110,7 @@ const FinancialCsvImport = () => {
 
       const { data, error } = await supabase
         .from("financial_transactions" as any)
-        .upsert(batch as any, { onConflict: "user_id,source_type,source_connection_id,external_transaction_id", ignoreDuplicates: true })
+        .upsert(batch as any, { onConflict: "user_id,source_type,external_transaction_id", ignoreDuplicates: true })
         .select("id");
 
       if (error) {

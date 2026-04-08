@@ -188,25 +188,44 @@ const customCsvProvider: FinancialProvider = {
   nameHe: "CSV מותאם אישית",
   detect: () => false, // manual selection only
   parse: (rows, headers) => {
-    // Try to find date, description, amount columns by common names
     const dateIdx = headers.findIndex(h => /date|תאריך/i.test(h));
     const descIdx = headers.findIndex(h => /desc|תיאור|description|name|שם/i.test(h));
     const amtIdx = headers.findIndex(h => /amount|סכום|sum/i.test(h));
     const dirIdx = headers.findIndex(h => /type|סוג|direction/i.test(h));
+    const debitIdx = headers.findIndex(h => /debit|חובה|הוצאה|charge|חיוב/i.test(h));
+    const creditIdx = headers.findIndex(h => /credit|זכות|הכנסה/i.test(h));
 
     return rows.map(row => {
       const dirVal = dirIdx >= 0 ? row[dirIdx]?.toLowerCase() : "";
-      const amount = parseAmount(row[amtIdx >= 0 ? amtIdx : 2] || "0");
-      const direction = (dirVal.includes("income") || dirVal.includes("הכנסה") || amount > 0) ? "income" : "expense";
+      const rawAmount = parseFloat((row[amtIdx >= 0 ? amtIdx : 2] || "0").replace(/[₪$€,\s]/g, "").replace(/[()]/g, "")) || 0;
+      const debit = debitIdx >= 0 ? parseAmount(row[debitIdx] || "0") : 0;
+      const credit = creditIdx >= 0 ? parseAmount(row[creditIdx] || "0") : 0;
+
+      let direction: "income" | "expense" = "expense";
+      let amount = Math.abs(rawAmount);
+
+      if (dirVal.includes("income") || dirVal.includes("הכנסה") || dirVal.includes("זכות")) {
+        direction = "income";
+      } else if (dirVal.includes("expense") || dirVal.includes("הוצאה") || dirVal.includes("חובה")) {
+        direction = "expense";
+      } else if (debitIdx >= 0 && creditIdx >= 0) {
+        direction = credit > 0 ? "income" : "expense";
+        amount = Math.abs(credit > 0 ? credit : debit);
+      } else if (rawAmount > 0 && amtIdx >= 0) {
+        // Positive amounts in a single-column CSV are typically expenses (credit card charges)
+        direction = "expense";
+      } else if (rawAmount < 0) {
+        direction = "expense";
+      }
 
       return {
         transaction_date: parseDate(row[dateIdx >= 0 ? dateIdx : 0] || ""),
-        amount: Math.abs(amount),
+        amount,
         currency: "ILS",
-        direction: direction as "income" | "expense",
+        direction,
         description: row[descIdx >= 0 ? descIdx : 1]?.trim() || "",
         category: autoCategorize(row[descIdx >= 0 ? descIdx : 1] || ""),
-        external_transaction_id: `custom_${row[dateIdx >= 0 ? dateIdx : 0]}_${row[descIdx >= 0 ? descIdx : 1]}_${amount}`.replace(/\s/g, ""),
+        external_transaction_id: `custom_${row[dateIdx >= 0 ? dateIdx : 0]}_${row[descIdx >= 0 ? descIdx : 1]}_${rawAmount}`.replace(/\s/g, ""),
         raw_data: Object.fromEntries(headers.map((h, i) => [h, row[i]])),
       };
     });
