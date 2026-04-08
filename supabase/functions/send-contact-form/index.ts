@@ -19,7 +19,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     const useGateway = !!lovableKey
-    }
 
     const { subject, message, category, userEmail } = await req.json()
     const messageId = crypto.randomUUID()
