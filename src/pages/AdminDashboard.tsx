@@ -259,36 +259,99 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-        {/* Email Inbox for Admin */}
-        <Card>
+        {/* Company Mailbox */}
+        <Card className="card-surface">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" /> {isHe ? "תיבת מייל" : "Email Inbox"}
+              <Mail className="h-5 w-5" /> {isHe ? "תיבת מייל — info@tabro.org" : "Company Mailbox — info@tabro.org"}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="mb-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-              <span className="font-medium">{isHe ? "מייל ראשי:" : "Primary inbox:"}</span>{" "}
-              <span dir="ltr">{stats?.mailboxAddress || "info@tabro.org"}</span>
+          <CardContent className="space-y-4">
+            {/* Search & Filter */}
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input placeholder={isHe ? "חיפוש לפי נמען או תבנית..." : "Search by recipient or template..."} value={emailSearch} onChange={e => setEmailSearch(e.target.value)} className="pl-9" dir="ltr" />
+              </div>
+              <Select value={emailStatusFilter} onValueChange={setEmailStatusFilter}>
+                <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{isHe ? "כל הסטטוסים" : "All statuses"}</SelectItem>
+                  <SelectItem value="sent">{isHe ? "נשלח" : "Sent"}</SelectItem>
+                  <SelectItem value="failed">{isHe ? "נכשל" : "Failed"}</SelectItem>
+                  <SelectItem value="pending">{isHe ? "ממתין" : "Pending"}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Email log table */}
             {!(stats?.recentEmailLog?.length) ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Mail className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">{isHe ? "עדיין אין אירועי מייל שנשמרו במערכת." : "No email events have been logged yet."}</p>
               </div>
             ) : (
-              <div className="space-y-1 max-h-80 overflow-auto">
-                {stats.recentEmailLog.map((e, index) => (
-                  <div key={`${e.message_id || e.created_at}-${index}`} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm">
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="flex-1 truncate">{e.template_name}</span>
-                    <span className="text-xs text-muted-foreground truncate max-w-[170px]" dir="ltr">{e.recipient_email}</span>
-                    <span className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit" })}</span>
-                    <Badge variant={e.status === "sent" ? "default" : "secondary"} className="text-[9px]">{e.status}</Badge>
-                  </div>
-                ))}
+              <div className="overflow-auto max-h-96">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{isHe ? "תבנית" : "Template"}</TableHead>
+                      <TableHead>{isHe ? "נמען" : "Recipient"}</TableHead>
+                      <TableHead>{isHe ? "תאריך" : "Date"}</TableHead>
+                      <TableHead>{isHe ? "סטטוס" : "Status"}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stats.recentEmailLog
+                      .filter(e => {
+                        const matchSearch = !emailSearch || e.recipient_email.toLowerCase().includes(emailSearch.toLowerCase()) || e.template_name.toLowerCase().includes(emailSearch.toLowerCase());
+                        const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;
+                        return matchSearch && matchStatus;
+                      })
+                      .map((e, index) => (
+                      <TableRow key={`${e.message_id || e.created_at}-${index}`}>
+                        <TableCell className="text-sm">{e.template_name}</TableCell>
+                        <TableCell className="text-sm" dir="ltr">{e.recipient_email}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</TableCell>
+                        <TableCell>
+                          <Badge variant={e.status === "sent" ? "default" : e.status === "failed" ? "destructive" : "secondary"} className="text-[10px]">{e.status}</Badge>
+                          {e.error_message && <p className="text-[10px] text-destructive mt-1 truncate max-w-[200px]">{e.error_message}</p>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
+
+            {/* Compose email */}
+            <div className="border-t pt-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2"><Send className="h-4 w-4" /> {isHe ? "שלח מייל" : "Compose Email"}</h4>
+              <Input placeholder={isHe ? "נמען (אימייל)" : "Recipient email"} value={composeTo} onChange={e => setComposeTo(e.target.value)} dir="ltr" />
+              <Input placeholder={isHe ? "נושא" : "Subject"} value={composeSubject} onChange={e => setComposeSubject(e.target.value)} />
+              <Textarea placeholder={isHe ? "תוכן ההודעה..." : "Message body..."} value={composeBody} onChange={e => setComposeBody(e.target.value)} rows={4} />
+              <Button
+                disabled={composeSending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
+                onClick={async () => {
+                  setComposeSending(true);
+                  const { data, error } = await supabase.functions.invoke("admin-analytics", {
+                    body: { action: "send_email", to: composeTo.trim(), subject: composeSubject.trim(), body: composeBody.trim() },
+                  });
+                  setComposeSending(false);
+                  if (error || data?.error) {
+                    toast.error(data?.error || "Error sending email");
+                  } else {
+                    toast.success(isHe ? "המייל נשלח!" : "Email sent!");
+                    setComposeTo(""); setComposeSubject(""); setComposeBody("");
+                    fetchStats();
+                  }
+                }}
+                className="gap-2"
+              >
+                {composeSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {isHe ? "שלח" : "Send"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
