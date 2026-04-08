@@ -800,7 +800,7 @@ const DeeplyDashboard = () => {
                                 ) : (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setHiddenYtVideos(prev => [...prev, v.id]); }}
-                                    className="text-red-400/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="text-red-400/30 hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                     title="הסתר סרטון"
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />

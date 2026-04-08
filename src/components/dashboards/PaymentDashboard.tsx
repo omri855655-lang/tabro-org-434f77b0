@@ -296,7 +296,7 @@ const PaymentDashboard = () => {
   const categoryBreakdown = useMemo(() => {
     const cats: Record<string, number> = {};
     dashboardEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category)).forEach(p => {
-      const cat = p.category || "אחר";
+      const cat = p.category || (isRtl ? "אחר" : "Other");
       cats[cat] = (cats[cat] || 0) + p.amount;
     });
     return Object.entries(cats).sort(([, a], [, b]) => b - a);
