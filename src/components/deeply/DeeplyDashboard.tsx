@@ -916,7 +916,7 @@ const DeeplyDashboard = () => {
                     {allStudy.map(v => {
                       const isCustom = customStudy.some(cv => cv.id === v.id);
                       return (
-                        <div key={v.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
+                        <div key={v.id} className={`group flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                             activeYouTube === v.id
                               ? "bg-amber-500/20 border border-amber-500/30"
                               : "bg-white/5 border border-transparent hover:bg-white/10"
