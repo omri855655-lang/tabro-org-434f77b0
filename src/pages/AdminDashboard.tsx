@@ -71,6 +71,15 @@ const AdminDashboard = () => {
     }
     setIsAdmin(true);
     setStats(data);
+    // Fetch landing content
+    const { data: lc } = await supabase.from("landing_content").select("key, value_he, value_en");
+    if (lc) {
+      const map: Record<string, { he: string; en: string }> = {};
+      const editMap: Record<string, { he: string; en: string }> = {};
+      lc.forEach((row: any) => { map[row.key] = { he: row.value_he, en: row.value_en }; editMap[row.key] = { he: row.value_he, en: row.value_en }; });
+      setLandingContent(map);
+      setLandingEditing(editMap);
+    }
     setLoading(false);
   }, [user, t]);
 
