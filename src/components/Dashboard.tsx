@@ -102,7 +102,7 @@ const Dashboard = () => {
   const gregorianDate = today.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const timeStr = today.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">טוען נתונים...</div>;
+  if (loading) return <div className="p-8 text-center text-muted-foreground">{t("loading" as any)}</div>;
 
   const isVisible = (id: string) => sections.find(s => s.id === id)?.visible ?? true;
   const getViewMode = (id: string) => sections.find(s => s.id === id)?.viewMode ?? "default";
