@@ -1002,14 +1002,17 @@ const DeeplyDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            {isCustom && (
-                              <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("read-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title="הסר">
+                            {isCustom ? (
+                              <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("read-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            ) : (
+                              <button onClick={(e) => { e.stopPropagation(); setHiddenYtVideos(prev => [...prev, v.id]); }} className="text-red-400/30 hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={t("hideVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             )}
-                            <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors" title="פתח ב-YouTube">
+                            <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors" title={t("openOnYoutube" as any)}>
                               <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
                           </div>
                         </div>
                       );
