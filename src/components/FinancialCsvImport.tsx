@@ -21,36 +21,55 @@ const FinancialCsvImport = () => {
   const [fileName, setFileName] = useState("");
   const [importResult, setImportResult] = useState({ imported: 0, skipped: 0 });
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processText = (text: string) => {
+    const { headers: h, rows } = parseCSV(text);
+    setHeaders(h);
+
+    const detected = detectProvider(h, rows.slice(0, 3));
+    const provider = selectedProvider
+      ? financialProviders.find(p => p.id === selectedProvider)
+      : detected;
+
+    if (provider) {
+      setSelectedProvider(provider.id);
+      const transactions = provider.parse(rows, h).filter(t => t.amount > 0);
+      setParsed(transactions);
+      setStep("preview");
+    } else {
+      setSelectedProvider("custom");
+      const custom = financialProviders.find(p => p.id === "custom")!;
+      const transactions = custom.parse(rows, h).filter(t => t.amount > 0);
+      setParsed(transactions);
+      setStep("preview");
+    }
+  };
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
 
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    if (ext === "xlsx" || ext === "xls") {
+      try {
+        const { read, utils } = await import("xlsx");
+        const buffer = await file.arrayBuffer();
+        const wb = read(buffer);
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const csvText = utils.sheet_to_csv(ws);
+        processText(csvText);
+      } catch (err) {
+        console.error("Excel parse error:", err);
+        toast.error(lang === "he" ? "שגיאה בקריאת קובץ Excel" : "Error reading Excel file");
+      }
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const { headers: h, rows } = parseCSV(text);
-      setHeaders(h);
-
-      // Auto-detect provider
-      const detected = detectProvider(h, rows.slice(0, 3));
-      const provider = selectedProvider
-        ? financialProviders.find(p => p.id === selectedProvider)
-        : detected;
-
-      if (provider) {
-        setSelectedProvider(provider.id);
-        const transactions = provider.parse(rows, h).filter(t => t.amount > 0);
-        setParsed(transactions);
-        setStep("preview");
-      } else {
-        // Fallback: custom
-        setSelectedProvider("custom");
-        const custom = financialProviders.find(p => p.id === "custom")!;
-        const transactions = custom.parse(rows, h).filter(t => t.amount > 0);
-        setParsed(transactions);
-        setStep("preview");
-      }
+      processText(text);
     };
     reader.readAsText(file, "UTF-8");
   };
