@@ -1,4 +1,4 @@
-// Audio presets for Deeply - each uses genuinely different synthesis parameters
+// Audio presets for ZoneFlow - each uses genuinely different synthesis parameters
 
 export interface AudioPreset {
   id: string;
