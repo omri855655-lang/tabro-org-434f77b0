@@ -470,6 +470,7 @@ ${context}
         </TabsList>
 
       <TabsContent value="overview" className="space-y-4">
+      <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-card via-primary/5 to-accent/10 shadow-sm backdrop-blur-xl">
         <CardContent className="py-6 space-y-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
