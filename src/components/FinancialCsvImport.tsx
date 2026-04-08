@@ -10,6 +10,8 @@ import { Upload, FileText, Check, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { parseCSV, detectProvider, financialProviders, type ParsedTransaction } from "@/lib/financialProviders";
 
+const CSV_SOURCE_CONNECTION_ID = "00000000-0000-0000-0000-000000000000";
+
 const FinancialCsvImport = () => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
@@ -92,8 +94,9 @@ const FinancialCsvImport = () => {
       const batch = parsed.slice(i, i + 50).map(tx => ({
         user_id: user.id,
         source_type: "csv" as string,
+        source_connection_id: CSV_SOURCE_CONNECTION_ID,
         provider: selectedProvider,
-        external_transaction_id: tx.external_transaction_id || `csv_${Date.now()}_${i}`,
+        external_transaction_id: tx.external_transaction_id || `csv_${Date.now()}_${i}_${tx.transaction_date}_${tx.description}`,
         transaction_date: tx.transaction_date,
         posted_date: tx.posted_date || null,
         amount: tx.amount,
@@ -110,11 +113,12 @@ const FinancialCsvImport = () => {
 
       const { data, error } = await supabase
         .from("financial_transactions" as any)
-        .upsert(batch as any, { onConflict: "user_id,source_type,external_transaction_id", ignoreDuplicates: true })
+        .upsert(batch as any, { onConflict: "user_id,source_type,source_connection_id,external_transaction_id", ignoreDuplicates: true })
         .select("id");
 
       if (error) {
         console.error("Import batch error:", error);
+        toast.error(lang === "he" ? "שגיאה בשמירת העסקאות" : "Error saving transactions");
         skipped += batch.length;
       } else {
         imported += data?.length || 0;
