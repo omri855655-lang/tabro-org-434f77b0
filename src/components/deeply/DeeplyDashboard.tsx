@@ -940,6 +940,7 @@ const DeeplyDashboard = () => {
                             )}
                             <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors" title={t("openOnYoutube" as any)}>
                               <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
                           </div>
                         </div>
                       );
