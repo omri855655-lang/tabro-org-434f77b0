@@ -977,7 +977,7 @@ const DeeplyDashboard = () => {
                 { id: "rIHYNwXWP80", title: "בקתה עם גשם ואח — 8 שעות 🏕️", desc: "רעמים ואח לקריאה ארוכה" },
               ];
               const customRead = customYtVideos["read-with-me"] || [];
-              const allRead = [...readVideos, ...customRead.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
+              const allRead = [...readVideos.filter(v => !hiddenYtVideos.includes(v.id)), ...customRead.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
               return (
                 <>
                   <div className="grid sm:grid-cols-2 gap-2">

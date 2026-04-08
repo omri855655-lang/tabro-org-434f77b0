@@ -606,6 +606,27 @@ const SettingsPanel = () => {
       </Card>
 
       <RecycleBin />
+
+      {/* Restart Guide */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />{t("restartGuide" as any)}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t("restartGuideDesc" as any)}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              localStorage.removeItem("onboarding-completed");
+              localStorage.removeItem("onboarding_completed");
+              toast.success(dir === "rtl" ? "המדריך יופעל בכניסה הבאה לאזור האישי" : "Guide will restart on next visit to personal area");
+              window.location.reload();
+            }}
+          >
+            {t("restartGuide" as any)}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };
