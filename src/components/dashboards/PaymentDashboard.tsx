@@ -45,6 +45,38 @@ interface Payment {
   created_at: string;
 }
 
+interface FinancialTransaction {
+  id: string;
+  amount: number;
+  category: string | null;
+  direction: "income" | "expense";
+  description: string | null;
+  merchant: string | null;
+  transaction_date: string;
+  created_at: string;
+  provider: string | null;
+  source_type: string;
+}
+
+interface DashboardEntry {
+  id: string;
+  source: "payment_tracking" | "financial_transactions";
+  title: string;
+  amount: number;
+  category: string | null;
+  payment_type: "income" | "expense";
+  payment_method: string | null;
+  due_date: string | null;
+  paid: boolean;
+  recurring: boolean;
+  notes: string | null;
+  sheet_name: string;
+  archived: boolean;
+  created_at: string;
+}
+
+const SAVINGS_CATEGORIES = new Set(["חיסכון", "Savings", "savings", "השקעות", "Investments", "investments"]);
+
 const CATEGORY_KEYS = [
   "catSalary", "catFreelance", "catHousing", "catRent", "catMortgage", "catGroceries", "catFood", "catFuel", "catTransport", "catElectricity", "catWater", "catGas", "catInternet", "catPhone", "catInsurance", "catBills", "catShopping", "catEntertainment", "catEducation", "catHealth", "catSavings", "catInvestments", "catOther"
 ] as const;
@@ -95,6 +127,7 @@ const PaymentDashboard = () => {
   const { t, lang } = useLanguage();
   const isRtl = lang === "he" || lang === "ar";
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -131,19 +164,40 @@ const PaymentDashboard = () => {
     if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success(t("budgetSaved" as any)); }
   };
 
-  const fetchPayments = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("payment_tracking")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("archived", false)
-      .order("created_at", { ascending: false });
-    setPayments((data as any[]) || []);
-    setLoading(false);
-  }, [user]);
+  const isSavingsCategory = useCallback((category: string | null) => {
+    return category ? SAVINGS_CATEGORIES.has(category) : false;
+  }, []);
 
-  useEffect(() => { fetchPayments(); }, [fetchPayments]);
+  const fetchFinanceData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+
+    const [paymentsResult, transactionsResult] = await Promise.all([
+      supabase
+        .from("payment_tracking")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("archived", false)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("financial_transactions")
+        .select("id, amount, category, direction, description, merchant, transaction_date, created_at, provider, source_type")
+        .eq("user_id", user.id)
+        .order("transaction_date", { ascending: false }),
+    ]);
+
+    if (paymentsResult.error || transactionsResult.error) {
+      toast.error(isRtl ? "שגיאה בטעינת נתוני הכספים" : "Error loading financial data");
+      setLoading(false);
+      return;
+    }
+
+    setPayments((paymentsResult.data as any[]) || []);
+    setTransactions((transactionsResult.data as any[]) || []);
+    setLoading(false);
+  }, [user, isRtl]);
+
+  useEffect(() => { fetchFinanceData(); }, [fetchFinanceData]);
 
   const addPayment = async () => {
     if (!user || !newTitle.trim() || !newAmount) return;
@@ -160,7 +214,7 @@ const PaymentDashboard = () => {
     if (error) { toast.error(t("error" as any)); return; }
     setNewTitle(""); setNewAmount(""); setNewCategory(""); setNewMethod(""); setNewDueDate("");
     toast.success(newType === "income" ? t("incomeAdded" as any) : t("expenseAdded" as any));
-    fetchPayments();
+    fetchFinanceData();
   };
 
   const togglePaid = async (id: string, paid: boolean) => {
@@ -168,43 +222,95 @@ const PaymentDashboard = () => {
     setPayments(prev => prev.map(p => p.id === id ? { ...p, paid: !paid } : p));
   };
 
-  const deletePayment = async (id: string) => {
-    await supabase.from("payment_tracking").delete().eq("id", id);
-    setPayments(prev => prev.filter(p => p.id !== id));
+  const deleteEntry = async (entry: DashboardEntry) => {
+    if (entry.source === "financial_transactions") {
+      await supabase.from("financial_transactions").delete().eq("id", entry.id);
+      setTransactions(prev => prev.filter(item => item.id !== entry.id));
+      return;
+    }
+
+    await supabase.from("payment_tracking").delete().eq("id", entry.id);
+    setPayments(prev => prev.filter(item => item.id !== entry.id));
   };
 
+  const dashboardEntries = useMemo<DashboardEntry[]>(() => {
+    const plannedEntries: DashboardEntry[] = payments.map((payment) => ({
+      id: payment.id,
+      source: "payment_tracking",
+      title: payment.title,
+      amount: payment.amount,
+      category: payment.category,
+      payment_type: payment.payment_type === "income" ? "income" : "expense",
+      payment_method: payment.payment_method,
+      due_date: payment.due_date,
+      paid: payment.paid,
+      recurring: payment.recurring,
+      notes: payment.notes,
+      sheet_name: payment.sheet_name,
+      archived: payment.archived,
+      created_at: payment.due_date || payment.created_at,
+    }));
+
+    const importedEntries: DashboardEntry[] = transactions.map((transaction) => ({
+      id: transaction.id,
+      source: "financial_transactions",
+      title: transaction.description || transaction.merchant || (transaction.direction === "income" ? (isRtl ? "הכנסה מיובאת" : "Imported income") : (isRtl ? "הוצאה מיובאת" : "Imported expense")),
+      amount: transaction.amount,
+      category: transaction.category,
+      payment_type: transaction.direction,
+      payment_method: transaction.provider || transaction.source_type,
+      due_date: transaction.transaction_date,
+      paid: true,
+      recurring: false,
+      notes: null,
+      sheet_name: "actual",
+      archived: false,
+      created_at: transaction.transaction_date || transaction.created_at,
+    }));
+
+    return [...importedEntries, ...plannedEntries].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  }, [payments, transactions, isRtl]);
+
   // Financial calculations
-  const totalExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense").reduce((s, p) => s + p.amount, 0), [payments]);
-  const totalIncome = useMemo(() => payments.filter(p => p.payment_type === "income").reduce((s, p) => s + p.amount, 0), [payments]);
+  const totalExpenses = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense").reduce((s, p) => s + p.amount, 0), [dashboardEntries]);
+  const totalIncome = useMemo(() => dashboardEntries.filter(p => p.payment_type === "income").reduce((s, p) => s + p.amount, 0), [dashboardEntries]);
+  const totalSpending = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category)).reduce((s, p) => s + p.amount, 0), [dashboardEntries, isSavingsCategory]);
+  const dedicatedSavings = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && isSavingsCategory(p.category)).reduce((s, p) => s + p.amount, 0), [dashboardEntries, isSavingsCategory]);
   const balance = totalIncome - totalExpenses;
-  const unpaidExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && !p.paid).reduce((s, p) => s + p.amount, 0), [payments]);
+  const availableToSave = totalIncome - totalSpending;
+  const unpaidExpenses = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && !p.paid).reduce((s, p) => s + p.amount, 0), [dashboardEntries]);
   const fixedExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && p.recurring).reduce((s, p) => s + p.amount, 0), [payments]);
-  const variableExpenses = totalExpenses - fixedExpenses;
+  const variableExpenses = Math.max(totalSpending - fixedExpenses, 0);
+  const recurringExpenseEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && p.recurring), [dashboardEntries]);
+  const spendingEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category) && !p.recurring), [dashboardEntries, isSavingsCategory]);
+  const incomeEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "income"), [dashboardEntries]);
   
   const overdue = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
-    return payments.filter(p => !p.paid && p.due_date && p.due_date < today);
-  }, [payments]);
+    return dashboardEntries.filter(p => !p.paid && p.due_date && p.due_date < today);
+  }, [dashboardEntries]);
 
   // Category breakdown
   const categoryBreakdown = useMemo(() => {
     const cats: Record<string, number> = {};
-    payments.filter(p => p.payment_type === "expense").forEach(p => {
+    dashboardEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category)).forEach(p => {
       const cat = p.category || "אחר";
       cats[cat] = (cats[cat] || 0) + p.amount;
     });
     return Object.entries(cats).sort(([, a], [, b]) => b - a);
-  }, [payments]);
+  }, [dashboardEntries, isSavingsCategory]);
 
   // 50/30/20 rule calculation
   const needsPercent = totalIncome > 0 ? Math.round((fixedExpenses / totalIncome) * 100) : 0;
   const wantsPercent = totalIncome > 0 ? Math.round((variableExpenses / totalIncome) * 100) : 0;
-  const savingsPercent = totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
+  const savingsPercent = totalIncome > 0 ? Math.round((Math.max(availableToSave, 0) / totalIncome) * 100) : 0;
 
   // Monthly history breakdown
   const monthlyHistory = useMemo(() => {
-    const months: Record<string, { income: number; expenses: number; items: Payment[] }> = {};
-    payments.forEach(p => {
+    const months: Record<string, { income: number; expenses: number; items: DashboardEntry[] }> = {};
+    dashboardEntries.forEach(p => {
       const d = new Date(p.created_at);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       if (!months[key]) months[key] = { income: 0, expenses: 0, items: [] };
@@ -213,7 +319,7 @@ const PaymentDashboard = () => {
       else months[key].expenses += p.amount;
     });
     return Object.entries(months).sort(([a], [b]) => b.localeCompare(a));
-  }, [payments]);
+  }, [dashboardEntries]);
 
   const currentMonthKey = useMemo(() => {
     const now = new Date();
@@ -291,9 +397,11 @@ const PaymentDashboard = () => {
     try {
       const catBreakdown = categoryBreakdown.map(([cat, amt]) => `${cat}: ₪${amt.toLocaleString()}`).join(", ");
       const context = `
-הכנסות חודשיות: ₪${totalIncome.toLocaleString()}
-הוצאות חודשיות: ₪${totalExpenses.toLocaleString()}
-מאזן (נותר): ₪${balance.toLocaleString()}
+        הכנסות חודשיות: ₪${totalIncome.toLocaleString()}
+ הוצאות כוללות: ₪${totalExpenses.toLocaleString()}
+ בזבוז בפועל: ₪${totalSpending.toLocaleString()}
+ פנוי לחיסכון: ₪${availableToSave.toLocaleString()}
+ מאזן נטו: ₪${balance.toLocaleString()}
 הוצאות קבועות: ₪${fixedExpenses.toLocaleString()}
 הוצאות משתנות: ₪${variableExpenses.toLocaleString()}
 לא שולמו: ₪${unpaidExpenses.toLocaleString()}
@@ -344,7 +452,7 @@ ${context}
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          payments.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '' })),
+          dashboardEntries.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '', source: p.source === 'financial_transactions' ? (isRtl ? 'מיובא' : 'Imported') : (isRtl ? 'מתוכנן' : 'Planned') })),
           [{ key: 'title', label: t("descriptionCol" as any) }, { key: 'amount', label: t("amountCol" as any) }, { key: 'type', label: t("typeCol" as any) }, { key: 'category', label: t("categoryCol" as any) }, { key: 'paid', label: t("paidCol" as any) }, { key: 'due_date', label: t("dateCol" as any) }, { key: 'recurring', label: t("recurringCol" as any) }, { key: 'method', label: t("methodCol" as any) }],
           t("paymentsSheet" as any)
         )}>
@@ -352,29 +460,64 @@ ${context}
         </Button>
       </div>
 
-      {/* Hero balance card */}
-      <Card className={`${balance >= 0 ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200" : "bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 border-red-200"}`}>
-        <CardContent className="py-6 text-center">
-          <p className="text-sm text-muted-foreground mb-1">{t("totalRemaining" as any)}</p>
-          <p className={`text-4xl font-bold ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-            ₪{Math.abs(balance).toLocaleString()}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">{balance >= 0 ? t("excellentSurplus" as any) : t("warningOverspend" as any)}</p>
-          <div className="flex justify-center gap-6 mt-4">
-            <div className="text-center">
-              <TrendingUp className="h-4 w-4 text-green-500 mx-auto mb-1" />
-              <p className="text-xs text-muted-foreground">{t("income" as any)}</p>
-              <p className="font-semibold text-green-600">₪{totalIncome.toLocaleString()}</p>
+      <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-card via-primary/5 to-accent/10 shadow-sm">
+        <CardContent className="py-6 space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                {isRtl ? "פנוי לחיסכון" : "Available to save"}
+              </p>
+              <p className="text-4xl font-bold text-foreground">₪{Math.abs(availableToSave).toLocaleString()}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {availableToSave >= 0
+                  ? (isRtl ? "זה הסכום שנשאר לך אחרי בזבוזים בפועל." : "This is what remains after real spending.")
+                  : (isRtl ? "כרגע הבזבוזים שלך גבוהים מההכנסות." : "Right now spending is higher than income.")}
+              </p>
             </div>
-            <div className="text-center">
-              <TrendingDown className="h-4 w-4 text-red-500 mx-auto mb-1" />
-              <p className="text-xs text-muted-foreground">{t("expenses" as any)}</p>
-              <p className="font-semibold text-red-600">₪{totalExpenses.toLocaleString()}</p>
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+                <p className="text-xs text-muted-foreground">{t("income" as any)}</p>
+                <p className="mt-1 text-lg font-semibold">₪{totalIncome.toLocaleString()}</p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+                <p className="text-xs text-muted-foreground">{isRtl ? "בזבוז" : "Spending"}</p>
+                <p className="mt-1 text-lg font-semibold">₪{totalSpending.toLocaleString()}</p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+                <p className="text-xs text-muted-foreground">{isRtl ? "סומן לחיסכון" : "Marked as savings"}</p>
+                <p className="mt-1 text-lg font-semibold">₪{dedicatedSavings.toLocaleString()}</p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+                <p className="text-xs text-muted-foreground">{t("overdue" as any)}</p>
+                <p className="mt-1 text-lg font-semibold">{overdue.length}</p>
+              </div>
             </div>
-            <div className="text-center">
-              <Calendar className="h-4 w-4 text-amber-500 mx-auto mb-1" />
-              <p className="text-xs text-muted-foreground">{t("overdue" as any)}</p>
-              <p className="font-semibold text-amber-600">{overdue.length}</p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                {isRtl ? "יעד: להכניס ולשמור" : "Goal: earn and keep"}
+              </div>
+              <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                {isRtl ? "הכנסה לא נספרת כבזבוז. הדשבורד מחשב כמה באמת הוצאת וכמה נשאר לשמור." : "Income is not treated as spending. The dashboard separates real spending from money left to keep."}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <PiggyBank className="h-4 w-4 text-primary" />
+                {isRtl ? "מאזן נטו" : "Net balance"}
+              </div>
+              <p className="mt-2 text-2xl font-semibold">₪{balance.toLocaleString()}</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Calendar className="h-4 w-4 text-primary" />
+                {isRtl ? "הוצאות שלא שולמו" : "Unpaid planned expenses"}
+              </div>
+              <p className="mt-2 text-2xl font-semibold">₪{unpaidExpenses.toLocaleString()}</p>
             </div>
           </div>
         </CardContent>
@@ -402,16 +545,19 @@ ${context}
           ) : budgetTarget > 0 ? (
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span>{t("expensesLabel" as any)}: ₪{totalExpenses.toLocaleString()}</span>
+                <span>{isRtl ? "בוזבז בפועל" : "Spent"}: ₪{totalSpending.toLocaleString()}</span>
                 <span>{t("targetLabel" as any)}: ₪{budgetTarget.toLocaleString()}</span>
               </div>
-              <Progress value={Math.min((totalExpenses / budgetTarget) * 100, 100)} className={`h-3 ${totalExpenses > budgetTarget ? "[&>div]:bg-red-500" : "[&>div]:bg-green-500"}`} />
+              <Progress value={Math.min((totalSpending / budgetTarget) * 100, 100)} className={`h-3 ${totalSpending > budgetTarget ? "[&>div]:bg-destructive" : "[&>div]:bg-primary"}`} />
               <div className="flex justify-between mt-2">
-                <span className={`text-sm font-semibold ${totalExpenses > budgetTarget ? "text-red-600" : "text-green-600"}`}>
-                  {totalExpenses > budgetTarget ? `${t("budgetExceeded" as any)} ₪${(totalExpenses - budgetTarget).toLocaleString()} ⚠️` : `${t("budgetRemaining" as any)} ₪${(budgetTarget - totalExpenses).toLocaleString()} ✅`}
+                <span className={`text-sm font-semibold ${totalSpending > budgetTarget ? "text-destructive" : "text-primary"}`}>
+                  {totalSpending > budgetTarget ? `${t("budgetExceeded" as any)} ₪${(totalSpending - budgetTarget).toLocaleString()} ⚠️` : `${t("budgetRemaining" as any)} ₪${(budgetTarget - totalSpending).toLocaleString()} ✅`}
                 </span>
                 <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => { setEditingBudget(true); setBudgetInput(String(budgetTarget)); }}>{t("editing" as any)}</Button>
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {isRtl ? "קטגוריות חיסכון/השקעה לא נספרות כבזבוז בתקציב." : "Savings/investment categories are not counted as spending against the budget."}
+              </p>
             </div>
           ) : (
             <Button variant="outline" size="sm" className="w-full gap-1" onClick={() => setEditingBudget(true)}>
@@ -489,7 +635,7 @@ ${context}
       )}
 
       {/* Charts - Pie, Bar comparison, Trend */}
-      <BudgetCharts payments={payments as any} />
+      <BudgetCharts payments={dashboardEntries.filter(entry => entry.payment_type === "income" || !isSavingsCategory(entry.category)) as any} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
@@ -607,24 +753,27 @@ ${context}
 
         <TabsContent value="overview" className="space-y-2">
           {/* Fixed expenses */}
-          {payments.filter(p => p.recurring && p.payment_type === "expense").length > 0 && (
+          {recurringExpenseEntries.length > 0 && (
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-muted-foreground">{t("fixedExpenses" as any)}</h3>
-              {payments.filter(p => p.recurring && p.payment_type === "expense").map(p => (
+              {recurringExpenseEntries.map(p => (
                 <Card key={p.id} className="border-muted">
                   <CardContent className="py-2 px-3 flex items-center gap-3">
-                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
-                      {p.paid ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
-                    </Button>
+                    {p.source === "payment_tracking" ? (
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
+                        {p.paid ? <Check className="h-4 w-4 text-primary" /> : <div className="h-4 w-4 border-2 rounded" />}
+                      </Button>
+                    ) : <div className="h-6 w-6" />}
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
                       <div className="flex gap-2 items-center flex-wrap">
                         {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
                         {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
+                        {p.source === "payment_tracking" && <Badge variant="secondary" className="text-[9px]">{isRtl ? "מתוכנן" : "Planned"}</Badge>}
                       </div>
                     </div>
                     <span className="font-bold text-sm text-red-600 whitespace-nowrap">-₪{p.amount.toLocaleString()}</span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}><Trash2 className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteEntry(p)}><Trash2 className="h-3 w-3" /></Button>
                   </CardContent>
                 </Card>
               ))}
@@ -632,25 +781,28 @@ ${context}
           )}
 
           {/* Variable expenses */}
-          {payments.filter(p => !p.recurring && p.payment_type === "expense").length > 0 && (
+          {spendingEntries.length > 0 && (
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-muted-foreground mt-3">{t("variableExpenses" as any)}</h3>
-              {payments.filter(p => !p.recurring && p.payment_type === "expense").map(p => (
+              <h3 className="text-sm font-semibold text-muted-foreground mt-3">{isRtl ? "בזבוזים ותנועות" : "Spending & transactions"}</h3>
+              {spendingEntries.map(p => (
                 <Card key={p.id}>
                   <CardContent className="py-2 px-3 flex items-center gap-3">
-                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
-                      {p.paid ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
-                    </Button>
+                    {p.source === "payment_tracking" ? (
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
+                        {p.paid ? <Check className="h-4 w-4 text-primary" /> : <div className="h-4 w-4 border-2 rounded" />}
+                      </Button>
+                    ) : <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary">₪</div>}
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
                       <div className="flex gap-2 items-center flex-wrap">
                         {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
                         {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
                         {p.payment_method && <span className="text-[10px] text-muted-foreground">{p.payment_method}</span>}
+                        <Badge variant="secondary" className="text-[9px]">{p.source === "financial_transactions" ? (isRtl ? "מיובא" : "Imported") : (isRtl ? "מתוכנן" : "Planned")}</Badge>
                       </div>
                     </div>
                     <span className="font-bold text-sm text-red-600 whitespace-nowrap">-₪{p.amount.toLocaleString()}</span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}><Trash2 className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteEntry(p)}><Trash2 className="h-3 w-3" /></Button>
                   </CardContent>
                 </Card>
               ))}
@@ -658,28 +810,33 @@ ${context}
           )}
 
           {/* Income */}
-          {payments.filter(p => p.payment_type === "income").length > 0 && (
+          {incomeEntries.length > 0 && (
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-muted-foreground mt-3">{t("income" as any)}</h3>
-              {payments.filter(p => p.payment_type === "income").map(p => (
+              {incomeEntries.map(p => (
                 <Card key={p.id} className="border-green-200 dark:border-green-800">
                   <CardContent className="py-2 px-3 flex items-center gap-3">
-                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
-                      {p.paid ? <Check className="h-4 w-4 text-green-600" /> : <div className="h-4 w-4 border-2 rounded" />}
-                    </Button>
+                    {p.source === "payment_tracking" ? (
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
+                        {p.paid ? <Check className="h-4 w-4 text-primary" /> : <div className="h-4 w-4 border-2 rounded" />}
+                      </Button>
+                    ) : <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary">₪</div>}
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
-                      {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
+                      <div className="flex gap-2 items-center flex-wrap">
+                        {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
+                        <Badge variant="secondary" className="text-[9px]">{p.source === "financial_transactions" ? (isRtl ? "מיובא" : "Imported") : (isRtl ? "מתוכנן" : "Planned")}</Badge>
+                      </div>
                     </div>
                     <span className="font-bold text-sm text-green-600 whitespace-nowrap">+₪{p.amount.toLocaleString()}</span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deletePayment(p.id)}><Trash2 className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteEntry(p)}><Trash2 className="h-3 w-3" /></Button>
                   </CardContent>
                 </Card>
               ))}
             </div>
           )}
 
-          {payments.length === 0 && (
+          {dashboardEntries.length === 0 && (
             <div className="text-center py-8 space-y-3">
               <p className="text-muted-foreground">{t("noPaymentsYet" as any)}</p>
               <SampleDataImport type="payments" />

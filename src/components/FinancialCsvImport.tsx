@@ -9,12 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, FileText, Check, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { parseCSV, detectProvider, financialProviders, type ParsedTransaction } from "@/lib/financialProviders";
+import { importParsedFinancialTransactions } from "@/lib/financialImport";
 
 const CSV_SOURCE_CONNECTION_ID = "00000000-0000-0000-0000-000000000000";
 
 const FinancialCsvImport = () => {
   const { user } = useAuth();
-  const { t, lang } = useLanguage();
+  const { lang } = useLanguage();
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<"upload" | "preview" | "importing" | "done">("upload");
   const [selectedProvider, setSelectedProvider] = useState<string>("");
@@ -86,49 +87,23 @@ const FinancialCsvImport = () => {
     if (!user || parsed.length === 0) return;
     setStep("importing");
 
-    let imported = 0;
-    let skipped = 0;
+    try {
+      const result = await importParsedFinancialTransactions({
+        userId: user.id,
+        parsed,
+        provider: selectedProvider || "custom",
+        sourceType: "csv",
+        sourceConnectionId: CSV_SOURCE_CONNECTION_ID,
+      });
 
-    // Insert in batches of 50
-    for (let i = 0; i < parsed.length; i += 50) {
-      const batch = parsed.slice(i, i + 50).map(tx => ({
-        user_id: user.id,
-        source_type: "csv" as string,
-        source_connection_id: CSV_SOURCE_CONNECTION_ID,
-        provider: selectedProvider,
-        external_transaction_id: tx.external_transaction_id || `csv_${Date.now()}_${i}_${tx.transaction_date}_${tx.description}`,
-        transaction_date: tx.transaction_date,
-        posted_date: tx.posted_date || null,
-        amount: tx.amount,
-        currency: tx.currency,
-        direction: tx.direction,
-        description: tx.description,
-        merchant: tx.merchant || null,
-        category: tx.category || null,
-        installment_total: tx.installment_total || null,
-        installment_number: tx.installment_number || null,
-        month_key: tx.transaction_date?.substring(0, 7) || null,
-        raw_data: tx.raw_data || null,
-      }));
-
-      const { data, error } = await supabase
-        .from("financial_transactions" as any)
-        .upsert(batch as any, { onConflict: "user_id,source_type,source_connection_id,external_transaction_id", ignoreDuplicates: true })
-        .select("id");
-
-      if (error) {
-        console.error("Import batch error:", error);
-        toast.error(lang === "he" ? "שגיאה בשמירת העסקאות" : "Error saving transactions");
-        skipped += batch.length;
-      } else {
-        imported += data?.length || 0;
-        skipped += batch.length - (data?.length || 0);
-      }
+      setImportResult(result);
+      setStep("done");
+      toast.success(`${result.imported} ${lang === "he" ? "עסקאות יובאו בהצלחה" : "transactions imported successfully"}`);
+    } catch (error) {
+      console.error("Import error:", error);
+      setStep("preview");
+      toast.error(lang === "he" ? "שגיאה בשמירת העסקאות" : "Error saving transactions");
     }
-
-    setImportResult({ imported, skipped });
-    setStep("done");
-    toast.success(`${imported} ${lang === "he" ? "עסקאות יובאו בהצלחה" : "transactions imported successfully"}`);
   };
 
   const reset = () => {

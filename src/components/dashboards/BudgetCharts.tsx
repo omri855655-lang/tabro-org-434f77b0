@@ -14,7 +14,16 @@ interface Payment {
 const CHART_COLORS = [
   "hsl(var(--primary))",
   "hsl(var(--accent))",
-  "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1", "#14b8a6",
+  "hsl(var(--foreground) / 0.82)",
+  "hsl(var(--primary) / 0.75)",
+  "hsl(var(--accent) / 0.75)",
+  "hsl(var(--muted-foreground))",
+  "hsl(var(--primary) / 0.55)",
+  "hsl(var(--accent) / 0.55)",
+  "hsl(var(--foreground) / 0.6)",
+  "hsl(var(--primary) / 0.4)",
+  "hsl(var(--accent) / 0.4)",
+  "hsl(var(--foreground) / 0.4)",
 ];
 
 const MONTH_NAMES = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
@@ -154,8 +163,8 @@ const BudgetCharts = ({ payments }: BudgetChartsProps) => {
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="הכנסות" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="הוצאות" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="הכנסות" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="הוצאות" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -174,7 +183,7 @@ const BudgetCharts = ({ payments }: BudgetChartsProps) => {
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="מאזן_חודשי" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="מאזן_חודשי" stroke="hsl(var(--accent))" strokeWidth={2} dot={{ r: 4 }} />
                 <Line type="monotone" dataKey="מאזן_מצטבר" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
