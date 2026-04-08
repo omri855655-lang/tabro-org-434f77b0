@@ -857,7 +857,7 @@ const DeeplyDashboard = () => {
                             onClick={() => setAddYtTarget(null)}
                             className="text-[#e8e8ed]/50 hover:text-[#e8e8ed]"
                           >
-                            ביטול
+                            {t("cancel" as any)}
                           </Button>
                         </div>
                       ) : (
