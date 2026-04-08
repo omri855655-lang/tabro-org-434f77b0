@@ -33,6 +33,8 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--secondar
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { t, dir } = useLanguage();
+  const isHe = dir === "rtl";
   const { boards: customBoards } = useCustomBoards();
   const [customBoardStats, setCustomBoardStats] = useState<Record<string, { total: number; byStatus: Record<string, number> }>>({});
   const [stats, setStats] = useState<Stats>({
