@@ -1,98 +1,110 @@
 
 
-# Comprehensive Fix Pass — All Outstanding Issues
+# Comprehensive Fix Pass — All Remaining Issues
 
-## Issues Found After Full Code Audit
+## Issues Identified
 
-### A. Contact Form: Edge Function Fails (500)
-**Root cause**: The `from` address is `Tabro <info@tabro.org>` but the email domain `tabro.org` has status `initiated` (not verified). Resend rejects all sends.
-**Fix**: Change `from` to `Tabro <onboarding@resend.dev>` (Resend's shared test domain) until `tabro.org` is verified. Also return 200 with `{ok: false}` instead of 500 to let the frontend read the error body.
+### A. PaymentDashboard: Duplicate "overview" TabsContent (CRITICAL BUG)
+Lines 471 and 754 both have `<TabsContent value="overview">`. The first contains hero card, budget, charts. The second contains the transaction list (fixed expenses, spending, income). Only one renders — the transaction list at line 754 likely never shows with the hero card, or vice versa. This is why the budget and tabs feel broken.
 
-### B. PaymentDashboard: Tabs Bar at Bottom
-**Issue**: The tab bar (Income/Expenses, History, Add, Guides, AI, Bank) at line 640 is rendered AFTER hero card, budget card, 50/30/20 rule, category breakdown, and charts. User wants it at the TOP right after the header.
-**Fix**: Move the `<Tabs>` component to wrap the entire content area so the tab bar appears immediately after the header. Move hero/budget/breakdown/charts inside the "overview" tab.
+**Fix**: Merge both into a single `<TabsContent value="overview">` containing hero → budget → 50/30/20 → category breakdown → charts → fixed expenses → spending → income list.
 
-### C. PaymentDashboard: DashboardDisplayToolbar Broken
-**Issue**: The view mode/theme toolbar on PaymentDashboard doesn't affect the layout (it's wired up but has no visual effect on the transaction list). User says "remove the option since it doesn't work."
-**Fix**: Remove the `DashboardDisplayToolbar` from PaymentDashboard header. Keep it only in dashboards where it works.
+### B. PaymentDashboard: Budget Target Not on Hero Card
+Budget remaining is in a separate card below hero (line 536). User wants it ON the hero card.
 
-### D. PaymentDashboard: Budget Remaining on Main Screen
-**Issue**: User wants "how much left to spend" visible on the main hero card alongside "available to save." Also wants fixed expenses (rent, insurance, etc.) to be categorized separately from weekly/monthly spending.
-**Fix**: Add "remaining budget" line to hero card when budgetTarget > 0. Already shows "Available to save" — add budget remaining next to it.
+**Fix**: Add a budget summary row inside the hero card (line 472 area) when `budgetTarget > 0`:
+`"יעד {period}: ₪{budgetTarget} | נותר: ₪{remaining}"` using `t()` keys.
 
-### E. DashboardDisplayToolbar: Hardcoded Hebrew
-**Issue**: Labels "טבלה", "קנבן", "רשימה", "כרטיסים", "קומפקט", "עיצוב", "בחר עיצוב" are all hardcoded Hebrew.
-**Fix**: Pass `t()` function or use `useLanguage()` inside the component.
+### C. PaymentDashboard: Remove DashboardDisplayToolbar
+Line 23: `useDashboardDisplay` still imported. Line 124: still used. The toolbar itself was removed from JSX but the import and hook remain.
 
-### F. Translations: Still Many Hardcoded Hebrew Strings
-Found in:
-- `DashboardDisplayToolbar.tsx` lines 15-19, 36, 39
-- `DeeplyDashboard.tsx` — tooltips ("הסר סרטון", "הסתר סרטון", "פתח ב-YouTube", "קישור YouTube...")
-- Various inline strings across components
+**Fix**: Remove the import and hook call. The view mode/theme toolbar doesn't work for PaymentDashboard.
 
-### G. Design System: Applied but Minimal
-The `card-surface` class exists and is used in Dashboard.tsx. The brand colors are in tailwind config. Font imports are in index.html. The design tokens ARE applied but the user wants more visible design changes from the uploaded DESIGN files (glassmorphism effects on hero sections, gradient backgrounds, more prominent use of Indigo/Amber).
-**Fix**: Enhance the hero card in PaymentDashboard with glassmorphism (backdrop-blur, semi-transparent bg). Apply Indigo gradient to Dashboard date card. Use Amber for CTA buttons.
+### D. PaymentDashboard: Inline Edit for Transactions
+No pencil icon on transaction rows. User wants to edit category and notes inline.
 
-### H. Admin Company Mailbox
-**Issue**: Not yet implemented. User wants a company inbox in AdminDashboard where they can view email logs, filter, and compose emails.
-**Fix**: Add a "Company Mailbox" tab in AdminDashboard with email log table (already fetched), search/filter, and compose form. The compose form calls the admin-analytics edge function with a `send_email` action.
+**Fix**: Add `Pencil` icon button per row. Clicking toggles an inline form (category select + notes input + save button). Save updates `payment_tracking` or `financial_transactions` depending on `source`.
+
+### E. PaymentDashboard: ~40 Hardcoded Hebrew Strings
+Lines using `isRtl ? "..." : "..."` instead of `t()`: "פנוי לחיסכון", "בזבוז", "סומן לחיסכון", "יעד: להכניס ולשמור", "מאזן נטו", "הוצאות שלא שולמו", "בוזבז בפועל", "מתוכנן", "מיובא", "בזבוזים ותנועות", "אחר" fallback at lines 298/690, and many more.
+
+**Fix**: Add ~20 new translation keys to `useLanguage.tsx`, replace all `isRtl ? "..." : "..."` with `t()` calls.
+
+### F. ZoneFlow: Can't Delete Study/Read Videos (Only Music)
+Study With Me (line 932): hide button only shows for custom videos (`{isCustom && ...}`). Built-in videos have NO hide button at all. Same for Read With Me (line 1002).
+
+**Fix**: Add the same hide button pattern from the main music section (line 803-809) to Study With Me and Read With Me sections. Non-custom videos get the `opacity-100 md:opacity-0` hide button.
+
+### G. ZoneFlow: Many Hardcoded Hebrew Strings
+- BG_THEMES names (lines 21-35): "חשוך", "ירוק בקבוק", etc.
+- ROADMAP_STEPS (lines 46-49): "ניקוי רעשים", "סידור המוח", etc.
+- Study/Read section titles and descriptions (lines 897-971)
+- Timer label "טיימר פומודורו" (line 1048)
+- Buttons "הוסף", "ביטול", placeholders "קישור YouTube...", "שם (אופציונלי)"
+
+**Fix**: Add translation keys and replace with `t()` calls.
+
+### H. Admin Mailbox: Send to Any Email
+The admin compose form already calls `admin-analytics` with `action: "send_email"`. The edge function already handles this (verified in code). Uses `onboarding@resend.dev` as sender.
+
+**Issue**: `onboarding@resend.dev` can only send to the Resend account owner's email (Gmail). To send to ANY address, need to use the project's verified domain or the Resend connector gateway.
+
+**Fix**: Check if LOVABLE_API_KEY + RESEND_API_KEY are both set, use the connector gateway (`https://connector-gateway.lovable.dev/resend/emails`) for broader delivery. This allows sending to any email.
+
+### I. Contact Form: Edge Function Works But May Not Be Deployed
+Testing showed `send-contact-form` returns `{"success": true}`. The code is correct. Need to ensure it's deployed.
+
+**Fix**: Deploy the edge function. The code already handles errors correctly.
+
+### J. Landing Page: No Design System Applied
+Still uses old blue/cyan gradients. No glassmorphism, no Indigo/Amber brand colors from the uploaded DESIGN files.
+
+**Fix**: Restyle hero section with Indigo-to-purple gradient, glassmorphism on feature cards, Plus Jakarta Sans for headings. Apply the "Digital Alchemist" aesthetic from the uploaded design specs.
+
+### K. Email Integration: Only Shows 20 Emails
+User wants up to 200 emails, 1 month back.
+
+**Fix**: Already has `.limit(120)` in useEmailIntegration.ts. The `displayCount` starts at 30 in EmailIntegration.tsx. Increase initial display to 50, increase limit to 200.
 
 ---
 
-## Implementation Plan (8 changes)
+## Implementation Plan
 
-### 1. Fix Contact Form Edge Function
-**File**: `supabase/functions/send-contact-form/index.ts`
-- Change `from: 'Tabro <info@tabro.org>'` to `from: 'Tabro <onboarding@resend.dev>'`
-- Change error responses from status 500 to status 200 with `{ok: false, error: "..."}` so frontend can read the error
-- Deploy and test
-
-### 2. PaymentDashboard: Move Tabs to Top, Remove Broken Toolbar
+### 1. Fix PaymentDashboard Structure & Budget
 **File**: `src/components/dashboards/PaymentDashboard.tsx`
-- Remove `DashboardDisplayToolbar` from the header
-- Restructure: move the `<Tabs>` component to wrap immediately after the header
-- Move hero card, budget target, 50/30/20 rule, category breakdown, and charts INTO the "overview" tab content
-- Add budget remaining to hero card when budgetTarget > 0:
-  `{isRtl ? "תקציב נותר" : "Budget remaining"}: ₪{(budgetTarget - totalSpending).toLocaleString()}`
+- Merge duplicate `<TabsContent value="overview">` into one
+- Add budget remaining to hero card
+- Remove `useDashboardDisplay` import and usage
+- Add inline edit (pencil icon) per transaction row
+- Replace all `isRtl ? "..." : "..."` with `t()` keys
 
-### 3. Translate DashboardDisplayToolbar
-**File**: `src/components/DashboardDisplayToolbar.tsx`
-- Import `useLanguage` and replace hardcoded Hebrew labels with `t()` calls
-- Add translation keys: `viewTable`, `viewKanban`, `viewList`, `viewCards`, `viewCompact`, `design`, `chooseDesign`
-
-### 4. Translate Remaining Hebrew Strings
-**File**: `src/hooks/useLanguage.tsx`
-- Add keys: `viewTable`, `viewKanban`, `viewList`, `viewCards`, `viewCompact`, `design`, `chooseDesign`
-- Add: `hideVideo`, `removeVideo`, `openOnYoutube`, `youtubeLink`
+### 2. Fix ZoneFlow Delete Buttons + Translations
 **File**: `src/components/deeply/DeeplyDashboard.tsx`
-- Replace tooltip strings with `t()` calls
+- Add hide button for non-custom videos in Study With Me and Read With Me sections
+- Replace hardcoded Hebrew in BG_THEMES, ROADMAP_STEPS, section titles, buttons, placeholders with `t()` calls
 
-### 5. Enhance Design System Application
-**Files**: `src/components/dashboards/PaymentDashboard.tsx`, `src/pages/Landing.tsx`
-- PaymentDashboard hero card: Add `backdrop-blur-xl bg-white/80 dark:bg-slate-900/80` for glassmorphism
-- Landing hero: Apply Indigo-to-purple gradient background
-- Dashboard stat cards: Already have `card-surface border-l-[3px] border-l-brand-primary` — keep
+### 3. Add Translation Keys
+**File**: `src/hooks/useLanguage.tsx`
+- Add ~30 new keys for PaymentDashboard and DeeplyDashboard strings
 
-### 6. Admin Company Mailbox
-**File**: `src/pages/AdminDashboard.tsx`
-- Add a "Company Mailbox" card section with:
-  - Table showing `recentEmailLog` data (already fetched from admin-analytics)
-  - Search input to filter by recipient or template
-  - Status filter dropdown (All / Sent / Failed)
-  - Compose email form (to, subject, body) that calls admin-analytics edge function
-
+### 4. Fix Admin Mailbox Email Delivery
 **File**: `supabase/functions/admin-analytics/index.ts`
-- Add `send_email` action that uses Resend to send an email from `onboarding@resend.dev`
-- Log the send to `email_send_log`
+- Use Resend connector gateway for broader email delivery
+- Add reply-to header support
 
-### 7. PaymentDashboard: Fixed Expenses Separation
-Already implemented — line 756-780 shows "Fixed expenses" section with `recurringExpenseEntries`. The user wants clarity that rent/insurance are in this section. No code change needed, just ensure the `recurring` flag is being set properly from the add form (already done at line 872).
+### 5. Restyle Landing Page
+**File**: `src/pages/Landing.tsx`
+- Apply Indigo-to-purple gradient hero
+- Glassmorphism feature cards
+- Brand colors and typography
 
-### 8. Deploy and Test Edge Functions
+### 6. Increase Email Display Limit
+**Files**: `src/hooks/useEmailIntegration.ts`, `src/components/EmailIntegration.tsx`
+- Change limit to 200
+- Increase initial display count
+
+### 7. Deploy Edge Functions
 - Deploy `send-contact-form` and `admin-analytics`
-- Test contact form submission
-- Verify emails send successfully
 
 ---
 
@@ -100,13 +112,13 @@ Already implemented — line 756-780 shows "Fixed expenses" section with `recurr
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/send-contact-form/index.ts` | Fix `from` address to use resend.dev, return 200 for errors |
-| `src/components/dashboards/PaymentDashboard.tsx` | Move tabs to top, remove DashboardDisplayToolbar, add budget remaining to hero, glassmorphism |
-| `src/components/DashboardDisplayToolbar.tsx` | Translate all hardcoded Hebrew |
-| `src/hooks/useLanguage.tsx` | Add ~10 missing translation keys |
-| `src/components/deeply/DeeplyDashboard.tsx` | Translate tooltip strings |
-| `src/pages/AdminDashboard.tsx` | Add company mailbox card with compose form |
-| `supabase/functions/admin-analytics/index.ts` | Add send_email action |
+| `src/components/dashboards/PaymentDashboard.tsx` | Merge tabs, budget on hero, remove toolbar, inline edit, translate strings |
+| `src/components/deeply/DeeplyDashboard.tsx` | Hide buttons for study/read videos, translate all hardcoded Hebrew |
+| `src/hooks/useLanguage.tsx` | Add ~30 translation keys |
+| `supabase/functions/admin-analytics/index.ts` | Use connector gateway for emails |
+| `src/pages/Landing.tsx` | Apply design system (gradients, glassmorphism, brand colors) |
+| `src/hooks/useEmailIntegration.ts` | Increase limit to 200 |
+| `src/components/EmailIntegration.tsx` | Increase initial display |
 
 No database schema changes needed.
 
