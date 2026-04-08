@@ -15,14 +15,14 @@ Deno.serve(async (req) => {
   try {
     const resendKey = Deno.env.get('RESEND_API_KEY')
     if (!resendKey) {
-      return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const { subject, message, category, userEmail } = await req.json()
     const messageId = crypto.randomUUID()
 
     if (!message?.trim()) {
-      return new Response(JSON.stringify({ error: 'Message required' }), { status: 400, headers: corsHeaders })
+      return new Response(JSON.stringify({ error: 'Message required' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const categoryLabels: Record<string, string> = {
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
           body: JSON.stringify({
-            from: 'Tabro <info@tabro.org>',
+            from: 'Tabro <onboarding@resend.dev>',
             to: [toEmail],
             subject: emailSubject,
             html: emailBody,
@@ -85,11 +85,12 @@ Deno.serve(async (req) => {
     })
 
     if (succeeded === 0) {
-      return new Response(JSON.stringify({ error: 'Failed to send to all recipients' }), { status: 500, headers: corsHeaders })
+      const errMsg = failed.length > 0 ? (failed[0] as any).reason?.message || 'Unknown error' : 'Failed to send'
+      return new Response(JSON.stringify({ error: errMsg }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     return new Response(JSON.stringify({ success: true, sent: succeeded }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders })
+    return new Response(JSON.stringify({ error: err.message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
