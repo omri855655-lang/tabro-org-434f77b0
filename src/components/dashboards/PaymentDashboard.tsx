@@ -645,16 +645,7 @@ ${context}
 
       {/* Charts - Pie, Bar comparison, Trend */}
       <BudgetCharts payments={dashboardEntries.filter(entry => entry.payment_type === "income" || !isSavingsCategory(entry.category)) as any} />
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full flex-wrap h-auto">
-          <TabsTrigger value="overview" className="flex-1">{t("incomeTab" as any)}</TabsTrigger>
-          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3 w-3" />{t("historyTab" as any)}</TabsTrigger>
-          <TabsTrigger value="add" className="flex-1 gap-1"><Plus className="h-3 w-3" />{t("addTab" as any)}</TabsTrigger>
-          <TabsTrigger value="guides" className="flex-1 gap-1"><BookOpen className="h-3 w-3" />{t("guidesTab" as any)}</TabsTrigger>
-          <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3 w-3" />{t("aiAdvisor" as any)}</TabsTrigger>
-          <TabsTrigger value="credit-cards" className="flex-1 gap-1"><CreditCard className="h-3 w-3" />{t("bankCreditTab" as any)}</TabsTrigger>
-        </TabsList>
+      </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
           {monthlyHistory.length === 0 ? (
