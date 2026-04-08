@@ -36,14 +36,24 @@ const STEPS_EN = [
   { title: "All Set!", subtitle: "The system is personalized and ready to use", type: "done" as const },
 ];
 
-const CORE_FEATURES = [
+const CORE_FEATURES_HE = [
   { icon: ListTodo, name: "משימות עבודה ואישיות", desc: "גליונות עם סטטוסים, קטגוריות, סינון, מעקב התקדמות ושיתוף עם אחרים" },
   { icon: CalendarDays, name: "מתכנן יומי + לוז אירועים", desc: "AI שמתכנן את היום לפי המשימות, יומן אירועים, חגים מכל הדתות ותזכורות" },
-  { icon: Focus, name: "Deeply — מצב ריכוז", desc: "תדרים בינאורליים, מוזיקת רקע, פומודורו ומאמן AI לעבודה עמוקה" },
+  { icon: Focus, name: "ZoneFlow — מצב ריכוז", desc: "תדרים בינאורליים, מוזיקת רקע, פומודורו ומאמן AI לעבודה עמוקה" },
   { icon: FolderKanban, name: "פרויקטים וצוותים", desc: "ניהול פרויקטים עם חברי צוות, ריבוי אחראים למשימה, קישורים ואבני דרך AI" },
   { icon: BookOpen, name: "ספרים, סדרות, פודקאסטים וקורסים", desc: "מעקב מדיה מלא עם סטטוסים, הערות וסילבוס לקורסים" },
   { icon: Trophy, name: "אתגרים ורצפים", desc: "אתגרים מותאמים אישית, מעקב רצפים ואנליטיקה" },
   { icon: Bot, name: "סוכן AI", desc: "מקבל הוראות בשפה טבעית ומבצע — הוספת משימות, פתקים, אירועים ועוד" },
+];
+
+const CORE_FEATURES_EN = [
+  { icon: ListTodo, name: "Work & Personal Tasks", desc: "Sheets with statuses, categories, filters, progress tracking and sharing" },
+  { icon: CalendarDays, name: "Daily Planner + Calendar", desc: "AI-powered day planning, calendar events, holidays and reminders" },
+  { icon: Focus, name: "ZoneFlow — Focus Mode", desc: "Binaural beats, background music, Pomodoro and AI coaching for deep work" },
+  { icon: FolderKanban, name: "Projects & Teams", desc: "Team projects with multiple assignees, links and AI milestones" },
+  { icon: BookOpen, name: "Books, Shows, Podcasts & Courses", desc: "Full media tracking with statuses, notes and course syllabi" },
+  { icon: Trophy, name: "Challenges & Streaks", desc: "Custom challenges, streak tracking and analytics" },
+  { icon: Bot, name: "AI Agent", desc: "Takes natural language instructions — adds tasks, notes, events and more" },
 ];
 
 const DASHBOARD_OPTIONS = [
