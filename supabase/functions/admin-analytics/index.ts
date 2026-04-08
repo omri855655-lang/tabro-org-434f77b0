@@ -142,12 +142,33 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    if (action === 'remove_admin') {
-      const targetUserId = body.user_id
-      if (!targetUserId || targetUserId === user.id) {
-        return new Response(JSON.stringify({ error: 'Cannot remove yourself' }), { status: 400, headers: corsHeaders })
+    if (action === 'send_email') {
+      const { to, subject, body: htmlBody } = body
+      if (!to || !subject || !htmlBody) {
+        return new Response(JSON.stringify({ error: 'to, subject, body required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
-      await adminClient.from('user_roles').delete().eq('user_id', targetUserId).eq('role', 'admin')
+      const resendKey = Deno.env.get('RESEND_API_KEY')
+      if (!resendKey) {
+        return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
+        body: JSON.stringify({
+          from: 'Tabro <onboarding@resend.dev>',
+          to: [to],
+          subject,
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;">${htmlBody.replace(/\n/g, '<br/>')}</div>`,
+        }),
+      })
+      const resBody = await res.text()
+      if (!res.ok) {
+        return new Response(JSON.stringify({ error: resBody }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const messageId = crypto.randomUUID()
+      await adminClient.from('email_send_log').insert({
+        message_id: messageId, template_name: 'admin-compose', recipient_email: to, status: 'sent', metadata: { subject, sent_by: user.email },
+      })
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
