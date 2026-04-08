@@ -296,7 +296,7 @@ const PaymentDashboard = () => {
   const categoryBreakdown = useMemo(() => {
     const cats: Record<string, number> = {};
     dashboardEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category)).forEach(p => {
-      const cat = p.category || "אחר";
+      const cat = p.category || (isRtl ? "אחר" : "Other");
       cats[cat] = (cats[cat] || 0) + p.amount;
     });
     return Object.entries(cats).sort(([, a], [, b]) => b - a);
@@ -615,14 +615,14 @@ ${context}
       {categoryBreakdown.length > 0 && (
         <Card>
           <CardContent className="py-4">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><BarChart3 className="h-4 w-4" />פילוח הוצאות</h3>
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><BarChart3 className="h-4 w-4" />{t("expenseBreakdown" as any)}</h3>
             <div className="space-y-2">
               {categoryBreakdown.map(([cat, amt]) => {
                 const pct = totalExpenses > 0 ? Math.round((amt / totalExpenses) * 100) : 0;
                 return (
                   <div key={cat}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span>{cat}</span>
+                      <span>{getCategoryLabel(cat)}</span>
                       <span className="font-medium">₪{amt.toLocaleString()} ({pct}%)</span>
                     </div>
                     <Progress value={pct} className="h-2" />
@@ -687,7 +687,7 @@ ${context}
                 const [, data] = monthData;
                 const monthCats: Record<string, number> = {};
                 data.items.filter(p => p.payment_type === "expense").forEach(p => {
-                  const cat = p.category || "אחר";
+                  const cat = p.category || (isRtl ? "אחר" : "Other");
                   monthCats[cat] = (monthCats[cat] || 0) + p.amount;
                 });
                 const sortedCats = Object.entries(monthCats).sort(([, a], [, b]) => b - a);

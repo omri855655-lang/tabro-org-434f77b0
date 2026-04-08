@@ -57,11 +57,22 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        brand: {
+          primary: '#3525cd',
+          accent: '#fea619',
+        },
+      },
+      fontFamily: {
+        display: ['Plus Jakarta Sans', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        ambient: '0 4px 32px rgba(0,0,0,0.05), 0 1px 4px rgba(0,0,0,0.04)',
       },
       keyframes: {
         "accordion-down": {

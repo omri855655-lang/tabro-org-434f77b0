@@ -13,16 +13,16 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const resendKey = Deno.env.get('RESEND_API_KEY')
+    if (!resendKey) {
+      return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     const { subject, message, category, userEmail } = await req.json()
     const messageId = crypto.randomUUID()
 
     if (!message?.trim()) {
       return new Response(JSON.stringify({ error: 'Message required' }), { status: 400, headers: corsHeaders })
-    }
-
-    const resendKey = Deno.env.get('RESEND_API_KEY')
-    if (!resendKey) {
-      return new Response(JSON.stringify({ error: 'Email not configured' }), { status: 500, headers: corsHeaders })
     }
 
     const categoryLabels: Record<string, string> = {
@@ -46,38 +46,30 @@ Deno.serve(async (req) => {
       </div>
     `
 
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${resendKey}`,
-      },
-      body: JSON.stringify({
-        from: 'Tabro <info@tabro.org>',
-        to: ADMIN_EMAILS,
-        subject: `[פנייה] ${categoryLabels[category] || ''} - ${subject || 'ללא נושא'}`,
-        html: emailBody,
-        reply_to: userEmail !== 'אנונימי' ? userEmail : undefined,
-      }),
-    })
+    const emailSubject = `[פנייה] ${categoryLabels[category] || ''} - ${subject || 'ללא נושא'}`
+    const replyTo = userEmail !== 'אנונימי' && userEmail !== 'Anonymous' ? userEmail : undefined
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('Resend error:', err)
-      const serviceClient = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      )
-      await serviceClient.from('email_send_log').insert({
-        message_id: messageId,
-        template_name: 'contact-form',
-        recipient_email: 'info@tabro.org',
-        status: 'failed',
-        error_message: err.slice(0, 1000),
-        metadata: { subject, category, userEmail },
+    // Send to each admin separately to avoid array rejection
+    const results = await Promise.allSettled(
+      ADMIN_EMAILS.map(async (toEmail) => {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
+          body: JSON.stringify({
+            from: 'Tabro <info@tabro.org>',
+            to: [toEmail],
+            subject: emailSubject,
+            html: emailBody,
+            reply_to: replyTo,
+          }),
+        })
+        if (!res.ok) throw new Error(await res.text())
+        return toEmail
       })
-      return new Response(JSON.stringify({ error: 'Failed to send email' }), { status: 500, headers: corsHeaders })
-    }
+    )
+
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected')
 
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -87,11 +79,16 @@ Deno.serve(async (req) => {
       message_id: messageId,
       template_name: 'contact-form',
       recipient_email: 'info@tabro.org',
-      status: 'sent',
-      metadata: { subject, category, userEmail, recipients: ADMIN_EMAILS },
+      status: succeeded > 0 ? 'sent' : 'failed',
+      error_message: failed.length > 0 ? JSON.stringify(failed.map(f => (f as any).reason?.message).slice(0, 500)) : null,
+      metadata: { subject, category, userEmail, recipients: ADMIN_EMAILS, succeeded },
     })
 
-    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (succeeded === 0) {
+      return new Response(JSON.stringify({ error: 'Failed to send to all recipients' }), { status: 500, headers: corsHeaders })
+    }
+
+    return new Response(JSON.stringify({ success: true, sent: succeeded }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders })
   }

@@ -28,7 +28,7 @@ const ContactForm = () => {
     }
     setSending(true);
     try {
-      const { error } = await supabase.functions.invoke("send-contact-form", {
+      const { data, error } = await supabase.functions.invoke("send-contact-form", {
         body: {
           subject: subject.trim() || (isHe ? "פנייה ללא נושא" : "Support request without subject"),
           message: message.trim(),
@@ -37,18 +37,20 @@ const ContactForm = () => {
         },
       });
       if (error) throw error;
-      toast.success(isHe ? "הפנייה נשלחה בהצלחה! נחזור אליך בהקדם" : "Your message was sent successfully. We'll get back to you soon.");
+      if (data?.error) throw new Error(data.error);
+      toast.success(isHe ? "הפנייה נשלחה בהצלחה ל-info@tabro.org" : "Your message was sent successfully to info@tabro.org");
       setSubject("");
       setMessage("");
       setCategory("bug");
-    } catch {
-      toast.error(isHe ? "שגיאה בשליחה, נסה שוב" : "Send failed, please try again");
+    } catch (err: any) {
+      const msg = err?.message || (isHe ? "שגיאה בשליחה, נסה שוב" : "Send failed, please try again");
+      toast.error(msg);
     }
     setSending(false);
   };
 
   return (
-    <Card className="max-w-lg mx-auto">
+    <Card className="max-w-lg mx-auto card-surface">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />

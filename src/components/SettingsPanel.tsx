@@ -605,6 +605,25 @@ const SettingsPanel = () => {
         </CardContent>
       </Card>
 
+      {/* Reset Hidden ZoneFlow Videos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Eye className="h-5 w-5" />{t("resetHiddenVideos" as any)}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t("resetHiddenVideosDesc" as any)}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              localStorage.removeItem("zoneflow-hidden-yt");
+              toast.success(dir === "rtl" ? "סרטונים מוסתרים אופסו" : "Hidden videos reset");
+            }}
+          >
+            {t("resetHiddenVideos" as any)}
+          </Button>
+        </CardContent>
+      </Card>
+
       <RecycleBin />
 
       {/* Restart Guide */}

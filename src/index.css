@@ -927,3 +927,19 @@ All colors MUST be HSL.
     scroll-behavior: auto !important;
   }
 }
+
+/* Brand Design System - Lucid Architect */
+:root {
+  --brand-primary: 243 78% 47%;
+  --brand-accent: 37 99% 55%;
+  --shadow-ambient: 0 4px 32px hsla(0, 0%, 0%, 0.05), 0 1px 4px hsla(0, 0%, 0%, 0.04);
+}
+
+h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
+
+.card-surface {
+  background: hsl(var(--card));
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-ambient);
+  border: none;
+}
