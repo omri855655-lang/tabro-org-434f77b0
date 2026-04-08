@@ -87,6 +87,25 @@ const translations = {
     notifications: "התראות",
     hebrewDate: "תאריך עברי", hebrewDateDesc: "הצג תאריך עברי בדשבורד הראשי (לפי הלוח העברי).", showHebrewDate: "הצג תאריך עברי",
     languageTitle: "שפה / Language", languageChoose: "בחר את שפת הממשק / Choose interface language",
+    // Dashboard stats
+    totalBooks: "סה\"כ ספרים", booksRead: "ספרים שנקראו", seriesFilms: "סדרות/סרטים", totalSeriesFilms: "סה\"כ סדרות/סרטים", watchedCount: "נצפו",
+    booksDistribution: "התפלגות ספרים", showsDistribution: "התפלגות סדרות/סרטים", generalComparison: "השוואה כללית", readingProgress: "התקדמות קריאה", watchProgress: "התקדמות צפייה",
+    noBooksYet: "אין ספרים עדיין", noSeriesYet: "אין סדרות עדיין", customizeDashboard: "התאמת דשבורד",
+    normal: "רגיל", compact: "קומפקטי", cardsView: "כרטיסים",
+    pending: "ממתינים", total: "סה\"כ", completedLabel: "הושלמו",
+    minutes: "דקות", seconds: "שניות",
+    // Email categories
+    catPayment: "תשלום", catTask: "משימה", catNewsletter: "ניוזלטר", catSocial: "חברתי", catOtherEmail: "אחר",
+    // ZoneFlow
+    resetHiddenVideos: "איפוס סרטונים מוסתרים", resetHiddenVideosDesc: "הצג מחדש סרטוני ZoneFlow שהוסתרו.",
+    // Fixed payment
+    fixedPayment: "תשלום קבוע", fixedPaymentsCount: "תשלומים קבועים", fixedPaymentsTotal: "סה\"כ קבועים",
+    // Admin mailbox
+    companyMailbox: "תיבת מייל חברה", searchEmails: "חיפוש מיילים...", filterByStatus: "סינון לפי סטטוס", allStatuses: "כל הסטטוסים",
+    sent: "נשלח", failed: "נכשל",
+    // Show more
+    showMore: "הצג עוד", showLess: "הצג פחות",
+    newestFirst: "חדש ביותר", oldestFirst: "ישן ביותר", bySender: "לפי שולח",
   },
   en: {
     personalArea: "Personal Area", installApp: "Install App", signOut: "Sign Out", signedOutSuccess: "Signed out successfully", loading: "Loading...",
