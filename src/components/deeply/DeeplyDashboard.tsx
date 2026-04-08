@@ -90,6 +90,7 @@ const ACTIVE_COLOR_MAP: Record<string, string> = {
 const DeeplyDashboard = () => {
   const { activePresetId, isPlaying, isRendering, toggle } = useAudioEngine();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { stopwatchTime, isStopwatchRunning, toggleStopwatch, resetStopwatch } = useDailyStopwatch();
 
   // Sound category
