@@ -163,6 +163,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             from: 'Tabro <onboarding@resend.dev>',
+            to: [to],
             subject,
             html: `<div style="font-family:Arial,sans-serif;max-width:600px;">${htmlBody.replace(/\n/g, '<br/>')}</div>`,
             reply_to: reply_to || 'info@tabro.org',
