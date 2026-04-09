@@ -755,6 +755,50 @@ export type Database = {
         }
         Relationships: []
       }
+      event_invitations: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          invitee_email: string
+          invitee_user_id: string | null
+          inviter_user_id: string
+          responded_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          invitee_email: string
+          invitee_user_id?: string | null
+          inviter_user_id: string
+          responded_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          invitee_email?: string
+          invitee_user_id?: string | null
+          inviter_user_id?: string
+          responded_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invitations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_sync_logs: {
         Row: {
           connection_id: string | null
@@ -1595,6 +1639,7 @@ export type Database = {
           description: string | null
           frequency: string
           id: string
+          reminder_time: string | null
           title: string
           updated_at: string
           user_id: string
@@ -1606,6 +1651,7 @@ export type Database = {
           description?: string | null
           frequency?: string
           id?: string
+          reminder_time?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -1617,6 +1663,7 @@ export type Database = {
           description?: string | null
           frequency?: string
           id?: string
+          reminder_time?: string | null
           title?: string
           updated_at?: string
           user_id?: string
