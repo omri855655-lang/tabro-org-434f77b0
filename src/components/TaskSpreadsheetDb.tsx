@@ -1401,7 +1401,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             onSave={(id, updates) => {
               const taskUpdates: Partial<Task> = {};
               if (updates.title !== undefined) taskUpdates.description = updates.title;
-              if (updates.status !== undefined) taskUpdates.status = updates.status;
+              if (updates.status !== undefined) taskUpdates.status = updates.status as Task["status"];
               if (updates.notes !== undefined) taskUpdates.statusNotes = updates.notes;
               updateTask(id, taskUpdates);
             }}
