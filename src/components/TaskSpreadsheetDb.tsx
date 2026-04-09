@@ -33,6 +33,7 @@ import TaskTabs from "@/components/TaskTabs";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import SheetSharingDialog from "@/components/SheetSharingDialog";
 import FileImport from "@/components/FileImport";
+import ItemDetailDialog from "@/components/ItemDetailDialog";
 
 interface TaskSpreadsheetDbProps {
   title: string;
