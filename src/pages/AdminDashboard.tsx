@@ -59,6 +59,7 @@ const AdminDashboard = () => {
   // Mailbox state
   const [emailSearch, setEmailSearch] = useState("");
   const [emailStatusFilter, setEmailStatusFilter] = useState("all");
+  const [emailTab, setEmailTab] = useState<"inbox" | "outbox">("inbox");
   const [composeTo, setComposeTo] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
