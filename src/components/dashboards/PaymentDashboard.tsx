@@ -490,7 +490,7 @@ ${context}
             </span>
             <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
               if (isEditing) { setEditingEntryId(null); }
-              else { setEditingEntryId(p.id); setEditCategory(p.category || ""); setEditNotes(p.notes || ""); }
+              else { setEditingEntryId(p.id); setEditCategory(p.category || ""); setEditNotes(p.notes || ""); setEditAmount(String(p.amount)); }
             }}>
               {isEditing ? <X className="h-3 w-3" /> : <Pencil className="h-3 w-3 text-muted-foreground" />}
             </Button>
@@ -564,8 +564,8 @@ ${context}
                 {/* Budget remaining on hero card */}
                 {budgetTarget > 0 && (
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <Badge variant={totalSpending > budgetTarget ? "destructive" : "default"} className="text-xs">
-                      {getBudgetPeriodLabel(budgetPeriod)}: ₪{budgetTarget.toLocaleString()} | {t("budgetRemaining" as any)}: ₪{Math.max(budgetTarget - totalSpending, 0).toLocaleString()}
+                    <Badge variant={periodSpending > budgetTarget ? "destructive" : "default"} className="text-xs">
+                      {getBudgetPeriodLabel(budgetPeriod)}: ₪{budgetTarget.toLocaleString()} | {t("budgetRemaining" as any)}: ₪{Math.max(budgetTarget - periodSpending, 0).toLocaleString()}
                     </Badge>
                   </div>
                 )}
