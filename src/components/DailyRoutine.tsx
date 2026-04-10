@@ -664,6 +664,17 @@ const DailyRoutine = () => {
                 )}
               </div>
             )}
+            <div>
+              <label className="text-sm font-medium">שעת תזכורת (אופציונלי)</label>
+              <Input
+                type="time"
+                value={newTask.reminderTime}
+                onChange={(e) => setNewTask({ ...newTask, reminderTime: e.target.value })}
+                placeholder="08:00"
+                dir="ltr"
+              />
+              <p className="text-xs text-muted-foreground mt-1">אם תוגדר שעה, המשימה תופיע במתכנן הלוז ותישלח תזכורת</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
