@@ -234,6 +234,11 @@ const DailyRoutine = () => {
                     >
                       {FREQUENCY_LABELS[task.frequency]}
                     </span>
+                    {task.reminderTime && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        🔔 {task.reminderTime}
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -250,13 +255,14 @@ const DailyRoutine = () => {
                   <TableHead className="text-right">משימה</TableHead>
                   <TableHead className="text-right">תדירות</TableHead>
                   <TableHead className="text-right">יום</TableHead>
+                  <TableHead className="text-right">תזכורת</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tasks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
                       אין משימות קבועות עדיין
                     </TableCell>
                   </TableRow>
