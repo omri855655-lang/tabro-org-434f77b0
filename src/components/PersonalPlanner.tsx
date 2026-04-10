@@ -1970,7 +1970,17 @@ const PersonalPlanner = () => {
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
                     <SelectContent>{Array.from({ length: 60 }, (_, i) => i).map(m => <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>)}</SelectContent>
                   </Select>
-                </div>
+            <div>
+              <label className="text-sm font-medium">הזמן משתתפים (מיילים, מופרדים בפסיק)</label>
+              <Input
+                value={newEventData.inviteeEmails}
+                onChange={(e) => setNewEventData((p) => ({ ...p, inviteeEmails: e.target.value }))}
+                placeholder="user@example.com, friend@example.com"
+                dir="ltr"
+              />
+              <p className="text-xs text-muted-foreground mt-1">המוזמנים יקבלו מייל הזמנה</p>
+            </div>
+          </div>
                 <Input
                   type="date"
                   value={newEventData.startTime ? format(new Date(newEventData.startTime), "yyyy-MM-dd") : ""}
