@@ -8,8 +8,9 @@ export interface RecurringTask {
   title: string;
   description: string | null;
   frequency: "daily" | "weekly" | "monthly" | "yearly" | "thrice_weekly";
-  dayOfWeek: number | null; // 0-6 for weekly tasks, bitmask for thrice_weekly (bit 0=Sun, bit 1=Mon, etc.)
-  dayOfMonth: number | null; // 1-31 for monthly/yearly tasks
+  dayOfWeek: number | null;
+  dayOfMonth: number | null;
+  reminderTime: string | null; // HH:mm format
   createdAt: string;
 }
 
@@ -28,6 +29,7 @@ interface DbRecurringTask {
   frequency: string;
   day_of_week: number | null;
   day_of_month: number | null;
+  reminder_time: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +49,7 @@ const mapDbToRecurringTask = (db: DbRecurringTask): RecurringTask => ({
   frequency: db.frequency as RecurringTask["frequency"],
   dayOfWeek: db.day_of_week,
   dayOfMonth: db.day_of_month,
+  reminderTime: db.reminder_time,
   createdAt: db.created_at,
 });
 
@@ -114,6 +117,7 @@ export function useRecurringTasks() {
       frequency: "daily" | "weekly" | "monthly" | "yearly" | "thrice_weekly";
       dayOfWeek?: number;
       dayOfMonth?: number;
+      reminderTime?: string;
     }) => {
       if (!user) return null;
 
@@ -127,7 +131,8 @@ export function useRecurringTasks() {
             frequency: task.frequency,
             day_of_week: task.dayOfWeek ?? null,
             day_of_month: task.dayOfMonth ?? null,
-          })
+            reminder_time: task.reminderTime || null,
+          } as any)
           .select()
           .single();
 
@@ -156,6 +161,7 @@ export function useRecurringTasks() {
       if (updates.frequency !== undefined) dbUpdates.frequency = updates.frequency;
       if (updates.dayOfWeek !== undefined) dbUpdates.day_of_week = updates.dayOfWeek;
       if (updates.dayOfMonth !== undefined) dbUpdates.day_of_month = updates.dayOfMonth;
+      if (updates.reminderTime !== undefined) dbUpdates.reminder_time = updates.reminderTime;
 
       try {
         const { error } = await supabase
