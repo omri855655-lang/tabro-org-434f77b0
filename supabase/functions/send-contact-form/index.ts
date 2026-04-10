@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const resendKey = Deno.env.get('RESEND_API_KEY')
+    const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
     const lovableKey = Deno.env.get('LOVABLE_API_KEY')
     if (!resendKey) {
       return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
