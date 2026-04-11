@@ -17,6 +17,10 @@ export interface CalendarEvent {
   sourceId: string | null;
   createdAt: string;
   updatedAt: string;
+  // Invitation metadata (only for invited events)
+  invitationStatus?: "pending" | "accepted" | "declined" | null;
+  invitationId?: string | null;
+  isInvited?: boolean;
 }
 
 interface DbCalendarEvent {
@@ -52,7 +56,7 @@ export const getCategoryColor = (category: string): string => {
 
 export const CATEGORIES = Object.keys(DEFAULT_CATEGORY_COLORS);
 
-const mapDbToEvent = (db: DbCalendarEvent): CalendarEvent => ({
+const mapDbToEvent = (db: DbCalendarEvent, invitation?: { id: string; status: string } | null): CalendarEvent => ({
   id: db.id,
   userId: db.user_id,
   title: db.title,
@@ -66,6 +70,9 @@ const mapDbToEvent = (db: DbCalendarEvent): CalendarEvent => ({
   sourceId: db.source_id,
   createdAt: db.created_at,
   updatedAt: db.updated_at,
+  invitationStatus: invitation ? (invitation.status as "pending" | "accepted" | "declined") : null,
+  invitationId: invitation?.id || null,
+  isInvited: !!invitation,
 });
 
 export function useCalendarEvents() {
@@ -82,14 +89,44 @@ export function useCalendarEvents() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch own events
+      const { data: ownData, error: ownError } = await supabase
         .from("calendar_events")
         .select("*")
         .eq("user_id", user.id)
         .order("start_time", { ascending: true });
 
-      if (error) throw error;
-      setEvents((data as unknown as DbCalendarEvent[]).map(mapDbToEvent));
+      if (ownError) throw ownError;
+      const ownEvents = (ownData as unknown as DbCalendarEvent[]).map(e => mapDbToEvent(e));
+
+      // Fetch invitations for this user
+      const { data: invitations } = await supabase
+        .from("event_invitations")
+        .select("id, event_id, status, invitee_email, invitee_user_id")
+        .or(`invitee_user_id.eq.${user.id},invitee_email.ilike.${user.email || ''}`);
+
+      // Fetch invited events (RLS now allows this)
+      const invitedEventIds = (invitations || [])
+        .filter(inv => inv.status !== "declined")
+        .map(inv => inv.event_id)
+        .filter(id => !ownEvents.some(e => e.id === id)); // exclude own
+
+      let invitedEvents: CalendarEvent[] = [];
+      if (invitedEventIds.length > 0) {
+        const { data: invData } = await supabase
+          .from("calendar_events")
+          .select("*")
+          .in("id", invitedEventIds);
+
+        if (invData) {
+          invitedEvents = (invData as unknown as DbCalendarEvent[]).map(e => {
+            const inv = (invitations || []).find(i => i.event_id === e.id);
+            return mapDbToEvent(e, inv ? { id: inv.id, status: inv.status } : null);
+          });
+        }
+      }
+
+      setEvents([...ownEvents, ...invitedEvents]);
     } catch (error: any) {
       console.error("Error fetching calendar events:", error);
       toast.error("שגיאה בטעינת אירועי לוח שנה");
@@ -181,5 +218,30 @@ export function useCalendarEvents() {
     }
   }, [user]);
 
-  return { events, loading, addEvent, updateEvent, deleteEvent, refetch: fetchEvents };
+  const respondToInvitation = useCallback(async (invitationId: string, response: "accepted" | "declined") => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from("event_invitations")
+        .update({ status: response, responded_at: new Date().toISOString() })
+        .eq("id", invitationId);
+
+      if (error) throw error;
+
+      // Update local state
+      setEvents(prev => prev.map(e =>
+        e.invitationId === invitationId
+          ? { ...e, invitationStatus: response }
+          : e
+      ).filter(e => !(e.invitationId === invitationId && response === "declined")));
+
+      toast.success(response === "accepted" ? "✅ ההזמנה אושרה" : "❌ ההזמנה נדחתה");
+    } catch (error: any) {
+      console.error("Error responding to invitation:", error);
+      toast.error("שגיאה בעדכון הזמנה");
+    }
+  }, [user]);
+
+  return { events, loading, addEvent, updateEvent, deleteEvent, respondToInvitation, refetch: fetchEvents };
 }

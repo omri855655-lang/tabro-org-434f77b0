@@ -300,19 +300,27 @@ const PaymentDashboard = () => {
   }, [payments, transactions, t]);
 
   // Filter entries by budget period for accurate budget calculations
+  // Get current week range (Sunday-Saturday) for display
+  const weekRange = useMemo(() => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const start = new Date(now);
+    start.setDate(now.getDate() - dayOfWeek);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return { start, end, label: `${format(start, "dd/MM")} - ${format(end, "dd/MM")}` };
+  }, []);
+
   const periodFilteredEntries = useMemo(() => {
     const now = new Date();
     return dashboardEntries.filter(entry => {
-      const entryDate = new Date(entry.created_at);
+      // Use due_date (actual transaction/payment date) instead of created_at
+      const dateStr = entry.due_date || entry.created_at;
+      const entryDate = new Date(dateStr);
       if (budgetPeriod === "weekly") {
-        const dayOfWeek = now.getDay();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - dayOfWeek);
-        startOfWeek.setHours(0, 0, 0, 0);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        return entryDate >= startOfWeek && entryDate <= endOfWeek;
+        return entryDate >= weekRange.start && entryDate <= weekRange.end;
       }
       if (budgetPeriod === "monthly") {
         return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
@@ -322,10 +330,9 @@ const PaymentDashboard = () => {
         const qEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0, 23, 59, 59, 999);
         return entryDate >= qStart && entryDate <= qEnd;
       }
-      // yearly
       return entryDate.getFullYear() === now.getFullYear();
     });
-  }, [dashboardEntries, budgetPeriod]);
+  }, [dashboardEntries, budgetPeriod, weekRange]);
 
   // Financial calculations
   const totalExpenses = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense").reduce((s, p) => s + p.amount, 0), [dashboardEntries]);
@@ -566,7 +573,7 @@ ${context}
                 {budgetTarget > 0 && (
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
                     <Badge variant={periodSpending > budgetTarget ? "destructive" : "default"} className="text-xs">
-                      {getBudgetPeriodLabel(budgetPeriod)}: ₪{budgetTarget.toLocaleString()} | {t("budgetRemaining" as any)}: ₪{Math.max(budgetTarget - periodSpending, 0).toLocaleString()}
+                      {getBudgetPeriodLabel(budgetPeriod)}{budgetPeriod === "weekly" ? ` (${weekRange.label})` : ""}: ₪{budgetTarget.toLocaleString()} | {t("budgetRemaining" as any)}: ₪{Math.max(budgetTarget - periodSpending, 0).toLocaleString()}
                     </Badge>
                   </div>
                 )}

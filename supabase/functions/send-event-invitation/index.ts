@@ -5,6 +5,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Format date in Israel timezone consistently
+const formatDateIL = (dateStr: string, style: 'long' | 'short' = 'long') => {
+  const d = new Date(dateStr)
+  if (style === 'long') {
+    return d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'long', timeStyle: 'short' })
+  }
+  return d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', timeStyle: 'short' })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -56,12 +65,21 @@ Deno.serve(async (req) => {
 
     const inviterName = profile?.display_name || profile?.username || user.email?.split('@')[0] || 'משתמש'
 
-    // Insert invitations
-    const invitations = inviteeEmails.map((email: string) => ({
-      event_id: eventId,
-      inviter_user_id: user.id,
-      invitee_email: email.toLowerCase().trim(),
-    }))
+    // Resolve invitee user IDs from email
+    const invitations = []
+    for (const email of inviteeEmails) {
+      const cleanEmail = email.toLowerCase().trim()
+      // Try to find user by email
+      const { data: usersData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      const inviteeUser = usersData?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
+
+      invitations.push({
+        event_id: eventId,
+        inviter_user_id: user.id,
+        invitee_email: cleanEmail,
+        invitee_user_id: inviteeUser?.id || null,
+      })
+    }
 
     const { data: insertedInvites, error: insertError } = await adminClient
       .from('event_invitations')
@@ -76,19 +94,27 @@ Deno.serve(async (req) => {
     const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
     const lovableKey = Deno.env.get('LOVABLE_API_KEY')
 
-    if (resendKey && lovableKey) {
-      const startTime = new Date(event.start_time).toLocaleString('he-IL', { dateStyle: 'long', timeStyle: 'short' })
-      const endTime = new Date(event.end_time).toLocaleString('he-IL', { timeStyle: 'short' })
+    if (resendKey) {
+      // Use Israel timezone for display
+      const startTime = formatDateIL(event.start_time, 'long')
+      const endTime = formatDateIL(event.end_time, 'short')
 
       for (const email of inviteeEmails) {
         try {
-          await fetch('https://connector-gateway.lovable.dev/resend/emails', {
+          const apiUrl = lovableKey
+            ? 'https://connector-gateway.lovable.dev/resend/emails'
+            : 'https://api.resend.com/emails'
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (lovableKey) {
+            headers['Authorization'] = `Bearer ${lovableKey}`
+            headers['X-Connection-Api-Key'] = resendKey
+          } else {
+            headers['Authorization'] = `Bearer ${resendKey}`
+          }
+
+          await fetch(apiUrl, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${lovableKey}`,
-              'X-Connection-Api-Key': resendKey,
-            },
+            headers,
             body: JSON.stringify({
               from: 'Tabro <onboarding@resend.dev>',
               to: [email.toLowerCase().trim()],

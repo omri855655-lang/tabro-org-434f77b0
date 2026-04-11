@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTasks, Task } from "@/hooks/useTasks";
 import { useCalendarEvents, CalendarEvent, getCategoryColor } from "@/hooks/useCalendarEvents";
+import { Check, X as XIcon } from "lucide-react";
 import { useCustomCategories, COLOR_PALETTE, CustomCategory } from "@/hooks/useCustomCategories";
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
@@ -40,17 +41,23 @@ type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overd
 type ViewMode = "day" | "week" | "month" | "year";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const DEFAULT_HOUR_HEIGHT = 60; // px per hour
-const SNAP_MINUTES = 5; // snap to 5-min intervals for fine control
+const DEFAULT_HOUR_HEIGHT = 60;
+const SNAP_MINUTES = 5;
 const MIN_HOUR_HEIGHT = 30;
 const MAX_HOUR_HEIGHT = 120;
+
+// Build a local ISO-like string without timezone shift (keeps local hours)
+const toLocalISOString = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
 
 const PersonalPlanner = () => {
   const { user } = useAuth();
   const { tasks: personalTasks } = useTasks("personal");
   const { tasks: workTasks } = useTasks("work");
   const { tasks: recurringTasks, isTaskDueToday, isTaskCompletedToday } = useRecurringTasks();
-  const { events, addEvent, updateEvent, deleteEvent } = useCalendarEvents();
+  const { events, addEvent, updateEvent, deleteEvent, respondToInvitation } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
 
@@ -486,8 +493,8 @@ const PersonalPlanner = () => {
             title: `🔁 ${task.title}`,
             description: task.description || "",
             category: "לוז יומי",
-            startTime: start.toISOString(),
-            endTime: end.toISOString(),
+            startTime: toLocalISOString(start),
+            endTime: toLocalISOString(end),
             color: "#8b5cf6",
             sourceType: "recurring_task",
             sourceId: task.id,
@@ -588,8 +595,8 @@ const PersonalPlanner = () => {
 
       const newEnd = addMinutes(newStart, duration);
       updateEvent(draggingEvent.id, {
-        startTime: newStart.toISOString(),
-        endTime: newEnd.toISOString(),
+        startTime: toLocalISOString(newStart),
+        endTime: toLocalISOString(newEnd),
       });
       setDraggingEvent(null);
       setDragCreateState(null);
@@ -642,8 +649,8 @@ const PersonalPlanner = () => {
       title: draggedTask.title,
       description: "",
       category: draggedTask.source === "work" ? "עבודה" : draggedTask.source === "project" ? "פרויקט" : draggedTask.source === "recurring" ? "לוז יומי" : "אישי",
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      startTime: toLocalISOString(start),
+      endTime: toLocalISOString(end),
       color: "",
       sourceType,
       sourceId: draggedTask.id,
@@ -818,12 +825,12 @@ const PersonalPlanner = () => {
           );
           const newDuration = Math.max(5, originalDuration + deltaMinutes);
           const newEnd = addMinutes(new Date(event.startTime), newDuration);
-          await updateEvent(resizingEvent.eventId, { endTime: newEnd.toISOString() });
+          await updateEvent(resizingEvent.eventId, { endTime: toLocalISOString(newEnd) });
         } else {
           const newStart = addMinutes(new Date(resizingEvent.originalStartTime), deltaMinutes);
           const end = new Date(resizingEvent.originalEndTime);
           if (newStart < end && differenceInMinutes(end, newStart) >= 5) {
-            await updateEvent(resizingEvent.eventId, { startTime: newStart.toISOString() });
+            await updateEvent(resizingEvent.eventId, { startTime: toLocalISOString(newStart) });
           }
         }
       }
@@ -997,8 +1004,8 @@ const PersonalPlanner = () => {
       title: "",
       description: "",
       category: "אחר",
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      startTime: toLocalISOString(start),
+      endTime: toLocalISOString(end),
       color: "",
       sourceType: "custom",
       sourceId: null,
@@ -1316,11 +1323,11 @@ const PersonalPlanner = () => {
                             setDraggedTask(null);
                           }}
                           onDragEnd={() => setDraggingEvent(null)}
-                          className={`absolute rounded-md px-2 py-1 text-xs cursor-grab active:cursor-grabbing overflow-hidden z-20 shadow-sm hover:shadow-md transition-shadow border select-none ${draggingEvent?.id === event.id ? "opacity-50" : ""}`}
+                          className={`absolute rounded-md px-2 py-1 text-xs cursor-grab active:cursor-grabbing overflow-hidden z-20 shadow-sm hover:shadow-md transition-shadow border select-none ${draggingEvent?.id === event.id ? "opacity-50" : ""} ${event.isInvited && event.invitationStatus === "pending" ? "opacity-60 border-dashed" : ""}`}
                           style={{
                             top,
                             height: Math.max(height, 20),
-                            backgroundColor: event.color + "22",
+                            backgroundColor: event.color + (event.isInvited && event.invitationStatus === "pending" ? "11" : "22"),
                             borderColor: event.color,
                             borderRightWidth: 3,
                             left: `${leftPercent}%`,
@@ -1329,11 +1336,18 @@ const PersonalPlanner = () => {
                           onClick={() => handleClickEvent(event)}
                         >
                           <div className="font-medium truncate" style={{ color: event.color }}>
-                            {event.title}
+                            {event.isInvited ? "📨 " : ""}{event.title}
                           </div>
                           {height >= 36 && (
                             <div className="text-muted-foreground truncate">
                               {format(new Date(event.startTime), "HH:mm")}-{format(new Date(event.endTime), "HH:mm")}
+                            </div>
+                          )}
+                          {/* Accept/Decline buttons for pending invitations */}
+                          {event.isInvited && event.invitationStatus === "pending" && height >= 50 && (
+                            <div className="flex gap-1 mt-0.5">
+                              <button onClick={(e) => { e.stopPropagation(); respondToInvitation(event.invitationId!, "accepted"); }} className="text-[9px] bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 rounded hover:bg-green-500/40">✓ אשר</button>
+                              <button onClick={(e) => { e.stopPropagation(); respondToInvitation(event.invitationId!, "declined"); }} className="text-[9px] bg-red-500/20 text-red-700 dark:text-red-400 px-1.5 rounded hover:bg-red-500/40">✗ דחה</button>
                             </div>
                           )}
 
@@ -1956,17 +1970,30 @@ const PersonalPlanner = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium">שעת התחלה</label>
+                <label className="text-sm font-medium">תאריך התחלה</label>
+                <Input
+                  type="date"
+                  value={newEventData.startTime ? format(new Date(newEventData.startTime), "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const d = new Date(newEventData.startTime || new Date());
+                    const endD = new Date(newEventData.endTime || new Date());
+                    const [y, m, day] = e.target.value.split("-").map(Number);
+                    d.setFullYear(y, m - 1, day);
+                    // Sync end date to same day
+                    endD.setFullYear(y, m - 1, day);
+                    setNewEventData((p) => ({ ...p, startTime: toLocalISOString(d), endTime: toLocalISOString(endD) }));
+                  }}
+                />
+                <label className="text-sm font-medium mt-2 block">שעת התחלה</label>
                 <div className="flex gap-1 items-center" dir="ltr">
                   <Select
                     value={newEventData.startTime ? String(new Date(newEventData.startTime).getHours()) : "9"}
                     onValueChange={(v) => {
-                   const d = new Date(newEventData.startTime || new Date());
+                      const d = new Date(newEventData.startTime || new Date());
                       d.setHours(parseInt(v));
-                      // Auto-set end time to start + 1 hour
                       const autoEnd = new Date(d);
                       autoEnd.setHours(autoEnd.getHours() + 1);
-                      setNewEventData((p) => ({ ...p, startTime: d.toISOString(), endTime: autoEnd.toISOString() }));
+                      setNewEventData((p) => ({ ...p, startTime: toLocalISOString(d), endTime: toLocalISOString(autoEnd) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
@@ -1978,47 +2005,36 @@ const PersonalPlanner = () => {
                     onValueChange={(v) => {
                       const d = new Date(newEventData.startTime || new Date());
                       d.setMinutes(parseInt(v));
-                      // Auto-set end time to start + 1 hour
                       const autoEnd = new Date(d);
                       autoEnd.setHours(autoEnd.getHours() + 1);
-                      setNewEventData((p) => ({ ...p, startTime: d.toISOString(), endTime: autoEnd.toISOString() }));
+                      setNewEventData((p) => ({ ...p, startTime: toLocalISOString(d), endTime: toLocalISOString(autoEnd) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
                     <SelectContent>{Array.from({ length: 60 }, (_, i) => i).map(m => <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>)}</SelectContent>
                   </Select>
-            <div>
-              <label className="text-sm font-medium">הזמן משתתפים (מיילים, מופרדים בפסיק)</label>
-              <Input
-                value={newEventData.inviteeEmails}
-                onChange={(e) => setNewEventData((p) => ({ ...p, inviteeEmails: e.target.value }))}
-                placeholder="user@example.com, friend@example.com"
-                dir="ltr"
-              />
-              <p className="text-xs text-muted-foreground mt-1">המוזמנים יקבלו מייל הזמנה</p>
-            </div>
-          </div>
-                <Input
-                  type="date"
-                  value={newEventData.startTime ? format(new Date(newEventData.startTime), "yyyy-MM-dd") : ""}
-                  onChange={(e) => {
-                    const d = new Date(newEventData.startTime || new Date());
-                    const [y, m, day] = e.target.value.split("-").map(Number);
-                    d.setFullYear(y, m - 1, day);
-                    setNewEventData((p) => ({ ...p, startTime: d.toISOString() }));
-                  }}
-                  className="mt-1"
-                />
+                </div>
               </div>
               <div>
-                <label className="text-sm font-medium">שעת סיום</label>
+                <label className="text-sm font-medium">תאריך סיום</label>
+                <Input
+                  type="date"
+                  value={newEventData.endTime ? format(new Date(newEventData.endTime), "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const d = new Date(newEventData.endTime || new Date());
+                    const [y, m, day] = e.target.value.split("-").map(Number);
+                    d.setFullYear(y, m - 1, day);
+                    setNewEventData((p) => ({ ...p, endTime: toLocalISOString(d) }));
+                  }}
+                />
+                <label className="text-sm font-medium mt-2 block">שעת סיום</label>
                 <div className="flex gap-1 items-center" dir="ltr">
                   <Select
                     value={newEventData.endTime ? String(new Date(newEventData.endTime).getHours()) : "10"}
                     onValueChange={(v) => {
                       const d = new Date(newEventData.endTime || new Date());
                       d.setHours(parseInt(v));
-                      setNewEventData((p) => ({ ...p, endTime: d.toISOString() }));
+                      setNewEventData((p) => ({ ...p, endTime: toLocalISOString(d) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
@@ -2030,24 +2046,13 @@ const PersonalPlanner = () => {
                     onValueChange={(v) => {
                       const d = new Date(newEventData.endTime || new Date());
                       d.setMinutes(parseInt(v));
-                      setNewEventData((p) => ({ ...p, endTime: d.toISOString() }));
+                      setNewEventData((p) => ({ ...p, endTime: toLocalISOString(d) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
                     <SelectContent>{Array.from({ length: 60 }, (_, i) => i).map(m => <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <Input
-                  type="date"
-                  value={newEventData.endTime ? format(new Date(newEventData.endTime), "yyyy-MM-dd") : ""}
-                  onChange={(e) => {
-                    const d = new Date(newEventData.endTime || new Date());
-                    const [y, m, day] = e.target.value.split("-").map(Number);
-                    d.setFullYear(y, m - 1, day);
-                    setNewEventData((p) => ({ ...p, endTime: d.toISOString() }));
-                  }}
-                  className="mt-1"
-                />
               </div>
             </div>
 
@@ -2057,8 +2062,22 @@ const PersonalPlanner = () => {
                 value={newEventData.description}
                 onChange={(e) => setNewEventData((p) => ({ ...p, description: e.target.value }))}
                 placeholder="הערות נוספות..."
-                rows={3}
+                rows={2}
               />
+            </div>
+
+            {/* Invitee emails - below time fields, full width */}
+            <div>
+              <label className="text-sm font-medium">📧 הזמן משתתפים (מיילים, מופרדים בפסיק)</label>
+              <Textarea
+                value={newEventData.inviteeEmails}
+                onChange={(e) => setNewEventData((p) => ({ ...p, inviteeEmails: e.target.value }))}
+                placeholder="user@example.com, friend@example.com"
+                dir="ltr"
+                rows={2}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">המוזמנים יקבלו מייל הזמנה ויראו את האירוע בלוח שלהם</p>
             </div>
           </div>
 
