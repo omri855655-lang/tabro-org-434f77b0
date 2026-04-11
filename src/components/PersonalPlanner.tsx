@@ -1963,17 +1963,30 @@ const PersonalPlanner = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium">שעת התחלה</label>
+                <label className="text-sm font-medium">תאריך התחלה</label>
+                <Input
+                  type="date"
+                  value={newEventData.startTime ? format(new Date(newEventData.startTime), "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const d = new Date(newEventData.startTime || new Date());
+                    const endD = new Date(newEventData.endTime || new Date());
+                    const [y, m, day] = e.target.value.split("-").map(Number);
+                    d.setFullYear(y, m - 1, day);
+                    // Sync end date to same day
+                    endD.setFullYear(y, m - 1, day);
+                    setNewEventData((p) => ({ ...p, startTime: toLocalISOString(d), endTime: toLocalISOString(endD) }));
+                  }}
+                />
+                <label className="text-sm font-medium mt-2 block">שעת התחלה</label>
                 <div className="flex gap-1 items-center" dir="ltr">
                   <Select
                     value={newEventData.startTime ? String(new Date(newEventData.startTime).getHours()) : "9"}
                     onValueChange={(v) => {
-                   const d = new Date(newEventData.startTime || new Date());
+                      const d = new Date(newEventData.startTime || new Date());
                       d.setHours(parseInt(v));
-                      // Auto-set end time to start + 1 hour
                       const autoEnd = new Date(d);
                       autoEnd.setHours(autoEnd.getHours() + 1);
-                      setNewEventData((p) => ({ ...p, startTime: d.toISOString(), endTime: autoEnd.toISOString() }));
+                      setNewEventData((p) => ({ ...p, startTime: toLocalISOString(d), endTime: toLocalISOString(autoEnd) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
@@ -1985,47 +1998,36 @@ const PersonalPlanner = () => {
                     onValueChange={(v) => {
                       const d = new Date(newEventData.startTime || new Date());
                       d.setMinutes(parseInt(v));
-                      // Auto-set end time to start + 1 hour
                       const autoEnd = new Date(d);
                       autoEnd.setHours(autoEnd.getHours() + 1);
-                      setNewEventData((p) => ({ ...p, startTime: d.toISOString(), endTime: autoEnd.toISOString() }));
+                      setNewEventData((p) => ({ ...p, startTime: toLocalISOString(d), endTime: toLocalISOString(autoEnd) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
                     <SelectContent>{Array.from({ length: 60 }, (_, i) => i).map(m => <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>)}</SelectContent>
                   </Select>
-            <div>
-              <label className="text-sm font-medium">הזמן משתתפים (מיילים, מופרדים בפסיק)</label>
-              <Input
-                value={newEventData.inviteeEmails}
-                onChange={(e) => setNewEventData((p) => ({ ...p, inviteeEmails: e.target.value }))}
-                placeholder="user@example.com, friend@example.com"
-                dir="ltr"
-              />
-              <p className="text-xs text-muted-foreground mt-1">המוזמנים יקבלו מייל הזמנה</p>
-            </div>
-          </div>
-                <Input
-                  type="date"
-                  value={newEventData.startTime ? format(new Date(newEventData.startTime), "yyyy-MM-dd") : ""}
-                  onChange={(e) => {
-                    const d = new Date(newEventData.startTime || new Date());
-                    const [y, m, day] = e.target.value.split("-").map(Number);
-                    d.setFullYear(y, m - 1, day);
-                    setNewEventData((p) => ({ ...p, startTime: d.toISOString() }));
-                  }}
-                  className="mt-1"
-                />
+                </div>
               </div>
               <div>
-                <label className="text-sm font-medium">שעת סיום</label>
+                <label className="text-sm font-medium">תאריך סיום</label>
+                <Input
+                  type="date"
+                  value={newEventData.endTime ? format(new Date(newEventData.endTime), "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const d = new Date(newEventData.endTime || new Date());
+                    const [y, m, day] = e.target.value.split("-").map(Number);
+                    d.setFullYear(y, m - 1, day);
+                    setNewEventData((p) => ({ ...p, endTime: toLocalISOString(d) }));
+                  }}
+                />
+                <label className="text-sm font-medium mt-2 block">שעת סיום</label>
                 <div className="flex gap-1 items-center" dir="ltr">
                   <Select
                     value={newEventData.endTime ? String(new Date(newEventData.endTime).getHours()) : "10"}
                     onValueChange={(v) => {
                       const d = new Date(newEventData.endTime || new Date());
                       d.setHours(parseInt(v));
-                      setNewEventData((p) => ({ ...p, endTime: d.toISOString() }));
+                      setNewEventData((p) => ({ ...p, endTime: toLocalISOString(d) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
@@ -2037,24 +2039,13 @@ const PersonalPlanner = () => {
                     onValueChange={(v) => {
                       const d = new Date(newEventData.endTime || new Date());
                       d.setMinutes(parseInt(v));
-                      setNewEventData((p) => ({ ...p, endTime: d.toISOString() }));
+                      setNewEventData((p) => ({ ...p, endTime: toLocalISOString(d) }));
                     }}
                   >
                     <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
                     <SelectContent>{Array.from({ length: 60 }, (_, i) => i).map(m => <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <Input
-                  type="date"
-                  value={newEventData.endTime ? format(new Date(newEventData.endTime), "yyyy-MM-dd") : ""}
-                  onChange={(e) => {
-                    const d = new Date(newEventData.endTime || new Date());
-                    const [y, m, day] = e.target.value.split("-").map(Number);
-                    d.setFullYear(y, m - 1, day);
-                    setNewEventData((p) => ({ ...p, endTime: d.toISOString() }));
-                  }}
-                  className="mt-1"
-                />
               </div>
             </div>
 
@@ -2064,8 +2055,22 @@ const PersonalPlanner = () => {
                 value={newEventData.description}
                 onChange={(e) => setNewEventData((p) => ({ ...p, description: e.target.value }))}
                 placeholder="הערות נוספות..."
-                rows={3}
+                rows={2}
               />
+            </div>
+
+            {/* Invitee emails - below time fields, full width */}
+            <div>
+              <label className="text-sm font-medium">📧 הזמן משתתפים (מיילים, מופרדים בפסיק)</label>
+              <Textarea
+                value={newEventData.inviteeEmails}
+                onChange={(e) => setNewEventData((p) => ({ ...p, inviteeEmails: e.target.value }))}
+                placeholder="user@example.com, friend@example.com"
+                dir="ltr"
+                rows={2}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">המוזמנים יקבלו מייל הזמנה ויראו את האירוע בלוח שלהם</p>
             </div>
           </div>
 
