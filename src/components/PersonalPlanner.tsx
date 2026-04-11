@@ -41,10 +41,16 @@ type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overd
 type ViewMode = "day" | "week" | "month" | "year";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const DEFAULT_HOUR_HEIGHT = 60; // px per hour
-const SNAP_MINUTES = 5; // snap to 5-min intervals for fine control
+const DEFAULT_HOUR_HEIGHT = 60;
+const SNAP_MINUTES = 5;
 const MIN_HOUR_HEIGHT = 30;
 const MAX_HOUR_HEIGHT = 120;
+
+// Build a local ISO-like string without timezone shift (keeps local hours)
+const toLocalISOString = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
 
 const PersonalPlanner = () => {
   const { user } = useAuth();
