@@ -573,7 +573,7 @@ ${context}
                 {budgetTarget > 0 && (
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
                     <Badge variant={periodSpending > budgetTarget ? "destructive" : "default"} className="text-xs">
-                      {getBudgetPeriodLabel(budgetPeriod)}: ₪{budgetTarget.toLocaleString()} | {t("budgetRemaining" as any)}: ₪{Math.max(budgetTarget - periodSpending, 0).toLocaleString()}
+                      {getBudgetPeriodLabel(budgetPeriod)}{budgetPeriod === "weekly" ? ` (${weekRange.label})` : ""}: ₪{budgetTarget.toLocaleString()} | {t("budgetRemaining" as any)}: ₪{Math.max(budgetTarget - periodSpending, 0).toLocaleString()}
                     </Badge>
                   </div>
                 )}
