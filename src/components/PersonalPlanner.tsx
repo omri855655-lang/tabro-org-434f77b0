@@ -51,7 +51,7 @@ const PersonalPlanner = () => {
   const { tasks: personalTasks } = useTasks("personal");
   const { tasks: workTasks } = useTasks("work");
   const { tasks: recurringTasks, isTaskDueToday, isTaskCompletedToday } = useRecurringTasks();
-  const { events, addEvent, updateEvent, deleteEvent } = useCalendarEvents();
+  const { events, addEvent, updateEvent, deleteEvent, respondToInvitation } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
 
