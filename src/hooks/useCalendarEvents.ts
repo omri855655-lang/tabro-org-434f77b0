@@ -17,7 +17,6 @@ export interface CalendarEvent {
   sourceId: string | null;
   createdAt: string;
   updatedAt: string;
-  // Invitation metadata (only for invited events)
   invitationStatus?: "pending" | "accepted" | "declined" | null;
   invitationId?: string | null;
   isInvited?: boolean;
@@ -109,7 +108,7 @@ export function useCalendarEvents() {
       const invitedEventIds = (invitations || [])
         .filter(inv => inv.status !== "declined")
         .map(inv => inv.event_id)
-        .filter(id => !ownEvents.some(e => e.id === id)); // exclude own
+        .filter(id => !ownEvents.some(e => e.id === id));
 
       let invitedEvents: CalendarEvent[] = [];
       if (invitedEventIds.length > 0) {
@@ -138,6 +137,29 @@ export function useCalendarEvents() {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  // Realtime subscription for immediate updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('calendar-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'calendar_events' },
+        () => { fetchEvents(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'event_invitations' },
+        () => { fetchEvents(); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchEvents]);
 
   const addEvent = useCallback(async (event: Partial<CalendarEvent>): Promise<CalendarEvent | null> => {
     if (!user) return null;
