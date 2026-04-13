@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const FROM_ADDRESS = 'Tabro <noreply@notify.tabro.org>'
+
 // Format date in Israel timezone consistently
 const formatDateIL = (dateStr: string, style: 'long' | 'short' = 'long') => {
   const d = new Date(dateStr)
@@ -12,6 +14,47 @@ const formatDateIL = (dateStr: string, style: 'long' | 'short' = 'long') => {
     return d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'long', timeStyle: 'short' })
   }
   return d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', timeStyle: 'short' })
+}
+
+// Convert Date to ICS format: 20260413T111000Z
+function toICSDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+}
+
+// Generate ICS content for Google Calendar / Outlook compatibility
+function generateICS(event: any, inviterName: string, inviterEmail: string): string {
+  const uid = `${event.id}@tabro.org`
+  const now = toICSDate(new Date().toISOString())
+  const dtStart = toICSDate(event.start_time)
+  const dtEnd = toICSDate(event.end_time)
+  const summary = (event.title || '').replace(/[,;\\]/g, ' ')
+  const description = (event.description || '').replace(/[,;\\]/g, ' ').replace(/\n/g, '\\n')
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Tabro//Calendar//HE',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description}`,
+    `ORGANIZER;CN=${inviterName}:mailto:${inviterEmail}`,
+    'STATUS:CONFIRMED',
+    `URL:https://tabro-org.lovable.app/personal`,
+    'BEGIN:VALARM',
+    'TRIGGER:-PT10M',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:Reminder',
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
 }
 
 Deno.serve(async (req) => {
@@ -64,12 +107,12 @@ Deno.serve(async (req) => {
       .single()
 
     const inviterName = profile?.display_name || profile?.username || user.email?.split('@')[0] || 'משתמש'
+    const inviterEmail = user.email || 'noreply@notify.tabro.org'
 
     // Resolve invitee user IDs from email
     const invitations = []
     for (const email of inviteeEmails) {
       const cleanEmail = email.toLowerCase().trim()
-      // Try to find user by email
       const { data: usersData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
       const inviteeUser = usersData?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
 
@@ -90,12 +133,15 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: insertError.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // Send emails
+    // Generate ICS file content
+    const icsContent = generateICS(event, inviterName, inviterEmail)
+    const icsBase64 = btoa(unescape(encodeURIComponent(icsContent)))
+
+    // Send emails with ICS attachment
     const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
     const lovableKey = Deno.env.get('LOVABLE_API_KEY')
 
     if (resendKey) {
-      // Use Israel timezone for display
       const startTime = formatDateIL(event.start_time, 'long')
       const endTime = formatDateIL(event.end_time, 'short')
 
@@ -116,7 +162,7 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers,
             body: JSON.stringify({
-              from: 'Tabro <onboarding@resend.dev>',
+              from: FROM_ADDRESS,
               to: [email.toLowerCase().trim()],
               subject: `📅 הזמנה לאירוע: ${event.title}`,
               html: `
@@ -131,13 +177,30 @@ Deno.serve(async (req) => {
                       <p style="margin: 5px 0; color: #666;">🕐 ${startTime} - ${endTime}</p>
                       ${event.description ? `<p style="margin: 5px 0; color: #666;">📝 ${event.description}</p>` : ''}
                     </div>
+                    <div style="text-align: center; margin: 20px 0;">
+                      <p style="color: #888; font-size: 14px; margin-bottom: 12px;">
+                        📎 קובץ ICS מצורף — לחץ עליו כדי להוסיף לגוגל קלנדר / Outlook / Apple Calendar
+                      </p>
+                    </div>
                     <p style="color: #888; font-size: 13px; margin-top: 20px;">
                       היכנס/י לאפליקציה כדי לאשר או לדחות את ההזמנה.
                     </p>
+                    <div style="text-align: center; margin-top: 16px;">
+                      <a href="https://tabro-org.lovable.app/personal" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                        פתח את המתכנן
+                      </a>
+                    </div>
                   </div>
                 </div>
               `,
-              reply_to: user.email || 'info@tabro.org',
+              attachments: [
+                {
+                  filename: 'event.ics',
+                  content: icsBase64,
+                  type: 'text/calendar; method=REQUEST',
+                }
+              ],
+              reply_to: inviterEmail,
             }),
           })
         } catch (e) {
