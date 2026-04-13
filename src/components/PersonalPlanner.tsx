@@ -46,10 +46,15 @@ const SNAP_MINUTES = 5;
 const MIN_HOUR_HEIGHT = 30;
 const MAX_HOUR_HEIGHT = 120;
 
-// Build a local ISO-like string without timezone shift (keeps local hours)
+// Build a local ISO string WITH timezone offset so Postgres timestamptz stores correctly
 const toLocalISOString = (d: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const offsetMinutes = d.getTimezoneOffset(); // e.g. -180 for UTC+3
+  const sign = offsetMinutes <= 0 ? "+" : "-";
+  const absOffset = Math.abs(offsetMinutes);
+  const offsetH = pad(Math.floor(absOffset / 60));
+  const offsetM = pad(absOffset % 60);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${offsetH}:${offsetM}`;
 };
 
 const PersonalPlanner = () => {

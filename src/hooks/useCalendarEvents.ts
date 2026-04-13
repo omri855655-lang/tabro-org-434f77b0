@@ -98,11 +98,30 @@ export function useCalendarEvents() {
       if (ownError) throw ownError;
       const ownEvents = (ownData as unknown as DbCalendarEvent[]).map(e => mapDbToEvent(e));
 
-      // Fetch invitations for this user
-      const { data: invitations } = await supabase
+      // Fetch invitations for this user — use separate queries for reliable filtering
+      let allInvitations: any[] = [];
+      
+      // By user_id
+      const { data: invByUserId } = await supabase
         .from("event_invitations")
         .select("id, event_id, status, invitee_email, invitee_user_id")
-        .or(`invitee_user_id.eq.${user.id},invitee_email.ilike.${user.email || ''}`);
+        .eq("invitee_user_id", user.id);
+      if (invByUserId) allInvitations.push(...invByUserId);
+      
+      // By email (if user has email and not already covered)
+      if (user.email) {
+        const { data: invByEmail } = await supabase
+          .from("event_invitations")
+          .select("id, event_id, status, invitee_email, invitee_user_id")
+          .ilike("invitee_email", user.email);
+        if (invByEmail) {
+          const existingIds = new Set(allInvitations.map(i => i.id));
+          for (const inv of invByEmail) {
+            if (!existingIds.has(inv.id)) allInvitations.push(inv);
+          }
+        }
+      }
+      const invitations = allInvitations;
 
       // Fetch invited events (RLS now allows this)
       const invitedEventIds = (invitations || [])
