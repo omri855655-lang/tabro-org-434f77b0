@@ -150,46 +150,48 @@ Deno.serve(async (req) => {
 
       const lovableKey = Deno.env.get('LOVABLE_API_KEY')
       const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
-
-      let emailRes: Response
-      if (lovableKey && resendKey) {
-        // Use connector gateway for broader delivery (any email address)
-        emailRes = await fetch('https://connector-gateway.lovable.dev/resend/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${lovableKey}`,
-            'X-Connection-Api-Key': resendKey,
-          },
-          body: JSON.stringify({
-            from: 'Tabro <onboarding@resend.dev>',
-            to: [to],
-            subject,
-            html: `<div style="font-family:Arial,sans-serif;max-width:600px;">${htmlBody.replace(/\n/g, '<br/>')}</div>`,
-            reply_to: reply_to || 'info@tabro.org',
-          }),
-        })
-      } else if (resendKey) {
-        emailRes = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-          body: JSON.stringify({
-            from: 'Tabro <onboarding@resend.dev>',
-            to: [to],
-            subject,
-            html: `<div style="font-family:Arial,sans-serif;max-width:600px;">${htmlBody.replace(/\n/g, '<br/>')}</div>`,
-            reply_to: reply_to || 'info@tabro.org',
-          }),
-        })
-      } else {
+      if (!resendKey) {
         return new Response(JSON.stringify({ error: 'No email API key configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      const resBody = await emailRes.text()
-      if (!emailRes.ok) {
-        return new Response(JSON.stringify({ error: resBody }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const apiUrl = lovableKey
+        ? 'https://connector-gateway.lovable.dev/resend/emails'
+        : 'https://api.resend.com/emails'
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (lovableKey) {
+        headers['Authorization'] = `Bearer ${lovableKey}`
+        headers['X-Connection-Api-Key'] = resendKey
+      } else {
+        headers['Authorization'] = `Bearer ${resendKey}`
       }
+
+      const emailRes = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          from: 'Tabro <onboarding@resend.dev>',
+          to: [to],
+          subject,
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;">${htmlBody.replace(/\n/g, '<br/>')}</div>`,
+          reply_to: reply_to || 'info@tabro.org',
+        }),
+      })
+
       const messageId = crypto.randomUUID()
+      if (!emailRes.ok) {
+        const resBody = await emailRes.text()
+        // Log the failure with details
+        const errorDetail = resBody.includes('not verified') || resBody.includes('sandbox')
+          ? `Sandbox limitation: can only send to the Resend account owner email. Complete domain verification in Cloud → Emails to send to any address. (${resBody.slice(0, 200)})`
+          : resBody.slice(0, 500)
+        await adminClient.from('email_send_log').insert({
+          message_id: messageId, template_name: 'admin-compose', recipient_email: to, status: 'failed',
+          error_message: errorDetail,
+          metadata: { subject, sent_by: user.email },
+        })
+        return new Response(JSON.stringify({ error: errorDetail }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
       await adminClient.from('email_send_log').insert({
         message_id: messageId, template_name: 'admin-compose', recipient_email: to, status: 'sent', metadata: { subject, sent_by: user.email, reply_to: reply_to || 'info@tabro.org' },
       })
