@@ -494,7 +494,7 @@ ${context}
                 <Badge variant="secondary" className="text-[9px]">
                   {p.source === "financial_transactions" ? t("importedLabel" as any) : t("plannedLabel" as any)}
                 </Badge>
-                {p.recurring && <Badge variant="outline" className="text-[9px] border-amber-300 text-amber-600">{t("fixedPayment" as any)}</Badge>}
+                {p.recurring && <Badge variant="outline" className="text-[9px] border-amber-300 text-amber-600">{t("fixedPayment" as any)}{p.recurring_frequency ? ` (${getBudgetPeriodLabel(p.recurring_frequency)})` : ""}</Badge>}
               </div>
             </div>
             <span className={`font-bold text-sm whitespace-nowrap ${colorClass}`}>
