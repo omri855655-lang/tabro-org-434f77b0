@@ -930,7 +930,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       </div>
 
       {/* Toolbar - sticky below stats */}
-      <div className="flex items-center gap-2 p-3 border-b border-border bg-muted/30 sticky top-[52px] z-20">
+      <div className="border-b border-border bg-muted/30 sticky top-[52px] z-20">
+        <div className="flex items-center gap-2 p-3">
         <h2 className="text-lg font-semibold text-foreground ml-4">{title}</h2>
         {!readOnly && (
           <div className="flex items-center gap-1">
@@ -1008,6 +1009,22 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               ))}
             </PopoverContent>
           </Popover>
+        </div>
+        </div>
+        {/* Sticky category/column headers bar */}
+        <div className="flex items-center gap-3 px-4 py-1.5 bg-muted/50 border-t border-border/50 text-[11px] text-muted-foreground overflow-x-auto">
+          <span className="font-medium min-w-[60px]">דחוף / #</span>
+          <span className="font-medium min-w-[200px] flex-1">תיאור המשימה</span>
+          <span className="font-medium min-w-[80px]">סיווג</span>
+          <span className="font-medium min-w-[80px]">אחריות</span>
+          <span className="font-medium min-w-[80px]">סטטוס</span>
+          <span className="font-medium min-w-[100px]">היכן זה עומד</span>
+          <span className="font-medium min-w-[100px]">משימות שבוצעו</span>
+          <span className="font-medium min-w-[90px]">סיום מתוכנן</span>
+          <span className="font-medium min-w-[60px]">חריגה</span>
+          <span className="font-medium min-w-[70px]">נוצר</span>
+          <span className="font-medium min-w-[70px]">עודכן</span>
+          <span className="font-medium min-w-[50px]">AI</span>
         </div>
       </div>
 

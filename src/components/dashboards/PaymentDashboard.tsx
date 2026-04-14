@@ -254,12 +254,31 @@ const PaymentDashboard = () => {
     toast.success(t("save" as any));
   };
 
-  const toggleEntryRecurring = async (entry: DashboardEntry) => {
-    if (entry.source !== "payment_tracking") return;
-    const newRecurring = !entry.recurring;
-    await supabase.from("payment_tracking").update({ recurring: newRecurring }).eq("id", entry.id);
-    setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring } : p));
-    toast.success(newRecurring ? t("fixedPayment" as any) : t("variableExpenses" as any));
+  const handleToggleRecurring = async (entry: DashboardEntry) => {
+    if (entry.source === "payment_tracking") {
+      const newRecurring = !entry.recurring;
+      await supabase.from("payment_tracking").update({ recurring: newRecurring }).eq("id", entry.id);
+      setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring } : p));
+      toast.success(newRecurring ? t("fixedPayment" as any) : t("variableExpenses" as any));
+    } else if (entry.source === "financial_transactions") {
+      // For imported transactions: copy to payment_tracking as a fixed expense, then remove from financial_transactions
+      const { error: insertErr } = await supabase.from("payment_tracking").insert({
+        user_id: user!.id,
+        title: entry.title,
+        amount: entry.amount,
+        category: entry.category,
+        payment_type: entry.payment_type,
+        due_date: entry.due_date,
+        recurring: true,
+        recurring_frequency: "monthly",
+        paid: entry.paid,
+      });
+      if (insertErr) { toast.error(t("error" as any)); return; }
+      // Remove from financial_transactions
+      await supabase.from("financial_transactions").delete().eq("id", entry.id);
+      toast.success(t("fixedPayment" as any));
+      fetchFinanceData();
+    }
   };
 
   const dashboardEntries = useMemo<DashboardEntry[]>(() => {
@@ -479,13 +498,13 @@ ${context}
     return (
       <Card key={p.id} className={p.payment_type === "income" ? "border-green-200 dark:border-green-800" : p.recurring ? "border-muted" : ""}>
         <CardContent className="py-2 px-3 space-y-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" dir={isRtl ? "rtl" : "ltr"}>
             {p.source === "payment_tracking" ? (
               <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => togglePaid(p.id, p.paid)}>
                 {p.paid ? <Check className="h-4 w-4 text-primary" /> : <div className="h-4 w-4 border-2 rounded" />}
               </Button>
             ) : <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary">₪</div>}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" style={{ textAlign: isRtl ? "right" : "left" }}>
               <p className={`text-sm font-medium ${p.paid ? "line-through text-muted-foreground" : ""}`}>{p.title}</p>
               <div className="flex gap-2 items-center flex-wrap">
                 {p.category && <Badge variant="outline" className="text-[10px]">{getCategoryLabel(p.category)}</Badge>}
@@ -509,7 +528,7 @@ ${context}
             <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteEntry(p)}><Trash2 className="h-3 w-3" /></Button>
           </div>
           {isEditing && (
-            <div className="mt-2 flex gap-2 items-end flex-wrap border-t pt-2">
+            <div className="mt-2 flex gap-2 items-end flex-wrap border-t pt-2" dir={isRtl ? "rtl" : "ltr"}>
               <Input placeholder={t("amount" as any)} type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} className="h-8 text-xs w-[100px]" dir="ltr" />
               <Select value={editCategory} onValueChange={setEditCategory}>
                 <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue placeholder={t("chooseCategory" as any)} /></SelectTrigger>
@@ -517,14 +536,13 @@ ${context}
                   {CATEGORY_IDS.map((c, i) => <SelectItem key={c} value={c}>{t(CATEGORY_KEYS[i] as any)}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {p.source === "payment_tracking" && (
+              {(p.source === "payment_tracking" || p.source === "financial_transactions") && (
                 <Input placeholder={t("notes" as any)} value={editNotes} onChange={e => setEditNotes(e.target.value)} className="h-8 text-xs flex-1 min-w-[120px]" />
               )}
-              {p.source === "payment_tracking" && (
-                <Button size="sm" variant={p.recurring ? "default" : "outline"} className="h-8 text-[10px] gap-1" onClick={() => toggleEntryRecurring(p)}>
-                  {t("fixedPayment" as any)}
-                </Button>
-              )}
+              {/* Mark as fixed/recurring - works for both payment_tracking AND imported transactions */}
+              <Button size="sm" variant={p.recurring ? "default" : "outline"} className="h-8 text-[10px] gap-1" onClick={() => handleToggleRecurring(p)}>
+                {t("fixedPayment" as any)}
+              </Button>
               <Button size="sm" className="h-8 text-xs" onClick={() => saveEntryEdit(p)}>{t("save" as any)}</Button>
             </div>
           )}
@@ -749,7 +767,7 @@ ${context}
         {/* Fixed expenses */}
         {recurringExpenseEntries.length > 0 && (
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2" style={{ textAlign: isRtl ? "right" : "left" }}>
               {t("fixedExpenses" as any)}
               <Badge variant="outline" className="text-[10px]">{recurringExpenseEntries.length} | ₪{recurringExpenseEntries.reduce((s, p) => s + p.amount, 0).toLocaleString()}</Badge>
             </h3>
