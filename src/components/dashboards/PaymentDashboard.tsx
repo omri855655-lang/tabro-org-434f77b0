@@ -67,6 +67,7 @@ interface DashboardEntry {
   due_date: string | null;
   paid: boolean;
   recurring: boolean;
+  recurring_frequency: string | null;
   notes: string | null;
   sheet_name: string;
   archived: boolean;
@@ -273,6 +274,7 @@ const PaymentDashboard = () => {
       due_date: payment.due_date,
       paid: payment.paid,
       recurring: payment.recurring,
+      recurring_frequency: payment.recurring_frequency || null,
       notes: payment.notes,
       sheet_name: payment.sheet_name,
       archived: payment.archived,
@@ -290,6 +292,7 @@ const PaymentDashboard = () => {
       due_date: transaction.transaction_date,
       paid: true,
       recurring: false,
+      recurring_frequency: null,
       notes: null,
       sheet_name: "actual",
       archived: false,
