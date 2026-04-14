@@ -41,6 +41,9 @@ const EmailIntegration = () => {
   const [displayCount, setDisplayCount] = useState(50);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "sender">("newest");
+  const [showAiChat, setShowAiChat] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiChatHistory = useDashboardChatHistory("email-insights");
 
   const isHe = lang === "he" || lang === "ar";
 
