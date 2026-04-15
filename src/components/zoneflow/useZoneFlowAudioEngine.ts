@@ -259,12 +259,16 @@ export function useZoneFlowAudioEngine() {
     const interval = window.setInterval(() => {
       const rt = getZoneFlowFreqRuntime();
       const actuallyPlaying = !!rt.audioEl && !rt.audioEl.paused;
-      if (rt.isPlaying !== actuallyPlaying) {
+      const activePresetChanged = rt.activePresetId !== activePresetId;
+      const playingChanged = rt.isPlaying !== actuallyPlaying || isPlayingRef.current !== actuallyPlaying;
+
+      if (playingChanged || activePresetChanged) {
         rt.isPlaying = actuallyPlaying;
         if (mountedRef.current) {
           setIsPlaying(actuallyPlaying);
           setActivePresetId(rt.activePresetId);
         }
+        isPlayingRef.current = actuallyPlaying;
         syncFreqAudioState(rt.activePresetId, actuallyPlaying, () => {
           stopAudio();
           if (mountedRef.current) {
@@ -275,7 +279,7 @@ export function useZoneFlowAudioEngine() {
     }, 800);
 
     return () => window.clearInterval(interval);
-  }, [stopAudio]);
+  }, [activePresetId, stopAudio]);
 
   // Sync global state for floating mini-player (frequency presets)
   useEffect(() => {

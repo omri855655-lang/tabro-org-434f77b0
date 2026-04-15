@@ -261,13 +261,23 @@ const AdminDashboard = () => {
         </div>
 
         {/* Company Mailbox */}
-        <Card className="card-surface" dir="rtl">
+        <Card className="card-surface" dir={dir}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-right">
+            <CardTitle className={`flex items-center gap-2 ${isHe ? "text-right" : "text-left"}`}>
               <Mail className="h-5 w-5" /> {isHe ? "תיבת מייל של החברה" : "Company Mailbox"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
+              <p className="font-medium text-foreground">
+                {isHe ? `כתובת התיבה: ${stats?.mailboxAddress || "info@tabro.org"}` : `Mailbox address: ${stats?.mailboxAddress || "info@tabro.org"}`}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {isHe
+                  ? "שליחה יוצאת בפועל מוגדרת דרך תת-הדומיין notify.tabro.org, וכתובת התשובה היא info@tabro.org. אם האימות בודק רק את tabro.org או תקוע כמה ימים, הבעיה כנראה אצל ספק המייל/DNS ולא במסך האדמין."
+                  : "Outgoing delivery is configured through the notify.tabro.org sender subdomain, while replies go to info@tabro.org. If verification is stuck for days or checks only tabro.org, the issue is likely in your mail provider/DNS setup rather than the admin UI."}
+              </p>
+            </div>
             {/* Inbox / Outbox tabs */}
             <div className="flex gap-2 mb-3">
               <button onClick={() => setEmailTab("inbox")} className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${emailTab === "inbox" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
