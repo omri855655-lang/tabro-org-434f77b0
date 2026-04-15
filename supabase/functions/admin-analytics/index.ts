@@ -56,7 +56,8 @@ Deno.serve(async (req) => {
 
     if (action === 'stats') {
       // Get total users count
-      const { count: totalUsers } = await adminClient.auth.admin.listUsers({ perPage: 1, page: 1 })
+      const listResult = await adminClient.auth.admin.listUsers({ perPage: 1, page: 1 })
+      const totalUsers = listResult.data?.users?.length ?? 0
 
       // Get users list with created_at
       const { data: usersData } = await adminClient.auth.admin.listUsers({ perPage: 1000, page: 1 })
@@ -200,6 +201,6 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: corsHeaders })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders })
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 500, headers: corsHeaders })
   }
 })

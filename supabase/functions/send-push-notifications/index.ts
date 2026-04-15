@@ -5,7 +5,7 @@ import {
   type PushSubscription as WebPushSubscription,
   type PushMessage,
   type VapidKeys,
-} from "npm:@block65/webcrypto-web-push@1";
+} from "https://esm.sh/@block65/webcrypto-web-push@1";
 
 // Use connector key first, fallback to legacy key
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY_1") || Deno.env.get("RESEND_API_KEY");
