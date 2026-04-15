@@ -16,6 +16,7 @@ import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
 import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface HealthProfile {
   age: number | null;
@@ -32,6 +33,7 @@ interface HealthProfile {
 const NutritionDashboard = () => {
   const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("nutrition");
   const { user } = useAuth();
+  const { lang, dir } = useLanguage();
   const [activeTab, setActiveTab] = useState("nutrition");
   const [profile, setProfile] = useState<HealthProfile>({
     age: null, weight: null, height: null, gender: null,
@@ -47,6 +49,44 @@ const NutritionDashboard = () => {
   const [nutritionInput, setNutritionInput] = useState("");
   const [sleepInput, setSleepInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const copy = {
+    he: {
+      saveError: "שגיאה בשמירה",
+      saved: "פרופיל בריאות נשמר ✅",
+      communicationError: "שגיאה בתקשורת",
+      loading: "טוען...",
+      title: "תזונה ושינה",
+      profile: "פרופיל בריאות",
+      profileHelp: "מלא את הפרטים שלך כדי לקבל המלצות מותאמות אישית",
+      saveProfile: "שמור פרופיל",
+      nutrition: "תזונה",
+      sleep: "שינה",
+      nutritionAi: "יועץ תזונה AI",
+      sleepAi: "מדריך שינה AI",
+      askNutrition: "שאל על תזונה...",
+      askSleep: "שאל על שינה...",
+      nutritionEmpty: "שאל על תזונה, דיאטות, תפריטים ועוד",
+      sleepEmpty: "שאל על שינה, הרגלים, מדריכים ועוד",
+    },
+    en: {
+      saveError: "Error saving",
+      saved: "Health profile saved ✅",
+      communicationError: "Communication error",
+      loading: "Loading...",
+      title: "Nutrition & Sleep",
+      profile: "Health Profile",
+      profileHelp: "Fill in your details to get personalized recommendations",
+      saveProfile: "Save profile",
+      nutrition: "Nutrition",
+      sleep: "Sleep",
+      nutritionAi: "AI Nutrition Coach",
+      sleepAi: "AI Sleep Guide",
+      askNutrition: "Ask about nutrition...",
+      askSleep: "Ask about sleep...",
+      nutritionEmpty: "Ask about nutrition, diets, meal plans, and more",
+      sleepEmpty: "Ask about sleep, habits, guides, and more",
+    },
+  }[lang === "he" ? "he" : "en"];
 
   // Fetch health profile
   useEffect(() => {
@@ -91,8 +131,8 @@ const NutritionDashboard = () => {
     };
 
     const { error } = await supabase.from("health_profiles").upsert(payload, { onConflict: "user_id" });
-    if (error) { toast.error("שגיאה בשמירה"); return; }
-    toast.success("פרופיל בריאות נשמר ✅");
+    if (error) { toast.error(copy.saveError); return; }
+    toast.success(copy.saved);
   };
 
   const getProfileContext = () => {
@@ -140,7 +180,7 @@ const NutritionDashboard = () => {
       if (error) throw error;
       history.setMessages(prev => [...prev, { role: "assistant", content: data?.suggestion || "אין תשובה" }]);
     } catch {
-      history.setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת" }]);
+      history.setMessages(prev => [...prev, { role: "assistant", content: copy.communicationError }]);
     }
     setAiLoading(false);
   };
@@ -165,13 +205,13 @@ const NutritionDashboard = () => {
     "מדריך Power Nap",
   ];
 
-  if (!profileLoaded) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
+  if (!profileLoaded) return <div className="p-6 text-center text-muted-foreground">{copy.loading}</div>;
 
   return (
-    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir="rtl">
+    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={dir}>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <Apple className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">תזונה ושינה</h2>
+        <h2 className="text-2xl font-bold">{copy.title}</h2>
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
       </div>
@@ -182,14 +222,14 @@ const NutritionDashboard = () => {
           <CollapsibleTrigger className="w-full">
             <CardHeader className="py-3 cursor-pointer hover:bg-muted/30 transition-colors">
               <CardTitle className="text-base flex items-center gap-2 justify-between">
-                <div className="flex items-center gap-2"><User className="h-5 w-5" />פרופיל בריאות</div>
+                <div className="flex items-center gap-2"><User className="h-5 w-5" />{copy.profile}</div>
                 {profileOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </CardTitle>
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="space-y-3 pt-0">
-              <p className="text-sm text-muted-foreground">מלא את הפרטים שלך כדי לקבל המלצות מותאמות אישית</p>
+              <p className="text-sm text-muted-foreground">{copy.profileHelp}</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Input type="number" placeholder="גיל" value={profile.age || ""} onChange={e => setProfile(p => ({ ...p, age: e.target.value ? parseInt(e.target.value) : null }))} />
                 <Input type="number" placeholder='משקל (ק"ג)' value={profile.weight || ""} onChange={e => setProfile(p => ({ ...p, weight: e.target.value ? parseFloat(e.target.value) : null }))} />
@@ -214,7 +254,7 @@ const NutritionDashboard = () => {
                 <Input placeholder="מוצא אתני" value={profile.ethnicity || ""} onChange={e => setProfile(p => ({ ...p, ethnicity: e.target.value }))} />
               </div>
               <Textarea placeholder="מטרות בריאות (ירידה במשקל, בניית שריר, אנרגיה...)" value={profile.health_goals || ""} onChange={e => setProfile(p => ({ ...p, health_goals: e.target.value }))} className="min-h-[60px]" />
-              <Button onClick={saveProfile} className="gap-2"><Save className="h-4 w-4" />שמור פרופיל</Button>
+              <Button onClick={saveProfile} className="gap-2"><Save className="h-4 w-4" />{copy.saveProfile}</Button>
             </CardContent>
           </CollapsibleContent>
         </Card>
@@ -222,14 +262,14 @@ const NutritionDashboard = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full">
-          <TabsTrigger value="nutrition" className="flex-1 gap-2"><UtensilsCrossed className="h-4 w-4" />תזונה</TabsTrigger>
-          <TabsTrigger value="sleep" className="flex-1 gap-2"><MoonIcon className="h-4 w-4" />שינה</TabsTrigger>
+          <TabsTrigger value="nutrition" className="flex-1 gap-2"><UtensilsCrossed className="h-4 w-4" />{copy.nutrition}</TabsTrigger>
+          <TabsTrigger value="sleep" className="flex-1 gap-2"><MoonIcon className="h-4 w-4" />{copy.sleep}</TabsTrigger>
         </TabsList>
 
         {/* Nutrition Tab */}
         <TabsContent value="nutrition" className="space-y-4">
           <AiChatPanel
-            title="יועץ תזונה AI"
+            title={copy.nutritionAi}
             messages={nutritionChatHistory.messages}
             loaded={nutritionChatHistory.loaded}
             aiLoading={aiLoading}
@@ -237,8 +277,8 @@ const NutritionDashboard = () => {
             onSend={(msg) => sendMessage("nutrition", msg)}
             onClearAndArchive={nutritionChatHistory.clearAndArchive}
             onLoadConversation={nutritionChatHistory.loadConversation}
-            placeholder="שאל על תזונה..."
-            emptyText="שאל על תזונה, דיאטות, תפריטים ועוד"
+            placeholder={copy.askNutrition}
+            emptyText={copy.nutritionEmpty}
             quickPrompts={quickNutritionPrompts}
           />
         </TabsContent>
@@ -246,7 +286,7 @@ const NutritionDashboard = () => {
         {/* Sleep Tab */}
         <TabsContent value="sleep" className="space-y-4">
           <AiChatPanel
-            title="מדריך שינה AI"
+            title={copy.sleepAi}
             messages={sleepChatHistory.messages}
             loaded={sleepChatHistory.loaded}
             aiLoading={aiLoading}
@@ -254,8 +294,8 @@ const NutritionDashboard = () => {
             onSend={(msg) => sendMessage("sleep", msg)}
             onClearAndArchive={sleepChatHistory.clearAndArchive}
             onLoadConversation={sleepChatHistory.loadConversation}
-            placeholder="שאל על שינה..."
-            emptyText="שאל על שינה, הרגלים, מדריכים ועוד"
+            placeholder={copy.askSleep}
+            emptyText={copy.sleepEmpty}
             quickPrompts={quickSleepPrompts}
           />
         </TabsContent>

@@ -16,6 +16,7 @@ import ShoppingShareDialog from "@/components/dashboards/ShoppingShareDialog";
 import AiChatPanel from "@/components/AiChatPanel";
 import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface ShoppingItem {
   id: string;
@@ -156,6 +157,7 @@ const CATEGORY_ITEMS: Record<string, string[]> = {
 const ShoppingDashboard = () => {
   const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("shopping");
   const { user } = useAuth();
+  const { lang, dir } = useLanguage();
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [archivedItems, setArchivedItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,6 +180,94 @@ const ShoppingDashboard = () => {
   const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
   const [editQtyValue, setEditQtyValue] = useState("");
   const [editQtyUnit, setEditQtyUnit] = useState("יח'");
+  const isRtl = dir === "rtl";
+  const copy = {
+    he: {
+      error: "שגיאה",
+      addedDream: "נוסף לרשימת חלומות",
+      addedSuper: "נוסף לרשימת סופר",
+      addedShopping: "נוסף לרשימת קניות",
+      movedRecycle: "הפריט הועבר לסל המחזור",
+      movedArchive: "הועבר לארכיון",
+      restored: "הפריט שוחזר לרשימה",
+      qtyUpdated: "כמות עודכנה",
+      loading: "טוען...",
+      title: "קניות וחלומות",
+      export: "ייצוא",
+      share: "שיתוף",
+      shopping: "קניות",
+      supermarket: "סופר",
+      dreams: "חלומות",
+      history: "היסטוריה",
+      recycle: "סל מחזור",
+      ai: "יועץ AI",
+      newProduct: "מוצר חדש...",
+      supermarketProduct: "מוצר לסופר...",
+      newDream: "חלום חדש (מוצר/חפץ)...",
+      category: "קטגוריה",
+      quantity: "כמות",
+      price: "מחיר",
+      estimatedTotal: "סה\"כ משוער",
+      superTotal: "סה\"כ סופר",
+      dreamsTotal: "סה\"כ חלומות",
+      emptyShopping: "אין פריטים ברשימת הקניות",
+      emptySuper: "רשימת הסופר ריקה. הוסף מוצרים!",
+      emptyDreams: "אין חלומות עדיין",
+      historyTitle: "היסטוריית קניות",
+      noHistory: "אין היסטוריה עדיין",
+      recycleTitle: "סל מחזור",
+      recycleNote: "פריטים נמחקים לצמיתות לאחר 7 ימים",
+      recycleEmpty: "סל המחזור ריק",
+      restore: "שחזר",
+      emptyRecycle: "רוקן סל מחזור",
+      aiTitle: "יועץ קניות AI",
+      aiPlaceholder: "שאל שאלה...",
+      aiEmpty: "שאל על תקציב, חלופות זולות, איפה הכי משתלם...",
+    },
+    en: {
+      error: "Error",
+      addedDream: "Added to dreams",
+      addedSuper: "Added to supermarket list",
+      addedShopping: "Added to shopping list",
+      movedRecycle: "Item moved to recycle bin",
+      movedArchive: "Moved to archive",
+      restored: "Item restored to the list",
+      qtyUpdated: "Quantity updated",
+      loading: "Loading...",
+      title: "Shopping & Dreams",
+      export: "Export",
+      share: "Share",
+      shopping: "Shopping",
+      supermarket: "Supermarket",
+      dreams: "Dreams",
+      history: "History",
+      recycle: "Recycle Bin",
+      ai: "AI Advisor",
+      newProduct: "New product...",
+      supermarketProduct: "New supermarket item...",
+      newDream: "New dream item...",
+      category: "Category",
+      quantity: "Qty",
+      price: "Price",
+      estimatedTotal: "Estimated total",
+      superTotal: "Super total",
+      dreamsTotal: "Dreams total",
+      emptyShopping: "No shopping items yet",
+      emptySuper: "Your supermarket list is empty. Add products!",
+      emptyDreams: "No dreams yet",
+      historyTitle: "Shopping history",
+      noHistory: "No history yet",
+      recycleTitle: "Recycle Bin",
+      recycleNote: "Items are permanently deleted after 7 days",
+      recycleEmpty: "Recycle bin is empty",
+      restore: "Restore",
+      emptyRecycle: "Empty recycle bin",
+      aiTitle: "AI Shopping Advisor",
+      aiPlaceholder: "Ask a question...",
+      aiEmpty: "Ask about budget, cheaper alternatives, best places to buy, and more...",
+    },
+  }[lang === "he" ? "he" : "en"];
+  const locale = ({ he: "he-IL", en: "en-US", es: "es-ES", zh: "zh-CN", ar: "ar-SA", ru: "ru-RU" } as const)[lang];
 
   const fetchItems = useCallback(async () => {
     if (!user) return;
@@ -242,9 +332,9 @@ const ShoppingDashboard = () => {
       is_dream: isDream,
       sheet_name: sheetName,
     });
-    if (error) { toast.error("שגיאה"); return; }
+    if (error) { toast.error(copy.error); return; }
     setNewTitle(""); setNewCategory(""); setNewQuantity(""); setNewPrice("");
-    toast.success(isDream ? "נוסף לרשימת חלומות" : sheetName === "סופר" ? "נוסף לרשימת סופר" : "נוסף לרשימת קניות");
+    toast.success(isDream ? copy.addedDream : sheetName === "סופר" ? copy.addedSuper : copy.addedShopping);
     fetchItems();
   };
 
@@ -258,20 +348,20 @@ const ShoppingDashboard = () => {
     // Soft delete: move to recycle bin (archived + status "נמחק")
     await supabase.from("shopping_items").update({ archived: true, status: "נמחק", updated_at: new Date().toISOString() }).eq("id", id);
     setItems(prev => prev.filter(i => i.id !== id));
-    toast.success("הפריט הועבר לסל המחזור");
+    toast.success(copy.movedRecycle);
   };
 
   const archiveItem = async (id: string) => {
     await supabase.from("shopping_items").update({ archived: true }).eq("id", id);
     setItems(prev => prev.filter(i => i.id !== id));
-    toast.success("הועבר לארכיון");
+    toast.success(copy.movedArchive);
   };
 
   const restoreItem = async (id: string) => {
     await supabase.from("shopping_items").update({ archived: false, status: "לקנות" }).eq("id", id);
     setArchivedItems(prev => prev.filter(i => i.id !== id));
     fetchItems();
-    toast.success("הפריט שוחזר לרשימה");
+    toast.success(copy.restored);
   };
 
   const updateItemQuantity = async (id: string) => {
@@ -279,7 +369,7 @@ const ShoppingDashboard = () => {
     await supabase.from("shopping_items").update({ quantity: qtyStr }).eq("id", id);
     setItems(prev => prev.map(i => i.id === id ? { ...i, quantity: qtyStr } : i));
     setEditingQuantity(null);
-    toast.success("כמות עודכנה");
+    toast.success(copy.qtyUpdated);
   };
 
   const addCustomItemToCategory = async (cat: string, titleOverride?: string) => {
@@ -324,7 +414,7 @@ const ShoppingDashboard = () => {
     // History = archived items that were NOT deleted (status != "נמחק")
     const historyItems = archivedItems.filter(i => i.status !== "נמחק");
     const groups = historyItems.reduce<Record<string, ShoppingItem[]>>((acc, item) => {
-      const key = new Date(item.updated_at).toLocaleDateString("he-IL");
+      const key = new Date(item.updated_at).toLocaleDateString(locale);
       if (!acc[key]) acc[key] = [];
       acc[key].push(item);
       return acc;
@@ -573,34 +663,34 @@ const ShoppingDashboard = () => {
     });
   };
 
-  if (loading) return <div className="p-6 text-center text-muted-foreground">טוען...</div>;
+  if (loading) return <div className="p-6 text-center text-muted-foreground">{copy.loading}</div>;
 
   return (
-    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir="rtl">
+    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={dir}>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <ShoppingCart className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold flex-1">קניות וחלומות</h2>
+        <h2 className="text-2xl font-bold flex-1">{copy.title}</h2>
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
           items.map(i => ({ title: i.title, category: i.category || '', quantity: i.quantity || '', price: i.price, status: i.status, notes: i.notes || '' })),
           [{ key: 'title', label: 'פריט' }, { key: 'category', label: 'קטגוריה' }, { key: 'quantity', label: 'כמות' }, { key: 'price', label: 'מחיר' }, { key: 'status', label: 'סטטוס' }, { key: 'notes', label: 'הערות' }],
           'קניות'
         )}>
-          <Download className="h-3.5 w-3.5" />ייצוא
+          <Download className="h-3.5 w-3.5" />{copy.export}
         </Button>
         <Button variant="outline" size="sm" className="gap-2" onClick={() => { setShareSheetName("ראשי"); setShareOpen(true); }}>
-          <Users className="h-4 w-4" />שיתוף
+          <Users className="h-4 w-4" />{copy.share}
         </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
-          <TabsTrigger value="shopping" className="flex-1 gap-1"><ShoppingCart className="h-3.5 w-3.5" />קניות ({shoppingItems.length})</TabsTrigger>
-          <TabsTrigger value="supermarket" className="flex-1 gap-1"><ShoppingBasket className="h-3.5 w-3.5" />סופר ({supermarketItems.length})</TabsTrigger>
-          <TabsTrigger value="dreams" className="flex-1 gap-1"><Star className="h-3.5 w-3.5" />חלומות ({dreamItems.length})</TabsTrigger>
-          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3.5 w-3.5" />היסטוריה</TabsTrigger>
-          <TabsTrigger value="recycle" className="flex-1 gap-1"><Recycle className="h-3.5 w-3.5" />סל מחזור{recycleBinItems.length > 0 ? ` (${recycleBinItems.length})` : ""}</TabsTrigger>
-          <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3.5 w-3.5" />יועץ AI</TabsTrigger>
+          <TabsTrigger value="shopping" className="flex-1 gap-1"><ShoppingCart className="h-3.5 w-3.5" />{copy.shopping} ({shoppingItems.length})</TabsTrigger>
+          <TabsTrigger value="supermarket" className="flex-1 gap-1"><ShoppingBasket className="h-3.5 w-3.5" />{copy.supermarket} ({supermarketItems.length})</TabsTrigger>
+          <TabsTrigger value="dreams" className="flex-1 gap-1"><Star className="h-3.5 w-3.5" />{copy.dreams} ({dreamItems.length})</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3.5 w-3.5" />{copy.history}</TabsTrigger>
+          <TabsTrigger value="recycle" className="flex-1 gap-1"><Recycle className="h-3.5 w-3.5" />{copy.recycle}{recycleBinItems.length > 0 ? ` (${recycleBinItems.length})` : ""}</TabsTrigger>
+          <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3.5 w-3.5" />{copy.ai}</TabsTrigger>
         </TabsList>
 
         {/* General shopping */}
@@ -608,10 +698,10 @@ const ShoppingDashboard = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="flex gap-2 flex-wrap">
-                <Input placeholder="מוצר חדש..." value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(false)} className="flex-1 min-w-[150px]" />
-                <AutocompleteInput fieldName="shopping-category" value={newCategory} onChange={setNewCategory} placeholder="קטגוריה" className="w-28" />
+                <Input placeholder={copy.newProduct} value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(false)} className="flex-1 min-w-[150px]" />
+                <AutocompleteInput fieldName="shopping-category" value={newCategory} onChange={setNewCategory} placeholder={copy.category} className="w-28" />
                 <div className="flex gap-1">
-                  <Input placeholder="כמות" value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-16" />
+                  <Input placeholder={copy.quantity} value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-16" />
                   <Select value={newQuantityUnit} onValueChange={setNewQuantityUnit}>
                     <SelectTrigger className="w-20 text-xs">
                       <SelectValue />
@@ -621,17 +711,17 @@ const ShoppingDashboard = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <Input placeholder="מחיר" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
+                <Input placeholder={copy.price} type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
                 <Button onClick={() => addItem(false)} size="icon"><Plus className="h-4 w-4" /></Button>
               </div>
             </CardContent>
           </Card>
 
           {totalPrice > 0 && (
-            <div className="text-sm text-muted-foreground text-left">סה"כ משוער: ₪{totalPrice.toFixed(0)}</div>
+            <div className={`text-sm text-muted-foreground ${isRtl ? "text-left" : "text-right"}`}>{copy.estimatedTotal}: ₪{totalPrice.toFixed(0)}</div>
           )}
 
-          {renderItemList(shoppingItems, "אין פריטים ברשימת הקניות")}
+          {renderItemList(shoppingItems, copy.emptyShopping)}
         </TabsContent>
 
         {/* Supermarket */}
@@ -639,10 +729,10 @@ const ShoppingDashboard = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="flex gap-2 flex-wrap">
-                <Input placeholder="מוצר לסופר..." value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(false, "סופר")} className="flex-1 min-w-[150px]" />
-                <AutocompleteInput fieldName="supermarket-category" value={newCategory} onChange={setNewCategory} placeholder="קטגוריה" className="w-32" />
+                <Input placeholder={copy.supermarketProduct} value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(false, "סופר")} className="flex-1 min-w-[150px]" />
+                <AutocompleteInput fieldName="supermarket-category" value={newCategory} onChange={setNewCategory} placeholder={copy.category} className="w-32" />
                 <div className="flex gap-1">
-                  <Input placeholder="כמות" value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-16" />
+                  <Input placeholder={copy.quantity} value={newQuantity} onChange={e => setNewQuantity(e.target.value)} className="w-16" />
                   <Select value={newQuantityUnit} onValueChange={setNewQuantityUnit}>
                     <SelectTrigger className="w-20 text-xs">
                       <SelectValue />
@@ -652,7 +742,7 @@ const ShoppingDashboard = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <Input placeholder="מחיר" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
+                <Input placeholder={copy.price} type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
                 <Button onClick={() => addItem(false, "סופר")} size="icon"><Plus className="h-4 w-4" /></Button>
               </div>
               <div className="flex flex-wrap gap-1 mt-2">
@@ -735,7 +825,7 @@ const ShoppingDashboard = () => {
           </Card>
 
           <div className="flex items-center justify-between flex-wrap gap-2">
-            {superTotal > 0 && <div className="text-sm text-muted-foreground">סה"כ סופר: ₪{superTotal.toFixed(0)}</div>}
+            {superTotal > 0 && <div className="text-sm text-muted-foreground">{copy.superTotal}: ₪{superTotal.toFixed(0)}</div>}
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="gap-1" onClick={() => archiveAllItems("סופר")}>
                 <Archive className="h-3 w-3" />שלח הכל להיסטוריה
@@ -746,7 +836,7 @@ const ShoppingDashboard = () => {
             </div>
           </div>
 
-          {renderItemList(supermarketItems, "רשימת הסופר ריקה. הוסף מוצרים!", true)}
+          {renderItemList(supermarketItems, copy.emptySuper, true)}
         </TabsContent>
 
         {/* Dreams */}
@@ -754,16 +844,16 @@ const ShoppingDashboard = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="flex gap-2 flex-wrap">
-                <Input placeholder="חלום חדש (מוצר/חפץ)..." value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(true)} className="flex-1 min-w-[150px]" />
-                <AutocompleteInput fieldName="shopping-category" value={newCategory} onChange={setNewCategory} placeholder="קטגוריה" className="w-28" />
-                <Input placeholder="מחיר" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
+                <Input placeholder={copy.newDream} value={newTitle} onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && addItem(true)} className="flex-1 min-w-[150px]" />
+                <AutocompleteInput fieldName="shopping-category" value={newCategory} onChange={setNewCategory} placeholder={copy.category} className="w-28" />
+                <Input placeholder={copy.price} type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} className="w-24" dir="ltr" />
                 <Button onClick={() => addItem(true)} size="icon" variant="secondary"><Star className="h-4 w-4" /></Button>
               </div>
             </CardContent>
           </Card>
 
           {dreamTotal > 0 && (
-            <div className="text-sm text-muted-foreground">סה"כ חלומות: ₪{dreamTotal.toLocaleString()}</div>
+            <div className="text-sm text-muted-foreground">{copy.dreamsTotal}: ₪{dreamTotal.toLocaleString()}</div>
           )}
 
           <div className="space-y-2">
@@ -780,7 +870,7 @@ const ShoppingDashboard = () => {
                 </CardContent>
               </Card>
             ))}
-            {dreamItems.length === 0 && <p className="text-center text-muted-foreground py-6">אין חלומות עדיין</p>}
+            {dreamItems.length === 0 && <p className="text-center text-muted-foreground py-6">{copy.emptyDreams}</p>}
           </div>
         </TabsContent>
 
@@ -788,10 +878,10 @@ const ShoppingDashboard = () => {
         <TabsContent value="history" className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <History className="h-5 w-5 text-primary" />
-            <h3 className="font-bold text-sm">היסטוריית קניות ({archivedItems.length})</h3>
+            <h3 className="font-bold text-sm">{copy.historyTitle} ({archivedItems.length})</h3>
           </div>
           {archivedItems.length === 0 ? (
-            <p className="text-center text-muted-foreground py-6">אין היסטוריה עדיין</p>
+            <p className="text-center text-muted-foreground py-6">{copy.noHistory}</p>
           ) : (
             <div className="space-y-3">
               {archivedGroups.map(([dateLabel, groupItems]) => (
@@ -828,11 +918,11 @@ const ShoppingDashboard = () => {
         <TabsContent value="recycle" className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <Recycle className="h-5 w-5 text-primary" />
-            <h3 className="font-bold text-sm">סל מחזור ({recycleBinItems.length})</h3>
-            <span className="text-xs text-muted-foreground">פריטים נמחקים לצמיתות לאחר 7 ימים</span>
+            <h3 className="font-bold text-sm">{copy.recycleTitle} ({recycleBinItems.length})</h3>
+            <span className="text-xs text-muted-foreground">{copy.recycleNote}</span>
           </div>
           {recycleBinItems.length === 0 ? (
-            <p className="text-center text-muted-foreground py-6">סל המחזור ריק</p>
+            <p className="text-center text-muted-foreground py-6">{copy.recycleEmpty}</p>
           ) : (
             <div className="space-y-2">
               {recycleBinItems.map(item => (
@@ -840,9 +930,9 @@ const ShoppingDashboard = () => {
                   <Trash2 className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="flex-1 text-sm">{item.title}</span>
                   {item.category && <Badge variant="outline" className="text-[10px]">{item.category}</Badge>}
-                  <span className="text-[10px] text-muted-foreground">{new Date(item.updated_at).toLocaleDateString("he-IL")}</span>
+                  <span className="text-[10px] text-muted-foreground">{new Date(item.updated_at).toLocaleDateString(locale)}</span>
                   <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => restoreItem(item.id)}>
-                    <RotateCcw className="h-3 w-3" />שחזר
+                    <RotateCcw className="h-3 w-3" />{copy.restore}
                   </Button>
                   <Button size="sm" variant="ghost" className="h-6 text-xs text-destructive" onClick={async () => {
                     await supabase.from("shopping_items").delete().eq("id", item.id);
@@ -859,7 +949,7 @@ const ShoppingDashboard = () => {
                 setArchivedItems(prev => prev.filter(i => !ids.includes(i.id)));
                 toast.success("סל המחזור רוקן");
               }}>
-                <Trash2 className="h-3 w-3" />רוקן סל מחזור
+                <Trash2 className="h-3 w-3" />{copy.emptyRecycle}
               </Button>
             </div>
           )}
@@ -868,7 +958,7 @@ const ShoppingDashboard = () => {
         {/* AI */}
         <TabsContent value="ai" className="space-y-4">
           <AiChatPanel
-            title="יועץ קניות AI"
+            title={copy.aiTitle}
             messages={aiChatHistory.messages}
             loaded={aiChatHistory.loaded}
             aiLoading={aiLoading}
@@ -876,8 +966,8 @@ const ShoppingDashboard = () => {
             onSend={sendAiMessage}
             onClearAndArchive={aiChatHistory.clearAndArchive}
             onLoadConversation={aiChatHistory.loadConversation}
-            placeholder="שאל שאלה..."
-            emptyText="שאל על תקציב, חלופות זולות, איפה הכי משתלם..."
+            placeholder={copy.aiPlaceholder}
+            emptyText={copy.aiEmpty}
           />
         </TabsContent>
       </Tabs>
