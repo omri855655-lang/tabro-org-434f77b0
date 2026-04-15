@@ -458,16 +458,15 @@ const PersonalPlanner = () => {
 
   // Project recurring tasks with reminderTime onto the calendar as virtual events
   const recurringEvents = useMemo((): CalendarEvent[] => {
-    if (!recurringTasks?.tasks?.length) return [];
+    if (!recurringTasks?.length) return [];
     const virtualEvents: CalendarEvent[] = [];
     const days = dateRange.days;
     
-    for (const task of recurringTasks.tasks) {
-      if (!task.reminderTime) continue; // Only show tasks with a set reminder time
+    for (const task of recurringTasks) {
+      if (!task.reminderTime) continue;
       
       for (const day of days) {
-        // Check if this task is due on this day
-        const dayOfWeek = getDay(day); // 0=Sun
+        const dayOfWeek = getDay(day);
         let isDue = false;
         
         if (task.frequency === "daily") {
@@ -491,7 +490,7 @@ const PersonalPlanner = () => {
         const end = new Date(start);
         end.setMinutes(end.getMinutes() + 30);
         
-        const completed = recurringTasks.isTaskCompletedToday?.(task.id) && isSameDay(day, new Date());
+        const completed = isTaskCompletedToday?.(task.id) && isSameDay(day, new Date());
         
         virtualEvents.push({
           id: `recurring-${task.id}-${format(day, "yyyy-MM-dd")}`,
@@ -502,11 +501,16 @@ const PersonalPlanner = () => {
           color: completed ? "#22c55e" : "#6366f1",
           description: task.description || undefined,
           userId: "",
-        });
+          allDay: false,
+          sourceType: "recurring",
+          sourceId: task.id,
+          createdAt: task.createdAt,
+          updatedAt: task.createdAt,
+        } as CalendarEvent);
       }
     }
     return virtualEvents;
-  }, [recurringTasks?.tasks, dateRange.days]);
+  }, [recurringTasks, dateRange.days, isTaskCompletedToday]);
 
   const filteredEvents = useMemo(() => {
     const calendarEvents = events.filter((e) => {
