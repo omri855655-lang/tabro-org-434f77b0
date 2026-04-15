@@ -1026,8 +1026,18 @@ const ZoneFlowDashboard = () => {
                   </div>
                 </div>
                 {youtubePlayer.viewerOpen ? (
-                  <div className="rounded-lg border border-dashed border-cyan-400/30 bg-cyan-500/5 px-3 py-4 text-center text-xs text-[#e8e8ed]/70">
-                    הווידאו מוצג עכשיו בנגן הראשי של ZoneFlow. אם תעבור לדשבורד אחר הוא ימשיך בצד בקטן, בלי להתחיל מחדש.
+                  <div className="overflow-hidden rounded-xl border border-cyan-400/30 bg-black shadow-2xl">
+                    <iframe
+                      key={`zoneflow-preview-${youtubePlayer.videoId}`}
+                      src={`https://www.youtube.com/embed/${youtubePlayer.videoId}?autoplay=1&playsinline=1&mute=1&controls=0&rel=0`}
+                      title={`${activeYoutubeLabel} preview`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="aspect-video w-full border-0"
+                    />
+                    <div className="border-t border-cyan-400/20 bg-cyan-500/5 px-3 py-2 text-center text-xs text-[#e8e8ed]/70">
+                      הסרטון מוצג כאן בתוך ZoneFlow, ואם תעבור לדשבורד אחר הוא ימשיך בצד בקטן בלי להתחיל מחדש.
+                    </div>
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed border-white/10 bg-white/5 px-3 py-4 text-center text-xs text-[#e8e8ed]/50">

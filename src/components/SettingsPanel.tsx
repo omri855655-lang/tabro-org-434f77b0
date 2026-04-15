@@ -6,6 +6,7 @@ import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { useUserPreferences, DEFAULT_TABS } from "@/hooks/useUserPreferences";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference, type LayoutMode } from "@/hooks/useLayoutPreference";
+import { useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -58,6 +59,7 @@ const SettingsPanel = () => {
   const { lang, setLang, t, dir } = useLanguage();
   const { themeId, mode, themes, setThemeId, setMode, fontId, fonts, setFontId, customColors, setCustomColor, resetCustomColors, showHebrewDate, setShowHebrewDate } = useSiteAppearance();
   const { layout, setLayout } = useLayoutPreference();
+  const { groupingMode, setGroupingMode } = useDashboardGroupingPreference();
   const [pinEnabled, setPinEnabled] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -77,6 +79,23 @@ const SettingsPanel = () => {
   const [nameLoaded, setNameLoaded] = useState(false);
 
   const isEnglish = lang === "en";
+  const groupingCopy = isEnglish
+    ? {
+        title: "Dashboard Navigation",
+        desc: "Choose whether dashboards appear as one flat row or organized into expandable categories.",
+        flat: "Flat Tabs",
+        flatDesc: "Current single-row dashboard tabs",
+        grouped: "Grouped Categories",
+        groupedDesc: "Expandable dashboard sections by topic",
+      }
+    : {
+        title: "ניווט דשבורדים",
+        desc: "בחר אם הדשבורדים יוצגו בשורה אחת כמו היום או מחולקים לקטגוריות נפתחות.",
+        flat: "לשוניות רגילות",
+        flatDesc: "השורה הרגילה של כל הדשבורדים",
+        grouped: "קטגוריות נפתחות",
+        groupedDesc: "קבוצות דשבורדים לפי נושא",
+      };
 
   const getDefaultBoardStatuses = (template: string) => {
     if (isEnglish) {
@@ -336,6 +355,34 @@ const SettingsPanel = () => {
                   key={opt.id}
                   onClick={() => setLayout(opt.id)}
                   className={`p-3 rounded-lg border text-center transition-colors ${layout === opt.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted text-foreground"}`}
+                >
+                  <Icon className="h-5 w-5 mx-auto mb-1" />
+                  <div className="text-xs font-medium">{opt.label}</div>
+                  <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><PanelLeft className="h-5 w-5" />{groupingCopy.title}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">{groupingCopy.desc}</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { id: "flat" as const, label: groupingCopy.flat, desc: groupingCopy.flatDesc, icon: LayoutList },
+              { id: "grouped" as const, label: groupingCopy.grouped, desc: groupingCopy.groupedDesc, icon: PanelLeft },
+            ].map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setGroupingMode(opt.id)}
+                  className={`p-3 rounded-lg border text-center transition-colors ${groupingMode === opt.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted text-foreground"}`}
                 >
                   <Icon className="h-5 w-5 mx-auto mb-1" />
                   <div className="text-xs font-medium">{opt.label}</div>

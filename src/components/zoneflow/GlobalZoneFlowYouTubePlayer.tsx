@@ -64,7 +64,7 @@ export function GlobalZoneFlowYouTubePlayer({ activeTab }: GlobalZoneFlowYouTube
   if (!playerState.videoId) return null;
 
   const showExpandedViewer = playerState.viewerOpen;
-  const showLargeViewer = showExpandedViewer && activeTab === "zoneflow";
+  const showLargeViewer = false;
   const showMiniViewer = showExpandedViewer && activeTab !== "zoneflow";
 
   return (

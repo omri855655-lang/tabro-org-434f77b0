@@ -7,6 +7,7 @@ import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
+import { useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
 import { useSyncedPreferences } from "@/hooks/useSyncedPreferences";
 import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
 import BooksManager from "@/components/BooksManager";
@@ -114,6 +115,8 @@ const Personal = () => {
   const { t, dir } = useLanguage();
   const { isDark, toggleMode } = useSiteAppearance();
   const { layout } = useLayoutPreference();
+  const { groupingMode } = useDashboardGroupingPreference();
+  const [openTabGroup, setOpenTabGroup] = useState<string | null>("focus");
 
   // Sync preferences across devices
   useSyncedPreferences();
@@ -389,6 +392,65 @@ const Personal = () => {
     return items;
   }, [allTabIds, isTabVisible, sharedSheets, customBoards, t]);
 
+  const groupedTabItems = useMemo(() => {
+    const labels = dir === "rtl"
+      ? {
+          focus: "פוקוס ותכנון",
+          media: "ספרייה ותוכן",
+          life: "חיים אישיים",
+          system: "מערכת וניהול",
+          custom: "מותאם אישית",
+        }
+      : {
+          focus: "Focus & Planning",
+          media: "Library & Media",
+          life: "Personal Life",
+          system: "System & Admin",
+          custom: "Custom",
+        };
+
+    const groups: Record<string, { label: string; items: typeof flatTabItems }> = {
+      focus: { label: labels.focus, items: [] },
+      media: { label: labels.media, items: [] },
+      life: { label: labels.life, items: [] },
+      system: { label: labels.system, items: [] },
+      custom: { label: labels.custom, items: [] },
+    };
+
+    const staticGroupMap: Record<string, keyof typeof groups> = {
+      dashboard: "focus",
+      tasks: "focus",
+      work: "focus",
+      routine: "focus",
+      planner: "focus",
+      projects: "focus",
+      courses: "focus",
+      zoneflow: "focus",
+      challenges: "focus",
+      books: "media",
+      shows: "media",
+      podcasts: "media",
+      nutrition: "life",
+      dreams: "life",
+      shopping: "life",
+      payments: "life",
+      notes: "life",
+      email: "life",
+      sharing: "system",
+      contact: "system",
+      settings: "system",
+    };
+
+    flatTabItems.forEach((item) => {
+      const groupKey = item.id.startsWith("shared-") || item.id.startsWith("board-")
+        ? "custom"
+        : (staticGroupMap[item.id] || "system");
+      groups[groupKey].items.push(item);
+    });
+
+    return Object.entries(groups).filter(([, group]) => group.items.length > 0);
+  }, [flatTabItems, dir]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -601,10 +663,48 @@ const Personal = () => {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <div className="border-b border-border bg-card px-4 py-1 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="overflow-x-auto scrollbar-thin flex-1">
-              <TabsList className="h-12 bg-transparent w-max min-w-full">
-                {allTabIds.map((tabId) => {
+          {groupingMode === "grouped" ? (
+            <div className="space-y-2 py-2">
+              {groupedTabItems.map(([groupKey, group]) => {
+                const isOpen = openTabGroup === groupKey;
+                return (
+                  <div key={groupKey} className="rounded-xl border border-border/70 bg-background/60">
+                    <button
+                      type="button"
+                      onClick={() => setOpenTabGroup((prev) => prev === groupKey ? null : groupKey)}
+                      className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
+                    >
+                      <span>{group.label}</span>
+                      <span className="text-xs text-muted-foreground">{isOpen ? "−" : "+"}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="grid grid-cols-2 gap-2 border-t border-border/60 p-2 md:grid-cols-4">
+                        {group.items.map((tab) => {
+                          const Icon = tab.icon;
+                          const isActive = activeTab === tab.id;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setActiveTab(tab.id)}
+                              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${isActive ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted"}`}
+                            >
+                              <Icon className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{tab.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="overflow-x-auto scrollbar-thin flex-1">
+                <TabsList className="h-12 bg-transparent w-max min-w-full">
+                  {allTabIds.map((tabId) => {
                   // Static tab
                   const staticTab = STATIC_TABS.find(t => t.id === tabId);
                   if (staticTab) {
@@ -711,35 +811,35 @@ const Personal = () => {
                   }
 
                   return null;
-                })}
-              </TabsList>
-            </div>
-
-            {allTabIds.includes(activeTab) && (
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => moveActiveTab("left")}
-                  disabled={!canMoveActiveLeft}
-                  title="הזז שמאלה"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => moveActiveTab("right")}
-                  disabled={!canMoveActiveRight}
-                  title="הזז ימינה"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                  })}
+                </TabsList>
               </div>
-            )}
-          </div>
+              {allTabIds.includes(activeTab) && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => moveActiveTab("left")}
+                    disabled={!canMoveActiveLeft}
+                    title="הזז שמאלה"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => moveActiveTab("right")}
+                    disabled={!canMoveActiveRight}
+                    title="הזז ימינה"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tab content - rendered via activeTab matching */}
