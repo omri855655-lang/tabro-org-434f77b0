@@ -7,7 +7,7 @@ import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
-import { useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
+import { useDashboardGroupingAssignments, useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
 import type { DashboardTabGroup } from "@/components/layouts/dashboardGrouping";
 import { useSyncedPreferences } from "@/hooks/useSyncedPreferences";
 import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
@@ -117,6 +117,7 @@ const Personal = () => {
   const { isDark, toggleMode } = useSiteAppearance();
   const { layout } = useLayoutPreference();
   const { groupingMode } = useDashboardGroupingPreference();
+  const { assignments: groupingAssignments } = useDashboardGroupingAssignments();
   const [openTabGroup, setOpenTabGroup] = useState<string | null>("focus");
 
   // Sync preferences across devices
@@ -443,16 +444,17 @@ const Personal = () => {
     };
 
     flatTabItems.forEach((item) => {
-      const groupKey = item.id.startsWith("shared-") || item.id.startsWith("board-")
+      const defaultGroupKey = item.id.startsWith("shared-") || item.id.startsWith("board-")
         ? "admin"
         : (staticGroupMap[item.id] || "admin");
+      const groupKey = groupingAssignments[item.id] || defaultGroupKey;
       groups[groupKey].items.push(item);
     });
 
     return Object.entries(groups)
       .filter(([, group]) => group.items.length > 0)
       .map(([key, group]) => ({ ...group, key }));
-  }, [flatTabItems, dir]);
+  }, [flatTabItems, dir, groupingAssignments]);
 
   if (loading) {
     return (

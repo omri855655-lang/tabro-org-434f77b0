@@ -6,7 +6,7 @@ import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { useUserPreferences, DEFAULT_TABS } from "@/hooks/useUserPreferences";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference, type LayoutMode } from "@/hooks/useLayoutPreference";
-import { useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
+import { useDashboardGroupingAssignments, useDashboardGroupingPreference, type DashboardCategoryKey } from "@/hooks/useDashboardGroupingPreference";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,7 @@ const SettingsPanel = () => {
   const { themeId, mode, themes, setThemeId, setMode, fontId, fonts, setFontId, customColors, setCustomColor, resetCustomColors, showHebrewDate, setShowHebrewDate } = useSiteAppearance();
   const { layout, setLayout } = useLayoutPreference();
   const { groupingMode, setGroupingMode } = useDashboardGroupingPreference();
+  const { assignments: groupingAssignments, setAssignment, resetAssignments } = useDashboardGroupingAssignments();
   const [pinEnabled, setPinEnabled] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -87,6 +88,9 @@ const SettingsPanel = () => {
         flatDesc: "Current single-row dashboard tabs",
         grouped: "Grouped Categories",
         groupedDesc: "Expandable dashboard sections by topic",
+        assignmentTitle: "Dashboard Categories",
+        assignmentDesc: "Choose which category each dashboard belongs to when grouped navigation is enabled.",
+        reset: "Reset categories",
       }
     : {
         title: "ניווט דשבורדים",
@@ -95,7 +99,50 @@ const SettingsPanel = () => {
         flatDesc: "השורה הרגילה של כל הדשבורדים",
         grouped: "קטגוריות נפתחות",
         groupedDesc: "קבוצות דשבורדים לפי נושא",
+        assignmentTitle: "שיוך דשבורדים לקטגוריות",
+        assignmentDesc: "בחר לאיזו קטגוריה כל דשבורד שייך כשהניווט הקטגוריאלי פעיל.",
+        reset: "איפוס קטגוריות",
       };
+
+  const categoryLabels: Record<DashboardCategoryKey, string> = isEnglish
+    ? {
+        focus: "Focus & Planning",
+        media: "Library & Learning",
+        life: "Life & Wellness",
+        money: "Money & Shopping",
+        admin: "Admin & Custom",
+      }
+    : {
+        focus: "פוקוס ותכנון",
+        media: "ספרייה ולמידה",
+        life: "חיים ובריאות",
+        money: "כסף וקניות",
+        admin: "ניהול והתאמה",
+      };
+
+  const categoryTabIds = [
+    "dashboard",
+    "tasks",
+    "work",
+    "books",
+    "shows",
+    "podcasts",
+    "routine",
+    "projects",
+    "courses",
+    "planner",
+    "zoneflow",
+    "challenges",
+    "nutrition",
+    "dreams",
+    "shopping",
+    "payments",
+    "notes",
+    "email",
+    "sharing",
+    "contact",
+    "settings",
+  ];
 
   const getDefaultBoardStatuses = (template: string) => {
     if (isEnglish) {
@@ -390,6 +437,40 @@ const SettingsPanel = () => {
                 </button>
               );
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><LayoutGrid className="h-5 w-5" />{groupingCopy.assignmentTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">{groupingCopy.assignmentDesc}</p>
+            <Button variant="outline" size="sm" onClick={resetAssignments} className="shrink-0 text-xs">
+              {groupingCopy.reset}
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {categoryTabIds.map((tabId) => (
+              <div key={tabId} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-2">
+                <span className="text-sm font-medium">{getTabLabel(tabId)}</span>
+                <Select
+                  value={groupingAssignments[tabId] || ""}
+                  onValueChange={(value) => setAssignment(tabId, value as DashboardCategoryKey)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder={isEnglish ? "Choose category" : "בחר קטגוריה"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(categoryLabels) as Array<[DashboardCategoryKey, string]>).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

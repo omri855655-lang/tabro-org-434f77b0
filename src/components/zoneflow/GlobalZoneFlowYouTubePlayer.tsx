@@ -94,8 +94,10 @@ export function GlobalZoneFlowYouTubePlayer({ activeTab }: GlobalZoneFlowYouTube
   if (!playerState.videoId) return null;
 
   const viewerMode = playerState.viewerOpen
-    ? activeTab === "zoneflow" && anchorRect
-      ? "inline"
+    ? activeTab === "zoneflow"
+      ? anchorRect && anchorRect.top < window.innerHeight - 120 && anchorRect.bottom > 120
+        ? "inline"
+        : "hidden"
       : activeTab !== "zoneflow"
         ? "mini"
         : "hidden"
