@@ -456,9 +456,57 @@ const PersonalPlanner = () => {
     return { start, end, days };
   }, [currentDate, viewMode]);
 
-  // Recurring tasks are managed in the Daily Routine editor (DailyRoutine component),
-  // not projected as virtual events on the calendar. Users can manually drag them from the sidebar.
-  const recurringEvents = useMemo((): CalendarEvent[] => [], []);
+  // Project recurring tasks with reminderTime onto the calendar as virtual events
+  const recurringEvents = useMemo((): CalendarEvent[] => {
+    if (!recurringTasks?.tasks?.length) return [];
+    const virtualEvents: CalendarEvent[] = [];
+    const days = dateRange.days;
+    
+    for (const task of recurringTasks.tasks) {
+      if (!task.reminderTime) continue; // Only show tasks with a set reminder time
+      
+      for (const day of days) {
+        // Check if this task is due on this day
+        const dayOfWeek = getDay(day); // 0=Sun
+        let isDue = false;
+        
+        if (task.frequency === "daily") {
+          isDue = true;
+        } else if (task.frequency === "thrice_weekly" && task.dayOfWeek !== null) {
+          isDue = (task.dayOfWeek & (1 << dayOfWeek)) !== 0;
+        } else if (task.frequency === "weekly") {
+          isDue = task.dayOfWeek === null || task.dayOfWeek === dayOfWeek;
+        } else if (task.frequency === "monthly") {
+          isDue = task.dayOfMonth === null || task.dayOfMonth === day.getDate();
+        } else if (task.frequency === "yearly") {
+          isDue = (task.dayOfWeek === null || task.dayOfWeek === day.getMonth()) && 
+                  (task.dayOfMonth === null || task.dayOfMonth === day.getDate());
+        }
+        
+        if (!isDue) continue;
+        
+        const [h, m] = task.reminderTime.split(":").map(Number);
+        const start = new Date(day);
+        start.setHours(h, m, 0, 0);
+        const end = new Date(start);
+        end.setMinutes(end.getMinutes() + 30);
+        
+        const completed = recurringTasks.isTaskCompletedToday?.(task.id) && isSameDay(day, new Date());
+        
+        virtualEvents.push({
+          id: `recurring-${task.id}-${format(day, "yyyy-MM-dd")}`,
+          title: `${completed ? "✅ " : "🔁 "}${task.title}`,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          category: "משימה קבועה",
+          color: completed ? "#22c55e" : "#6366f1",
+          description: task.description || undefined,
+          userId: "",
+        });
+      }
+    }
+    return virtualEvents;
+  }, [recurringTasks?.tasks, dateRange.days]);
 
   const filteredEvents = useMemo(() => {
     const calendarEvents = events.filter((e) => {
