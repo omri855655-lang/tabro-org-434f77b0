@@ -6,6 +6,12 @@ export interface ZoneFlowAudioStateValue {
   stop: () => void;
 }
 
+interface ZoneFlowFreqRuntimeSnapshot {
+  activePresetId: string | null;
+  isPlaying: boolean;
+  audioEl: HTMLAudioElement | null;
+}
+
 type ZoneFlowAudioWindowKey = "_zoneflowMusicState" | "_zoneflowFreqState" | "_zoneflowYoutubeState";
 
 export interface ZoneFlowYoutubePlayerState {
@@ -19,6 +25,7 @@ declare global {
     _zoneflowMusicState?: ZoneFlowAudioStateValue;
     _zoneflowFreqState?: ZoneFlowAudioStateValue;
     _zoneflowYoutubeState?: ZoneFlowAudioStateValue;
+    _zoneflowFreqRuntime?: ZoneFlowFreqRuntimeSnapshot;
     _zoneflowAudioStateListeners?: Set<() => void>;
     _zoneflowYoutubePlayerState?: ZoneFlowYoutubePlayerState;
     _zoneflowYoutubePlayerListeners?: Set<() => void>;
@@ -84,12 +91,26 @@ export function subscribeToZoneFlowAudioState(listener: () => void) {
 export function getActiveZoneFlowAudio() {
   if (!canUseWindow()) return [] as Array<ZoneFlowAudioStateValue & { kind: ZoneFlowAudioKind }>;
 
-  return (Object.keys(AUDIO_STATE_KEYS) as ZoneFlowAudioKind[])
+  const states = (Object.keys(AUDIO_STATE_KEYS) as ZoneFlowAudioKind[])
     .map((kind) => ({
       kind,
       ...(window[getAudioStateKey(kind)] || EMPTY_STATE),
-    }))
-    .filter((state) => state.playing);
+    }));
+
+  const freqState = states.find((state) => state.kind === "freq");
+  const freqRuntime = window._zoneflowFreqRuntime;
+
+  if (
+    freqState &&
+    !freqState.playing &&
+    freqRuntime?.audioEl &&
+    !freqRuntime.audioEl.paused
+  ) {
+    freqState.playing = true;
+    freqState.name = freqState.name || freqRuntime.activePresetId || "תדר פעיל";
+  }
+
+  return states.filter((state) => state.playing);
 }
 
 export function stopOtherZoneFlowAudio(activeKind: ZoneFlowAudioKind) {
