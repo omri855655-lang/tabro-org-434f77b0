@@ -1,16 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Menu, X, GripVertical } from "lucide-react";
-
-interface TabItem {
-  id: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}
+import { Menu, X, GripVertical, ChevronDown, ChevronUp } from "lucide-react";
+import { DashboardTabGroup, DashboardTabItem } from "./dashboardGrouping";
 
 interface HamburgerLayoutProps {
-  tabs: TabItem[];
+  tabs: DashboardTabItem[];
+  groupedTabs?: DashboardTabGroup[];
+  groupingMode?: "flat" | "grouped";
   activeTab: string;
   onTabChange: (id: string) => void;
   onReorder?: (newOrder: string[]) => void;
@@ -19,9 +16,10 @@ interface HamburgerLayoutProps {
   dir?: string;
 }
 
-const HamburgerLayout = ({ tabs, activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: HamburgerLayoutProps) => {
+const HamburgerLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: HamburgerLayoutProps) => {
   const [open, setOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +43,32 @@ const HamburgerLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
     ids.splice(toIdx, 0, draggedId);
     onReorder(ids);
     setDraggedId(null);
+  };
+
+  const renderTabButton = (tab: DashboardTabItem) => {
+    const Icon = tab.icon;
+    const isActive = activeTab === tab.id;
+    return (
+      <button
+        key={tab.id}
+        onClick={() => { onTabChange(tab.id); setOpen(false); }}
+        draggable={!!onReorder}
+        onDragStart={() => setDraggedId(tab.id)}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+        onDrop={() => handleDrop(tab.id)}
+        onDragEnd={() => setDraggedId(null)}
+        className={cn(
+          "flex items-center gap-3 w-full px-5 py-3 text-sm transition-colors group",
+          isActive ? "bg-primary/10 text-primary font-medium border-r-2 border-primary" : "text-foreground hover:bg-muted",
+          draggedId === tab.id && "opacity-50",
+          onReorder && "cursor-grab active:cursor-grabbing"
+        )}
+      >
+        {onReorder && <GripVertical className="h-3 w-3 shrink-0 opacity-30 group-hover:opacity-60" />}
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{tab.label}</span>
+      </button>
+    );
   };
 
   return (
@@ -77,31 +101,26 @@ const HamburgerLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
             )}
           >
             <nav className="py-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => { onTabChange(tab.id); setOpen(false); }}
-                    draggable={!!onReorder}
-                    onDragStart={() => setDraggedId(tab.id)}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-                    onDrop={() => handleDrop(tab.id)}
-                    onDragEnd={() => setDraggedId(null)}
-                    className={cn(
-                      "flex items-center gap-3 w-full px-5 py-3 text-sm transition-colors group",
-                      isActive ? "bg-primary/10 text-primary font-medium border-r-2 border-primary" : "text-foreground hover:bg-muted",
-                      draggedId === tab.id && "opacity-50",
-                      onReorder && "cursor-grab active:cursor-grabbing"
-                    )}
-                  >
-                    {onReorder && <GripVertical className="h-3 w-3 shrink-0 opacity-30 group-hover:opacity-60" />}
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{tab.label}</span>
-                  </button>
-                );
-              })}
+              {groupingMode === "grouped" && groupedTabs.length > 0 ? (
+                groupedTabs.map((group) => {
+                  const isOpen = openGroups[group.key] ?? true;
+                  return (
+                    <div key={group.key} className="border-b border-border/60 last:border-b-0">
+                      <button
+                        type="button"
+                        onClick={() => setOpenGroups((prev) => ({ ...prev, [group.key]: !isOpen }))}
+                        className="flex w-full items-center justify-between px-5 py-3 text-xs font-semibold text-muted-foreground"
+                      >
+                        <span>{group.label}</span>
+                        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                      {isOpen && <div className="pb-2">{group.items.map(renderTabButton)}</div>}
+                    </div>
+                  );
+                })
+              ) : (
+                tabs.map(renderTabButton)
+              )}
             </nav>
           </div>
         </div>

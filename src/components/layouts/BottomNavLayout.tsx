@@ -1,14 +1,11 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-
-interface TabItem {
-  id: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}
+import { DashboardTabGroup, DashboardTabItem } from "./dashboardGrouping";
 
 interface BottomNavLayoutProps {
-  tabs: TabItem[];
+  tabs: DashboardTabItem[];
+  groupedTabs?: DashboardTabGroup[];
+  groupingMode?: "flat" | "grouped";
   activeTab: string;
   onTabChange: (id: string) => void;
   onReorder?: (newOrder: string[]) => void;
@@ -17,7 +14,7 @@ interface BottomNavLayoutProps {
   dir?: string;
 }
 
-const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: BottomNavLayoutProps) => {
+const BottomNavLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: BottomNavLayoutProps) => {
   // Show max 5 bottom items + "more" trigger
   const MAX_BOTTOM = 5;
   const mainTabs = tabs.slice(0, MAX_BOTTOM);
@@ -25,6 +22,7 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
   const isMoreActive = moreTabs.some(t => t.id === activeTab);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const handleDrop = (targetId: string) => {
     if (!draggedId || draggedId === targetId || !onReorder) return;
@@ -50,8 +48,67 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
 
       {/* Bottom navigation */}
       <nav className="fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur border-t border-border pb-[max(env(safe-area-inset-bottom),0.5rem)]">
-        <div className="flex items-center justify-around min-h-14 max-w-lg mx-auto px-2 pt-1">
-          {mainTabs.map((tab) => {
+        {groupingMode === "grouped" && groupedTabs.length > 0 ? (
+          <>
+            {openGroup && (
+              <div className="mx-auto mb-2 max-w-lg px-3 pt-2">
+                <div className="rounded-2xl border border-border bg-popover p-2 shadow-xl">
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-xs font-semibold text-foreground">
+                      {groupedTabs.find((group) => group.key === openGroup)?.label}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenGroup(null)}
+                      className="text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      סגור
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(groupedTabs.find((group) => group.key === openGroup)?.items || []).map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => { onTabChange(tab.id); setOpenGroup(null); }}
+                          className={cn(
+                            "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors",
+                            activeTab === tab.id ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted"
+                          )}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-around min-h-14 max-w-lg mx-auto px-2 pt-1">
+              {groupedTabs.map((group) => {
+                const isActive = group.items.some((item) => item.id === activeTab);
+                return (
+                  <button
+                    key={group.key}
+                    type="button"
+                    onClick={() => setOpenGroup((prev) => prev === group.key ? null : group.key)}
+                    className={cn(
+                      "flex min-w-[56px] flex-col items-center gap-0.5 rounded-lg px-2 py-1 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground"
+                    )}
+                  >
+                    <div className={cn("h-5 w-5 rounded-full border border-current/30", isActive && "bg-primary/10")} />
+                    <span className="max-w-[68px] truncate text-[10px] font-medium">{group.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-around min-h-14 max-w-lg mx-auto px-2 pt-1">
+            {mainTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -76,7 +133,7 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
               </button>
             );
           })}
-          {moreTabs.length > 0 && (
+            {moreTabs.length > 0 && (
             <div className="relative group">
               <button
                 type="button"
@@ -124,8 +181,9 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
                 })}
               </div>
             </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </nav>
     </div>
   );

@@ -1,16 +1,13 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { GripVertical } from "lucide-react";
-
-interface TabItem {
-  id: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}
+import { GripVertical, ChevronDown, ChevronUp } from "lucide-react";
+import { DashboardTabGroup, DashboardTabItem } from "./dashboardGrouping";
 
 interface SplitViewLayoutProps {
-  tabs: TabItem[];
+  tabs: DashboardTabItem[];
+  groupedTabs?: DashboardTabGroup[];
+  groupingMode?: "flat" | "grouped";
   activeTab: string;
   onTabChange: (id: string) => void;
   onReorder?: (newOrder: string[]) => void;
@@ -19,9 +16,10 @@ interface SplitViewLayoutProps {
   dir?: string;
 }
 
-const SplitViewLayout = ({ tabs, activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: SplitViewLayoutProps) => {
+const SplitViewLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: SplitViewLayoutProps) => {
   const isRtl = dir === "rtl";
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const handleDrop = (targetId: string) => {
     if (!draggedId || draggedId === targetId || !onReorder) return;
@@ -33,6 +31,34 @@ const SplitViewLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
     ids.splice(toIdx, 0, draggedId);
     onReorder(ids);
     setDraggedId(null);
+  };
+
+  const renderTabButton = (tab: DashboardTabItem) => {
+    const Icon = tab.icon;
+    const isActive = activeTab === tab.id;
+    return (
+      <button
+        key={tab.id}
+        onClick={() => onTabChange(tab.id)}
+        draggable={!!onReorder}
+        onDragStart={() => setDraggedId(tab.id)}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+        onDrop={() => handleDrop(tab.id)}
+        onDragEnd={() => setDraggedId(null)}
+        className={cn(
+          "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all group",
+          isActive
+            ? "bg-primary text-primary-foreground font-medium shadow-sm"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          draggedId === tab.id && "opacity-50",
+          onReorder && "cursor-grab active:cursor-grabbing"
+        )}
+      >
+        {onReorder && <GripVertical className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-50 transition-opacity" />}
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{tab.label}</span>
+      </button>
+    );
   };
 
   return (
@@ -48,33 +74,26 @@ const SplitViewLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
         )}>
           <ScrollArea className="h-full">
             <nav className="py-2 px-1.5 space-y-0.5">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => onTabChange(tab.id)}
-                    draggable={!!onReorder}
-                    onDragStart={() => setDraggedId(tab.id)}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-                    onDrop={() => handleDrop(tab.id)}
-                    onDragEnd={() => setDraggedId(null)}
-                    className={cn(
-                      "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all group",
-                      isActive
-                        ? "bg-primary text-primary-foreground font-medium shadow-sm"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      draggedId === tab.id && "opacity-50",
-                      onReorder && "cursor-grab active:cursor-grabbing"
-                    )}
-                  >
-                    {onReorder && <GripVertical className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-50 transition-opacity" />}
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{tab.label}</span>
-                  </button>
-                );
-              })}
+              {groupingMode === "grouped" && groupedTabs.length > 0 ? (
+                groupedTabs.map((group) => {
+                  const isOpen = openGroups[group.key] ?? true;
+                  return (
+                    <div key={group.key} className="mb-2 rounded-lg border border-border/50 bg-background/60 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setOpenGroups((prev) => ({ ...prev, [group.key]: !isOpen }))}
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-semibold text-muted-foreground"
+                      >
+                        <span className="truncate">{group.label}</span>
+                        {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+                      {isOpen && <div className="mt-1 space-y-0.5">{group.items.map(renderTabButton)}</div>}
+                    </div>
+                  );
+                })
+              ) : (
+                tabs.map(renderTabButton)
+              )}
             </nav>
           </ScrollArea>
         </aside>

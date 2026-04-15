@@ -3,16 +3,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import { createPortal } from "react-dom";
-
-interface TabItem {
-  id: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  group?: string;
-}
+import { DashboardTabGroup, DashboardTabItem } from "./dashboardGrouping";
 
 interface CompactLayoutProps {
-  tabs: TabItem[];
+  tabs: DashboardTabItem[];
+  groupedTabs?: DashboardTabGroup[];
+  groupingMode?: "flat" | "grouped";
   activeTab: string;
   onTabChange: (id: string) => void;
   header: React.ReactNode;
@@ -28,7 +24,7 @@ const TAB_GROUPS: { id: string; label: string; tabIds: string[] }[] = [
   { id: "more", label: "עוד", tabIds: ["sharing", "contact", "settings"] },
 ];
 
-const CompactLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "rtl" }: CompactLayoutProps) => {
+const CompactLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTab, onTabChange, header, children, dir = "rtl" }: CompactLayoutProps) => {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -61,12 +57,18 @@ const CompactLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
     }
   }, [openGroup, dir]);
 
-  const activeGroupId = TAB_GROUPS.find(g => g.tabIds.includes(activeTab))?.id;
-  const ungroupedTabs = tabs.filter(t => !TAB_GROUPS.some(g => g.tabIds.includes(t.id)));
+  const activeGroupId = groupingMode === "grouped"
+    ? groupedTabs.find((group) => group.items.some((item) => item.id === activeTab))?.key
+    : TAB_GROUPS.find(g => g.tabIds.includes(activeTab))?.id;
+  const ungroupedTabs = groupingMode === "grouped"
+    ? []
+    : tabs.filter(t => !TAB_GROUPS.some(g => g.tabIds.includes(t.id)));
 
-  const openGroupTabs = openGroup
-    ? tabs.filter(t => TAB_GROUPS.find(g => g.id === openGroup)?.tabIds.includes(t.id))
-    : [];
+  const openGroupTabs = groupingMode === "grouped"
+    ? groupedTabs.find((group) => group.key === openGroup)?.items || []
+    : openGroup
+      ? tabs.filter(t => TAB_GROUPS.find(g => g.id === openGroup)?.tabIds.includes(t.id))
+      : [];
 
   return (
     <div className="flex flex-col h-screen bg-background" dir={dir}>
@@ -77,6 +79,7 @@ const CompactLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
       <div className="border-b border-border bg-card px-4 py-1.5 shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto">
           {TAB_GROUPS.map((group) => {
+            if (groupingMode === "grouped") return null;
             const groupTabs = tabs.filter(t => group.tabIds.includes(t.id));
             if (groupTabs.length === 0) return null;
 
@@ -98,6 +101,29 @@ const CompactLayout = ({ tabs, activeTab, onTabChange, header, children, dir = "
                 })()}
                 {activeTabInGroup ? activeTabInGroup.label : group.label}
                 <ChevronDown className={cn("h-3 w-3 transition-transform", openGroup === group.id && "rotate-180")} />
+              </Button>
+            );
+          })}
+
+          {groupingMode === "grouped" && groupedTabs.map((group) => {
+            const isGroupActive = activeGroupId === group.key;
+            const activeTabInGroup = group.items.find((tab) => tab.id === activeTab);
+
+            return (
+              <Button
+                key={group.key}
+                ref={(el) => { buttonRefs.current[group.key] = el; }}
+                variant={isGroupActive ? "secondary" : "ghost"}
+                size="sm"
+                className={cn("gap-1.5 text-xs h-8 shrink-0", isGroupActive && "font-medium")}
+                onClick={() => setOpenGroup(openGroup === group.key ? null : group.key)}
+              >
+                {activeTabInGroup && (() => {
+                  const Icon = activeTabInGroup.icon;
+                  return <Icon className="h-3.5 w-3.5" />;
+                })()}
+                {activeTabInGroup ? activeTabInGroup.label : group.label}
+                <ChevronDown className={cn("h-3 w-3 transition-transform", openGroup === group.key && "rotate-180")} />
               </Button>
             );
           })}

@@ -8,6 +8,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
 import { useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
+import type { DashboardTabGroup } from "@/components/layouts/dashboardGrouping";
 import { useSyncedPreferences } from "@/hooks/useSyncedPreferences";
 import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
 import BooksManager from "@/components/BooksManager";
@@ -392,36 +393,35 @@ const Personal = () => {
     return items;
   }, [allTabIds, isTabVisible, sharedSheets, customBoards, t]);
 
-  const groupedTabItems = useMemo(() => {
+  const groupedTabItems = useMemo<DashboardTabGroup[]>(() => {
     const labels = dir === "rtl"
       ? {
           focus: "פוקוס ותכנון",
-          media: "ספרייה ותוכן",
-          life: "חיים אישיים",
-          system: "מערכת וניהול",
-          custom: "מותאם אישית",
+          media: "ספרייה ולמידה",
+          life: "חיים ובריאות",
+          money: "כסף וקניות",
+          admin: "ניהול והתאמה",
         }
       : {
           focus: "Focus & Planning",
-          media: "Library & Media",
-          life: "Personal Life",
-          system: "System & Admin",
-          custom: "Custom",
+          media: "Library & Learning",
+          life: "Life & Wellness",
+          money: "Money & Shopping",
+          admin: "Admin & Custom",
         };
 
-    const groups: Record<string, { label: string; items: typeof flatTabItems }> = {
+    const groups: Record<string, DashboardTabGroup> = {
       focus: { label: labels.focus, items: [] },
       media: { label: labels.media, items: [] },
       life: { label: labels.life, items: [] },
-      system: { label: labels.system, items: [] },
-      custom: { label: labels.custom, items: [] },
+      money: { label: labels.money, items: [] },
+      admin: { label: labels.admin, items: [] },
     };
 
     const staticGroupMap: Record<string, keyof typeof groups> = {
       dashboard: "focus",
       tasks: "focus",
       work: "focus",
-      routine: "focus",
       planner: "focus",
       projects: "focus",
       courses: "focus",
@@ -430,25 +430,28 @@ const Personal = () => {
       books: "media",
       shows: "media",
       podcasts: "media",
+      notes: "media",
       nutrition: "life",
       dreams: "life",
       shopping: "life",
-      payments: "life",
-      notes: "life",
-      email: "life",
-      sharing: "system",
-      contact: "system",
-      settings: "system",
+      routine: "life",
+      payments: "money",
+      email: "money",
+      sharing: "admin",
+      contact: "admin",
+      settings: "admin",
     };
 
     flatTabItems.forEach((item) => {
       const groupKey = item.id.startsWith("shared-") || item.id.startsWith("board-")
-        ? "custom"
-        : (staticGroupMap[item.id] || "system");
+        ? "admin"
+        : (staticGroupMap[item.id] || "admin");
       groups[groupKey].items.push(item);
     });
 
-    return Object.entries(groups).filter(([, group]) => group.items.length > 0);
+    return Object.entries(groups)
+      .filter(([, group]) => group.items.length > 0)
+      .map(([key, group]) => ({ ...group, key }));
   }, [flatTabItems, dir]);
 
   if (loading) {
@@ -557,6 +560,8 @@ const Personal = () => {
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
         <SidebarLayout
           tabs={flatTabItems}
+          groupedTabs={groupedTabItems}
+          groupingMode={groupingMode}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }}
@@ -577,7 +582,7 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <CompactLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
+        <CompactLayout tabs={flatTabItems} groupedTabs={groupedTabItems} groupingMode={groupingMode} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
           <div className="min-h-full pb-8">{renderContent()}</div>
         </CompactLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
@@ -592,7 +597,7 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <BottomNavLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerLeft}{headerControls}</>}>
+        <BottomNavLayout tabs={flatTabItems} groupedTabs={groupedTabItems} groupingMode={groupingMode} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerLeft}{headerControls}</>}>
           <div className="min-h-full pb-20">{renderContent()}</div>
         </BottomNavLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
@@ -607,7 +612,7 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <HamburgerLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerControls}</>}>
+        <HamburgerLayout tabs={flatTabItems} groupedTabs={groupedTabItems} groupingMode={groupingMode} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerControls}</>}>
           <div className="min-h-full pb-8">{renderContent()}</div>
         </HamburgerLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
@@ -622,7 +627,7 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <DashboardCardsLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
+        <DashboardCardsLayout tabs={flatTabItems} groupedTabs={groupedTabItems} groupingMode={groupingMode} activeTab={activeTab} onTabChange={setActiveTab} dir={dir} header={<>{headerLeft}{headerControls}</>}>
           <div className="min-h-full pb-8">{renderContent()}</div>
         </DashboardCardsLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
@@ -637,7 +642,7 @@ const Personal = () => {
     return (
       <>
         {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-        <SplitViewLayout tabs={flatTabItems} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerLeft}{headerControls}</>}>
+        <SplitViewLayout tabs={flatTabItems} groupedTabs={groupedTabItems} groupingMode={groupingMode} activeTab={activeTab} onTabChange={setActiveTab} onReorder={(ids) => { setTabOrder(ids); localStorage.setItem("tab-order", JSON.stringify(ids)); }} dir={dir} header={<>{headerLeft}{headerControls}</>}>
           <div className="min-h-full pb-8">{renderContent()}</div>
         </SplitViewLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
@@ -665,13 +670,13 @@ const Personal = () => {
         <div className="border-b border-border bg-card px-4 py-1 flex-shrink-0">
           {groupingMode === "grouped" ? (
             <div className="space-y-2 py-2">
-              {groupedTabItems.map(([groupKey, group]) => {
-                const isOpen = openTabGroup === groupKey;
+              {groupedTabItems.map((group) => {
+                const isOpen = openTabGroup === group.key;
                 return (
-                  <div key={groupKey} className="rounded-xl border border-border/70 bg-background/60">
+                  <div key={group.key} className="rounded-xl border border-border/70 bg-background/60">
                     <button
                       type="button"
-                      onClick={() => setOpenTabGroup((prev) => prev === groupKey ? null : groupKey)}
+                      onClick={() => setOpenTabGroup((prev) => prev === group.key ? null : group.key)}
                       className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
                     >
                       <span>{group.label}</span>
