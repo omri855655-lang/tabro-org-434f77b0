@@ -69,6 +69,7 @@ const DailyRoutine = () => {
     tasks,
     loading,
     addTask,
+    updateTask,
     deleteTask,
     toggleCompletion,
     isTaskDueToday,
@@ -79,6 +80,7 @@ const DailyRoutine = () => {
 
   const [activeTab, setActiveTab] = useState<"today" | "all" | "history">("today");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<RecurringTask | null>(null);
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
