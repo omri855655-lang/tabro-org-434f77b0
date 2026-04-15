@@ -1005,6 +1005,54 @@ const ZoneFlowDashboard = () => {
                 </div>
               </div>
             )}
+            {youtubePlayer.videoId && (
+              <div className="rounded-xl border border-cyan-500/20 bg-black/20 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[#e8e8ed] truncate">תיבת צפייה</p>
+                    <p className="text-xs text-[#e8e8ed]/40 truncate">{activeYoutubeLabel}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setZoneFlowYoutubePlayerState({
+                        ...youtubePlayer,
+                        viewerOpen: !youtubePlayer.viewerOpen,
+                      })}
+                      className="bg-white/10 text-[#e8e8ed] hover:bg-white/20"
+                    >
+                      {youtubePlayer.viewerOpen ? <EyeOff className="ml-1 h-4 w-4" /> : <Eye className="ml-1 h-4 w-4" />}
+                      {youtubePlayer.viewerOpen ? "הסתר צפייה" : "פתח לצפייה"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setZoneFlowYoutubePlayerState({ videoId: null, title: "", viewerOpen: false })}
+                      className="text-rose-200 hover:bg-rose-500/20 hover:text-white"
+                    >
+                      עצור
+                    </Button>
+                  </div>
+                </div>
+                {youtubePlayer.viewerOpen ? (
+                  <div className="overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl">
+                    <iframe
+                      key={`dashboard-${youtubePlayer.videoId}`}
+                      src={`https://www.youtube.com/embed/${youtubePlayer.videoId}?autoplay=1&playsinline=1&mute=1&controls=1&rel=0`}
+                      title={activeYoutubeLabel}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="aspect-video w-full border-0"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-white/10 bg-white/5 px-3 py-4 text-center text-xs text-[#e8e8ed]/50">
+                    הווידאו ממשיך להתנגן ברקע. לחץ על "פתח לצפייה" כדי להציג אותו כאן.
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
