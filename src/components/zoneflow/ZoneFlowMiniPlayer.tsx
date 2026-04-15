@@ -73,7 +73,6 @@ export function ZoneFlowMiniPlayer({ visible, onGoToZoneFlow }: ZoneFlowMiniPlay
                       ...current,
                       viewerOpen: true,
                     });
-                    onGoToZoneFlow?.();
                   }}
                   className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md"
                   title="פתח וידאו"

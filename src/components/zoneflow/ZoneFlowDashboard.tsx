@@ -232,17 +232,6 @@ const ZoneFlowDashboard = () => {
     });
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (youtubePlayer.videoId && youtubePlayer.viewerOpen) {
-        setZoneFlowYoutubePlayerState({
-          ...youtubePlayer,
-          viewerOpen: false,
-        });
-      }
-    };
-  }, [youtubePlayer]);
-
   const extractYouTubeId = (url: string): string | null => {
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
@@ -1037,15 +1026,8 @@ const ZoneFlowDashboard = () => {
                   </div>
                 </div>
                 {youtubePlayer.viewerOpen ? (
-                  <div className="overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl">
-                    <iframe
-                      key={`dashboard-${youtubePlayer.videoId}`}
-                      src={`https://www.youtube.com/embed/${youtubePlayer.videoId}?autoplay=1&playsinline=1&enablejsapi=1&controls=1&rel=0`}
-                      title={activeYoutubeLabel}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      className="aspect-video w-full border-0"
-                    />
+                  <div className="rounded-lg border border-dashed border-cyan-400/30 bg-cyan-500/5 px-3 py-4 text-center text-xs text-[#e8e8ed]/70">
+                    הווידאו מוצג עכשיו בנגן הראשי של ZoneFlow. אם תעבור לדשבורד אחר הוא ימשיך בצד בקטן, בלי להתחיל מחדש.
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed border-white/10 bg-white/5 px-3 py-4 text-center text-xs text-[#e8e8ed]/50">

@@ -24,6 +24,7 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
   const moreTabs = tabs.slice(MAX_BOTTOM);
   const isMoreActive = moreTabs.some(t => t.id === activeTab);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const handleDrop = (targetId: string) => {
     if (!draggedId || draggedId === targetId || !onReorder) return;
@@ -78,6 +79,8 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
           {moreTabs.length > 0 && (
             <div className="relative group">
               <button
+                type="button"
+                onClick={() => setMoreOpen((prev) => !prev)}
                 className={cn(
                   "flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors min-w-[56px]",
                   isMoreActive ? "text-primary" : "text-muted-foreground"
@@ -92,7 +95,8 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
               </button>
               {/* Popup menu */}
               <div className={cn(
-                "absolute bottom-full mb-2 bg-popover border border-border rounded-xl shadow-xl py-2 min-w-[200px] max-h-[60vh] overflow-y-auto hidden group-hover:block",
+                "absolute bottom-full mb-2 bg-popover border border-border rounded-xl shadow-xl py-2 min-w-[200px] max-h-[60vh] overflow-y-auto",
+                moreOpen ? "block" : "hidden group-hover:block",
                 dir === "rtl" ? "left-0" : "right-0"
               )}>
                 {moreTabs.map((tab) => {
@@ -100,7 +104,7 @@ const BottomNavLayout = ({ tabs, activeTab, onTabChange, onReorder, header, chil
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => onTabChange(tab.id)}
+                      onClick={() => { onTabChange(tab.id); setMoreOpen(false); }}
                       draggable={!!onReorder}
                       onDragStart={() => setDraggedId(tab.id)}
                       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}

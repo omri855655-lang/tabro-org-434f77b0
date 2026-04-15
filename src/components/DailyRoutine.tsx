@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, CalendarCheck, History, Loader2, Flame, Calendar, RefreshCw, TrendingUp, Award, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "ראשון" },
@@ -65,6 +66,7 @@ const MONTHS = [
 ];
 
 const DailyRoutine = () => {
+  const { dir } = useLanguage();
   const {
     tasks,
     loading,
@@ -175,15 +177,15 @@ const DailyRoutine = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full" dir={dir}>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="mr-2 text-muted-foreground">טוען לוז יומי...</span>
+        <span className={`${dir === "rtl" ? "mr-2" : "ml-2"} text-muted-foreground`}>טוען לוז יומי...</span>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden" dir="rtl">
+    <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
       {/* Header */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">
         <CalendarCheck className="h-6 w-6 text-primary" />
@@ -191,8 +193,8 @@ const DailyRoutine = () => {
         <span className="text-sm text-muted-foreground">
           ({todayTasks.length} משימות להיום)
         </span>
-        <Button onClick={() => setAddDialogOpen(true)} className="mr-auto">
-          <Plus className="h-4 w-4 ml-1" />
+        <Button onClick={() => setAddDialogOpen(true)} className={dir === "rtl" ? "mr-auto" : "ml-auto"}>
+          <Plus className={`h-4 w-4 ${dir === "rtl" ? "ml-1" : "mr-1"}`} />
           הוסף משימה קבועה
         </Button>
       </div>
@@ -221,7 +223,7 @@ const DailyRoutine = () => {
               <CalendarCheck className="h-12 w-12 mb-4 opacity-50" />
               <p className="text-lg">אין משימות קבועות להיום</p>
               <Button variant="outline" className="mt-4" onClick={() => setAddDialogOpen(true)}>
-                <Plus className="h-4 w-4 ml-1" />
+                <Plus className={`h-4 w-4 ${dir === "rtl" ? "ml-1" : "mr-1"}`} />
                 הוסף משימה ראשונה
               </Button>
             </div>

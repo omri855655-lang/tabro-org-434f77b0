@@ -504,7 +504,7 @@ const Personal = () => {
           <div className="min-h-full pb-8">{renderContent()}</div>
         </SidebarLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
-        <GlobalZoneFlowYouTubePlayer />
+        <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
         <AiDailyPlanner />
       </>
     );
@@ -519,7 +519,7 @@ const Personal = () => {
           <div className="min-h-full pb-8">{renderContent()}</div>
         </CompactLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
-        <GlobalZoneFlowYouTubePlayer />
+        <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
         <AiDailyPlanner />
       </>
     );
@@ -534,7 +534,7 @@ const Personal = () => {
           <div className="min-h-full pb-20">{renderContent()}</div>
         </BottomNavLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
-        <GlobalZoneFlowYouTubePlayer />
+        <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
         <AiDailyPlanner />
       </>
     );
@@ -549,7 +549,7 @@ const Personal = () => {
           <div className="min-h-full pb-8">{renderContent()}</div>
         </HamburgerLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
-        <GlobalZoneFlowYouTubePlayer />
+        <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
         <AiDailyPlanner />
       </>
     );
@@ -564,7 +564,7 @@ const Personal = () => {
           <div className="min-h-full pb-8">{renderContent()}</div>
         </DashboardCardsLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
-        <GlobalZoneFlowYouTubePlayer />
+        <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
         <AiDailyPlanner />
       </>
     );
@@ -579,7 +579,7 @@ const Personal = () => {
           <div className="min-h-full pb-8">{renderContent()}</div>
         </SplitViewLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
-        <GlobalZoneFlowYouTubePlayer />
+        <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
         <AiDailyPlanner />
       </>
     );
@@ -749,7 +749,7 @@ const Personal = () => {
       </Tabs>
 
       <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
-      <GlobalZoneFlowYouTubePlayer />
+      <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
       <AiDailyPlanner />
     </div>
     </>
