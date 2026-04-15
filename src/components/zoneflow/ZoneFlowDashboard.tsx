@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink } from "lucide-react";
+import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
@@ -74,6 +74,12 @@ interface CalendarTask {
   start_time: string;
   end_time: string;
   category: string;
+}
+
+interface HiddenYtVideo {
+  id: string;
+  title: string;
+  desc: string;
 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -152,9 +158,23 @@ const ZoneFlowDashboard = () => {
     const saved = localStorage.getItem("zoneflow-custom-yt") || localStorage.getItem("deeply-custom-yt");
     return saved ? JSON.parse(saved) : {};
   });
-  const [hiddenYtVideos, setHiddenYtVideos] = useState<string[]>(() => {
+  const [hiddenYtVideos, setHiddenYtVideos] = useState<HiddenYtVideo[]>(() => {
     const saved = localStorage.getItem("zoneflow-hidden-yt");
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((item) => typeof item === "string"
+        ? { id: item, title: `סרטון מוסתר (${item})`, desc: "סרטון שהוסתר" }
+        : {
+            id: item.id,
+            title: item.title || `סרטון מוסתר (${item.id})`,
+            desc: item.desc || "סרטון שהוסתר",
+          }
+      );
+    } catch {
+      return [];
+    }
   });
   const [addYtUrl, setAddYtUrl] = useState("");
   const [addYtTitle, setAddYtTitle] = useState("");
@@ -229,6 +249,16 @@ const ZoneFlowDashboard = () => {
       ...prev,
       [categoryId]: (prev[categoryId] || []).filter(v => v.id !== videoId),
     }));
+  };
+
+  const hiddenVideoIds = new Set(hiddenYtVideos.map((video) => video.id));
+
+  const hideVideo = (video: HiddenYtVideo) => {
+    setHiddenYtVideos((prev) => prev.some((item) => item.id === video.id) ? prev : [...prev, video]);
+  };
+
+  const restoreHiddenVideo = (videoId: string) => {
+    setHiddenYtVideos((prev) => prev.filter((video) => video.id !== videoId));
   };
 
   // Play completion sound
@@ -732,7 +762,7 @@ const ZoneFlowDashboard = () => {
               const customVideosForCat = customYtVideos[activeYtCat] || [];
               const allVideos = activeCatData
                 ? [
-                    ...activeCatData.videos.filter(v => !hiddenYtVideos.includes(v.id)),
+                    ...activeCatData.videos.filter(v => !hiddenVideoIds.has(v.id)),
                     ...customVideosForCat.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" })),
                   ]
                 : [];
@@ -789,7 +819,7 @@ const ZoneFlowDashboard = () => {
                                   </button>
                                 ) : (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setHiddenYtVideos(prev => [...prev, v.id]); }}
+                                    onClick={(e) => { e.stopPropagation(); hideVideo({ id: v.id, title: v.title, desc: v.desc }); }}
                                     className="text-red-400/30 hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                     title={t("hideVideo" as any)}
                                   >
@@ -862,6 +892,52 @@ const ZoneFlowDashboard = () => {
                 </>
               );
             })()}
+            {hiddenYtVideos.length > 0 && (
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-[#e8e8ed]">סרטונים מוסתרים</p>
+                    <p className="text-xs text-[#e8e8ed]/40">אפשר לשחזר, לצפות מחדש או לפתוח ב-YouTube</p>
+                  </div>
+                  <span className="text-xs text-[#e8e8ed]/50">בסל: {hiddenYtVideos.length}</span>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {hiddenYtVideos.map((video) => (
+                    <div key={video.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/10 p-3">
+                      <button
+                        onClick={() => handleYouTubeToggle(video.id, video.title)}
+                        className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-500 to-slate-700 flex items-center justify-center flex-shrink-0"
+                        title="נגן"
+                      >
+                        <Play className="h-4 w-4 text-white" />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-[#e8e8ed] truncate">{video.title}</p>
+                        <p className="text-xs text-[#e8e8ed]/40 truncate">{video.desc}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => restoreHiddenVideo(video.id)}
+                          className="text-emerald-300 hover:text-emerald-200 transition-colors"
+                          title="שחזר"
+                        >
+                          <RotateCcwIcon className="h-3.5 w-3.5" />
+                        </button>
+                        <a
+                          href={`https://www.youtube.com/watch?v=${video.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#e8e8ed]/30 hover:text-[#e8e8ed]/70 transition-colors"
+                          title={t("openOnYoutube" as any)}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -884,7 +960,7 @@ const ZoneFlowDashboard = () => {
                 { id: "zyE92Ufl9G4", title: "Study With Me — 7 שעות מרתון 🎄", desc: "סשן ארוך עם Pomodoro 50/10" },
               ];
               const customStudy = customYtVideos["study-with-me"] || [];
-              const allStudy = [...studyVideos.filter(v => !hiddenYtVideos.includes(v.id)), ...customStudy.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
+              const allStudy = [...studyVideos.filter(v => !hiddenVideoIds.has(v.id)), ...customStudy.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
               return (
                 <>
                   <div className="grid sm:grid-cols-2 gap-2">
@@ -909,7 +985,7 @@ const ZoneFlowDashboard = () => {
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             ) : (
-                              <button onClick={(e) => { e.stopPropagation(); setHiddenYtVideos(prev => [...prev, v.id]); }} className="text-red-400/30 hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={t("hideVideo" as any)}>
+                              <button onClick={(e) => { e.stopPropagation(); hideVideo({ id: v.id, title: v.title, desc: v.desc }); }} className="text-red-400/30 hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={t("hideVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             )}
@@ -958,7 +1034,7 @@ const ZoneFlowDashboard = () => {
                 { id: "rIHYNwXWP80", title: "בקתה עם גשם ואח — 8 שעות 🏕️", desc: "רעמים ואח לקריאה ארוכה" },
               ];
               const customRead = customYtVideos["read-with-me"] || [];
-              const allRead = [...readVideos.filter(v => !hiddenYtVideos.includes(v.id)), ...customRead.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
+              const allRead = [...readVideos.filter(v => !hiddenVideoIds.has(v.id)), ...customRead.map(v => ({ id: v.id, title: v.title, desc: "סרטון מותאם אישית" }))];
               return (
                 <>
                   <div className="grid sm:grid-cols-2 gap-2">
@@ -983,7 +1059,7 @@ const ZoneFlowDashboard = () => {
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             ) : (
-                              <button onClick={(e) => { e.stopPropagation(); setHiddenYtVideos(prev => [...prev, v.id]); }} className="text-red-400/30 hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={t("hideVideo" as any)}>
+                              <button onClick={(e) => { e.stopPropagation(); hideVideo({ id: v.id, title: v.title, desc: v.desc }); }} className="text-red-400/30 hover:text-red-400 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100" title={t("hideVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             )}

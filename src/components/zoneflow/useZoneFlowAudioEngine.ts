@@ -5,6 +5,44 @@ import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
 import { renderPresetToBlob } from "./renderZoneFlowPresetToAudio";
 import { resetZoneFlowAudioState, setZoneFlowAudioState, stopOtherZoneFlowAudio } from "./zoneflowAudioState";
 
+interface ZoneFlowFreqRuntime {
+  activePresetId: string | null;
+  isPlaying: boolean;
+  isRendering: boolean;
+  audioEl: HTMLAudioElement | null;
+  blobUrl: string | null;
+}
+
+declare global {
+  interface Window {
+    _zoneflowFreqRuntime?: ZoneFlowFreqRuntime;
+  }
+}
+
+function getZoneFlowFreqRuntime(): ZoneFlowFreqRuntime {
+  if (typeof window === "undefined") {
+    return {
+      activePresetId: null,
+      isPlaying: false,
+      isRendering: false,
+      audioEl: null,
+      blobUrl: null,
+    };
+  }
+
+  if (!window._zoneflowFreqRuntime) {
+    window._zoneflowFreqRuntime = {
+      activePresetId: null,
+      isPlaying: false,
+      isRendering: false,
+      audioEl: null,
+      blobUrl: null,
+    };
+  }
+
+  return window._zoneflowFreqRuntime;
+}
+
 // Quick lookup for preset names by id
 const PRESET_NAME_MAP: Record<string, string> = {};
 AUDIO_PRESETS.forEach(p => { PRESET_NAME_MAP[p.id] = p.nameHe || p.name; });
@@ -16,14 +54,32 @@ AUDIO_PRESETS.forEach(p => { PRESET_NAME_MAP[p.id] = p.nameHe || p.name; });
  * API oscillators when the app goes to background.
  */
 export function useZoneFlowAudioEngine() {
-  const [activePresetId, setActivePresetId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isRendering, setIsRendering] = useState(false);
+  const runtime = getZoneFlowFreqRuntime();
+  const [activePresetId, setActivePresetId] = useState<string | null>(runtime.activePresetId);
+  const [isPlaying, setIsPlaying] = useState(runtime.isPlaying);
+  const [isRendering, setIsRendering] = useState(runtime.isRendering);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const isPlayingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    const rt = getZoneFlowFreqRuntime();
+    audioElRef.current = rt.audioEl;
+    blobUrlRef.current = rt.blobUrl;
+    isPlayingRef.current = rt.isPlaying;
+    setActivePresetId(rt.activePresetId);
+    setIsPlaying(rt.isPlaying);
+    setIsRendering(rt.isRendering);
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const stopAudio = useCallback(() => {
+    const rt = getZoneFlowFreqRuntime();
+
     if (audioElRef.current) {
       audioElRef.current.pause();
       audioElRef.current.src = "";
@@ -35,13 +91,22 @@ export function useZoneFlowAudioEngine() {
       blobUrlRef.current = null;
     }
     stopSilentAudio();
-    setIsPlaying(false);
-    setIsRendering(false);
+    if (mountedRef.current) {
+      setIsPlaying(false);
+      setIsRendering(false);
+      setActivePresetId(null);
+    }
     isPlayingRef.current = false;
+    rt.audioEl = null;
+    rt.blobUrl = null;
+    rt.activePresetId = null;
+    rt.isPlaying = false;
+    rt.isRendering = false;
     resetZoneFlowAudioState("freq");
   }, []);
 
   const playPreset = useCallback(async (preset: AudioPreset) => {
+    const rt = getZoneFlowFreqRuntime();
     stopAudio();
     stopOtherZoneFlowAudio("freq");
 
@@ -50,8 +115,13 @@ export function useZoneFlowAudioEngine() {
       window._zoneflowMusicState.stop();
     }
 
-    setIsRendering(true);
-    setActivePresetId(preset.id);
+    if (mountedRef.current) {
+      setIsRendering(true);
+      setActivePresetId(preset.id);
+    }
+    rt.activePresetId = preset.id;
+    rt.isPlaying = false;
+    rt.isRendering = true;
 
     try {
       // Unlock audio context on user gesture (before async work)
@@ -71,6 +141,8 @@ export function useZoneFlowAudioEngine() {
       audio.style.display = "none";
       document.body.appendChild(audio);
       audioElRef.current = audio;
+      rt.audioEl = audio;
+      rt.blobUrl = blobUrl;
 
       await audio.play();
 
@@ -94,13 +166,19 @@ export function useZoneFlowAudioEngine() {
         });
       }
 
-      setIsPlaying(true);
+      if (mountedRef.current) {
+        setIsPlaying(true);
+      }
       isPlayingRef.current = true;
+      rt.isPlaying = true;
     } catch (e) {
       console.error("Failed to render/play preset:", e);
       stopAudio();
     } finally {
-      setIsRendering(false);
+      if (mountedRef.current) {
+        setIsRendering(false);
+      }
+      rt.isRendering = false;
     }
   }, [stopAudio]);
 
@@ -137,10 +215,6 @@ export function useZoneFlowAudioEngine() {
         setActivePresetId(null);
       },
     });
-
-    return () => {
-      resetZoneFlowAudioState("freq");
-    };
   }, [isPlaying, activePresetId, stopAudio]);
 
   return { activePresetId, isPlaying, isRendering, toggle, stopAudio };
