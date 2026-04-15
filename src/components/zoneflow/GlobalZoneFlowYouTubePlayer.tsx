@@ -47,7 +47,7 @@ export function GlobalZoneFlowYouTubePlayer() {
     return `https://www.youtube.com/embed/${playerState.videoId}?${params.toString()}`;
   }, [playerState.videoId]);
 
-  if (!playerState.videoId) return null;
+  if (!playerState.videoId || playerState.viewerOpen) return null;
 
   return (
     <div

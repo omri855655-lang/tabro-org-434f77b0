@@ -583,7 +583,7 @@ ${context}
         {/* Hero Card */}
         <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-card via-primary/5 to-accent/10 shadow-sm backdrop-blur-xl">
           <CardContent className="py-6 space-y-4">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className={`flex flex-col gap-4 md:items-end md:justify-between ${isRtl ? "md:flex-row-reverse" : "md:flex-row"}`}>
               <div style={{ textAlign: isRtl ? "right" : "left" }}>
                 <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
                   {t("availableToSave" as any)}
@@ -699,7 +699,7 @@ ${context}
            <Card>
             <CardContent className="py-4">
               <h3 className="text-sm font-semibold mb-3 text-center">{t("rule503020" as any)}</h3>
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className={`grid grid-cols-3 gap-3 text-center ${isRtl ? "[&>*:nth-child(1)]:order-3 [&>*:nth-child(2)]:order-2 [&>*:nth-child(3)]:order-1" : ""}`}>
                 <div>
                   <div className="relative mx-auto w-16 h-16">
                     <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">

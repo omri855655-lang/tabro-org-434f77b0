@@ -1040,7 +1040,7 @@ const ZoneFlowDashboard = () => {
                   <div className="overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl">
                     <iframe
                       key={`dashboard-${youtubePlayer.videoId}`}
-                      src={`https://www.youtube.com/embed/${youtubePlayer.videoId}?autoplay=1&playsinline=1&mute=1&controls=1&rel=0`}
+                      src={`https://www.youtube.com/embed/${youtubePlayer.videoId}?autoplay=1&playsinline=1&enablejsapi=1&controls=1&rel=0`}
                       title={activeYoutubeLabel}
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
