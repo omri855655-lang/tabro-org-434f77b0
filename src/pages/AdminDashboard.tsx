@@ -64,6 +64,36 @@ const AdminDashboard = () => {
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [composeSending, setComposeSending] = useState(false);
+  const isHe = dir === "rtl";
+  const copy = isHe
+    ? {
+        adminAccess: "גישה לאדמין",
+        enterPassword: "הכנס סיסמת אדמין",
+        wrongPassword: "סיסמה שגויה",
+        unlock: "פתח גישה",
+        noPermission: "אין לך הרשאה לצפות בדף זה",
+        backToPersonal: "חזרה לאזור האישי",
+        creatorDashboard: "דשבורד יוצר",
+        refresh: "רענן",
+        backToPersonalShort: "חזרה לאזור האישי",
+        addAdminSuccess: "מנהל נוסף בהצלחה",
+        removeAdminSuccess: "מנהל הוסר",
+        emailSent: "המייל נשלח!",
+      }
+    : {
+        adminAccess: "Admin Access",
+        enterPassword: "Enter admin password",
+        wrongPassword: "Wrong password",
+        unlock: "Unlock",
+        noPermission: "You don't have permission to view this page",
+        backToPersonal: "Back to Personal Area",
+        creatorDashboard: "Creator Dashboard",
+        refresh: "Refresh",
+        backToPersonalShort: "Back to Personal",
+        addAdminSuccess: "Admin added successfully",
+        removeAdminSuccess: "Admin removed",
+        emailSent: "Email sent!",
+      };
 
   const fetchStats = useCallback(async () => {
     if (!user) return;
@@ -111,7 +141,7 @@ const AdminDashboard = () => {
       toast.error(data?.error || t("error" as any));
       return;
     }
-    toast.success("Admin added successfully!");
+    toast.success(copy.addAdminSuccess);
     setNewAdminEmail("");
     fetchStats();
   };
@@ -124,7 +154,7 @@ const AdminDashboard = () => {
       toast.error(data?.error || t("error" as any));
       return;
     }
-    toast.success("Admin removed");
+    toast.success(copy.removeAdminSuccess);
     fetchStats();
   };
 
@@ -155,17 +185,17 @@ const AdminDashboard = () => {
         <Card className="max-w-sm w-full">
           <CardContent className="p-8 text-center space-y-4">
             <ShieldCheck className="h-12 w-12 mx-auto text-primary" />
-            <h2 className="text-lg font-bold">Admin Access</h2>
+            <h2 className="text-lg font-bold">{copy.adminAccess}</h2>
             <Input
               type="password"
-              placeholder="Enter admin password"
+              placeholder={copy.enterPassword}
               value={passInput}
               onChange={(e) => { setPassInput(e.target.value); setPassError(false); }}
               onKeyDown={(e) => e.key === "Enter" && handlePassSubmit()}
               dir="ltr"
             />
-            {passError && <p className="text-sm text-destructive">Wrong password</p>}
-            <Button onClick={handlePassSubmit} className="w-full">Unlock</Button>
+            {passError && <p className="text-sm text-destructive">{copy.wrongPassword}</p>}
+            <Button onClick={handlePassSubmit} className="w-full">{copy.unlock}</Button>
           </CardContent>
         </Card>
       </div>
@@ -178,12 +208,10 @@ const AdminDashboard = () => {
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <ShieldCheck className="h-16 w-16 mx-auto text-destructive" />
-            <h2 className="text-xl font-bold">
-              {dir === "rtl" ? "אין לך הרשאה לצפות בדף זה" : "You don't have permission to view this page"}
-            </h2>
+            <h2 className="text-xl font-bold">{copy.noPermission}</h2>
             <Button onClick={() => navigate("/personal")} className="gap-2">
               <ArrowRight className="h-4 w-4" />
-              {dir === "rtl" ? "חזרה לאזור האישי" : "Back to Personal Area"}
+              {copy.backToPersonal}
             </Button>
           </CardContent>
         </Card>
@@ -199,8 +227,6 @@ const AdminDashboard = () => {
     });
   };
 
-  const isHe = dir === "rtl";
-
   return (
     <div className="min-h-screen bg-background p-4 md:p-8" dir={dir}>
       <div className="max-w-6xl mx-auto space-y-6">
@@ -208,14 +234,14 @@ const AdminDashboard = () => {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <Crown className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl md:text-3xl font-bold">{isHe ? "דשבורד יוצר" : "Creator Dashboard"}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">{copy.creatorDashboard}</h1>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => { fetchStats(); }} className="gap-2">
-              <RefreshCw className="h-4 w-4" /> {isHe ? "רענן" : "Refresh"}
+              <RefreshCw className="h-4 w-4" /> {copy.refresh}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/personal")}>
-              {isHe ? "חזרה לאזור האישי" : "Back to Personal"}
+              {copy.backToPersonalShort}
             </Button>
           </div>
         </div>
@@ -411,7 +437,7 @@ const AdminDashboard = () => {
                       toast.error(errMsg);
                     }
                   } else {
-                    toast.success(isHe ? "המייל נשלח!" : "Email sent!");
+                    toast.success(copy.emailSent);
                     setComposeTo(""); setComposeSubject(""); setComposeBody("");
                     fetchStats();
                   }

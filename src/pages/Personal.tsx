@@ -7,7 +7,7 @@ import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
-import { useDashboardGroupingAssignments, useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
+import { useDashboardCategoryLabels, useDashboardGroupingAssignments, useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
 import type { DashboardTabGroup } from "@/components/layouts/dashboardGrouping";
 import { useSyncedPreferences } from "@/hooks/useSyncedPreferences";
 import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
@@ -118,6 +118,7 @@ const Personal = () => {
   const { layout } = useLayoutPreference();
   const { groupingMode } = useDashboardGroupingPreference();
   const { assignments: groupingAssignments } = useDashboardGroupingAssignments();
+  const { labels: customGroupingLabels } = useDashboardCategoryLabels();
   const [openTabGroup, setOpenTabGroup] = useState<string | null>("focus");
 
   // Sync preferences across devices
@@ -397,18 +398,18 @@ const Personal = () => {
   const groupedTabItems = useMemo<DashboardTabGroup[]>(() => {
     const labels = dir === "rtl"
       ? {
-          focus: "פוקוס ותכנון",
-          media: "ספרייה ולמידה",
-          life: "חיים ובריאות",
-          money: "כסף וקניות",
-          admin: "ניהול והתאמה",
+          focus: customGroupingLabels.focus || "פוקוס ותכנון",
+          media: customGroupingLabels.media || "ספרייה ולמידה",
+          life: customGroupingLabels.life || "חיים ובריאות",
+          money: customGroupingLabels.money || "כסף וקניות",
+          admin: customGroupingLabels.admin || "ניהול והתאמה",
         }
       : {
-          focus: "Focus & Planning",
-          media: "Library & Learning",
-          life: "Life & Wellness",
-          money: "Money & Shopping",
-          admin: "Admin & Custom",
+          focus: customGroupingLabels.focus || "Focus & Planning",
+          media: customGroupingLabels.media || "Library & Learning",
+          life: customGroupingLabels.life || "Life & Wellness",
+          money: customGroupingLabels.money || "Money & Shopping",
+          admin: customGroupingLabels.admin || "Admin & Custom",
         };
 
     const groups: Record<string, DashboardTabGroup> = {
@@ -454,7 +455,7 @@ const Personal = () => {
     return Object.entries(groups)
       .filter(([, group]) => group.items.length > 0)
       .map(([key, group]) => ({ ...group, key }));
-  }, [flatTabItems, dir, groupingAssignments]);
+  }, [flatTabItems, dir, groupingAssignments, customGroupingLabels]);
 
   if (loading) {
     return (

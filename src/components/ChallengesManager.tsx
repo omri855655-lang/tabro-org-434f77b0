@@ -44,6 +44,37 @@ const ChallengesManager = () => {
   const { user } = useAuth();
   const { lang, dir } = useLanguage();
   const isHebrew = lang === "he";
+  const copy = isHebrew
+    ? {
+        achievements: "הישגים",
+        streakDays: "ימי רצף",
+        tasksDone: "משימות הושלמו",
+        challenges: "אתגרים",
+        todayStats: "סטטיסטיקות היום",
+        tasksCreated: "משימות נוצרו",
+        dailyRoutine: "שגרה יומית",
+        focusSessions: "סשני פוקוס",
+        activeBooks: "ספרים פעילים",
+        projects: "פרויקטים",
+        dailyChallenges: "אתגרים יומיים",
+        weeklyChallenges: "אתגרים שבועיים",
+        refresh: "רענן נתונים",
+      }
+    : {
+        achievements: "Achievements",
+        streakDays: "Streak Days",
+        tasksDone: "Tasks Completed",
+        challenges: "Challenges",
+        todayStats: "Today's Stats",
+        tasksCreated: "Tasks Created",
+        dailyRoutine: "Daily Routine",
+        focusSessions: "Focus Sessions",
+        activeBooks: "Active Books",
+        projects: "Projects",
+        dailyChallenges: "Daily Challenges",
+        weeklyChallenges: "Weekly Challenges",
+        refresh: "Refresh Data",
+      };
   const [stats, setStats] = useState<DailyStats>({ tasksCompleted: 0, tasksCreated: 0, routineCompleted: 0, pomodoroSessions: 0, booksActive: 0, projectsActive: 0 });
   const [weeklyStats, setWeeklyStats] = useState<{ tasksCompleted: number; routineCompleted: number; daysActive: number }>({ tasksCompleted: 0, routineCompleted: 0, daysActive: 0 });
   const [allTimeStats, setAllTimeStats] = useState<{ totalTasks: number; totalRoutine: number; totalBooks: number; totalProjects: number }>({ totalTasks: 0, totalRoutine: 0, totalBooks: 0, totalProjects: 0 });
@@ -262,28 +293,28 @@ const ChallengesManager = () => {
           <CardContent className="p-4 text-center">
             <Trophy className="h-6 w-6 text-violet-400 mx-auto mb-1" />
             <p className="text-2xl font-bold text-violet-400">{unlockedCount}/{achievements.length}</p>
-            <p className="text-xs text-muted-foreground">הישגים</p>
+            <p className="text-xs text-muted-foreground">{copy.achievements}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
           <CardContent className="p-4 text-center">
             <Flame className="h-6 w-6 text-orange-400 mx-auto mb-1" />
             <p className="text-2xl font-bold text-orange-400">{streak}</p>
-            <p className="text-xs text-muted-foreground">ימי רצף</p>
+            <p className="text-xs text-muted-foreground">{copy.streakDays}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
           <CardContent className="p-4 text-center">
             <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
             <p className="text-2xl font-bold text-emerald-400">{allTimeStats.totalTasks}</p>
-            <p className="text-xs text-muted-foreground">משימות הושלמו</p>
+            <p className="text-xs text-muted-foreground">{copy.tasksDone}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/20">
           <CardContent className="p-4 text-center">
             <Target className="h-6 w-6 text-cyan-400 mx-auto mb-1" />
             <p className="text-2xl font-bold text-cyan-400">{completedChallenges}/{challenges.length}</p>
-            <p className="text-xs text-muted-foreground">אתגרים</p>
+            <p className="text-xs text-muted-foreground">{copy.challenges}</p>
           </CardContent>
         </Card>
       </div>
@@ -293,18 +324,18 @@ const ChallengesManager = () => {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
-            סטטיסטיקות היום
+            {copy.todayStats}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
             {[
-              { label: "משימות הושלמו", value: stats.tasksCompleted, icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> },
-              { label: "משימות נוצרו", value: stats.tasksCreated, icon: <Target className="h-4 w-4 text-blue-500" /> },
-              { label: "שגרה יומית", value: stats.routineCompleted, icon: <CalendarCheck className="h-4 w-4 text-orange-500" /> },
-              { label: "סשני פוקוס", value: stats.pomodoroSessions, icon: <Clock className="h-4 w-4 text-violet-500" /> },
-              { label: "ספרים פעילים", value: stats.booksActive, icon: <BookOpen className="h-4 w-4 text-rose-500" /> },
-              { label: "פרויקטים", value: stats.projectsActive, icon: <Briefcase className="h-4 w-4 text-cyan-500" /> },
+              { label: copy.tasksDone, value: stats.tasksCompleted, icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> },
+              { label: copy.tasksCreated, value: stats.tasksCreated, icon: <Target className="h-4 w-4 text-blue-500" /> },
+              { label: copy.dailyRoutine, value: stats.routineCompleted, icon: <CalendarCheck className="h-4 w-4 text-orange-500" /> },
+              { label: copy.focusSessions, value: stats.pomodoroSessions, icon: <Clock className="h-4 w-4 text-violet-500" /> },
+              { label: copy.activeBooks, value: stats.booksActive, icon: <BookOpen className="h-4 w-4 text-rose-500" /> },
+              { label: copy.projects, value: stats.projectsActive, icon: <Briefcase className="h-4 w-4 text-cyan-500" /> },
             ].map((item, i) => (
               <div key={i} className="text-center p-3 rounded-xl bg-muted/50">
                 <div className="flex justify-center mb-1">{item.icon}</div>
@@ -327,7 +358,7 @@ const ChallengesManager = () => {
         <CardContent className="space-y-4">
           <div>
             <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-              <Star className="h-4 w-4 text-amber-400" /> אתגרים יומיים
+              <Star className="h-4 w-4 text-amber-400" /> {copy.dailyChallenges}
             </h3>
             <div className="grid sm:grid-cols-2 gap-2">
               {challenges.filter(c => c.type === "daily").map(challenge => {
@@ -344,7 +375,7 @@ const ChallengesManager = () => {
                       {done && <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />}
                     </div>
                     <Progress value={pct} className="h-2" />
-                    <p className="text-[10px] text-muted-foreground mt-1 text-left">{challenge.current}/{challenge.target}</p>
+                    <p className={`text-[10px] text-muted-foreground mt-1 ${isHebrew ? "text-left" : "text-right"}`}>{challenge.current}/{challenge.target}</p>
                   </div>
                 );
               })}
@@ -353,7 +384,7 @@ const ChallengesManager = () => {
 
           <div>
             <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-              <Award className="h-4 w-4 text-violet-400" /> אתגרים שבועיים
+              <Award className="h-4 w-4 text-violet-400" /> {copy.weeklyChallenges}
             </h3>
             <div className="grid sm:grid-cols-2 gap-2">
               {challenges.filter(c => c.type === "weekly").map(challenge => {
@@ -370,7 +401,7 @@ const ChallengesManager = () => {
                       {done && <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />}
                     </div>
                     <Progress value={pct} className="h-2" />
-                    <p className="text-[10px] text-muted-foreground mt-1 text-left">{challenge.current}/{challenge.target}</p>
+                    <p className={`text-[10px] text-muted-foreground mt-1 ${isHebrew ? "text-left" : "text-right"}`}>{challenge.current}/{challenge.target}</p>
                   </div>
                 );
               })}
@@ -387,7 +418,7 @@ const ChallengesManager = () => {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Trophy className="h-5 w-5 text-amber-500" />
-            הישגים ({unlockedCount}/{achievements.length})
+            {copy.achievements} ({unlockedCount}/{achievements.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -405,7 +436,7 @@ const ChallengesManager = () => {
                     {ach.unlocked && <Star className="h-4 w-4 text-amber-400 fill-amber-400" />}
                   </div>
                   <Progress value={pct} className="h-1.5" />
-                  <p className="text-[10px] text-muted-foreground mt-1 text-left">{ach.progress}/{ach.target}</p>
+                  <p className={`text-[10px] text-muted-foreground mt-1 ${isHebrew ? "text-left" : "text-right"}`}>{ach.progress}/{ach.target}</p>
                 </div>
               );
             })}
@@ -417,7 +448,7 @@ const ChallengesManager = () => {
       <div className="flex justify-center pb-4">
         <Button variant="outline" size="sm" onClick={fetchAnalytics} className="gap-2">
           <RotateCcw className="h-4 w-4" />
-          רענן נתונים
+          {copy.refresh}
         </Button>
       </div>
     </div>

@@ -6,7 +6,7 @@ import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { useUserPreferences, DEFAULT_TABS } from "@/hooks/useUserPreferences";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLayoutPreference, type LayoutMode } from "@/hooks/useLayoutPreference";
-import { useDashboardGroupingAssignments, useDashboardGroupingPreference, type DashboardCategoryKey } from "@/hooks/useDashboardGroupingPreference";
+import { useDashboardCategoryLabels, useDashboardGroupingAssignments, useDashboardGroupingPreference, type DashboardCategoryKey } from "@/hooks/useDashboardGroupingPreference";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ const SettingsPanel = () => {
   const { layout, setLayout } = useLayoutPreference();
   const { groupingMode, setGroupingMode } = useDashboardGroupingPreference();
   const { assignments: groupingAssignments, setAssignment, resetAssignments } = useDashboardGroupingAssignments();
+  const { labels: customCategoryLabels, setLabel: setCategoryLabel, resetLabels: resetCategoryLabels } = useDashboardCategoryLabels();
   const [pinEnabled, setPinEnabled] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -91,6 +92,9 @@ const SettingsPanel = () => {
         assignmentTitle: "Dashboard Categories",
         assignmentDesc: "Choose which category each dashboard belongs to when grouped navigation is enabled.",
         reset: "Reset categories",
+        renameTitle: "Category Names",
+        renameDesc: "Customize the category names shown in grouped navigation.",
+        resetNames: "Reset names",
       }
     : {
         title: "ניווט דשבורדים",
@@ -102,22 +106,25 @@ const SettingsPanel = () => {
         assignmentTitle: "שיוך דשבורדים לקטגוריות",
         assignmentDesc: "בחר לאיזו קטגוריה כל דשבורד שייך כשהניווט הקטגוריאלי פעיל.",
         reset: "איפוס קטגוריות",
+        renameTitle: "שמות הקטגוריות",
+        renameDesc: "התאם אישית את שמות הקטגוריות שמופיעים בניווט הקטגוריאלי.",
+        resetNames: "איפוס שמות",
       };
 
   const categoryLabels: Record<DashboardCategoryKey, string> = isEnglish
     ? {
-        focus: "Focus & Planning",
-        media: "Library & Learning",
-        life: "Life & Wellness",
-        money: "Money & Shopping",
-        admin: "Admin & Custom",
+        focus: customCategoryLabels.focus || "Focus & Planning",
+        media: customCategoryLabels.media || "Library & Learning",
+        life: customCategoryLabels.life || "Life & Wellness",
+        money: customCategoryLabels.money || "Money & Shopping",
+        admin: customCategoryLabels.admin || "Admin & Custom",
       }
     : {
-        focus: "פוקוס ותכנון",
-        media: "ספרייה ולמידה",
-        life: "חיים ובריאות",
-        money: "כסף וקניות",
-        admin: "ניהול והתאמה",
+        focus: customCategoryLabels.focus || "פוקוס ותכנון",
+        media: customCategoryLabels.media || "ספרייה ולמידה",
+        life: customCategoryLabels.life || "חיים ובריאות",
+        money: customCategoryLabels.money || "כסף וקניות",
+        admin: customCategoryLabels.admin || "ניהול והתאמה",
       };
 
   const categoryTabIds = [
@@ -469,6 +476,28 @@ const SettingsPanel = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Type className="h-5 w-5" />{groupingCopy.renameTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">{groupingCopy.renameDesc}</p>
+            <Button variant="outline" size="sm" onClick={resetCategoryLabels} className="shrink-0 text-xs">
+              {groupingCopy.resetNames}
+            </Button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(Object.entries(categoryLabels) as Array<[DashboardCategoryKey, string]>).map(([key, label]) => (
+              <div key={key} className="space-y-1 rounded-lg border bg-muted/20 p-3">
+                <Label className="text-xs text-muted-foreground">{key}</Label>
+                <Input value={label} onChange={(e) => setCategoryLabel(key, e.target.value)} />
               </div>
             ))}
           </div>
