@@ -11,6 +11,7 @@ type ZoneFlowAudioWindowKey = "_zoneflowMusicState" | "_zoneflowFreqState" | "_z
 export interface ZoneFlowYoutubePlayerState {
   videoId: string | null;
   title: string;
+  viewerOpen: boolean;
 }
 
 declare global {
@@ -106,6 +107,7 @@ export function stopOtherZoneFlowAudio(activeKind: ZoneFlowAudioKind) {
 const EMPTY_YOUTUBE_PLAYER_STATE: ZoneFlowYoutubePlayerState = {
   videoId: null,
   title: "",
+  viewerOpen: false,
 };
 
 export function getZoneFlowYoutubePlayerState(): ZoneFlowYoutubePlayerState {

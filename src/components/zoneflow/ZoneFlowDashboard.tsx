@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
+import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
@@ -150,6 +150,7 @@ const ZoneFlowDashboard = () => {
   // Guides & Motivation
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedMotivation, setExpandedMotivation] = useState<string | null>(null);
+  const [youtubePlayer, setYoutubePlayer] = useState(() => getZoneFlowYoutubePlayerState());
   const [activeYouTube, setActiveYouTube] = useState<string | null>(() => getZoneFlowYoutubePlayerState().videoId);
   const [activeYtCat, setActiveYtCat] = useState("yt-classical");
   
@@ -220,11 +221,26 @@ const ZoneFlowDashboard = () => {
   useEffect(() => { localStorage.setItem("zoneflow-custom-yt", JSON.stringify(customYtVideos)); }, [customYtVideos]);
   useEffect(() => { localStorage.setItem("zoneflow-hidden-yt", JSON.stringify(hiddenYtVideos)); }, [hiddenYtVideos]);
   useEffect(() => {
-    setActiveYouTube(getZoneFlowYoutubePlayerState().videoId);
+    const currentPlayer = getZoneFlowYoutubePlayerState();
+    setYoutubePlayer(currentPlayer);
+    setActiveYouTube(currentPlayer.videoId);
     return subscribeToZoneFlowYoutubePlayerState(() => {
-      setActiveYouTube(getZoneFlowYoutubePlayerState().videoId);
+      const nextPlayer = getZoneFlowYoutubePlayerState();
+      setYoutubePlayer(nextPlayer);
+      setActiveYouTube(nextPlayer.videoId);
     });
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (youtubePlayer.videoId && youtubePlayer.viewerOpen) {
+        setZoneFlowYoutubePlayerState({
+          ...youtubePlayer,
+          viewerOpen: false,
+        });
+      }
+    };
+  }, [youtubePlayer]);
 
   const extractYouTubeId = (url: string): string | null => {
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
@@ -333,6 +349,7 @@ const ZoneFlowDashboard = () => {
     setZoneFlowYoutubePlayerState({
       videoId: nextVideoId,
       title: nextVideoId ? title : "",
+      viewerOpen: false,
     });
 
     if (nextVideoId) {
@@ -413,6 +430,7 @@ const ZoneFlowDashboard = () => {
   const themeMuted = currentTheme.mutedText;
   const themeSubtle = currentTheme.subtleText;
   const themeInput = currentTheme.inputBg + " " + currentTheme.inputBorder;
+  const activeYoutubeLabel = youtubePlayer.title || "YouTube";
 
   return (
     <div className={`h-full ${currentTheme.bg} ${currentTheme.text} overflow-auto ${isLight ? "zoneflow-light" : ""}`} dir="rtl">
@@ -655,6 +673,38 @@ const ZoneFlowDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {youtubePlayer.videoId && (
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-[#e8e8ed] truncate">מנגן עכשיו: {activeYoutubeLabel}</p>
+                    <p className="text-xs text-[#e8e8ed]/40">
+                      הווידאו ממשיך ברקע. תיבת הצפייה מוסתרת עד שלוחצים לפתיחה.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setZoneFlowYoutubePlayerState({
+                      ...youtubePlayer,
+                      viewerOpen: !youtubePlayer.viewerOpen,
+                    })}
+                    className="bg-white/10 text-[#e8e8ed] hover:bg-white/20"
+                  >
+                    {youtubePlayer.viewerOpen ? <EyeOff className="ml-1 h-4 w-4" /> : <Eye className="ml-1 h-4 w-4" />}
+                    {youtubePlayer.viewerOpen ? "הסתר צפייה" : "פתח לצפייה"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setZoneFlowYoutubePlayerState({ videoId: null, title: "", viewerOpen: false })}
+                    className="text-rose-200 hover:bg-rose-500/20 hover:text-white"
+                  >
+                    עצור
+                  </Button>
+                </div>
+              </div>
+            )}
             {(() => {
               const ytCategories = [
                 {

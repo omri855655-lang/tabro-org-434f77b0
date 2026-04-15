@@ -47,6 +47,16 @@ function getZoneFlowFreqRuntime(): ZoneFlowFreqRuntime {
 const PRESET_NAME_MAP: Record<string, string> = {};
 AUDIO_PRESETS.forEach(p => { PRESET_NAME_MAP[p.id] = p.nameHe || p.name; });
 
+function syncFreqAudioState(activePresetId: string | null, playing: boolean, stop: () => void) {
+  setZoneFlowAudioState("freq", {
+    playing,
+    name: activePresetId
+      ? (PRESET_NAME_MAP[activePresetId] || activePresetId)
+      : "",
+    stop,
+  });
+}
+
 /**
  * Audio engine that pre-renders presets to WAV blobs and plays them
  * through a real <audio> element. This is critical for iOS background
@@ -122,6 +132,12 @@ export function useZoneFlowAudioEngine() {
     rt.activePresetId = preset.id;
     rt.isPlaying = false;
     rt.isRendering = true;
+    syncFreqAudioState(preset.id, false, () => {
+      stopAudio();
+      if (mountedRef.current) {
+        setActivePresetId(null);
+      }
+    });
 
     try {
       // Unlock audio context on user gesture (before async work)
@@ -171,6 +187,12 @@ export function useZoneFlowAudioEngine() {
       }
       isPlayingRef.current = true;
       rt.isPlaying = true;
+      syncFreqAudioState(preset.id, true, () => {
+        stopAudio();
+        if (mountedRef.current) {
+          setActivePresetId(null);
+        }
+      });
     } catch (e) {
       console.error("Failed to render/play preset:", e);
       stopAudio();
@@ -179,6 +201,14 @@ export function useZoneFlowAudioEngine() {
         setIsRendering(false);
       }
       rt.isRendering = false;
+      if (!rt.isPlaying) {
+        syncFreqAudioState(rt.activePresetId, false, () => {
+          stopAudio();
+          if (mountedRef.current) {
+            setActivePresetId(null);
+          }
+        });
+      }
     }
   }, [stopAudio]);
 
@@ -205,15 +235,9 @@ export function useZoneFlowAudioEngine() {
 
   // Sync global state for floating mini-player (frequency presets)
   useEffect(() => {
-    setZoneFlowAudioState("freq", {
-      playing: isPlaying,
-      name: activePresetId
-        ? (PRESET_NAME_MAP[activePresetId] || activePresetId)
-        : "",
-      stop: () => {
-        stopAudio();
-        setActivePresetId(null);
-      },
+    syncFreqAudioState(activePresetId, isPlaying, () => {
+      stopAudio();
+      setActivePresetId(null);
     });
   }, [isPlaying, activePresetId, stopAudio]);
 
