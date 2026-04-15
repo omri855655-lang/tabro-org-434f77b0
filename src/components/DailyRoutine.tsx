@@ -131,6 +131,43 @@ const DailyRoutine = () => {
     setAddDialogOpen(false);
   };
 
+  const handleEditTask = async () => {
+    if (!editingTask) return;
+    await updateTask(editingTask.id, {
+      title: newTask.title,
+      description: newTask.description || null,
+      frequency: newTask.frequency,
+      dayOfWeek: newTask.frequency === "thrice_weekly"
+        ? (newTask.dayOfWeek > 0 ? newTask.dayOfWeek : null)
+        : newTask.frequency === "weekly"
+        ? (newTask.dayOfWeek === -1 ? null : newTask.dayOfWeek)
+        : newTask.frequency === "yearly" && newTask.dayOfMonth !== -1
+        ? newTask.yearMonth
+        : null,
+      dayOfMonth: newTask.frequency === "monthly"
+        ? (newTask.dayOfMonth === -1 ? null : newTask.dayOfMonth)
+        : newTask.frequency === "yearly"
+        ? (newTask.dayOfMonth === -1 ? null : newTask.dayOfMonth)
+        : null,
+      reminderTime: newTask.reminderTime || null,
+    });
+    setEditingTask(null);
+    setNewTask({ title: "", description: "", frequency: "daily", dayOfWeek: -1, dayOfMonth: -1, yearMonth: 0, reminderTime: "" });
+  };
+
+  const openEditDialog = (task: RecurringTask) => {
+    setEditingTask(task);
+    setNewTask({
+      title: task.title,
+      description: task.description || "",
+      frequency: task.frequency,
+      dayOfWeek: task.dayOfWeek ?? -1,
+      dayOfMonth: task.dayOfMonth ?? -1,
+      yearMonth: task.frequency === "yearly" && task.dayOfWeek !== null ? task.dayOfWeek : 0,
+      reminderTime: task.reminderTime || "",
+    });
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
