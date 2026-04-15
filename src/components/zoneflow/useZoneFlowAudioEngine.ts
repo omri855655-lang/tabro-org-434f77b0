@@ -75,6 +75,9 @@ export function useZoneFlowAudioEngine() {
 
   useEffect(() => {
     const rt = getZoneFlowFreqRuntime();
+    if (rt.audioEl && !rt.audioEl.paused) {
+      rt.isPlaying = true;
+    }
     audioElRef.current = rt.audioEl;
     blobUrlRef.current = rt.blobUrl;
     isPlayingRef.current = rt.isPlaying;
@@ -160,6 +163,25 @@ export function useZoneFlowAudioEngine() {
       rt.audioEl = audio;
       rt.blobUrl = blobUrl;
 
+      const publishFromAudio = () => {
+        const playingNow = !!audioElRef.current && !audioElRef.current.paused;
+        rt.isPlaying = playingNow;
+        if (mountedRef.current) {
+          setIsPlaying(playingNow);
+          setActivePresetId(rt.activePresetId);
+        }
+        syncFreqAudioState(rt.activePresetId, playingNow, () => {
+          stopAudio();
+          if (mountedRef.current) {
+            setActivePresetId(null);
+          }
+        });
+      };
+
+      audio.addEventListener("play", publishFromAudio);
+      audio.addEventListener("pause", publishFromAudio);
+      audio.addEventListener("ended", publishFromAudio);
+
       await audio.play();
 
       // MediaSession for lock screen controls
@@ -232,6 +254,28 @@ export function useZoneFlowAudioEngine() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const rt = getZoneFlowFreqRuntime();
+      const actuallyPlaying = !!rt.audioEl && !rt.audioEl.paused;
+      if (rt.isPlaying !== actuallyPlaying) {
+        rt.isPlaying = actuallyPlaying;
+        if (mountedRef.current) {
+          setIsPlaying(actuallyPlaying);
+          setActivePresetId(rt.activePresetId);
+        }
+        syncFreqAudioState(rt.activePresetId, actuallyPlaying, () => {
+          stopAudio();
+          if (mountedRef.current) {
+            setActivePresetId(null);
+          }
+        });
+      }
+    }, 800);
+
+    return () => window.clearInterval(interval);
+  }, [stopAudio]);
 
   // Sync global state for floating mini-player (frequency presets)
   useEffect(() => {

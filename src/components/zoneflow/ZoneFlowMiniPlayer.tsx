@@ -23,9 +23,18 @@ export function ZoneFlowMiniPlayer({ visible, onGoToZoneFlow }: ZoneFlowMiniPlay
 
   useEffect(() => {
     setActiveAudio(getActiveZoneFlowAudio());
-    return subscribeToZoneFlowAudioState(() => {
+    const unsubscribe = subscribeToZoneFlowAudioState(() => {
       setActiveAudio(getActiveZoneFlowAudio());
     });
+
+    const interval = window.setInterval(() => {
+      setActiveAudio(getActiveZoneFlowAudio());
+    }, 800);
+
+    return () => {
+      unsubscribe();
+      window.clearInterval(interval);
+    };
   }, []);
 
   const isAnythingPlaying = activeAudio.length > 0;

@@ -859,6 +859,16 @@ const ZoneFlowDashboard = () => {
                                 <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                               </div>
                               <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoneFlowYoutubePlayerState({ videoId: v.id, title: v.title, viewerOpen: true });
+                                  }}
+                                  className="text-cyan-300/80 hover:text-cyan-200 transition-colors"
+                                  title="פתח לצפייה"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
                                 {isCustom ? (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); removeCustomYtVideo(activeYtCat, v.id); }}
@@ -967,6 +977,13 @@ const ZoneFlowDashboard = () => {
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
+                          onClick={() => setZoneFlowYoutubePlayerState({ videoId: video.id, title: video.title, viewerOpen: true })}
+                          className="text-cyan-300/80 hover:text-cyan-200 transition-colors"
+                          title="פתח לצפייה"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
                           onClick={() => restoreHiddenVideo(video.id)}
                           className="text-emerald-300 hover:text-emerald-200 transition-colors"
                           title="שחזר"
@@ -1030,6 +1047,9 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); setZoneFlowYoutubePlayerState({ videoId: v.id, title: v.title, viewerOpen: true }); }} className="text-cyan-300/80 hover:text-cyan-200 transition-colors" title="פתח לצפייה">
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("study-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1104,6 +1124,9 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); setZoneFlowYoutubePlayerState({ videoId: v.id, title: v.title, viewerOpen: true }); }} className="text-cyan-300/80 hover:text-cyan-200 transition-colors" title="פתח לצפייה">
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("read-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />

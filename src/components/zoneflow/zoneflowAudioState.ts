@@ -123,6 +123,13 @@ export function stopOtherZoneFlowAudio(activeKind: ZoneFlowAudioKind) {
       state.stop();
     }
   });
+
+  if (activeKind !== "freq") {
+    const freqRuntime = window._zoneflowFreqRuntime;
+    if (freqRuntime?.audioEl && !freqRuntime.audioEl.paused) {
+      window._zoneflowFreqState?.stop();
+    }
+  }
 }
 
 const EMPTY_YOUTUBE_PLAYER_STATE: ZoneFlowYoutubePlayerState = {
