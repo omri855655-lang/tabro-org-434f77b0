@@ -5,6 +5,7 @@ import {
   getZoneFlowYoutubePlayerState,
   setZoneFlowYoutubePlayerState,
   subscribeToZoneFlowAudioState,
+  subscribeToZoneFlowYoutubePlayerState,
 } from "./zoneflowAudioState";
 
 /**
@@ -20,26 +21,33 @@ interface ZoneFlowMiniPlayerProps {
 
 export function ZoneFlowMiniPlayer({ visible, onGoToZoneFlow }: ZoneFlowMiniPlayerProps) {
   const [activeAudio, setActiveAudio] = useState(getActiveZoneFlowAudio());
+  const [youtubePlayerState, setYoutubePlayerState] = useState(getZoneFlowYoutubePlayerState());
 
   useEffect(() => {
     setActiveAudio(getActiveZoneFlowAudio());
     const unsubscribe = subscribeToZoneFlowAudioState(() => {
       setActiveAudio(getActiveZoneFlowAudio());
     });
+    const unsubscribeYoutube = subscribeToZoneFlowYoutubePlayerState(() => {
+      setYoutubePlayerState(getZoneFlowYoutubePlayerState());
+    });
 
     const interval = window.setInterval(() => {
       setActiveAudio(getActiveZoneFlowAudio());
+      setYoutubePlayerState(getZoneFlowYoutubePlayerState());
     }, 800);
 
     return () => {
       unsubscribe();
+      unsubscribeYoutube();
       window.clearInterval(interval);
     };
   }, []);
 
   const isAnythingPlaying = activeAudio.length > 0;
+  const hasActiveYoutubeBanner = activeAudio.some((audio) => audio.kind === "youtube") && youtubePlayerState.viewerOpen;
 
-  if (!visible || !isAnythingPlaying) return null;
+  if (!visible || !isAnythingPlaying || hasActiveYoutubeBanner) return null;
 
   const primaryAudio = activeAudio[0];
   const displayName = primaryAudio?.name || "מנגן";

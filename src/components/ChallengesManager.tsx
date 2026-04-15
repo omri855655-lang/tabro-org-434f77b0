@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Trophy, Target, Flame, Star, Zap, TrendingUp, Award, CheckCircle2, Clock, BookOpen, Briefcase, CalendarCheck, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import SessionHistory from "./challenges/SessionHistory";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface DailyStats {
   tasksCompleted: number;
@@ -41,6 +42,8 @@ interface Challenge {
 
 const ChallengesManager = () => {
   const { user } = useAuth();
+  const { lang, dir } = useLanguage();
+  const isHebrew = lang === "he";
   const [stats, setStats] = useState<DailyStats>({ tasksCompleted: 0, tasksCreated: 0, routineCompleted: 0, pomodoroSessions: 0, booksActive: 0, projectsActive: 0 });
   const [weeklyStats, setWeeklyStats] = useState<{ tasksCompleted: number; routineCompleted: number; daysActive: number }>({ tasksCompleted: 0, routineCompleted: 0, daysActive: 0 });
   const [allTimeStats, setAllTimeStats] = useState<{ totalTasks: number; totalRoutine: number; totalBooks: number; totalProjects: number }>({ totalTasks: 0, totalRoutine: 0, totalBooks: 0, totalProjects: 0 });
@@ -246,13 +249,13 @@ const ChallengesManager = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-pulse text-muted-foreground">טוען אנליטיקה...</div>
+        <div className="animate-pulse text-muted-foreground">{isHebrew ? "טוען אנליטיקה..." : "Loading analytics..."}</div>
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-auto p-4 space-y-6" dir="rtl">
+    <div className="h-full overflow-auto p-4 space-y-6" dir={dir}>
       {/* Header Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="bg-gradient-to-br from-violet-500/10 to-violet-600/5 border-violet-500/20">
