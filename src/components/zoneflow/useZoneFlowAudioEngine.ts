@@ -13,11 +13,7 @@ interface ZoneFlowFreqRuntime {
   blobUrl: string | null;
 }
 
-declare global {
-  interface Window {
-    _zoneflowFreqRuntime?: ZoneFlowFreqRuntime;
-  }
-}
+const FREQ_RUNTIME_KEY = "_zoneflowFreqRuntimeFull";
 
 function getZoneFlowFreqRuntime(): ZoneFlowFreqRuntime {
   if (typeof window === "undefined") {
@@ -30,8 +26,9 @@ function getZoneFlowFreqRuntime(): ZoneFlowFreqRuntime {
     };
   }
 
-  if (!window._zoneflowFreqRuntime) {
-    window._zoneflowFreqRuntime = {
+  const w = window as any;
+  if (!w[FREQ_RUNTIME_KEY]) {
+    w[FREQ_RUNTIME_KEY] = {
       activePresetId: null,
       isPlaying: false,
       isRendering: false,
@@ -40,7 +37,7 @@ function getZoneFlowFreqRuntime(): ZoneFlowFreqRuntime {
     };
   }
 
-  return window._zoneflowFreqRuntime;
+  return w[FREQ_RUNTIME_KEY] as ZoneFlowFreqRuntime;
 }
 
 // Quick lookup for preset names by id

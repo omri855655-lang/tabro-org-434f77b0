@@ -413,11 +413,11 @@ const Personal = () => {
         };
 
     const groups: Record<string, DashboardTabGroup> = {
-      focus: { label: labels.focus, items: [] },
-      media: { label: labels.media, items: [] },
-      life: { label: labels.life, items: [] },
-      money: { label: labels.money, items: [] },
-      admin: { label: labels.admin, items: [] },
+      focus: { key: "focus", label: labels.focus, items: [] },
+      media: { key: "media", label: labels.media, items: [] },
+      life: { key: "life", label: labels.life, items: [] },
+      money: { key: "money", label: labels.money, items: [] },
+      admin: { key: "admin", label: labels.admin, items: [] },
     };
 
     const staticGroupMap: Record<string, keyof typeof groups> = {
