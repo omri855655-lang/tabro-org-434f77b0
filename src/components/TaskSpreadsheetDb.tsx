@@ -252,7 +252,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [hideCreatorInfo, setHideCreatorInfo] = useState(() => {
     return localStorage.getItem("hide-creator-info") === "true";
   });
-  const taskThemeStyles = getTaskThemeStyles(dashTheme);
+  const taskThemeStyles = getTaskThemeStyles(dashTheme as BoardTheme);
   const isHebrew = lang === "he";
   const copy = isHebrew ? {
     loading: "טוען משימות...",
@@ -1583,12 +1583,12 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                {task.urgent && <span className="rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[11px] font-medium">{copy.urgent}</span>}
+                                {task.urgent && <span className="rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[11px] font-medium">{copy.byUrgent}</span>}
                                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusColors[task.status] || "bg-muted text-foreground")}>
                                   {task.status === "בוצע" ? copy.done : task.status === "בטיפול" ? copy.inProgress : copy.notStarted}
                                 </span>
                                 {task.overdue && task.status !== "בוצע" && (
-                                  <span className="rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[11px] font-medium">{copy.overdue}</span>
+                                  <span className="rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[11px] font-medium">{copy.byOverdue}</span>
                                 )}
                               </div>
                               <p className="mt-2 text-sm font-semibold">{task.description || copy.noTasksYet}</p>

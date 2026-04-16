@@ -30,9 +30,7 @@ async function sendPush(
     options: { ttl: 86400 },
   };
   const payload = await buildPushPayload(message, sub, vapid);
-  // buildPushPayload returns { endpoint, headers, body, method } but endpoint may be on the request
-  const targetUrl = payload.endpoint || subscription.endpoint;
-  const res = await fetch(targetUrl, {
+  const res = await fetch(subscription.endpoint, {
     method: payload.method || "POST",
     headers: payload.headers,
     body: payload.body,
