@@ -25,6 +25,9 @@ export const SITE_FONT_OPTIONS: SiteFontOption[] = [
 
 export const SITE_THEME_PRESETS: SiteThemePreset[] = [
   { id: "default", name: "נקי", description: "מראה בהיר ונעים עם כחול קלאסי" },
+  { id: "command-center", name: "Command Center", description: "דחוס, חד ומקצועי — לוחות בקרה, היררכיה ברורה ותחושת workspace" },
+  { id: "editorial", name: "Editorial", description: "אלגנטי, אוורירי וטיפוגרפי — מרגיש כמו מגזין פרימיום חכם" },
+  { id: "focus-glass", name: "Focus Glass", description: "רך, שקוף ושקט — מתאים לפוקוס, משימות ו-ZoneFlow" },
   { id: "focus", name: "Focus", description: "עבודה עמוקה — כהה ומינימלי, בהשראת Linear ו-Arc" },
   { id: "clarity", name: "Clarity", description: "בהיר, נקי ומסודר — בהשראת Notion ו-Things 3" },
   { id: "flow", name: "Flow", description: "חמים ואנרגטי — בהשראת Monday.com ו-Asana" },

@@ -34,6 +34,7 @@ import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import SheetSharingDialog from "@/components/SheetSharingDialog";
 import FileImport from "@/components/FileImport";
 import ItemDetailDialog from "@/components/ItemDetailDialog";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface TaskSpreadsheetDbProps {
   title: string;
@@ -66,6 +67,7 @@ const statusOrder: Record<string, number> = {
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
 const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
+  const { lang, dir } = useLanguage();
   const isSharedSheet = !!fixedSheetOwnerId;
   const [sharedCollapsed, setSharedCollapsed] = useState(false);
   const { user } = useAuth();
@@ -100,6 +102,184 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [hideCreatorInfo, setHideCreatorInfo] = useState(() => {
     return localStorage.getItem("hide-creator-info") === "true";
   });
+  const isHebrew = lang === "he";
+  const copy = isHebrew ? {
+    loading: "טוען משימות...",
+    creatorFrom: "משותף מ:",
+    readOnly: "צפייה בלבד",
+    editMode: "עריכה",
+    showCreator: "הצג יוצר",
+    hideCreator: "הסתר יוצר",
+    showCreatorEditor: "הצג יוצר/עורך",
+    hideCreatorEditor: "הסתר יוצר/עורך",
+    done: "בוצע",
+    notStarted: "טרם החל",
+    inProgress: "בטיפול",
+    completionRate: "אחוז ביצוע:",
+    newTask: "משימה חדשה",
+    deleteTask: "מחק משימה",
+    sort: "מיון",
+    noSort: "ללא מיון",
+    byStatus: "לפי סטטוס",
+    byPlannedEnd: "לפי סיום מתוכנן",
+    byCreatedAt: "לפי תאריך יצירה",
+    byOverdue: "לפי חריגה",
+    byUrgent: "לפי דחיפות",
+    export: "ייצוא",
+    importTasks: "ייבוא משימות",
+    design: "עיצוב",
+    chooseDesign: "בחר עיצוב",
+    table: "טבלה",
+    list: "רשימה",
+    cards: "כרטיסים",
+    kanban: "קנבן",
+    compact: "קומפקט",
+    timeline: "ציר זמן",
+    summary: "סיכום מנהלים",
+    deep: "Deep Work",
+    stickyUrgent: "דחוף / #",
+    stickyDescription: "תיאור המשימה",
+    stickyCategory: "סיווג",
+    stickyResponsible: "אחריות",
+    stickyStatus: "סטטוס",
+    stickyProgress: "היכן זה עומד",
+    stickyCompleted: "משימות שבוצעו",
+    stickyPlanned: "סיום מתוכנן",
+    stickyOverdue: "חריגה",
+    stickyCreated: "נוצר",
+    stickyUpdated: "עודכן",
+    stickyAi: "AI",
+    noArchivedTasks: "אין משימות בארכיון",
+    noCompletedTasks: "אין משימות שבוצעו",
+    noTasksYet: "אין משימות עדיין",
+    addFirstTask: "הוסף משימה ראשונה",
+    similarTasks: "משימות דומות:",
+    shareError: "שגיאה בפתיחת שיתוף הגליון",
+    share: "שתף",
+    createSheetLogin: "יש להתחבר כדי ליצור גליון חדש",
+    sheetCreated: "נוצר בהצלחה",
+    sheetDeleted: "נמחק בהצלחה",
+    deleteSheetError: "שגיאה במחיקת הגליון",
+    moveTaskSuccess: "המשימה הועברה לגליון",
+    moveTaskError: "שגיאה בהעברת משימה",
+    archived: "המשימה הועברה לארכיון",
+    restored: "המשימה הוחזרה מהארכיון",
+    archiveError: "שגיאה בארכוב משימה",
+    aiNeedDescription: "נא להזין תיאור משימה לפני בקשת עזרה מ-AI",
+    aiNoResponse: "לא התקבלה תגובה מה-AI",
+    aiError: "שגיאה בקבלת עזרה מ-AI",
+    cancelUrgent: "בטל דחיפות",
+    markUrgent: "סמן כדחוף",
+    timelineTitle: "Timeline + Kanban",
+    timelineDesc: "ציר זמן לפי תאריך יעד, עם מעבר מהיר בין עומסים, משימות דחופות והשלמות.",
+    noDateBucket: "ללא תאריך יעד",
+    todayBucket: "היום",
+    weekBucket: "השבוע הקרוב",
+    laterBucket: "בהמשך",
+    overdueBucket: "באיחור",
+    items: "פריטים",
+    summaryTitle: "Executive Summary",
+    summaryDesc: "מבט-על מהיר על עומסים, צווארי בקבוק, בעלי אחריות ומשימות שדורשות תשומת לב.",
+    urgentFocus: "מה דורש תשומת לב עכשיו",
+    bottlenecks: "צווארי בקבוק",
+    topOwners: "חלוקת אחריות",
+    overdueItems: "משימות באיחור",
+    emptySummary: "אין מספיק משימות להצגת סיכום עדיין",
+    deepTitle: "Deep Work",
+    deepDesc: "רשימת פוקוס שקטה למשימות שכדאי לסיים עכשיו בלי הסחות דעת.",
+    primaryFocus: "פוקוס ראשי",
+    secondaryQueue: "תור משני",
+    quietBoard: "לוח שקט",
+    noFocusTasks: "אין כרגע משימות לפוקוס עמוק",
+  } : {
+    loading: "Loading tasks...",
+    creatorFrom: "Shared from:",
+    readOnly: "Read only",
+    editMode: "Editing",
+    showCreator: "Show creator",
+    hideCreator: "Hide creator",
+    showCreatorEditor: "Show creator/editor",
+    hideCreatorEditor: "Hide creator/editor",
+    done: "Done",
+    notStarted: "Not started",
+    inProgress: "In progress",
+    completionRate: "Completion rate:",
+    newTask: "New task",
+    deleteTask: "Delete task",
+    sort: "Sort",
+    noSort: "No sort",
+    byStatus: "By status",
+    byPlannedEnd: "By planned end",
+    byCreatedAt: "By created date",
+    byOverdue: "By overdue",
+    byUrgent: "By urgency",
+    export: "Export",
+    importTasks: "Import tasks",
+    design: "Design",
+    chooseDesign: "Choose design",
+    table: "Table",
+    list: "List",
+    cards: "Cards",
+    kanban: "Kanban",
+    compact: "Compact",
+    timeline: "Timeline",
+    summary: "Executive Summary",
+    deep: "Deep Work",
+    stickyUrgent: "Urgent / #",
+    stickyDescription: "Task description",
+    stickyCategory: "Category",
+    stickyResponsible: "Responsible",
+    stickyStatus: "Status",
+    stickyProgress: "Progress notes",
+    stickyCompleted: "Completed work",
+    stickyPlanned: "Planned end",
+    stickyOverdue: "Overdue",
+    stickyCreated: "Created",
+    stickyUpdated: "Updated",
+    stickyAi: "AI",
+    noArchivedTasks: "No archived tasks",
+    noCompletedTasks: "No completed tasks",
+    noTasksYet: "No tasks yet",
+    addFirstTask: "Add your first task",
+    similarTasks: "Similar tasks:",
+    shareError: "Error opening sheet sharing",
+    share: "Share",
+    createSheetLogin: "You need to sign in to create a new sheet",
+    sheetCreated: "created successfully",
+    sheetDeleted: "deleted successfully",
+    deleteSheetError: "Error deleting sheet",
+    moveTaskSuccess: "Task moved to sheet",
+    moveTaskError: "Error moving task",
+    archived: "Task moved to archive",
+    restored: "Task restored from archive",
+    archiveError: "Error archiving task",
+    aiNeedDescription: "Please add a task description before asking AI for help",
+    aiNoResponse: "No response was received from AI",
+    aiError: "Error getting AI help",
+    cancelUrgent: "Remove urgency",
+    markUrgent: "Mark as urgent",
+    timelineTitle: "Timeline + Kanban",
+    timelineDesc: "A date-driven workload view with quick prioritization and momentum tracking.",
+    noDateBucket: "No due date",
+    todayBucket: "Today",
+    weekBucket: "This week",
+    laterBucket: "Later",
+    overdueBucket: "Overdue",
+    items: "items",
+    summaryTitle: "Executive Summary",
+    summaryDesc: "A fast overview of workload, bottlenecks, owners and what needs attention.",
+    urgentFocus: "Needs attention now",
+    bottlenecks: "Bottlenecks",
+    topOwners: "Ownership split",
+    overdueItems: "Overdue tasks",
+    emptySummary: "There are not enough tasks yet to build a summary",
+    deepTitle: "Deep Work",
+    deepDesc: "A quiet focus queue for the tasks most worth finishing right now.",
+    primaryFocus: "Primary focus",
+    secondaryQueue: "Secondary queue",
+    quietBoard: "Quiet board",
+    noFocusTasks: "No deep focus tasks right now",
+  };
 
   useEffect(() => {
     if (!pendingScrollTaskId) return;
@@ -184,7 +364,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     }
 
     if (!user) {
-      toast.error("יש להתחבר כדי ליצור גליון חדש");
+      toast.error(copy.createSheetLogin);
       return;
     }
 
@@ -203,10 +383,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       // Update local state
       setAvailableSheets((prev) => [...new Set([...prev, sheetName])].sort(compareSheetNames));
       setSelectedSheet(sheetName);
-      toast.success(`גליון "${sheetName}" נוצר בהצלחה`);
+      toast.success(`${isHebrew ? `גליון "${sheetName}" ${copy.sheetCreated}` : `Sheet "${sheetName}" ${copy.sheetCreated}`}`);
     } catch (error: any) {
       console.error("Error adding sheet:", error);
-      toast.error("שגיאה ביצירת גליון חדש");
+      toast.error(isHebrew ? "שגיאה ביצירת גליון חדש" : "Error creating sheet");
     }
   };
 
@@ -238,11 +418,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         setSelectedSheet(null);
       }
       
-      toast.success(`גליון "${sheetName}" נמחק בהצלחה`);
+      toast.success(`${isHebrew ? `גליון "${sheetName}" ${copy.sheetDeleted}` : `Sheet "${sheetName}" ${copy.sheetDeleted}`}`);
       refetch();
     } catch (error: any) {
       console.error("Error deleting sheet:", error);
-      toast.error("שגיאה במחיקת הגליון");
+      toast.error(copy.deleteSheetError);
     }
   };
 
@@ -356,29 +536,29 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
       if (error) throw error;
 
-      toast.success(`המשימה הועברה לגליון "${targetSheet}"`);
+      toast.success(`${copy.moveTaskSuccess} "${targetSheet}"`);
       setMoveDialogOpen(false);
       setTaskToMove(null);
       refetch();
     } catch (error: any) {
       console.error("Error moving task:", error);
-      toast.error("שגיאה בהעברת משימה");
+      toast.error(copy.moveTaskError);
     }
   };
 
   const handleArchiveTask = async (task: Task) => {
     try {
       await updateTask(task.id, { archived: !task.archived });
-      toast.success(task.archived ? "המשימה הוחזרה מהארכיון" : "המשימה הועברה לארכיון");
+      toast.success(task.archived ? copy.restored : copy.archived);
     } catch (error: any) {
       console.error("Error archiving task:", error);
-      toast.error("שגיאה בארכוב משימה");
+      toast.error(copy.archiveError);
     }
   };
 
   const handleAiHelp = async (task: Task) => {
     if (!task.description.trim()) {
-      toast.error("נא להזין תיאור משימה לפני בקשת עזרה מ-AI");
+      toast.error(copy.aiNeedDescription);
       return;
     }
     
@@ -400,10 +580,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         throw new Error(data.error);
       }
 
-      setAiSuggestion(data.suggestion || "לא התקבלה תגובה מה-AI");
+      setAiSuggestion(data.suggestion || copy.aiNoResponse);
     } catch (error: any) {
       console.error("AI error:", error);
-      toast.error(error.message || "שגיאה בקבלת עזרה מ-AI");
+      toast.error(error.message || copy.aiError);
       setAiDialogOpen(false);
     } finally {
       setAiLoading(false);
@@ -450,6 +630,37 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const pendingCount = tasks.filter((t) => t.status === "טרם החל").length;
   const inProgressCount = tasks.filter((t) => t.status === "בטיפול").length;
   const completionRate = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const taskStatusOptions = [
+    { value: "טרם החל", label: copy.notStarted },
+    { value: "בטיפול", label: copy.inProgress },
+    { value: "בוצע", label: copy.done },
+  ];
+
+  const kanbanColumns = [
+    { value: "טרם החל", label: copy.notStarted, color: "bg-muted" },
+    { value: "בטיפול", label: copy.inProgress, color: "bg-amber-100 dark:bg-amber-900/30" },
+    { value: "בוצע", label: copy.done, color: "bg-green-100 dark:bg-green-900/30" },
+  ];
+
+  const getTimelineBucket = (task: Task) => {
+    if (task.overdue && task.status !== "בוצע") return copy.overdueBucket;
+    if (!task.plannedEnd) return copy.noDateBucket;
+    const due = new Date(task.plannedEnd);
+    const today = new Date();
+    const endOfWeek = new Date();
+    endOfWeek.setDate(today.getDate() + 7);
+    if (due.toDateString() === today.toDateString()) return copy.todayBucket;
+    if (due <= endOfWeek) return copy.weekBucket;
+    return copy.laterBucket;
+  };
+
+  const bucketWeight = (label: string) => {
+    if (label === copy.overdueBucket) return 0;
+    if (label === copy.todayBucket) return 1;
+    if (label === copy.weekBucket) return 2;
+    if (label === copy.laterBucket) return 3;
+    return 4;
+  };
 
   // Editable cell with suggestions for description
   const EditableCellWithSuggestions = ({
@@ -526,7 +737,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         />
         {showSuggestionsLocal && similarTasks.length > 0 && (
           <div className="absolute top-full right-0 left-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 max-h-48 overflow-auto">
-            <div className="p-2 text-xs text-muted-foreground border-b">משימות דומות:</div>
+            <div className="p-2 text-xs text-muted-foreground border-b">{copy.similarTasks}</div>
             {similarTasks.map((task) => (
               <div
                 key={task.id}
@@ -795,13 +1006,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="mr-2 text-muted-foreground">טוען משימות...</span>
+        <span className="mr-2 text-muted-foreground">{copy.loading}</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-background" dir="rtl">
+    <div className="flex flex-col h-full bg-background" dir={dir}>
       {/* Shared sheet collapse toggle */}
       {isSharedSheet && (
         <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
@@ -815,13 +1026,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             <span className="text-sm font-medium">{title}</span>
           </Button>
           {ownerDisplayName && (
-            <span className="text-xs text-muted-foreground">משותף מ: {ownerDisplayName}</span>
+            <span className="text-xs text-muted-foreground">{copy.creatorFrom} {ownerDisplayName}</span>
           )}
           <span className={cn(
             "text-xs px-2 py-0.5 rounded-full",
             readOnly ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
           )}>
-            {readOnly ? "צפייה בלבד" : "עריכה"}
+            {readOnly ? copy.readOnly : copy.editMode}
           </span>
           <Button
             variant="ghost"
@@ -834,7 +1045,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             className="text-xs gap-1 mr-auto"
           >
             <Users className="h-3 w-3" />
-            {hideCreatorInfo ? "הצג יוצר" : "הסתר יוצר"}
+            {hideCreatorInfo ? copy.showCreator : copy.hideCreator}
           </Button>
         </div>
       )}
@@ -852,7 +1063,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             className="text-xs gap-1"
           >
             <Users className="h-3 w-3" />
-            {hideCreatorInfo ? "הצג יוצר/עורך" : "הסתר יוצר/עורך"}
+            {hideCreatorInfo ? copy.showCreatorEditor : copy.hideCreatorEditor}
           </Button>
         </div>
       )}
@@ -888,7 +1099,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 );
 
                 if (error) {
-                  toast.error("שגיאה בפתיחת שיתוף הגליון");
+                  toast.error(copy.shareError);
                   return;
                 }
 
@@ -897,7 +1108,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               className="gap-1 ml-2 mr-2 shrink-0"
             >
               <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">שתף</span>
+              <span className="hidden sm:inline">{copy.share}</span>
             </Button>
           )}
         </div>
@@ -907,18 +1118,18 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       <div className="flex items-center gap-6 px-4 py-3 bg-card border-b border-border sticky top-0 z-20">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span className="text-sm text-muted-foreground">בוצע: {completedCount}</span>
+          <span className="text-sm text-muted-foreground">{copy.done}: {completedCount}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-gray-400" />
-          <span className="text-sm text-muted-foreground">טרם החל: {pendingCount}</span>
+          <span className="text-sm text-muted-foreground">{copy.notStarted}: {pendingCount}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-amber-500" />
-          <span className="text-sm text-muted-foreground">בטיפול: {inProgressCount}</span>
+          <span className="text-sm text-muted-foreground">{copy.inProgress}: {inProgressCount}</span>
         </div>
         <div className="mr-auto flex items-center gap-2">
-          <span className="text-sm font-medium">אחוז ביצוע:</span>
+          <span className="text-sm font-medium">{copy.completionRate}</span>
           <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-primary transition-all"
@@ -937,7 +1148,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={handleAddTask}>
               <Plus className="h-4 w-4 ml-1" />
-              משימה חדשה
+              {copy.newTask}
             </Button>
             <Button
               variant="outline"
@@ -946,7 +1157,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               disabled={selectedRow === null}
             >
               <Trash2 className="h-4 w-4 ml-1" />
-              מחק משימה
+              {copy.deleteTask}
             </Button>
           </div>
         )}
@@ -954,30 +1165,33 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
             <SelectTrigger className="w-[160px] h-8">
               <ArrowUpDown className="h-4 w-4 ml-1" />
-              <SelectValue placeholder="מיון" />
+              <SelectValue placeholder={copy.sort} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">ללא מיון</SelectItem>
-              <SelectItem value="status">לפי סטטוס</SelectItem>
-              <SelectItem value="plannedEnd">לפי סיום מתוכנן</SelectItem>
-              <SelectItem value="createdAt">לפי תאריך יצירה</SelectItem>
-              <SelectItem value="overdue">לפי חריגה</SelectItem>
-              <SelectItem value="urgent">לפי דחיפות</SelectItem>
+              <SelectItem value="none">{copy.noSort}</SelectItem>
+              <SelectItem value="status">{copy.byStatus}</SelectItem>
+              <SelectItem value="plannedEnd">{copy.byPlannedEnd}</SelectItem>
+              <SelectItem value="createdAt">{copy.byCreatedAt}</SelectItem>
+              <SelectItem value="overdue">{copy.byOverdue}</SelectItem>
+              <SelectItem value="urgent">{copy.byUrgent}</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="secondary" size="sm" onClick={exportToCSV}>
             <Download className="h-4 w-4 ml-1" />
-            ייצוא
+            {copy.export}
           </Button>
-          {!readOnly && <FileImport onImport={handleImportTasks} label="ייבוא משימות" />}
+          {!readOnly && <FileImport onImport={handleImportTasks} label={copy.importTasks} />}
           {/* View mode buttons */}
           <div className="flex items-center border rounded-md overflow-hidden h-8">
             {([
-              { mode: "table" as DashboardViewMode, icon: Grid3X3, label: "טבלה" },
-              { mode: "list" as DashboardViewMode, icon: ListIcon, label: "רשימה" },
-              { mode: "cards" as DashboardViewMode, icon: LayoutGrid, label: "כרטיסים" },
-              { mode: "kanban" as DashboardViewMode, icon: CreditCard, label: "קנבן" },
-              { mode: "compact" as DashboardViewMode, icon: AlignJustify, label: "קומפקט" },
+              { mode: "table" as DashboardViewMode, icon: Grid3X3, label: copy.table },
+              { mode: "list" as DashboardViewMode, icon: ListIcon, label: copy.list },
+              { mode: "cards" as DashboardViewMode, icon: LayoutGrid, label: copy.cards },
+              { mode: "kanban" as DashboardViewMode, icon: CreditCard, label: copy.kanban },
+              { mode: "timeline" as DashboardViewMode, icon: Clock, label: copy.timeline },
+              { mode: "summary" as DashboardViewMode, icon: Brain, label: copy.summary },
+              { mode: "deep" as DashboardViewMode, icon: Sparkles, label: copy.deep },
+              { mode: "compact" as DashboardViewMode, icon: AlignJustify, label: copy.compact },
             ]).map(({ mode, icon: Icon, label }) => (
               <button
                 key={mode}
@@ -996,11 +1210,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <Popover>
             <PopoverTrigger asChild>
               <Button size="sm" variant="outline" className="h-8 gap-1 text-xs">
-                <Palette className="h-3.5 w-3.5" />עיצוב
+                <Palette className="h-3.5 w-3.5" />{copy.design}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-2 max-h-[300px] overflow-y-auto" align="end">
-              <p className="text-xs font-semibold text-muted-foreground px-2 pb-1">בחר עיצוב</p>
+              <p className="text-xs font-semibold text-muted-foreground px-2 pb-1">{copy.chooseDesign}</p>
               {BOARD_THEMES.map((t) => (
                 <button key={t.value} onClick={() => setDashTheme(t.value)}
                   className={`w-full text-right px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between ${dashTheme === t.value ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}>
@@ -1013,18 +1227,18 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         </div>
         {/* Sticky category/column headers bar */}
         <div className="flex items-center gap-3 px-4 py-1.5 bg-muted/50 border-t border-border/50 text-[11px] text-muted-foreground overflow-x-auto">
-          <span className="font-medium min-w-[60px]">דחוף / #</span>
-          <span className="font-medium min-w-[200px] flex-1">תיאור המשימה</span>
-          <span className="font-medium min-w-[80px]">סיווג</span>
-          <span className="font-medium min-w-[80px]">אחריות</span>
-          <span className="font-medium min-w-[80px]">סטטוס</span>
-          <span className="font-medium min-w-[100px]">היכן זה עומד</span>
-          <span className="font-medium min-w-[100px]">משימות שבוצעו</span>
-          <span className="font-medium min-w-[90px]">סיום מתוכנן</span>
-          <span className="font-medium min-w-[60px]">חריגה</span>
-          <span className="font-medium min-w-[70px]">נוצר</span>
-          <span className="font-medium min-w-[70px]">עודכן</span>
-          <span className="font-medium min-w-[50px]">AI</span>
+          <span className="font-medium min-w-[60px]">{copy.stickyUrgent}</span>
+          <span className="font-medium min-w-[200px] flex-1">{copy.stickyDescription}</span>
+          <span className="font-medium min-w-[80px]">{copy.stickyCategory}</span>
+          <span className="font-medium min-w-[80px]">{copy.stickyResponsible}</span>
+          <span className="font-medium min-w-[80px]">{copy.stickyStatus}</span>
+          <span className="font-medium min-w-[100px]">{copy.stickyProgress}</span>
+          <span className="font-medium min-w-[100px]">{copy.stickyCompleted}</span>
+          <span className="font-medium min-w-[90px]">{copy.stickyPlanned}</span>
+          <span className="font-medium min-w-[60px]">{copy.stickyOverdue}</span>
+          <span className="font-medium min-w-[70px]">{copy.stickyCreated}</span>
+          <span className="font-medium min-w-[70px]">{copy.stickyUpdated}</span>
+          <span className="font-medium min-w-[50px]">{copy.stickyAi}</span>
         </div>
       </div>
 
@@ -1067,31 +1281,19 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             return (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <p className="text-lg">
-                  {viewMode === "archive" ? "אין משימות בארכיון" : 
-                   viewMode === "completed" ? "אין משימות שבוצעו" : 
-                   "אין משימות עדיין"}
+                  {viewMode === "archive" ? copy.noArchivedTasks : 
+                   viewMode === "completed" ? copy.noCompletedTasks : 
+                   copy.noTasksYet}
                 </p>
                 {!readOnly && viewMode === "active" && (
                   <Button variant="outline" className="mt-4" onClick={handleAddTask}>
                     <Plus className="h-4 w-4 ml-1" />
-                    הוסף משימה ראשונה
+                    {copy.addFirstTask}
                   </Button>
                 )}
               </div>
             );
           }
-
-          const taskStatusOptions = [
-            { value: "טרם החל", label: "טרם החל" },
-            { value: "בטיפול", label: "בטיפול" },
-            { value: "בוצע", label: "בוצע" },
-          ];
-
-          const kanbanColumns = [
-            { value: "טרם החל", label: "טרם החל", color: "bg-muted" },
-            { value: "בטיפול", label: "בטיפול", color: "bg-amber-100 dark:bg-amber-900/30" },
-            { value: "בוצע", label: "בוצע", color: "bg-green-100 dark:bg-green-900/30" },
-          ];
 
           // Non-table view modes
           if (dashViewMode === "list") {
@@ -1176,6 +1378,214 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                   onDelete={readOnly ? undefined : (id) => { deleteTask(id); }}
                   onClick={(id) => setSelectedRow(id)}
                 />
+              </div>
+            );
+          }
+
+          if (dashViewMode === "timeline") {
+            const timelineBuckets = displayTasks.reduce<Record<string, Task[]>>((acc, task) => {
+              const bucket = getTimelineBucket(task);
+              if (!acc[bucket]) acc[bucket] = [];
+              acc[bucket].push(task);
+              return acc;
+            }, {});
+
+            const orderedBuckets = Object.entries(timelineBuckets).sort((a, b) => bucketWeight(a[0]) - bucketWeight(b[0]));
+
+            return (
+              <div className="p-4 overflow-auto h-full space-y-4">
+                <div className="rounded-2xl border bg-card p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h3 className="text-lg font-semibold">{copy.timelineTitle}</h3>
+                      <p className="text-sm text-muted-foreground">{copy.timelineDesc}</p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {orderedBuckets.map(([bucket, items]) => (
+                        <span key={bucket} className="rounded-full bg-secondary px-3 py-1 text-xs font-medium">
+                          {bucket} · {items.length}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {orderedBuckets.map(([bucket, items]) => (
+                  <div key={bucket} className="rounded-2xl border bg-card overflow-hidden">
+                    <div className="border-b bg-muted/60 px-4 py-3 flex items-center justify-between">
+                      <h4 className="font-semibold">{bucket}</h4>
+                      <span className="text-xs text-muted-foreground">{items.length} {copy.items}</span>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {items.map((task) => (
+                        <div key={task.id} className="rounded-xl border bg-background p-4 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {task.urgent && <span className="rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[11px] font-medium">{copy.urgent}</span>}
+                                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusColors[task.status] || "bg-muted text-foreground")}>
+                                  {task.status === "בוצע" ? copy.done : task.status === "בטיפול" ? copy.inProgress : copy.notStarted}
+                                </span>
+                                {task.overdue && task.status !== "בוצע" && (
+                                  <span className="rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[11px] font-medium">{copy.overdue}</span>
+                                )}
+                              </div>
+                              <p className="mt-2 text-sm font-semibold">{task.description || copy.noTasksYet}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {[task.category, task.responsible, task.plannedEnd].filter(Boolean).join(" • ")}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
+          if (dashViewMode === "summary") {
+            const urgentTasks = displayTasks.filter((t) => t.urgent && t.status !== "בוצע").slice(0, 5);
+            const overdueTasks = displayTasks.filter((t) => t.overdue && t.status !== "בוצע").slice(0, 5);
+            const bottlenecks = displayTasks.filter((t) => t.status === "בטיפול").slice(0, 5);
+            const ownerStats = displayTasks.reduce<Record<string, number>>((acc, task) => {
+              const owner = task.responsible?.trim() || (isHebrew ? "ללא אחראי" : "Unassigned");
+              acc[owner] = (acc[owner] || 0) + 1;
+              return acc;
+            }, {});
+            const topOwners = Object.entries(ownerStats).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+            return (
+              <div className="p-4 overflow-auto h-full space-y-4">
+                <div className="rounded-3xl border bg-card p-5 shadow-sm">
+                  <h3 className="text-xl font-semibold">{copy.summaryTitle}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{copy.summaryDesc}</p>
+                  <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="rounded-2xl bg-primary/8 border border-primary/15 p-4">
+                      <p className="text-xs text-muted-foreground">{copy.done}</p>
+                      <p className="text-2xl font-bold">{completedCount}</p>
+                    </div>
+                    <div className="rounded-2xl bg-amber-500/8 border border-amber-500/15 p-4">
+                      <p className="text-xs text-muted-foreground">{copy.inProgress}</p>
+                      <p className="text-2xl font-bold">{inProgressCount}</p>
+                    </div>
+                    <div className="rounded-2xl bg-destructive/8 border border-destructive/15 p-4">
+                      <p className="text-xs text-muted-foreground">{copy.urgentFocus}</p>
+                      <p className="text-2xl font-bold">{urgentTasks.length}</p>
+                    </div>
+                    <div className="rounded-2xl bg-secondary border p-4">
+                      <p className="text-xs text-muted-foreground">{copy.overdueItems}</p>
+                      <p className="text-2xl font-bold">{overdueTasks.length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                  {[
+                    { title: copy.urgentFocus, items: urgentTasks },
+                    { title: copy.bottlenecks, items: bottlenecks },
+                    { title: copy.overdueItems, items: overdueTasks },
+                  ].map((section) => (
+                    <div key={section.title} className="rounded-2xl border bg-card p-4 shadow-sm">
+                      <h4 className="font-semibold mb-3">{section.title}</h4>
+                      <div className="space-y-2">
+                        {section.items.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">{copy.emptySummary}</p>
+                        ) : section.items.map((task) => (
+                          <div key={task.id} className="rounded-xl bg-muted/50 p-3">
+                            <p className="text-sm font-medium">{task.description}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{[task.category, task.responsible].filter(Boolean).join(" • ")}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border bg-card p-4 shadow-sm">
+                  <h4 className="font-semibold mb-3">{copy.topOwners}</h4>
+                  <div className="space-y-2">
+                    {topOwners.map(([owner, count]) => (
+                      <div key={owner} className="flex items-center gap-3">
+                        <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max((count / Math.max(displayTasks.length, 1)) * 100, 8)}%` }} />
+                        </div>
+                        <span className="text-sm min-w-[140px] truncate">{owner}</span>
+                        <span className="text-xs text-muted-foreground">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (dashViewMode === "deep") {
+            const focusTasks = [...displayTasks]
+              .filter((task) => task.status !== "בוצע")
+              .sort((a, b) => {
+                const score = (task: Task) => (task.urgent ? 0 : 1) + (task.overdue ? 0 : 2) + (task.status === "בטיפול" ? 0 : 3);
+                return score(a) - score(b);
+              });
+            const primaryFocus = focusTasks.slice(0, 3);
+            const secondaryQueue = focusTasks.slice(3, 9);
+
+            return (
+              <div className="p-4 overflow-auto h-full">
+                <div className="rounded-[28px] border bg-card p-5 shadow-sm">
+                  <h3 className="text-xl font-semibold">{copy.deepTitle}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{copy.deepDesc}</p>
+                </div>
+
+                {focusTasks.length === 0 ? (
+                  <div className="mt-4 rounded-3xl border border-dashed bg-card/70 p-10 text-center text-muted-foreground">
+                    {copy.noFocusTasks}
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
+                    <div className="rounded-3xl border bg-card p-4 shadow-sm">
+                      <h4 className="font-semibold mb-4">{copy.primaryFocus}</h4>
+                      <div className="space-y-3">
+                        {primaryFocus.map((task, index) => (
+                          <div key={task.id} className="rounded-2xl border bg-background p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-xs font-semibold text-primary">#{index + 1}</span>
+                              <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusColors[task.status] || "bg-muted text-foreground")}>
+                                {task.status === "בוצע" ? copy.done : task.status === "בטיפול" ? copy.inProgress : copy.notStarted}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-base font-semibold">{task.description}</p>
+                            <p className="mt-2 text-xs text-muted-foreground">{[task.category, task.responsible, task.plannedEnd].filter(Boolean).join(" • ")}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-3xl border bg-card p-4 shadow-sm">
+                        <h4 className="font-semibold mb-3">{copy.secondaryQueue}</h4>
+                        <div className="space-y-2">
+                          {secondaryQueue.map((task) => (
+                            <div key={task.id} className="rounded-xl bg-muted/50 p-3">
+                              <p className="text-sm font-medium">{task.description}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{[task.category, task.responsible].filter(Boolean).join(" • ")}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border bg-card p-4 shadow-sm">
+                        <h4 className="font-semibold mb-3">{copy.quietBoard}</h4>
+                        <div className="text-sm text-muted-foreground space-y-2">
+                          <p>{copy.urgentFocus}: {displayTasks.filter((t) => t.urgent && t.status !== "בוצע").length}</p>
+                          <p>{copy.overdueItems}: {displayTasks.filter((t) => t.overdue && t.status !== "בוצע").length}</p>
+                          <p>{copy.inProgress}: {displayTasks.filter((t) => t.status === "בטיפול").length}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           }

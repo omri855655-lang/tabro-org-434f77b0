@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-export type DashboardViewMode = "table" | "kanban" | "list" | "cards" | "compact";
+export type DashboardViewMode = "table" | "kanban" | "list" | "cards" | "compact" | "timeline" | "summary" | "deep";
 
 export interface DashboardDisplayPrefs {
   viewMode: DashboardViewMode;
