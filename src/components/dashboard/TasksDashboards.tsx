@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Briefcase, CalendarCheck, ListTodo } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type TaskRow = {
   status: string | null;
@@ -34,6 +35,8 @@ function Stat({ label, value, valueClassName }: { label: string; value: number; 
 }
 
 export default function TasksDashboards() {
+  const { lang, dir } = useLanguage();
+  const isHebrew = lang === "he";
   const { user } = useAuth();
   const { tasks: recurringTasks, loading: recurringLoading, isTaskDueToday, isTaskCompletedToday } = useRecurringTasks();
 
@@ -98,28 +101,57 @@ export default function TasksDashboards() {
   }, [recurringTasks, isTaskDueToday, isTaskCompletedToday]);
 
   const isAnyLoading = loading || recurringLoading;
+  const copy = isHebrew ? {
+    personalTasks: "משימות אישיות",
+    routine: "לוז יומי (משימות קבועות)",
+    workTasks: "משימות עבודה",
+    loading: "טוען…",
+    signInNeeded: "יש להתחבר כדי לראות נתונים",
+    totalActive: 'סה"כ פעיל',
+    done: "בוצעו",
+    urgent: "דחופות",
+    overdue: "באיחור",
+    totalTasks: 'סה"כ משימות',
+    dueToday: "מגיעות היום",
+    completedToday: "הושלמו היום",
+    remainingToday: "נותרו היום",
+  } : {
+    personalTasks: "Personal tasks",
+    routine: "Daily routine (recurring tasks)",
+    workTasks: "Work tasks",
+    loading: "Loading…",
+    signInNeeded: "Sign in to view data",
+    totalActive: "Total active",
+    done: "Completed",
+    urgent: "Urgent",
+    overdue: "Overdue",
+    totalTasks: "Total tasks",
+    dueToday: "Due today",
+    completedToday: "Completed today",
+    remainingToday: "Remaining today",
+  };
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4" dir={dir}>
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <ListTodo className="h-4 w-4 text-primary" />
-              משימות אישיות
+              {copy.personalTasks}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {isAnyLoading ? (
-              <div className="text-sm text-muted-foreground">טוען…</div>
+              <div className="text-sm text-muted-foreground">{copy.loading}</div>
             ) : !user ? (
-              <div className="text-sm text-muted-foreground">יש להתחבר כדי לראות נתונים</div>
+              <div className="text-sm text-muted-foreground">{copy.signInNeeded}</div>
             ) : (
               <>
-                <Stat label='סה"כ פעיל' value={personalStats.total} />
-                <Stat label="בוצעו" value={personalStats.completed} valueClassName="text-sm font-semibold text-primary" />
-                <Stat label="דחופות" value={personalStats.urgent} />
-                <Stat label="באיחור" value={personalStats.overdue} valueClassName="text-sm font-semibold text-destructive" />
+                <Stat label={copy.totalActive} value={personalStats.total} />
+                <Stat label={copy.done} value={personalStats.completed} valueClassName="text-sm font-semibold text-primary" />
+                <Stat label={copy.urgent} value={personalStats.urgent} />
+                <Stat label={copy.overdue} value={personalStats.overdue} valueClassName="text-sm font-semibold text-destructive" />
               </>
             )}
           </CardContent>
@@ -129,20 +161,20 @@ export default function TasksDashboards() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-primary" />
-              לוז יומי (משימות קבועות)
+              {copy.routine}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {isAnyLoading ? (
-              <div className="text-sm text-muted-foreground">טוען…</div>
+              <div className="text-sm text-muted-foreground">{copy.loading}</div>
             ) : !user ? (
-              <div className="text-sm text-muted-foreground">יש להתחבר כדי לראות נתונים</div>
+              <div className="text-sm text-muted-foreground">{copy.signInNeeded}</div>
             ) : (
               <>
-                <Stat label='סה"כ משימות' value={routineStats.total} />
-                <Stat label="מגיעות היום" value={routineStats.dueToday} />
-                <Stat label="הושלמו היום" value={routineStats.completedToday} valueClassName="text-sm font-semibold text-primary" />
-                <Stat label="נותרו היום" value={routineStats.pendingToday} />
+                <Stat label={copy.totalTasks} value={routineStats.total} />
+                <Stat label={copy.dueToday} value={routineStats.dueToday} />
+                <Stat label={copy.completedToday} value={routineStats.completedToday} valueClassName="text-sm font-semibold text-primary" />
+                <Stat label={copy.remainingToday} value={routineStats.pendingToday} />
               </>
             )}
           </CardContent>
@@ -152,18 +184,18 @@ export default function TasksDashboards() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-primary" />
-              משימות עבודה
+              {copy.workTasks}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {isAnyLoading ? (
-              <div className="text-sm text-muted-foreground">טוען…</div>
+              <div className="text-sm text-muted-foreground">{copy.loading}</div>
             ) : (
               <>
-                <Stat label='סה"כ פעיל' value={workStats.total} />
-                <Stat label="בוצעו" value={workStats.completed} valueClassName="text-sm font-semibold text-primary" />
-                <Stat label="דחופות" value={workStats.urgent} />
-                <Stat label="באיחור" value={workStats.overdue} valueClassName="text-sm font-semibold text-destructive" />
+                <Stat label={copy.totalActive} value={workStats.total} />
+                <Stat label={copy.done} value={workStats.completed} valueClassName="text-sm font-semibold text-primary" />
+                <Stat label={copy.urgent} value={workStats.urgent} />
+                <Stat label={copy.overdue} value={workStats.overdue} valueClassName="text-sm font-semibold text-destructive" />
               </>
             )}
           </CardContent>
