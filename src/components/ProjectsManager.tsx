@@ -17,6 +17,7 @@ import ProjectMembersPanel from '@/components/ProjectMembersPanel';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
 import TeamPerformanceDashboard from '@/components/projects/TeamPerformanceDashboard';
 import ProjectTaskDialog from '@/components/projects/ProjectTaskDialog';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface Project {
   id: string;
@@ -66,10 +67,10 @@ interface TaskAssignment {
 
 const MEMBER_DOT_COLORS = ["bg-primary", "bg-accent", "bg-foreground/70", "bg-secondary-foreground/70", "bg-muted-foreground", "bg-destructive"];
 
-const formatDateTime = (dateStr: string) => {
+const formatDateTime = (dateStr: string, locale: string) => {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  return date.toLocaleDateString('he-IL') + ' ' + date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString(locale) + ' ' + date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 };
 
 const getTaskPriorityScore = (task: ProjectTask) => {
@@ -80,6 +81,7 @@ const getTaskPriorityScore = (task: ProjectTask) => {
 };
 
 const ProjectsManager = () => {
+  const { lang, dir } = useLanguage();
   const { user } = useAuth();
   const { softDelete } = useRecycleBin();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -108,6 +110,149 @@ const ProjectsManager = () => {
   const [assignResponsibility, setAssignResponsibility] = useState('');
   // Multi-assignee on new task creation
   const [newTaskPreAssignees, setNewTaskPreAssignees] = useState<Record<string, { memberId: string; responsibility: string }[]>>({});
+  const isHebrew = lang === 'he';
+  const locale = ({ he: 'he-IL', en: 'en-US', es: 'es-ES', zh: 'zh-CN', ar: 'ar-SA', ru: 'ru-RU' } as const)[lang];
+  const copy = isHebrew ? {
+    loadError: 'שגיאה בטעינת הפרויקטים',
+    enterTitle: 'נא להזין שם פרויקט',
+    addError: 'שגיאה בהוספת הפרויקט',
+    addSuccess: 'הפרויקט נוסף בהצלחה',
+    updateStatusError: 'שגיאה בעדכון הסטטוס',
+    updateTargetError: 'שגיאה בעדכון תאריך היעד',
+    recycleSuccess: 'הפרויקט הועבר לסל המחזור',
+    addTaskError: 'שגיאה בהוספת משימה',
+    assignError: 'שגיאה בהקצאה',
+    assignSuccess: 'אחראי נוסף למשימה',
+    updateTaskError: 'שגיאה בעדכון משימה',
+    deleteTaskError: 'שגיאה במחיקת משימה',
+    addLinkError: 'שגיאה בהוספת קישור',
+    linkAdded: 'הקישור נוסף',
+    deleteLinkError: 'שגיאה במחיקת קישור',
+    milestonesSaved: 'אבני דרך נוצרו ונשמרו',
+    milestonesError: 'שגיאה ביצירת אבני דרך',
+    milestoneDeleted: 'אבן דרך נמחקה',
+    milestoneAddedTask: 'נוספה כמשימה',
+    noPendingMilestones: 'אין אבני דרך לא מושלמות',
+    genericError: 'שגיאה',
+    tasksAdded: 'נוספו משימות',
+    chooseTeamMember: 'בחר חבר צוות קודם',
+    loading: 'טוען פרויקטים...',
+    active: 'פעילים',
+    completed: 'הושלמו',
+    onHold: 'בהמתנה',
+    title: 'הפרויקטים שלי',
+    projectsCount: 'פרויקטים',
+    titlePlaceholder: 'שם הפרויקט',
+    descriptionPlaceholder: 'תיאור (אופציונלי)',
+    add: 'הוסף',
+    addProject: 'הוסף פרויקט',
+    search: 'חפש פרויקט...',
+    noResults: 'לא נמצאו תוצאות',
+    empty: 'אין פרויקטים עדיין',
+    tasks: 'משימות',
+    addLink: 'הוסף קישור',
+    enterUrl: 'הכנס URL...',
+    progressCompleted: 'הושלם',
+    tasksRemaining: 'משימות נותרו',
+    aiMilestones: 'אבני דרך AI',
+    regenerate: 'צור מחדש',
+    recommendedMilestones: 'אבני דרך מומלצות:',
+    addAllAsTasks: 'הוסף הכל כמשימות',
+    addAsTask: 'הוסף כמשימה',
+    delete: 'מחק',
+    created: 'נוצר',
+    updated: 'עודכן',
+    newTask: 'משימה חדשה...',
+    assignTeamMember: 'הקצה לחבר צוות',
+    noAssignment: 'ללא הקצאה',
+    responsibilityPlaceholder: 'תפקיד/חלק במשימה...',
+    addToDashboard: 'הוסף גם לדשבורד...',
+    noDashboardSync: 'ללא סנכרון לדשבורד',
+    workTasks: 'משימות עבודה',
+    personalTasks: 'משימות אישיות',
+    addAnotherOwner: 'הוסף אחראי נוסף',
+    noTasksYet: 'אין משימות עדיין',
+    target: 'יעד',
+    groupedByOwner: 'חלוקה לפי אחראי',
+    urgent: 'דחוף',
+    responsibility: 'אחריות',
+    done: 'הושלם',
+    open: 'פתוח',
+    addAssigneeToTask: 'הוסף אחראי למשימה',
+    chooseTeamMemberShort: 'בחר חבר צוות',
+    responsibilityOptional: 'תפקיד/אחריות (אופציונלי)...',
+    addAssignee: 'הוסף אחראי',
+  } : {
+    loadError: 'Error loading projects',
+    enterTitle: 'Please enter a project name',
+    addError: 'Error adding project',
+    addSuccess: 'Project added successfully',
+    updateStatusError: 'Error updating status',
+    updateTargetError: 'Error updating target date',
+    recycleSuccess: 'Project moved to recycle bin',
+    addTaskError: 'Error adding task',
+    assignError: 'Assignment error',
+    assignSuccess: 'Assignee added to task',
+    updateTaskError: 'Error updating task',
+    deleteTaskError: 'Error deleting task',
+    addLinkError: 'Error adding link',
+    linkAdded: 'Link added',
+    deleteLinkError: 'Error deleting link',
+    milestonesSaved: 'Milestones created and saved',
+    milestonesError: 'Error generating milestones',
+    milestoneDeleted: 'Milestone deleted',
+    milestoneAddedTask: 'Added as task',
+    noPendingMilestones: 'No incomplete milestones',
+    genericError: 'Error',
+    tasksAdded: 'Tasks added',
+    chooseTeamMember: 'Choose a team member first',
+    loading: 'Loading projects...',
+    active: 'Active',
+    completed: 'Completed',
+    onHold: 'On hold',
+    title: 'My Projects',
+    projectsCount: 'projects',
+    titlePlaceholder: 'Project name',
+    descriptionPlaceholder: 'Description (optional)',
+    add: 'Add',
+    addProject: 'Add project',
+    search: 'Search projects...',
+    noResults: 'No results found',
+    empty: 'No projects yet',
+    tasks: 'tasks',
+    addLink: 'Add link',
+    enterUrl: 'Enter URL...',
+    progressCompleted: 'completed',
+    tasksRemaining: 'tasks remaining',
+    aiMilestones: 'AI milestones',
+    regenerate: 'Regenerate',
+    recommendedMilestones: 'Suggested milestones:',
+    addAllAsTasks: 'Add all as tasks',
+    addAsTask: 'Add as task',
+    delete: 'Delete',
+    created: 'Created',
+    updated: 'Updated',
+    newTask: 'New task...',
+    assignTeamMember: 'Assign team member',
+    noAssignment: 'No assignment',
+    responsibilityPlaceholder: 'Role/part in task...',
+    addToDashboard: 'Also add to dashboard...',
+    noDashboardSync: 'No dashboard sync',
+    workTasks: 'Work tasks',
+    personalTasks: 'Personal tasks',
+    addAnotherOwner: 'Add another assignee',
+    noTasksYet: 'No tasks yet',
+    target: 'Target',
+    groupedByOwner: 'Grouped by assignee',
+    urgent: 'Urgent',
+    responsibility: 'Responsibility',
+    done: 'Done',
+    open: 'Open',
+    addAssigneeToTask: 'Add assignee to task',
+    chooseTeamMemberShort: 'Choose team member',
+    responsibilityOptional: 'Role/responsibility (optional)...',
+    addAssignee: 'Add assignee',
+  };
 
   useEffect(() => {
     if (user) {
@@ -122,7 +267,7 @@ const ProjectsManager = () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error('שגיאה בטעינת הפרויקטים');
+      toast.error(copy.loadError);
       console.error(error);
     } else {
       setProjects(data || []);
@@ -189,7 +334,7 @@ const ProjectsManager = () => {
 
   const addProject = async () => {
     if (!newProject.title.trim()) {
-      toast.error('נא להזין שם פרויקט');
+      toast.error(copy.enterTitle);
       return;
     }
 
@@ -201,10 +346,10 @@ const ProjectsManager = () => {
     });
 
     if (error) {
-      toast.error('שגיאה בהוספת הפרויקט');
+      toast.error(copy.addError);
       console.error(error);
     } else {
-      toast.success('הפרויקט נוסף בהצלחה');
+      toast.success(copy.addSuccess);
       setNewProject({ title: '', description: '' });
       fetchProjects();
     }
@@ -217,7 +362,7 @@ const ProjectsManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error('שגיאה בעדכון הסטטוס');
+      toast.error(copy.updateStatusError);
       return;
     }
 
@@ -231,7 +376,7 @@ const ProjectsManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error('שגיאה בעדכון תאריך היעד');
+      toast.error(copy.updateTargetError);
       return;
     }
 
@@ -243,7 +388,7 @@ const ProjectsManager = () => {
     if (!project) return;
     const success = await softDelete('projects', id, project);
     if (success) {
-      toast.success('הפרויקט הועבר לסל המחזור');
+      toast.success(copy.recycleSuccess);
       setProjects((prev) => prev.filter((p) => p.id !== id));
     }
   };
@@ -273,7 +418,7 @@ const ProjectsManager = () => {
     }).select().single();
 
     if (error) {
-      toast.error('שגיאה בהוספת משימה');
+      toast.error(copy.addTaskError);
       return;
     }
 
@@ -386,7 +531,7 @@ const ProjectsManager = () => {
       assignee_name: member.displayName === 'אני (בעל הפרויקט)' ? (user.email?.split('@')[0] || 'אני') : member.displayName,
       responsibility: assignResponsibility.trim() || null,
     }).select().single();
-    if (error) { toast.error('שגיאה בהקצאה'); return; }
+    if (error) { toast.error(copy.assignError); return; }
     setTaskAssignments(prev => ({
       ...prev,
       [taskId]: [...(prev[taskId] || []), data as TaskAssignment],
@@ -394,7 +539,7 @@ const ProjectsManager = () => {
     setAssignMember('');
     setAssignResponsibility('');
     setAssignDialogTask(null);
-    toast.success('אחראי נוסף למשימה');
+    toast.success(copy.assignSuccess);
   };
 
   const removeTaskAssignment = async (assignmentId: string, taskId: string) => {
@@ -412,7 +557,7 @@ const ProjectsManager = () => {
       .eq('id', task.id);
 
     if (error) {
-      toast.error('שגיאה בעדכון משימה');
+      toast.error(copy.updateTaskError);
       return;
     }
 
@@ -428,7 +573,7 @@ const ProjectsManager = () => {
     const { error } = await supabase.from('project_tasks').delete().eq('id', task.id);
 
     if (error) {
-      toast.error('שגיאה במחיקת משימה');
+      toast.error(copy.deleteTaskError);
       return;
     }
 
@@ -451,7 +596,7 @@ const ProjectsManager = () => {
       .eq('id', projectId);
 
     if (error) {
-      toast.error('שגיאה בהוספת קישור');
+      toast.error(copy.addLinkError);
       return;
     }
 
@@ -460,7 +605,7 @@ const ProjectsManager = () => {
     ));
     setNewLink('');
     setAddLinkDialogOpen(null);
-    toast.success('הקישור נוסף');
+    toast.success(copy.linkAdded);
   };
 
   const removeLink = async (projectId: string, linkIndex: number) => {
@@ -474,7 +619,7 @@ const ProjectsManager = () => {
       .eq('id', projectId);
 
     if (error) {
-      toast.error('שגיאה במחיקת קישור');
+      toast.error(copy.deleteLinkError);
       return;
     }
 
@@ -513,9 +658,9 @@ const ProjectsManager = () => {
       
       const saved = (savedMs || []).map((m: any) => ({ id: m.id, title: m.title, done: m.status === 'done', description: m.description }));
       setAiMilestones(prev => ({ ...prev, [project.id]: saved }));
-      toast.success(`נוצרו ${saved.length} אבני דרך ונשמרו`);
+      toast.success(`${saved.length} ${copy.milestonesSaved}`);
     } catch {
-      toast.error('שגיאה ביצירת אבני דרך');
+      toast.error(copy.milestonesError);
     } finally {
       setAiMilestonesLoading(null);
     }
@@ -562,7 +707,7 @@ const ProjectsManager = () => {
       ...prev,
       [projectId]: prev[projectId].filter((_, i) => i !== index),
     }));
-    toast.success('אבן דרך נמחקה');
+    toast.success(copy.milestoneDeleted);
   };
 
   const convertMilestoneToTask = async (projectId: string, index: number) => {
@@ -580,13 +725,13 @@ const ProjectsManager = () => {
       sort_order: maxOrder + 1,
     }).select().single();
     
-    if (error) { toast.error('שגיאה בהוספת משימה'); return; }
+    if (error) { toast.error(copy.addTaskError); return; }
     
     setProjectTasks(prev => ({
       ...prev,
       [projectId]: [...(prev[projectId] || []), data as ProjectTask],
     }));
-    toast.success(`"${milestone.title}" נוספה כמשימה`);
+    toast.success(`"${milestone.title}" ${copy.milestoneAddedTask}`);
   };
 
   const convertAllMilestonesToTasks = async (projectId: string) => {
@@ -603,16 +748,16 @@ const ProjectsManager = () => {
       sort_order: maxOrder + idx + 1,
     }));
     
-    if (inserts.length === 0) { toast.info('אין אבני דרך לא מושלמות'); return; }
+    if (inserts.length === 0) { toast.info(copy.noPendingMilestones); return; }
     
     const { data, error } = await supabase.from('project_tasks').insert(inserts).select();
-    if (error) { toast.error('שגיאה'); return; }
+    if (error) { toast.error(copy.genericError); return; }
     
     setProjectTasks(prev => ({
       ...prev,
       [projectId]: [...(prev[projectId] || []), ...(data as ProjectTask[])],
     }));
-    toast.success(`נוספו ${inserts.length} משימות`);
+    toast.success(`${copy.tasksAdded}: ${inserts.length}`);
   };
 
   const handleTaskUpdate = (taskId: string, updates: Record<string, any>) => {
@@ -647,70 +792,68 @@ const ProjectsManager = () => {
       (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">טוען פרויקטים...</div>;
-  }
+  if (loading) return <div className="p-8 text-center text-muted-foreground">{copy.loading}</div>;
 
   const activeCount = projects.filter(p => p.status === 'פעיל').length;
   const completedCount = projects.filter(p => p.status === 'הושלם').length;
   const onHoldCount = projects.filter(p => p.status === 'בהמתנה').length;
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden" dir="rtl">
+    <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
       {/* Stats Dashboard */}
       <div className="grid grid-cols-3 gap-4 mb-4 flex-shrink-0">
         <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-primary">{activeCount}</div>
-          <div className="text-sm text-muted-foreground">פעילים</div>
+          <div className="text-sm text-muted-foreground">{copy.active}</div>
         </div>
         <div className="bg-accent/15 border border-accent/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-accent-foreground">{completedCount}</div>
-          <div className="text-sm text-muted-foreground">הושלמו</div>
+          <div className="text-sm text-muted-foreground">{copy.completed}</div>
         </div>
         <div className="bg-muted border border-border rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-foreground">{onHoldCount}</div>
-          <div className="text-sm text-muted-foreground">בהמתנה</div>
+          <div className="text-sm text-muted-foreground">{copy.onHold}</div>
         </div>
       </div>
 
       {/* Header with count */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">
         <FolderKanban className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">הפרויקטים שלי</h2>
-        <span className="text-sm text-muted-foreground">({projects.length} פרויקטים)</span>
+        <h2 className="text-xl font-bold">{copy.title}</h2>
+        <span className="text-sm text-muted-foreground">({projects.length} {copy.projectsCount})</span>
       </div>
 
       {/* Add new project */}
       <div className="flex gap-2 flex-wrap mb-4 flex-shrink-0">
         <Input
-          placeholder="שם הפרויקט"
+          placeholder={copy.titlePlaceholder}
           value={newProject.title}
           onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
-          className="flex-1 min-w-[200px] text-right"
-          dir="rtl"
+          className={`flex-1 min-w-[200px] ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
+          dir={dir}
         />
         <Input
-          placeholder="תיאור (אופציונלי)"
+          placeholder={copy.descriptionPlaceholder}
           value={newProject.description}
           onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-          className="flex-1 min-w-[200px] text-right"
-          dir="rtl"
+          className={`flex-1 min-w-[200px] ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
+          dir={dir}
         />
         <Button onClick={addProject}>
           <Plus className="h-4 w-4 ml-1" />
-          הוסף פרויקט
+          {copy.addProject}
         </Button>
       </div>
 
       {/* Search */}
       <div className="relative mb-4 flex-shrink-0">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground ${dir === 'rtl' ? 'right-3' : 'left-3'}`} />
         <Input
-          placeholder="חפש פרויקט..."
+          placeholder={copy.search}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="pr-10 text-right"
-          dir="rtl"
+          className={dir === 'rtl' ? 'pr-10 text-right' : 'pl-10 text-left'}
+          dir={dir}
         />
       </div>
 
@@ -719,7 +862,7 @@ const ProjectsManager = () => {
         <div className="h-full overflow-auto">
           {filteredProjects.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? 'לא נמצאו תוצאות' : 'אין פרויקטים עדיין'}
+              {searchTerm ? copy.noResults : copy.empty}
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -757,7 +900,7 @@ const ProjectsManager = () => {
                             <h3 className="font-semibold">{project.title}</h3>
                             {tasks.length > 0 && (
                               <span className="text-xs text-muted-foreground">
-                                ({completedTasks}/{tasks.length} משימות)
+                                ({completedTasks}/{tasks.length} {copy.tasks})
                               </span>
                             )}
                           </div>
@@ -790,18 +933,18 @@ const ProjectsManager = () => {
                               <Link2 className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent dir="rtl">
+                          <DialogContent dir={dir}>
                             <DialogHeader>
-                              <DialogTitle>הוסף קישור</DialogTitle>
+                              <DialogTitle>{copy.addLink}</DialogTitle>
                             </DialogHeader>
                             <Input
-                              placeholder="הכנס URL..."
+                              placeholder={copy.enterUrl}
                               value={newLink}
                               onChange={(e) => setNewLink(e.target.value)}
                               dir="ltr"
                             />
                             <DialogFooter>
-                              <Button onClick={() => addLink(project.id)}>הוסף</Button>
+                              <Button onClick={() => addLink(project.id)}>{copy.add}</Button>
                             </DialogFooter>
                           </DialogContent>
                         </Dialog>
@@ -840,7 +983,7 @@ const ProjectsManager = () => {
                         <div className="mt-3 mr-11 space-y-1">
                           <Progress value={tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0} className="h-2" />
                           <p className="text-[10px] text-muted-foreground">
-                            {Math.round((completedTasks / tasks.length) * 100)}% הושלם — {tasks.length - completedTasks} משימות נותרו
+                            {Math.round((completedTasks / tasks.length) * 100)}% {copy.progressCompleted} — {tasks.length - completedTasks} {copy.tasksRemaining}
                           </p>
                         </div>
                       )}
@@ -855,7 +998,7 @@ const ProjectsManager = () => {
                           onClick={(e) => { e.stopPropagation(); generateAiMilestones(project); }}
                         >
                           {aiMilestonesLoading === project.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          {aiMilestones[project.id] ? 'צור מחדש' : 'אבני דרך AI'}
+                          {aiMilestones[project.id] ? copy.regenerate : copy.aiMilestones}
                         </Button>
                       </div>
 
@@ -863,9 +1006,9 @@ const ProjectsManager = () => {
                       {aiMilestones[project.id] && aiMilestones[project.id].length > 0 && (
                         <div className="mt-2 mr-11 space-y-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">אבני דרך מומלצות:</p>
+                            <p className="text-xs font-medium text-muted-foreground">{copy.recommendedMilestones}</p>
                             <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-0.5" onClick={() => convertAllMilestonesToTasks(project.id)}>
-                              <ArrowDownToLine className="h-3 w-3" />הוסף הכל כמשימות
+                              <ArrowDownToLine className="h-3 w-3" />{copy.addAllAsTasks}
                             </Button>
                           </div>
                           {aiMilestones[project.id].map((ms, idx) => (
@@ -874,10 +1017,10 @@ const ProjectsManager = () => {
                                 {ms.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
                               </button>
                               <span className={cn("flex-1", ms.done && 'line-through text-muted-foreground')}>{ms.title}</span>
-                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => convertMilestoneToTask(project.id, idx)} title="הוסף כמשימה">
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => convertMilestoneToTask(project.id, idx)} title={copy.addAsTask}>
                                 <Plus className="h-3 w-3" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => deleteMilestone(project.id, idx)} title="מחק">
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => deleteMilestone(project.id, idx)} title={copy.delete}>
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             </div>
@@ -890,8 +1033,8 @@ const ProjectsManager = () => {
                       )}
 
                       <div className="flex gap-4 mt-2 mr-11 text-xs text-muted-foreground">
-                        <span>נוצר: {formatDateTime(project.created_at)}</span>
-                        <span>עודכן: {formatDateTime(project.updated_at)}</span>
+                        <span>{copy.created}: {formatDateTime(project.created_at, locale)}</span>
+                        <span>{copy.updated}: {formatDateTime(project.updated_at, locale)}</span>
                       </div>
                     </div>
 
@@ -901,12 +1044,12 @@ const ProjectsManager = () => {
                         <div className="space-y-2 mb-3">
                           <div className="flex gap-2">
                             <Input
-                              placeholder="משימה חדשה..."
+                              placeholder={copy.newTask}
                               value={newTaskTitle[project.id] || ''}
                               onChange={(e) => setNewTaskTitle(prev => ({ ...prev, [project.id]: e.target.value }))}
                               onKeyDown={(e) => e.key === 'Enter' && addProjectTask(project.id)}
-                              className="flex-1 text-right"
-                              dir="rtl"
+                              className={`flex-1 ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
+                              dir={dir}
                             />
                             <Button size="sm" onClick={() => addProjectTask(project.id)}>
                               <Plus className="h-4 w-4" />
@@ -918,10 +1061,10 @@ const ProjectsManager = () => {
                               onValueChange={(v) => setNewTaskAssignee(prev => ({ ...prev, [project.id]: v === '__none__' ? '' : v }))}
                             >
                               <SelectTrigger className="w-[160px] h-8 text-xs">
-                                <SelectValue placeholder="הקצה לחבר צוות" />
+                                <SelectValue placeholder={copy.assignTeamMember} />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">ללא הקצאה</SelectItem>
+                                <SelectItem value="__none__">{copy.noAssignment}</SelectItem>
                                 {getAssignableMembers(project.id).map(m => (
                                   <SelectItem key={m.id} value={m.id}>
                                     {m.displayName}
@@ -930,23 +1073,23 @@ const ProjectsManager = () => {
                               </SelectContent>
                             </Select>
                             <Input
-                              placeholder="תפקיד/חלק במשימה..."
+                              placeholder={copy.responsibilityPlaceholder}
                               value={newTaskNotes[project.id] || ''}
                               onChange={(e) => setNewTaskNotes(prev => ({ ...prev, [project.id]: e.target.value }))}
                               className="w-[200px] h-8 text-xs"
-                              dir="rtl"
+                              dir={dir}
                             />
                             <Select
                               value={newTaskPushToWork[project.id] ? String(newTaskPushToWork[project.id]) : '__none__'}
                               onValueChange={(v) => setNewTaskPushToWork(prev => ({ ...prev, [project.id]: v === '__none__' ? false : v as any }))}
                             >
                               <SelectTrigger className="w-[180px] h-8 text-xs">
-                                <SelectValue placeholder="הוסף גם לדשבורד..." />
+                                <SelectValue placeholder={copy.addToDashboard} />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">ללא סנכרון לדשבורד</SelectItem>
-                                <SelectItem value="work">משימות עבודה</SelectItem>
-                                <SelectItem value="personal">משימות אישיות</SelectItem>
+                                <SelectItem value="__none__">{copy.noDashboardSync}</SelectItem>
+                                <SelectItem value="work">{copy.workTasks}</SelectItem>
+                                <SelectItem value="personal">{copy.personalTasks}</SelectItem>
                                 {customBoardsList.map(b => (
                                   <SelectItem key={b.id} value={`board:${b.id}`}>{b.name}</SelectItem>
                                 ))}
@@ -977,7 +1120,7 @@ const ProjectsManager = () => {
                             className="text-[10px] h-6 px-2 mt-1"
                             onClick={() => {
                               const assigneeId = newTaskAssignee[project.id];
-                              if (!assigneeId) { toast.error('בחר חבר צוות קודם'); return; }
+                              if (!assigneeId) { toast.error(copy.chooseTeamMember); return; }
                               const responsibility = newTaskNotes[project.id]?.trim() || '';
                               setNewTaskPreAssignees(prev => ({
                                 ...prev,
@@ -987,13 +1130,13 @@ const ProjectsManager = () => {
                               setNewTaskNotes(prev => ({ ...prev, [project.id]: '' }));
                             }}
                           >
-                            + הוסף אחראי נוסף
+                            + {copy.addAnotherOwner}
                           </Button>
                         </div>
 
                         {/* Tasks list */}
                         {tasks.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">אין משימות עדיין</p>
+                          <p className="text-sm text-muted-foreground">{copy.noTasksYet}</p>
                         ) : (
                           <div className="space-y-2">
                             {tasks.map((task) => (
@@ -1037,7 +1180,7 @@ const ProjectsManager = () => {
                                   )}
                                   {task.due_date && (
                                     <span className="text-[10px] text-muted-foreground block">
-                                      יעד: {new Date(task.due_date).toLocaleDateString('he-IL')}
+                                      {copy.target}: {new Date(task.due_date).toLocaleDateString(locale)}
                                     </span>
                                   )}
                                   {/* Multi-assignee chips with colored dots */}
@@ -1124,7 +1267,7 @@ const ProjectsManager = () => {
 
                         {groupedTasks.length > 0 && (
                           <div className="mt-4 space-y-2 rounded-lg border bg-background/70 p-3">
-                            <p className="text-xs font-semibold text-muted-foreground">חלוקה לפי אחראי</p>
+                            <p className="text-xs font-semibold text-muted-foreground">{copy.groupedByOwner}</p>
                             {groupedTasks.map((group, index) => (
                               <div key={group.id} className="rounded-lg border bg-card p-2">
                                 <div className="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -1146,15 +1289,15 @@ const ProjectsManager = () => {
                                         <div className="min-w-0">
                                           <div className="flex items-center gap-2">
                                             <span className={cn(task.completed && 'line-through text-muted-foreground')}>{task.title}</span>
-                                            {task.urgent && <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">דחוף</span>}
+                                            {task.urgent && <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">{copy.urgent}</span>}
                                           </div>
                                           {(directResponsibility || extraResponsibilities) && (
                                             <div className="mt-1 text-muted-foreground">
-                                              אחריות: {directResponsibility || extraResponsibilities}
+                                              {copy.responsibility}: {directResponsibility || extraResponsibilities}
                                             </div>
                                           )}
                                         </div>
-                                        <span className="shrink-0 text-[10px] text-muted-foreground">{task.completed ? 'הושלם' : (task.status || 'פתוח')}</span>
+                                        <span className="shrink-0 text-[10px] text-muted-foreground">{task.completed ? copy.done : (task.status || copy.open)}</span>
                                       </div>
                                     );
                                   })}
@@ -1186,13 +1329,13 @@ const ProjectsManager = () => {
 
       {/* Multi-assign dialog */}
       <Dialog open={!!assignDialogTask} onOpenChange={(open) => { if (!open) setAssignDialogTask(null); }}>
-        <DialogContent dir="rtl">
+        <DialogContent dir={dir}>
           <DialogHeader>
-            <DialogTitle>הוסף אחראי למשימה</DialogTitle>
+            <DialogTitle>{copy.addAssigneeToTask}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <Select value={assignMember} onValueChange={setAssignMember}>
-              <SelectTrigger><SelectValue placeholder="בחר חבר צוות" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={copy.chooseTeamMemberShort} /></SelectTrigger>
               <SelectContent>
                 {getAssignableMembers(assignDialogProject || '').map(m => (
                   <SelectItem key={m.id} value={m.id}>
@@ -1202,15 +1345,15 @@ const ProjectsManager = () => {
               </SelectContent>
             </Select>
             <Input
-              placeholder="תפקיד/אחריות (אופציונלי)..."
+              placeholder={copy.responsibilityOptional}
               value={assignResponsibility}
               onChange={e => setAssignResponsibility(e.target.value)}
-              dir="rtl"
+              dir={dir}
             />
           </div>
           <DialogFooter>
             <Button onClick={() => assignDialogTask && assignDialogProject && addTaskAssignment(assignDialogTask, assignDialogProject)} disabled={!assignMember}>
-              הוסף אחראי
+              {copy.addAssignee}
             </Button>
           </DialogFooter>
         </DialogContent>

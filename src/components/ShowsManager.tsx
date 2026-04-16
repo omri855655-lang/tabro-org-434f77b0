@@ -20,6 +20,7 @@ import ListView from '@/components/views/ListView';
 import CardsView from '@/components/views/CardsView';
 import KanbanView from '@/components/views/KanbanView';
 import CompactView from '@/components/views/CompactView';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface Show {
   id: string;
@@ -36,15 +37,10 @@ interface Show {
   status_changed_at: string | null;
 }
 
-const formatDateTime = (dateStr: string) => {
+const formatDateTime = (dateStr: string, locale: string) => {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  return date.toLocaleDateString('he-IL') + ' ' + date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-};
-
-const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('he-IL');
+  return date.toLocaleDateString(locale) + ' ' + date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 };
 
 const parseNullableNumber = (raw: string): number | null => {
@@ -61,6 +57,7 @@ const DEFAULT_CATEGORIES = ['דרמה', 'קומדיה', 'אקשן', 'מתח', '�
 
 const ShowsManager = () => {
   const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("shows");
+  const { lang, dir } = useLanguage();
   const { user } = useAuth();
   const { softDelete } = useRecycleBin();
   const [shows, setShows] = useState<Show[]>([]);
@@ -73,6 +70,113 @@ const ShowsManager = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [newCategoryInput, setNewCategoryInput] = useState('');
+  const isHebrew = lang === 'he';
+  const locale = ({ he: 'he-IL', en: 'en-US', es: 'es-ES', zh: 'zh-CN', ar: 'ar-SA', ru: 'ru-RU' } as const)[lang];
+  const copy = isHebrew ? {
+    loadError: 'שגיאה בטעינת הסדרות',
+    enterTitle: 'נא להזין שם סדרה/סרט',
+    addError: 'שגיאה בהוספה',
+    addSuccess: 'נוסף בהצלחה',
+    updateError: 'שגיאה בעדכון',
+    recycleSuccess: 'הועבר לסל המחזור',
+    importError: 'שגיאה בייבוא',
+    categoryExists: 'קטגוריה כבר קיימת',
+    categoryAdded: 'נוספה קטגוריה',
+    loading: 'טוען סדרות וסרטים...',
+    title: 'הסדרות והסרטים שלי',
+    items: 'פריטים',
+    export: 'ייצוא',
+    import: 'ייבוא סדרות',
+    all: 'הכל',
+    series: 'סדרות',
+    movies: 'סרטים',
+    titlePlaceholder: 'שם הסדרה/סרט',
+    categoryPlaceholder: 'קטגוריה',
+    noCategory: 'ללא קטגוריה',
+    add: 'הוסף',
+    search: 'חפש סדרה או סרט...',
+    filterCategory: 'סנן קטגוריה',
+    allCategories: 'כל הקטגוריות',
+    manageCategories: 'ניהול קטגוריות',
+    customCategories: 'קטגוריות מותאמות',
+    newCategory: 'קטגוריה חדשה...',
+    noResults: 'לא נמצאו תוצאות',
+    empty: 'אין סדרות או סרטים עדיין',
+    nameCol: 'שם',
+    typeCol: 'סוג',
+    categoryCol: 'קטגוריה',
+    statusCol: 'סטטוס',
+    airDateCol: 'תאריך עלייה',
+    seasonCol: 'עונה',
+    episodeCol: 'פרק',
+    notesCol: 'הערות',
+    createdCol: 'נוצר',
+    statusChangedCol: 'שינוי סטטוס',
+    updatedCol: 'עודכן',
+    addNotes: 'הוסף הערות...',
+    noneShort: 'ללא',
+    sheetName: 'סדרות_וסרטים',
+    showTypeSeries: 'סדרה',
+    showTypeMovie: 'סרט',
+    toWatch: 'לצפות',
+    watching: 'בצפייה',
+    watched: 'נצפה',
+  } : {
+    loadError: 'Error loading shows',
+    enterTitle: 'Please enter a show or movie title',
+    addError: 'Error adding item',
+    addSuccess: 'Added successfully',
+    updateError: 'Error updating item',
+    recycleSuccess: 'Moved to recycle bin',
+    importError: 'Error importing items',
+    categoryExists: 'Category already exists',
+    categoryAdded: 'Category added',
+    loading: 'Loading shows and movies...',
+    title: 'My Shows & Movies',
+    items: 'items',
+    export: 'Export',
+    import: 'Import shows',
+    all: 'All',
+    series: 'Series',
+    movies: 'Movies',
+    titlePlaceholder: 'Show or movie title',
+    categoryPlaceholder: 'Category',
+    noCategory: 'No category',
+    add: 'Add',
+    search: 'Search shows or movies...',
+    filterCategory: 'Filter category',
+    allCategories: 'All categories',
+    manageCategories: 'Manage categories',
+    customCategories: 'Custom categories',
+    newCategory: 'New category...',
+    noResults: 'No results found',
+    empty: 'No shows or movies yet',
+    nameCol: 'Name',
+    typeCol: 'Type',
+    categoryCol: 'Category',
+    statusCol: 'Status',
+    airDateCol: 'Air date',
+    seasonCol: 'Season',
+    episodeCol: 'Episode',
+    notesCol: 'Notes',
+    createdCol: 'Created',
+    statusChangedCol: 'Status changed',
+    updatedCol: 'Updated',
+    addNotes: 'Add notes...',
+    noneShort: 'None',
+    sheetName: 'Shows_Movies',
+    showTypeSeries: 'Series',
+    showTypeMovie: 'Movie',
+    toWatch: 'To watch',
+    watching: 'Watching',
+    watched: 'Watched',
+  };
+  const statusOptions = [
+    { value: 'לצפות', label: copy.toWatch },
+    { value: 'בצפייה', label: copy.watching },
+    { value: 'נצפה', label: copy.watched },
+  ];
+  const getTypeLabel = (type: string | null) => type === 'סרט' ? copy.showTypeMovie : copy.showTypeSeries;
 
   useEffect(() => {
     if (user) fetchShows();
@@ -92,7 +196,7 @@ const ShowsManager = () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error('שגיאה בטעינת הסדרות');
+      toast.error(copy.loadError);
       console.error(error);
     } else {
       setShows((data || []) as Show[]);
@@ -102,7 +206,7 @@ const ShowsManager = () => {
 
   const addShow = async () => {
     if (!newShow.title.trim()) {
-      toast.error('נא להזין שם סדרה/סרט');
+      toast.error(copy.enterTitle);
       return;
     }
 
@@ -115,10 +219,10 @@ const ShowsManager = () => {
     } as any);
 
     if (error) {
-      toast.error('שגיאה בהוספה');
+      toast.error(copy.addError);
       console.error(error);
     } else {
-      toast.success('נוסף בהצלחה');
+      toast.success(copy.addSuccess);
       setNewShow({ title: '', type: 'סדרה', category: '' });
       fetchShows();
     }
@@ -131,7 +235,7 @@ const ShowsManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error('שגיאה בעדכון');
+      toast.error(copy.updateError);
     } else {
       setShows((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
     }
@@ -142,7 +246,7 @@ const ShowsManager = () => {
     if (!show) return;
     const success = await softDelete('shows', id, show);
     if (success) {
-      toast.success('הועבר לסל המחזור');
+      toast.success(copy.recycleSuccess);
       setShows((prev) => prev.filter((s) => s.id !== id));
     }
   };
@@ -160,7 +264,7 @@ const ShowsManager = () => {
 
     const { error } = await supabase.from('shows').insert(inserts as any);
     if (error) {
-      toast.error('שגיאה בייבוא');
+      toast.error(copy.importError);
       console.error(error);
     } else {
       fetchShows();
@@ -171,12 +275,12 @@ const ShowsManager = () => {
     const cat = newCategoryInput.trim();
     if (!cat) return;
     if (allCategories.includes(cat)) {
-      toast.error('קטגוריה כבר קיימת');
+      toast.error(copy.categoryExists);
       return;
     }
     setCustomCategories(prev => [...prev, cat]);
     setNewCategoryInput('');
-    toast.success(`קטגוריה "${cat}" נוספה`);
+    toast.success(`${copy.categoryAdded}: "${cat}"`);
   };
 
   const toggleSort = (field: SortField) => {
@@ -208,7 +312,7 @@ const ShowsManager = () => {
       if (aVal == null && bVal == null) cmp = 0;
       else if (aVal == null) cmp = 1;
       else if (bVal == null) cmp = -1;
-      else if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal, 'he');
+      else if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal, isHebrew ? 'he' : 'en');
       else cmp = 0;
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -228,44 +332,42 @@ const ShowsManager = () => {
     </TableHead>
   );
 
-  if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">טוען סדרות וסרטים...</div>;
-  }
+  if (loading) return <div className="p-8 text-center text-muted-foreground">{copy.loading}</div>;
 
   const seriesCount = shows.filter(s => s.type === 'סדרה').length;
   const moviesCount = shows.filter(s => s.type === 'סרט').length;
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden" dir="rtl">
+    <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
       <div className="flex items-center gap-2 mb-4">
         <Tv className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">הסדרות והסרטים שלי</h2>
-        <span className="text-sm text-muted-foreground">({shows.length} פריטים)</span>
+        <h2 className="text-xl font-bold">{copy.title}</h2>
+        <span className="text-sm text-muted-foreground">({shows.length} {copy.items})</span>
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
           shows.map(s => ({ title: s.title, type: s.type || '', status: s.status || '', category: s.category || '', season: s.current_season, episode: s.current_episode, notes: s.notes || '' })),
-          [{ key: 'title', label: 'שם' }, { key: 'type', label: 'סוג' }, { key: 'status', label: 'סטטוס' }, { key: 'category', label: 'קטגוריה' }, { key: 'season', label: 'עונה' }, { key: 'episode', label: 'פרק' }, { key: 'notes', label: 'הערות' }],
-          'סדרות_וסרטים'
+          [{ key: 'title', label: copy.nameCol }, { key: 'type', label: copy.typeCol }, { key: 'status', label: copy.statusCol }, { key: 'category', label: copy.categoryCol }, { key: 'season', label: copy.seasonCol }, { key: 'episode', label: copy.episodeCol }, { key: 'notes', label: copy.notesCol }],
+          copy.sheetName
         )}>
-          <Download className="h-3.5 w-3.5" />ייצוא
+          <Download className="h-3.5 w-3.5" />{copy.export}
         </Button>
-        <FileImport onImport={handleImportShows} label="ייבוא סדרות" />
+        <FileImport onImport={handleImportShows} label={copy.import} />
       </div>
 
       {/* Tabs: All / Series / Movies */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-shrink-0 mb-3">
         <TabsList>
           <TabsTrigger value="all" className="gap-1.5">
-            הכל ({shows.length})
+            {copy.all} ({shows.length})
           </TabsTrigger>
           <TabsTrigger value="series" className="gap-1.5">
             <Tv className="h-3.5 w-3.5" />
-            סדרות ({seriesCount})
+            {copy.series} ({seriesCount})
           </TabsTrigger>
           <TabsTrigger value="movies" className="gap-1.5">
             <Film className="h-3.5 w-3.5" />
-            סרטים ({moviesCount})
+            {copy.movies} ({moviesCount})
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -273,11 +375,11 @@ const ShowsManager = () => {
       {/* Add new show */}
       <div className="flex gap-2 flex-wrap mb-3 flex-shrink-0">
         <Input
-          placeholder="שם הסדרה/סרט"
+          placeholder={copy.titlePlaceholder}
           value={newShow.title}
           onChange={(e) => setNewShow({ ...newShow, title: e.target.value })}
           className="flex-1 min-w-[180px]"
-          dir="rtl"
+          dir={dir}
           onKeyDown={(e) => e.key === 'Enter' && addShow()}
         />
         <Select
@@ -288,8 +390,8 @@ const ShowsManager = () => {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="סדרה">סדרה</SelectItem>
-            <SelectItem value="סרט">סרט</SelectItem>
+            <SelectItem value="סדרה">{copy.showTypeSeries}</SelectItem>
+            <SelectItem value="סרט">{copy.showTypeMovie}</SelectItem>
           </SelectContent>
         </Select>
         <Select
@@ -297,10 +399,10 @@ const ShowsManager = () => {
           onValueChange={(value) => setNewShow({ ...newShow, category: value === '_none' ? '' : value })}
         >
           <SelectTrigger className="w-[130px]">
-            <SelectValue placeholder="קטגוריה" />
+            <SelectValue placeholder={copy.categoryPlaceholder} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="_none">ללא קטגוריה</SelectItem>
+            <SelectItem value="_none">{copy.noCategory}</SelectItem>
             {allCategories.map(c => (
               <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}
@@ -308,28 +410,28 @@ const ShowsManager = () => {
         </Select>
         <Button onClick={addShow}>
           <Plus className="h-4 w-4 ml-1" />
-          הוסף
+          {copy.add}
         </Button>
       </div>
 
       {/* Search + Category filter + Manage categories */}
       <div className="flex gap-2 mb-3 flex-shrink-0 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground ${dir === 'rtl' ? 'right-3' : 'left-3'}`} />
           <Input
-            placeholder="חפש סדרה או סרט..."
+            placeholder={copy.search}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pr-10"
-            dir="rtl"
+            className={dir === 'rtl' ? 'pr-10' : 'pl-10'}
+            dir={dir}
           />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="סנן קטגוריה" />
+            <SelectValue placeholder={copy.filterCategory} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">כל הקטגוריות</SelectItem>
+            <SelectItem value="all">{copy.allCategories}</SelectItem>
             {allCategories.map(c => (
               <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}
@@ -340,14 +442,14 @@ const ShowsManager = () => {
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1">
               <Tag className="h-3.5 w-3.5" />
-              ניהול קטגוריות
+              {copy.manageCategories}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-72" dir="rtl">
-            <h4 className="font-bold text-sm mb-2">קטגוריות מותאמות</h4>
+          <PopoverContent className="w-72" dir={dir}>
+            <h4 className="font-bold text-sm mb-2">{copy.customCategories}</h4>
             <div className="flex gap-1.5 mb-2">
               <Input
-                placeholder="קטגוריה חדשה..."
+                placeholder={copy.newCategory}
                 value={newCategoryInput}
                 onChange={(e) => setNewCategoryInput(e.target.value)}
                 className="text-sm"
@@ -382,13 +484,13 @@ const ShowsManager = () => {
               items={filteredAndSorted.map(s => ({
                 id: s.id,
                 title: s.title,
-                subtitle: `${s.type || 'סדרה'}${s.category ? ` • ${s.category}` : ''}`,
+                subtitle: `${getTypeLabel(s.type)}${s.category ? ` • ${s.category}` : ''}`,
                 status: s.status || 'לצפות',
-                statusOptions: [{ value: 'לצפות', label: 'לצפות' }, { value: 'בצפייה', label: 'בצפייה' }, { value: 'נצפה', label: 'נצפה' }],
+                statusOptions,
                 notes: s.notes,
-                meta: s.current_season ? `ע${s.current_season} פ${s.current_episode || '?'}` : undefined,
+                meta: s.current_season ? `${copy.seasonCol} ${s.current_season} • ${copy.episodeCol} ${s.current_episode || '?'}` : undefined,
               }))}
-              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין סדרות או סרטים עדיין'}
+              emptyText={searchTerm ? copy.noResults : copy.empty}
               onStatusChange={(id, status) => updateShow(id, { status })}
               onDelete={deleteShow}
             />
@@ -397,13 +499,13 @@ const ShowsManager = () => {
               items={filteredAndSorted.map(s => ({
                 id: s.id,
                 title: s.title,
-                subtitle: `${s.type || 'סדרה'}${s.category ? ` • ${s.category}` : ''}`,
+                subtitle: `${getTypeLabel(s.type)}${s.category ? ` • ${s.category}` : ''}`,
                 status: s.status || 'לצפות',
-                statusOptions: [{ value: 'לצפות', label: 'לצפות' }, { value: 'בצפייה', label: 'בצפייה' }, { value: 'נצפה', label: 'נצפה' }],
+                statusOptions,
                 notes: s.notes,
-                meta: s.current_season ? `ע${s.current_season} פ${s.current_episode || '?'}` : undefined,
+                meta: s.current_season ? `${copy.seasonCol} ${s.current_season} • ${copy.episodeCol} ${s.current_episode || '?'}` : undefined,
               }))}
-              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין סדרות או סרטים עדיין'}
+              emptyText={searchTerm ? copy.noResults : copy.empty}
               onStatusChange={(id, status) => updateShow(id, { status })}
               onDelete={deleteShow}
             />
@@ -412,16 +514,16 @@ const ShowsManager = () => {
               items={filteredAndSorted.map(s => ({
                 id: s.id,
                 title: s.title,
-                subtitle: `${s.type || 'סדרה'}${s.category ? ` • ${s.category}` : ''}`,
+                subtitle: `${getTypeLabel(s.type)}${s.category ? ` • ${s.category}` : ''}`,
                 status: s.status || 'לצפות',
                 notes: s.notes,
               }))}
               columns={[
-                { value: 'לצפות', label: 'לצפות', color: 'bg-orange-500/15' },
-                { value: 'בצפייה', label: 'בצפייה', color: 'bg-blue-500/15' },
-                { value: 'נצפה', label: 'נצפה', color: 'bg-green-500/15' },
+                { value: 'לצפות', label: copy.toWatch, color: 'bg-orange-500/15' },
+                { value: 'בצפייה', label: copy.watching, color: 'bg-blue-500/15' },
+                { value: 'נצפה', label: copy.watched, color: 'bg-green-500/15' },
               ]}
-              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין סדרות או סרטים עדיין'}
+              emptyText={searchTerm ? copy.noResults : copy.empty}
               onStatusChange={(id, status) => updateShow(id, { status })}
               onDelete={deleteShow}
             />
@@ -431,9 +533,9 @@ const ShowsManager = () => {
                 id: s.id,
                 title: s.title,
                 status: s.status || 'לצפות',
-                subtitle: s.type || 'סדרה',
+                subtitle: getTypeLabel(s.type),
               }))}
-              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין סדרות או סרטים עדיין'}
+              emptyText={searchTerm ? copy.noResults : copy.empty}
               onDelete={deleteShow}
             />
           ) : (
@@ -441,17 +543,17 @@ const ShowsManager = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortHeader field="title" label="שם" />
-                  <TableHead className="text-right">סוג</TableHead>
-                  <SortHeader field="category" label="קטגוריה" />
-                  <SortHeader field="status" label="סטטוס" />
-                  <SortHeader field="air_date" label="תאריך עלייה" />
-                  <TableHead className="text-right">עונה</TableHead>
-                  <TableHead className="text-right">פרק</TableHead>
-                  <TableHead className="text-right">הערות</TableHead>
-                  <SortHeader field="created_at" label="נוצר" />
-                  <TableHead className="text-right">שינוי סטטוס</TableHead>
-                  <SortHeader field="updated_at" label="עודכן" />
+                  <SortHeader field="title" label={copy.nameCol} />
+                  <TableHead className="text-right">{copy.typeCol}</TableHead>
+                  <SortHeader field="category" label={copy.categoryCol} />
+                  <SortHeader field="status" label={copy.statusCol} />
+                  <SortHeader field="air_date" label={copy.airDateCol} />
+                  <TableHead className="text-right">{copy.seasonCol}</TableHead>
+                  <TableHead className="text-right">{copy.episodeCol}</TableHead>
+                  <TableHead className="text-right">{copy.notesCol}</TableHead>
+                  <SortHeader field="created_at" label={copy.createdCol} />
+                  <TableHead className="text-right">{copy.statusChangedCol}</TableHead>
+                  <SortHeader field="updated_at" label={copy.updatedCol} />
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -459,7 +561,7 @@ const ShowsManager = () => {
                 {filteredAndSorted.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={12} className="text-center text-muted-foreground">
-                      {searchTerm ? 'לא נמצאו תוצאות' : 'אין סדרות או סרטים עדיין'}
+                      {searchTerm ? copy.noResults : copy.empty}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -469,7 +571,7 @@ const ShowsManager = () => {
                         <Input
                           defaultValue={show.title}
                           className="border-0 bg-transparent p-0 h-auto font-medium focus-visible:ring-1"
-                          dir="rtl"
+                          dir={dir}
                           onBlur={(e) => {
                             const val = e.target.value.trim();
                             if (val && val !== show.title) updateShow(show.id, { title: val });
@@ -480,14 +582,14 @@ const ShowsManager = () => {
                       <TableCell>
                         <Badge variant={show.type === 'סרט' ? 'default' : 'secondary'} className="text-xs">
                           {show.type === 'סרט' ? <Film className="h-3 w-3 ml-1" /> : <Tv className="h-3 w-3 ml-1" />}
-                          {show.type || 'סדרה'}
+                          {getTypeLabel(show.type)}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Select value={show.category || '_none'} onValueChange={(v) => updateShow(show.id, { category: v === '_none' ? null : v })}>
-                          <SelectTrigger className="w-[120px] h-8 text-xs"><SelectValue placeholder="קטגוריה" /></SelectTrigger>
+                          <SelectTrigger className="w-[120px] h-8 text-xs"><SelectValue placeholder={copy.categoryPlaceholder} /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="_none">ללא</SelectItem>
+                            <SelectItem value="_none">{copy.noneShort}</SelectItem>
                             {allCategories.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                           </SelectContent>
                         </Select>
@@ -496,9 +598,9 @@ const ShowsManager = () => {
                         <Select value={show.status || 'לצפות'} onValueChange={(value) => updateShow(show.id, { status: value })}>
                           <SelectTrigger className="w-[110px] h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="לצפות">לצפות</SelectItem>
-                            <SelectItem value="בצפייה">בצפייה</SelectItem>
-                            <SelectItem value="נצפה">נצפה</SelectItem>
+                            {statusOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -516,11 +618,11 @@ const ShowsManager = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <InlineNotesTextarea placeholder="הוסף הערות..." initialValue={show.notes} onCommit={(val) => updateShow(show.id, { notes: val })} className="min-w-[150px] text-right min-h-[50px] w-full resize-y text-xs" dir="rtl" />
+                        <InlineNotesTextarea placeholder={copy.addNotes} initialValue={show.notes} onCommit={(val) => updateShow(show.id, { notes: val })} className={`min-w-[150px] min-h-[50px] w-full resize-y text-xs ${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{formatDateTime(show.created_at)}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{show.status_changed_at ? formatDateTime(show.status_changed_at) : '-'}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{formatDateTime(show.updated_at)}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{formatDateTime(show.created_at, locale)}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{show.status_changed_at ? formatDateTime(show.status_changed_at, locale) : '-'}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{formatDateTime(show.updated_at, locale)}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => deleteShow(show.id)} className="text-destructive hover:text-destructive h-8 w-8">
                           <Trash2 className="h-4 w-4" />
