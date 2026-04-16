@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ListTodo, Archive, CheckCircle } from "lucide-react";
 import { Task } from "@/hooks/useTasks";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface TaskTabsProps {
   tasks: Task[];
@@ -10,6 +11,8 @@ interface TaskTabsProps {
 }
 
 const TaskTabs = ({ tasks, activeTab, onTabChange, children }: TaskTabsProps) => {
+  const { lang, dir } = useLanguage();
+  const isHebrew = lang === "he";
   // Active tasks: not archived
   const activeTasks = tasks.filter(t => !t.archived);
   
@@ -22,24 +25,33 @@ const TaskTabs = ({ tasks, activeTab, onTabChange, children }: TaskTabsProps) =>
   const activeCount = activeTasks.length;
   const archivedCount = archivedTasks.length;
   const completedCount = completedTasks.length;
+  const copy = isHebrew ? {
+    active: "משימות פעילות",
+    completed: "בוצעו",
+    archive: "ארכיון",
+  } : {
+    active: "Active tasks",
+    completed: "Completed",
+    archive: "Archive",
+  };
 
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="flex flex-col h-full" dir="rtl">
+    <Tabs value={activeTab} onValueChange={onTabChange} className="flex flex-col h-full" dir={dir}>
       <div className="border-b border-border bg-card/50 px-4 flex-shrink-0">
         <TabsList className="h-10 bg-transparent justify-start">
           <TabsTrigger value="active" className="gap-2">
             <ListTodo className="h-4 w-4" />
-            משימות פעילות
+            {copy.active}
             <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">{activeCount}</span>
           </TabsTrigger>
           <TabsTrigger value="completed" className="gap-2">
             <CheckCircle className="h-4 w-4" />
-            בוצעו
+            {copy.completed}
             <span className="text-xs bg-green-500/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">{completedCount}</span>
           </TabsTrigger>
           <TabsTrigger value="archive" className="gap-2">
             <Archive className="h-4 w-4" />
-            ארכיון
+            {copy.archive}
             <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">{archivedCount}</span>
           </TabsTrigger>
         </TabsList>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface Sheet {
   id: string;
@@ -25,6 +26,7 @@ const SheetTabs = ({
   onDeleteSheet,
   onRenameSheet,
 }: SheetTabsProps) => {
+  const { dir } = useLanguage();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -49,7 +51,7 @@ const SheetTabs = ({
   };
 
   return (
-    <div className="flex items-center gap-1 p-2 bg-muted/50 border-t border-border overflow-x-auto" dir="rtl">
+    <div className="flex items-center gap-1 p-2 bg-muted/50 border-t border-border overflow-x-auto" dir={dir}>
       {sheets.map((sheet) => (
         <div
           key={sheet.id}

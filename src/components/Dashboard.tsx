@@ -49,11 +49,14 @@ const ChartToggle = ({ widgetKey, value, onChange }: { widgetKey: string; value:
 );
 
 const RenderChart = ({ data, chartType, height }: { data: { name: string; value: number; color: string }[]; chartType: ChartType; height: number }) => {
+  const shortenLabel = (value: string, max = 12) => value.length > max ? `${value.slice(0, max)}…` : value;
   if (chartType === "bar") {
     return (
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data}>
-          <XAxis dataKey="name" /><YAxis /><Tooltip />
+          <XAxis dataKey="name" tickFormatter={(value) => shortenLabel(String(value), 10)} interval={0} angle={-15} textAnchor="end" height={42} />
+          <YAxis width={30} />
+          <Tooltip />
           <Bar dataKey="value" fill="hsl(var(--primary))">
             {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
           </Bar>
@@ -65,7 +68,9 @@ const RenderChart = ({ data, chartType, height }: { data: { name: string; value:
     return (
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data}>
-          <XAxis dataKey="name" /><YAxis /><Tooltip />
+          <XAxis dataKey="name" tickFormatter={(value) => shortenLabel(String(value), 10)} interval={0} />
+          <YAxis width={30} />
+          <Tooltip />
           <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: "hsl(var(--primary))" }} />
         </LineChart>
       </ResponsiveContainer>
@@ -74,7 +79,7 @@ const RenderChart = ({ data, chartType, height }: { data: { name: string; value:
   return (
     <ResponsiveContainer width="100%" height={height}>
       <PieChart>
-        <Pie data={data} cx="50%" cy="50%" innerRadius={height > 150 ? 40 : 20} outerRadius={height > 150 ? 80 : 50} paddingAngle={5} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+        <Pie data={data} cx="50%" cy="50%" innerRadius={height > 150 ? 40 : 20} outerRadius={height > 150 ? 80 : 50} paddingAngle={5} dataKey="value" label={false}>
           {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
         </Pie>
         <Tooltip />
@@ -284,7 +289,7 @@ const Dashboard = () => {
             <CardContent>
               <ResponsiveContainer width="100%" height={vm === "compact" ? 120 : 200}>
                 <BarChart data={comparisonData} layout="vertical">
-                  <XAxis type="number" /><YAxis dataKey="name" type="category" width={100} />
+                  <XAxis type="number" /><YAxis dataKey="name" type="category" width={120} tickFormatter={(value) => String(value).length > 16 ? `${String(value).slice(0, 16)}…` : String(value)} />
                   <Tooltip /><Legend />
                   <Bar dataKey="total" name={t("total" as any)} fill="hsl(var(--primary))" />
                   <Bar dataKey="completed" name={t("completedLabel" as any)} fill="hsl(var(--accent))" />
