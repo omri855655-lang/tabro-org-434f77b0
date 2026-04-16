@@ -299,7 +299,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     stickyOverdue: "חריגה",
     stickyCreated: "נוצר",
     stickyUpdated: "עודכן",
-    stickyAi: "AI + פעולות",
+    stickyAi: "AI",
     noArchivedTasks: "אין משימות בארכיון",
     noCompletedTasks: "אין משימות שבוצעו",
     noTasksYet: "אין משימות עדיין",
@@ -392,7 +392,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     stickyOverdue: "Overdue",
     stickyCreated: "Created",
     stickyUpdated: "Updated",
-    stickyAi: "AI + Actions",
+    stickyAi: "AI",
     noArchivedTasks: "No archived tasks",
     noCompletedTasks: "No completed tasks",
     noTasksYet: "No tasks yet",
@@ -1756,7 +1756,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             return (
             <div ref={tableScrollRef} data-task-table className={cn("min-h-0 h-full overflow-auto scroll-smooth", taskThemeStyles.shell)}>
               <table className="w-full border-collapse min-w-[1200px]">
-            <thead className="sticky top-[104px] z-10 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+            <thead className="sticky top-0 z-10">
               <tr className={taskThemeStyles.tableHeader}>
                 {taskHeaders.map((header, i) => (
                   <th
