@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { useRecycleBin } from '@/hooks/useRecycleBin';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 import { extractLessonsFromSyllabus } from '@/components/courses/syllabusLessonParser';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface Course {
   id: string;
@@ -40,13 +41,16 @@ interface CourseLesson {
   updated_at: string;
 }
 
-const formatDateTime = (dateStr: string) => {
+const formatDateTime = (dateStr: string, locale: string) => {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  return date.toLocaleDateString('he-IL') + ' ' + date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString(locale) + ' ' + date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 };
 
 const CoursesManager = () => {
+  const { lang, dir } = useLanguage();
+  const isHebrew = lang === "he";
+  const locale = isHebrew ? "he-IL" : "en-US";
   const { user } = useAuth();
   const { softDelete } = useRecycleBin();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -59,6 +63,103 @@ const CoursesManager = () => {
   const [syllabusInput, setSyllabusInput] = useState('');
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [recommendationsDialogOpen, setRecommendationsDialogOpen] = useState<string | null>(null);
+  const copy = isHebrew ? {
+    loadError: 'שגיאה בטעינת הקורסים',
+    titleRequired: 'נא להזין שם קורס',
+    addError: 'שגיאה בהוספת הקורס',
+    added: 'הקורס נוסף בהצלחה',
+    updateStatusError: 'שגיאה בעדכון הסטטוס',
+    updateNotesError: 'שגיאה בעדכון ההערות',
+    deleted: 'הקורס הועבר לסל המחזור',
+    saveSyllabusError: 'שגיאה בשמירת הסילבוס',
+    addSyllabusFirst: 'נא להזין סילבוס קודם',
+    parseSyllabusFail: 'לא הצלחתי לפרק את הסילבוס',
+    autoLessonsSaved: 'הסילבוס נשמר ונוצרו',
+    autoLessonsSuffix: 'שיעורים אוטומטית',
+    lessonsCreated: 'נוצרו',
+    lessonsLabel: 'שיעורים',
+    lessonsError: 'שגיאה ביצירת השיעורים',
+    autoLessonsError: 'הסילבוס נשמר אבל יצירת השיעורים האוטומטית נכשלה',
+    recommendationsError: 'שגיאה בקבלת המלצות',
+    lessonUpdateError: 'שגיאה בעדכון שיעור',
+    dateUpdateError: 'שגיאה בעדכון תאריך',
+    loading: 'טוען קורסים...',
+    planning: 'בתכנון',
+    learning: 'בלמידה',
+    completed: 'הושלמו',
+    myCourses: 'הקורסים שלי',
+    coursesCount: 'קורסים',
+    courseName: 'שם הקורס',
+    addCourse: 'הוסף קורס',
+    search: 'חפש קורס...',
+    noResults: 'לא נמצאו תוצאות',
+    noCourses: 'אין קורסים עדיין',
+    syllabus: 'סילבוס',
+    syllabusFor: 'סילבוס',
+    pasteSyllabus: 'הדבק את הסילבוס כאן...',
+    saveSyllabus: 'שמור סילבוס',
+    buildLessons: 'צור שיעורים מהסילבוס',
+    aiRecommendations: 'המלצות AI',
+    courseNotes: 'הערות לקורס...',
+    completedLabel: 'הושלם',
+    lessonsRemaining: 'שיעורים נותרו',
+    created: 'נוצר',
+    updated: 'עודכן',
+    noLessons: 'אין שיעורים עדיין - הוסף סילבוס וצור שיעורים',
+    markUrgent: 'סמן כדחוף',
+    mins: "דק'",
+    recommendationsFor: 'המלצות למידה',
+    noRecommendations: 'אין המלצות עדיין',
+    notConnected: 'משתמש לא מחובר',
+  } : {
+    loadError: 'Error loading courses',
+    titleRequired: 'Please enter a course name',
+    addError: 'Error adding course',
+    added: 'Course added successfully',
+    updateStatusError: 'Error updating status',
+    updateNotesError: 'Error updating notes',
+    deleted: 'Course moved to recycle bin',
+    saveSyllabusError: 'Error saving syllabus',
+    addSyllabusFirst: 'Please add a syllabus first',
+    parseSyllabusFail: 'Could not break down the syllabus',
+    autoLessonsSaved: 'Syllabus saved and',
+    autoLessonsSuffix: 'lessons were created automatically',
+    lessonsCreated: 'Created',
+    lessonsLabel: 'lessons',
+    lessonsError: 'Error creating lessons',
+    autoLessonsError: 'Syllabus was saved but automatic lesson creation failed',
+    recommendationsError: 'Error getting recommendations',
+    lessonUpdateError: 'Error updating lesson',
+    dateUpdateError: 'Error updating date',
+    loading: 'Loading courses...',
+    planning: 'Planning',
+    learning: 'Learning',
+    completed: 'Completed',
+    myCourses: 'My courses',
+    coursesCount: 'courses',
+    courseName: 'Course name',
+    addCourse: 'Add course',
+    search: 'Search course...',
+    noResults: 'No results found',
+    noCourses: 'No courses yet',
+    syllabus: 'Syllabus',
+    syllabusFor: 'Syllabus',
+    pasteSyllabus: 'Paste the syllabus here...',
+    saveSyllabus: 'Save syllabus',
+    buildLessons: 'Create lessons from syllabus',
+    aiRecommendations: 'AI recommendations',
+    courseNotes: 'Course notes...',
+    completedLabel: 'completed',
+    lessonsRemaining: 'lessons remaining',
+    created: 'Created',
+    updated: 'Updated',
+    noLessons: 'No lessons yet - add a syllabus and generate lessons',
+    markUrgent: 'Mark as urgent',
+    mins: 'min',
+    recommendationsFor: 'Learning recommendations',
+    noRecommendations: 'No recommendations yet',
+    notConnected: 'User not connected',
+  };
 
   useEffect(() => {
     if (user) {
@@ -73,7 +174,7 @@ const CoursesManager = () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error('שגיאה בטעינת הקורסים');
+      toast.error(copy.loadError);
       console.error(error);
     } else {
       setCourses(data || []);
@@ -101,7 +202,7 @@ const CoursesManager = () => {
 
   const addCourse = async () => {
     if (!newCourse.title.trim()) {
-      toast.error('נא להזין שם קורס');
+      toast.error(copy.titleRequired);
       return;
     }
 
@@ -112,10 +213,10 @@ const CoursesManager = () => {
     });
 
     if (error) {
-      toast.error('שגיאה בהוספת הקורס');
+      toast.error(copy.addError);
       console.error(error);
     } else {
-      toast.success('הקורס נוסף בהצלחה');
+      toast.success(copy.added);
       setNewCourse({ title: '' });
       fetchCourses();
     }
@@ -128,7 +229,7 @@ const CoursesManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error('שגיאה בעדכון הסטטוס');
+      toast.error(copy.updateStatusError);
       return;
     }
 
@@ -142,7 +243,7 @@ const CoursesManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error('שגיאה בעדכון ההערות');
+      toast.error(copy.updateNotesError);
       return;
     }
 
@@ -154,7 +255,7 @@ const CoursesManager = () => {
     if (!course) return;
     const success = await softDelete('courses', id, course);
     if (success) {
-      toast.success('הקורס הועבר לסל המחזור');
+      toast.success(copy.deleted);
       setCourses((prev) => prev.filter((c) => c.id !== id));
     }
   };
@@ -168,7 +269,7 @@ const CoursesManager = () => {
       .eq('id', courseId);
 
     if (error) {
-      toast.error('שגיאה בשמירת הסילבוס');
+      toast.error(copy.saveSyllabusError);
       return;
     }
 
@@ -220,7 +321,7 @@ const CoursesManager = () => {
 
   const replaceLessonsForCourse = async (courseId: string, lessons: { title: string; duration_minutes?: number }[]) => {
     if (!user?.id) {
-      throw new Error('משתמש לא מחובר');
+      throw new Error(copy.notConnected);
     }
 
     const { error: deleteError } = await supabase.from('course_lessons').delete().eq('course_id', courseId);
@@ -254,7 +355,7 @@ const CoursesManager = () => {
     const syllabusText = (syllabusOverride ?? course?.syllabus ?? '').trim();
 
     if (!syllabusText) {
-      toast.error('נא להזין סילבוס קודם');
+      toast.error(copy.addSyllabusFirst);
       return;
     }
 
@@ -283,7 +384,7 @@ const CoursesManager = () => {
       }
 
       if (lessons.length === 0) {
-        toast.error('לא הצלחתי לפרק את הסילבוס');
+        toast.error(copy.parseSyllabusFail);
         return;
       }
 
@@ -291,13 +392,13 @@ const CoursesManager = () => {
 
       toast.success(
         autoMode
-          ? `הסילבוס נשמר ונוצרו ${insertedLessons.length} שיעורים אוטומטית`
-          : `נוצרו ${insertedLessons.length} שיעורים`
+          ? `${copy.autoLessonsSaved} ${insertedLessons.length} ${copy.autoLessonsSuffix}`
+          : `${copy.lessonsCreated} ${insertedLessons.length} ${copy.lessonsLabel}`
       );
       setSyllabusDialogOpen(null);
     } catch (error) {
       console.error(error);
-      toast.error(autoMode ? 'הסילבוס נשמר אבל יצירת השיעורים האוטומטית נכשלה' : 'שגיאה ביצירת השיעורים');
+      toast.error(autoMode ? copy.autoLessonsError : copy.lessonsError);
     } finally {
       setAiLoading(null);
     }
@@ -337,7 +438,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
       setRecommendationsDialogOpen(courseId);
     } catch (error) {
       console.error(error);
-      toast.error('שגיאה בקבלת המלצות');
+      toast.error(copy.recommendationsError);
     } finally {
       setAiLoading(null);
     }
@@ -350,7 +451,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
       .eq('id', lesson.id);
 
     if (error) {
-      toast.error('שגיאה בעדכון שיעור');
+      toast.error(copy.lessonUpdateError);
       return;
     }
 
@@ -369,7 +470,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
       .eq('id', lesson.id);
 
     if (error) {
-      toast.error('שגיאה בעדכון תאריך');
+      toast.error(copy.dateUpdateError);
       return;
     }
 
@@ -398,7 +499,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
   );
 
   if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">טוען קורסים...</div>;
+    return <div className="p-8 text-center text-muted-foreground">{copy.loading}</div>;
   }
 
   const planningCount = courses.filter(c => c.status === 'בתכנון').length;
@@ -406,42 +507,42 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
   const completedCount = courses.filter(c => c.status === 'הושלם').length;
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden" dir="rtl">
+    <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
       {/* Stats Dashboard */}
       <div className="grid grid-cols-3 gap-4 mb-4 flex-shrink-0">
         <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-purple-600">{planningCount}</div>
-          <div className="text-sm text-muted-foreground">בתכנון</div>
+          <div className="text-sm text-muted-foreground">{copy.planning}</div>
         </div>
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-blue-600">{inProgressCount}</div>
-          <div className="text-sm text-muted-foreground">בלמידה</div>
+          <div className="text-sm text-muted-foreground">{copy.learning}</div>
         </div>
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-green-600">{completedCount}</div>
-          <div className="text-sm text-muted-foreground">הושלמו</div>
+          <div className="text-sm text-muted-foreground">{copy.completed}</div>
         </div>
       </div>
 
       {/* Header with count */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">
         <GraduationCap className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">הקורסים שלי</h2>
-        <span className="text-sm text-muted-foreground">({courses.length} קורסים)</span>
+        <h2 className="text-xl font-bold">{copy.myCourses}</h2>
+        <span className="text-sm text-muted-foreground">({courses.length} {copy.coursesCount})</span>
       </div>
 
       {/* Add new course */}
       <div className="flex gap-2 flex-wrap mb-4 flex-shrink-0">
         <Input
-          placeholder="שם הקורס"
+          placeholder={copy.courseName}
           value={newCourse.title}
           onChange={(e) => setNewCourse({ ...newCourse, title: e.target.value })}
           className="flex-1 min-w-[200px] text-right"
-          dir="rtl"
+          dir={dir}
         />
         <Button onClick={addCourse}>
           <Plus className="h-4 w-4 ml-1" />
-          הוסף קורס
+          {copy.addCourse}
         </Button>
       </div>
 
@@ -449,11 +550,11 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
       <div className="relative mb-4 flex-shrink-0">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="חפש קורס..."
+          placeholder={copy.search}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pr-10 text-right"
-          dir="rtl"
+          dir={dir}
         />
       </div>
 
@@ -462,7 +563,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
         <div className="h-full overflow-auto">
           {filteredCourses.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? 'לא נמצאו תוצאות' : 'אין קורסים עדיין'}
+              {searchTerm ? copy.noResults : copy.noCourses}
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -485,7 +586,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                             <h3 className="font-semibold">{course.title}</h3>
                             {lessons.length > 0 && (
                               <span className="text-xs text-muted-foreground">
-                                ({completedLessons}/{lessons.length} שיעורים)
+                                ({completedLessons}/{lessons.length} {copy.lessonsLabel})
                               </span>
                             )}
                           </div>
@@ -498,9 +599,9 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="בתכנון">בתכנון</SelectItem>
-                            <SelectItem value="בלמידה">בלמידה</SelectItem>
-                            <SelectItem value="הושלם">הושלם</SelectItem>
+                            <SelectItem value="בתכנון">{copy.planning}</SelectItem>
+                            <SelectItem value="בלמידה">{copy.learning}</SelectItem>
+                            <SelectItem value="הושלם">{copy.completed}</SelectItem>
                           </SelectContent>
                         </Select>
 
@@ -511,23 +612,23 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                         }}>
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm">
-                              סילבוס
+                              {copy.syllabus}
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl" dir="rtl">
+                          <DialogContent className="max-w-2xl" dir={dir}>
                             <DialogHeader>
-                              <DialogTitle>סילבוס - {course.title}</DialogTitle>
+                              <DialogTitle>{copy.syllabusFor} - {course.title}</DialogTitle>
                             </DialogHeader>
                             <Textarea
-                              placeholder="הדבק את הסילבוס כאן..."
+                              placeholder={copy.pasteSyllabus}
                               value={syllabusInput}
                               onChange={(e) => setSyllabusInput(e.target.value)}
                               className="min-h-[300px] text-right"
-                              dir="rtl"
+                              dir={dir}
                             />
                             <DialogFooter className="gap-2">
                               <Button variant="outline" onClick={() => saveSyllabus(course.id)} disabled={aiLoading === course.id}>
-                                שמור סילבוס
+                                {copy.saveSyllabus}
                               </Button>
                               <Button
                                 onClick={() => generateLessonsFromSyllabus(course.id, syllabusInput || course.syllabus || undefined)}
@@ -538,7 +639,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                                 ) : (
                                   <Sparkles className="h-4 w-4 ml-1" />
                                 )}
-                                צור שיעורים מהסילבוס
+                                {copy.buildLessons}
                               </Button>
                             </DialogFooter>
                           </DialogContent>
@@ -556,7 +657,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                           ) : (
                             <Sparkles className="h-4 w-4 ml-1" />
                           )}
-                          המלצות AI
+                          {copy.aiRecommendations}
                         </Button>
 
                         <Button
@@ -572,11 +673,11 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                       {/* Notes */}
                       <div className="mt-2 mr-11">
                         <InlineNotesTextarea
-                          placeholder="הערות לקורס..."
+                          placeholder={copy.courseNotes}
                           initialValue={course.notes}
                           onCommit={(val) => updateCourseNotes(course.id, val)}
                           className="w-full text-right min-h-[40px]"
-                          dir="rtl"
+                          dir={dir}
                         />
                       </div>
 
@@ -585,14 +686,14 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                         <div className="mt-3 mr-11 space-y-1">
                           <Progress value={lessons.length > 0 ? (completedLessons / lessons.length) * 100 : 0} className="h-2" />
                           <p className="text-[10px] text-muted-foreground">
-                            {Math.round((completedLessons / lessons.length) * 100)}% הושלם — {lessons.length - completedLessons} שיעורים נותרו
+                            {Math.round((completedLessons / lessons.length) * 100)}% {copy.completedLabel} — {lessons.length - completedLessons} {copy.lessonsRemaining}
                           </p>
                         </div>
                       )}
 
                       <div className="flex gap-4 mt-2 mr-11 text-xs text-muted-foreground">
-                        <span>נוצר: {formatDateTime(course.created_at)}</span>
-                        <span>עודכן: {formatDateTime(course.updated_at)}</span>
+                        <span>{copy.created}: {formatDateTime(course.created_at, locale)}</span>
+                        <span>{copy.updated}: {formatDateTime(course.updated_at, locale)}</span>
                       </div>
                     </div>
 
@@ -600,7 +701,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                       <div className="bg-muted/30 p-4 mr-11 border-t border-border">
                         {/* Lessons list */}
                         {lessons.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">אין שיעורים עדיין - הוסף סילבוס וצור שיעורים</p>
+                          <p className="text-sm text-muted-foreground">{copy.noLessons}</p>
                         ) : (
                           <div className="space-y-2">
                             {lessons.map((lesson, index) => (
@@ -631,7 +732,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                                       )
                                     }));
                                   }}
-                                  title="סמן כדחוף"
+                                  title={copy.markUrgent}
                                 >
                                   <Flame className={cn("h-4 w-4", lesson.urgent ? "text-red-500 fill-red-500" : "text-muted-foreground/40")} />
                                 </button>
@@ -640,7 +741,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                                 </span>
                                 {lesson.duration_minutes && (
                                   <span className="text-xs text-muted-foreground">
-                                    {lesson.duration_minutes} דק'
+                                    {lesson.duration_minutes} {copy.mins}
                                   </span>
                                 )}
                                 <Input
@@ -658,12 +759,12 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
 
                     {/* Recommendations Dialog */}
                     <Dialog open={recommendationsDialogOpen === course.id} onOpenChange={(open) => setRecommendationsDialogOpen(open ? course.id : null)}>
-                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto" dir="rtl">
+                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto" dir={dir}>
                         <DialogHeader>
-                          <DialogTitle>המלצות למידה - {course.title}</DialogTitle>
+                          <DialogTitle>{copy.recommendationsFor} - {course.title}</DialogTitle>
                         </DialogHeader>
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {course.ai_recommendations || 'אין המלצות עדיין'}
+                          {course.ai_recommendations || copy.noRecommendations}
                         </div>
                       </DialogContent>
                     </Dialog>
