@@ -64,6 +64,156 @@ const statusOrder: Record<string, number> = {
   "בוצע": 2,
 };
 
+const getTaskThemeStyles = (theme: BoardTheme) => {
+  const base = {
+    shell: "bg-background",
+    topBar: "bg-card border-b border-border",
+    toolbar: "bg-muted/30 border-b border-border",
+    accentBar: "bg-muted/50 border-t border-border/50",
+    panel: "bg-card border border-border shadow-sm",
+    card: "bg-card border border-border shadow-sm",
+    tableHeader: "bg-muted",
+    rowHover: "hover:bg-accent/30",
+  };
+
+  switch (theme) {
+    case "gradient":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-primary/5 via-background to-accent/5",
+        topBar: "bg-background/90 backdrop-blur border-b border-primary/15",
+        toolbar: "bg-primary/5 border-b border-primary/10 backdrop-blur",
+        accentBar: "bg-accent/5 border-t border-primary/10",
+        panel: "bg-card/85 backdrop-blur border border-primary/15 shadow-lg",
+        card: "bg-card/90 backdrop-blur border border-primary/15 shadow-md",
+        tableHeader: "bg-primary/5",
+        rowHover: "hover:bg-primary/5",
+      };
+    case "dark":
+      return {
+        ...base,
+        shell: "bg-zinc-950 text-zinc-100",
+        topBar: "bg-zinc-900 border-b border-zinc-800",
+        toolbar: "bg-zinc-900/95 border-b border-zinc-800",
+        accentBar: "bg-zinc-900 border-t border-zinc-800 text-zinc-400",
+        panel: "bg-zinc-900 border border-zinc-800 shadow-lg",
+        card: "bg-zinc-900 border border-zinc-800 shadow-md",
+        tableHeader: "bg-zinc-900",
+        rowHover: "hover:bg-zinc-800/70",
+      };
+    case "pastel":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-pink-50/50 via-background to-amber-50/40 dark:from-pink-950/10 dark:to-amber-950/10",
+        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-pink-200/40 dark:border-pink-800/20",
+        toolbar: "bg-pink-50/50 dark:bg-pink-950/10 border-b border-pink-200/30 dark:border-pink-800/20",
+        accentBar: "bg-amber-50/50 dark:bg-amber-950/10 border-t border-pink-200/30 dark:border-pink-800/20",
+        panel: "bg-white/90 dark:bg-card/90 border border-pink-200/40 dark:border-pink-800/30 shadow-sm",
+        card: "bg-white/90 dark:bg-card/90 border border-pink-200/40 dark:border-pink-800/30 shadow-sm",
+        tableHeader: "bg-pink-50/60 dark:bg-pink-950/10",
+        rowHover: "hover:bg-pink-50/50 dark:hover:bg-pink-950/10",
+      };
+    case "ocean":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-cyan-50/40 via-background to-sky-50/50 dark:from-cyan-950/10 dark:to-sky-950/10",
+        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-cyan-200/40 dark:border-cyan-800/20",
+        toolbar: "bg-cyan-50/50 dark:bg-cyan-950/10 border-b border-cyan-200/30 dark:border-cyan-800/20",
+        accentBar: "bg-sky-50/60 dark:bg-sky-950/10 border-t border-cyan-200/30 dark:border-cyan-800/20",
+        panel: "bg-white/90 dark:bg-card/90 border border-cyan-200/40 dark:border-cyan-800/30 shadow-sm",
+        card: "bg-white/90 dark:bg-card/90 border border-cyan-200/40 dark:border-cyan-800/30 shadow-sm",
+        tableHeader: "bg-cyan-50/60 dark:bg-cyan-950/10",
+        rowHover: "hover:bg-cyan-50/50 dark:hover:bg-cyan-950/10",
+      };
+    case "forest":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-emerald-50/40 via-background to-lime-50/40 dark:from-emerald-950/10 dark:to-lime-950/10",
+        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-emerald-200/40 dark:border-emerald-800/20",
+        toolbar: "bg-emerald-50/50 dark:bg-emerald-950/10 border-b border-emerald-200/30 dark:border-emerald-800/20",
+        accentBar: "bg-lime-50/50 dark:bg-lime-950/10 border-t border-emerald-200/30 dark:border-emerald-800/20",
+        panel: "bg-white/90 dark:bg-card/90 border border-emerald-200/40 dark:border-emerald-800/30 shadow-sm",
+        card: "bg-white/90 dark:bg-card/90 border border-emerald-200/40 dark:border-emerald-800/30 shadow-sm",
+        tableHeader: "bg-emerald-50/60 dark:bg-emerald-950/10",
+        rowHover: "hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10",
+      };
+    case "sunset":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-orange-50/40 via-background to-rose-50/50 dark:from-orange-950/10 dark:to-rose-950/10",
+        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-orange-200/40 dark:border-orange-800/20",
+        toolbar: "bg-orange-50/50 dark:bg-orange-950/10 border-b border-orange-200/30 dark:border-orange-800/20",
+        accentBar: "bg-rose-50/50 dark:bg-rose-950/10 border-t border-orange-200/30 dark:border-orange-800/20",
+        panel: "bg-white/90 dark:bg-card/90 border border-orange-200/40 dark:border-orange-800/30 shadow-sm",
+        card: "bg-white/90 dark:bg-card/90 border border-orange-200/40 dark:border-orange-800/30 shadow-sm",
+        tableHeader: "bg-orange-50/60 dark:bg-orange-950/10",
+        rowHover: "hover:bg-orange-50/50 dark:hover:bg-orange-950/10",
+      };
+    case "notion":
+      return {
+        ...base,
+        shell: "bg-background",
+        topBar: "bg-background border-b border-border",
+        toolbar: "bg-background border-b border-border",
+        accentBar: "bg-muted/30 border-t border-border/60 text-muted-foreground",
+        panel: "bg-background border border-border shadow-none",
+        card: "bg-background border border-border shadow-none",
+        tableHeader: "bg-background",
+        rowHover: "hover:bg-muted/40",
+      };
+    case "trello":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-blue-600/10 via-background to-sky-500/10",
+        topBar: "bg-blue-600 text-white border-b border-blue-700",
+        toolbar: "bg-blue-50/80 dark:bg-blue-950/20 border-b border-blue-200/30 dark:border-blue-900/30",
+        accentBar: "bg-white/70 dark:bg-card/70 border-t border-blue-200/30 dark:border-blue-900/30",
+        panel: "bg-white/90 dark:bg-card border border-blue-200/40 dark:border-blue-900/30 shadow-sm",
+        card: "bg-white dark:bg-card border-0 shadow-md",
+        tableHeader: "bg-blue-50/70 dark:bg-blue-950/10",
+        rowHover: "hover:bg-blue-50/60 dark:hover:bg-blue-950/10",
+      };
+    case "glass":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-primary/10 via-background to-accent/10",
+        topBar: "bg-white/45 dark:bg-white/5 backdrop-blur-xl border-b border-white/20 dark:border-white/10",
+        toolbar: "bg-white/35 dark:bg-white/5 backdrop-blur-xl border-b border-white/20 dark:border-white/10",
+        accentBar: "bg-white/25 dark:bg-white/5 backdrop-blur-xl border-t border-white/20 dark:border-white/10",
+        panel: "bg-white/35 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg",
+        card: "bg-white/40 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-md",
+        tableHeader: "bg-white/30 dark:bg-white/5 backdrop-blur-xl",
+        rowHover: "hover:bg-white/30 dark:hover:bg-white/5",
+      };
+    case "minimal":
+      return {
+        ...base,
+        shell: "bg-background",
+        topBar: "bg-background border-b border-border/50",
+        toolbar: "bg-background border-b border-border/50",
+        accentBar: "bg-background border-t border-border/50 text-muted-foreground",
+        panel: "bg-transparent border border-border/40 shadow-none",
+        card: "bg-transparent border border-border/40 shadow-none",
+        tableHeader: "bg-background",
+        rowHover: "hover:bg-muted/20",
+      };
+    case "colorful":
+      return {
+        ...base,
+        shell: "bg-gradient-to-br from-blue-50/30 via-background to-purple-50/30 dark:from-blue-950/10 dark:to-purple-950/10",
+        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-blue-200/30 dark:border-blue-800/20",
+        toolbar: "bg-gradient-to-r from-blue-50/70 to-purple-50/70 dark:from-blue-950/10 dark:to-purple-950/10 border-b border-blue-200/30 dark:border-blue-800/20",
+        accentBar: "bg-gradient-to-r from-cyan-50/60 to-violet-50/60 dark:from-cyan-950/10 dark:to-violet-950/10 border-t border-blue-200/30 dark:border-blue-800/20",
+        panel: "bg-white/90 dark:bg-card/90 border border-blue-200/40 dark:border-blue-800/30 shadow-sm",
+        card: "bg-white/95 dark:bg-card/90 border border-blue-200/40 dark:border-blue-800/30 shadow-md",
+        tableHeader: "bg-gradient-to-r from-blue-50/70 to-purple-50/70 dark:from-blue-950/10 dark:to-purple-950/10",
+        rowHover: "hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
+      };
+    default:
+      return base;
+  }
+};
+
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
 const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
@@ -102,6 +252,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [hideCreatorInfo, setHideCreatorInfo] = useState(() => {
     return localStorage.getItem("hide-creator-info") === "true";
   });
+  const taskThemeStyles = getTaskThemeStyles(dashTheme);
   const isHebrew = lang === "he";
   const copy = isHebrew ? {
     loading: "טוען משימות...",
@@ -1012,7 +1163,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   }
 
   return (
-    <div className="flex flex-col h-full bg-background" dir={dir}>
+    <div className={cn("flex flex-col h-full", taskThemeStyles.shell)} dir={dir}>
       {/* Shared sheet collapse toggle */}
       {isSharedSheet && (
         <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
@@ -1115,7 +1266,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       )}
 
       {/* Stats Bar - sticky */}
-      <div className="flex items-center gap-6 px-4 py-3 bg-card border-b border-border sticky top-0 z-20">
+      <div className={cn("flex items-center gap-6 px-4 py-3 sticky top-0 z-20", taskThemeStyles.topBar)}>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500" />
           <span className="text-sm text-muted-foreground">{copy.done}: {completedCount}</span>
@@ -1141,7 +1292,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       </div>
 
       {/* Toolbar - sticky below stats */}
-      <div className="border-b border-border bg-muted/30 sticky top-[52px] z-20">
+      <div className={cn("sticky top-[52px] z-20", taskThemeStyles.toolbar)}>
         <div className="flex items-center gap-2 p-3">
         <h2 className="text-lg font-semibold text-foreground ml-4">{title}</h2>
         {!readOnly && (
@@ -1225,8 +1376,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           </Popover>
         </div>
         </div>
-        {/* Sticky category/column headers bar */}
-        <div className="flex items-center gap-3 px-4 py-1.5 bg-muted/50 border-t border-border/50 text-[11px] text-muted-foreground overflow-x-auto">
+        {/* Sticky info bar */}
+        {dashViewMode !== "table" && (
+        <div className={cn("flex items-center gap-3 px-4 py-1.5 text-[11px] text-muted-foreground overflow-x-auto", taskThemeStyles.accentBar)}>
           <span className="font-medium min-w-[60px]">{copy.stickyUrgent}</span>
           <span className="font-medium min-w-[200px] flex-1">{copy.stickyDescription}</span>
           <span className="font-medium min-w-[80px]">{copy.stickyCategory}</span>
@@ -1240,6 +1392,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <span className="font-medium min-w-[70px]">{copy.stickyUpdated}</span>
           <span className="font-medium min-w-[50px]">{copy.stickyAi}</span>
         </div>
+        )}
       </div>
 
       {/* Task Tabs with Table */}
@@ -1298,7 +1451,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           // Non-table view modes
           if (dashViewMode === "list") {
             return (
-              <div className="p-3 overflow-auto h-full">
+              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
                 <ListView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1321,7 +1474,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
           if (dashViewMode === "cards") {
             return (
-              <div className="p-3 overflow-auto h-full">
+              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
                 <CardsView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1344,7 +1497,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
           if (dashViewMode === "kanban") {
             return (
-              <div className="p-3 overflow-auto h-full">
+              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
                 <KanbanView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1366,7 +1519,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
           if (dashViewMode === "compact") {
             return (
-              <div className="p-3 overflow-auto h-full">
+              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
                 <CompactView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1393,8 +1546,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             const orderedBuckets = Object.entries(timelineBuckets).sort((a, b) => bucketWeight(a[0]) - bucketWeight(b[0]));
 
             return (
-              <div className="p-4 overflow-auto h-full space-y-4">
-                <div className="rounded-2xl border bg-card p-4 shadow-sm">
+              <div className={cn("p-4 overflow-auto h-full space-y-4", taskThemeStyles.shell)}>
+                <div className={cn("rounded-2xl p-4", taskThemeStyles.panel)}>
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
                       <h3 className="text-lg font-semibold">{copy.timelineTitle}</h3>
@@ -1411,14 +1564,14 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 </div>
 
                 {orderedBuckets.map(([bucket, items]) => (
-                  <div key={bucket} className="rounded-2xl border bg-card overflow-hidden">
-                    <div className="border-b bg-muted/60 px-4 py-3 flex items-center justify-between">
+                  <div key={bucket} className={cn("rounded-2xl overflow-hidden", taskThemeStyles.panel)}>
+                    <div className={cn("px-4 py-3 flex items-center justify-between", taskThemeStyles.accentBar)}>
                       <h4 className="font-semibold">{bucket}</h4>
                       <span className="text-xs text-muted-foreground">{items.length} {copy.items}</span>
                     </div>
                     <div className="p-4 space-y-3">
                       {items.map((task) => (
-                        <div key={task.id} className="rounded-xl border bg-background p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div key={task.id} className={cn("rounded-xl p-4 hover:shadow-md transition-shadow", taskThemeStyles.card)}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -1457,24 +1610,24 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             const topOwners = Object.entries(ownerStats).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
             return (
-              <div className="p-4 overflow-auto h-full space-y-4">
-                <div className="rounded-3xl border bg-card p-5 shadow-sm">
+              <div className={cn("p-4 overflow-auto h-full space-y-4", taskThemeStyles.shell)}>
+                <div className={cn("rounded-3xl p-5", taskThemeStyles.panel)}>
                   <h3 className="text-xl font-semibold">{copy.summaryTitle}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{copy.summaryDesc}</p>
                   <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="rounded-2xl bg-primary/8 border border-primary/15 p-4">
+                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
                       <p className="text-xs text-muted-foreground">{copy.done}</p>
                       <p className="text-2xl font-bold">{completedCount}</p>
                     </div>
-                    <div className="rounded-2xl bg-amber-500/8 border border-amber-500/15 p-4">
+                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
                       <p className="text-xs text-muted-foreground">{copy.inProgress}</p>
                       <p className="text-2xl font-bold">{inProgressCount}</p>
                     </div>
-                    <div className="rounded-2xl bg-destructive/8 border border-destructive/15 p-4">
+                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
                       <p className="text-xs text-muted-foreground">{copy.urgentFocus}</p>
                       <p className="text-2xl font-bold">{urgentTasks.length}</p>
                     </div>
-                    <div className="rounded-2xl bg-secondary border p-4">
+                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
                       <p className="text-xs text-muted-foreground">{copy.overdueItems}</p>
                       <p className="text-2xl font-bold">{overdueTasks.length}</p>
                     </div>
@@ -1487,13 +1640,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     { title: copy.bottlenecks, items: bottlenecks },
                     { title: copy.overdueItems, items: overdueTasks },
                   ].map((section) => (
-                    <div key={section.title} className="rounded-2xl border bg-card p-4 shadow-sm">
+                    <div key={section.title} className={cn("rounded-2xl p-4", taskThemeStyles.panel)}>
                       <h4 className="font-semibold mb-3">{section.title}</h4>
                       <div className="space-y-2">
                         {section.items.length === 0 ? (
                           <p className="text-sm text-muted-foreground">{copy.emptySummary}</p>
                         ) : section.items.map((task) => (
-                          <div key={task.id} className="rounded-xl bg-muted/50 p-3">
+                          <div key={task.id} className={cn("rounded-xl p-3", taskThemeStyles.card)}>
                             <p className="text-sm font-medium">{task.description}</p>
                             <p className="text-xs text-muted-foreground mt-1">{[task.category, task.responsible].filter(Boolean).join(" • ")}</p>
                           </div>
@@ -1503,7 +1656,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                   ))}
                 </div>
 
-                <div className="rounded-2xl border bg-card p-4 shadow-sm">
+                <div className={cn("rounded-2xl p-4", taskThemeStyles.panel)}>
                   <h4 className="font-semibold mb-3">{copy.topOwners}</h4>
                   <div className="space-y-2">
                     {topOwners.map(([owner, count]) => (
@@ -1532,23 +1685,23 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             const secondaryQueue = focusTasks.slice(3, 9);
 
             return (
-              <div className="p-4 overflow-auto h-full">
-                <div className="rounded-[28px] border bg-card p-5 shadow-sm">
+              <div className={cn("p-4 overflow-auto h-full", taskThemeStyles.shell)}>
+                <div className={cn("rounded-[28px] p-5", taskThemeStyles.panel)}>
                   <h3 className="text-xl font-semibold">{copy.deepTitle}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{copy.deepDesc}</p>
                 </div>
 
                 {focusTasks.length === 0 ? (
-                  <div className="mt-4 rounded-3xl border border-dashed bg-card/70 p-10 text-center text-muted-foreground">
+                  <div className={cn("mt-4 rounded-3xl border border-dashed p-10 text-center text-muted-foreground", taskThemeStyles.panel)}>
                     {copy.noFocusTasks}
                   </div>
                 ) : (
                   <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
-                    <div className="rounded-3xl border bg-card p-4 shadow-sm">
+                    <div className={cn("rounded-3xl p-4", taskThemeStyles.panel)}>
                       <h4 className="font-semibold mb-4">{copy.primaryFocus}</h4>
                       <div className="space-y-3">
                         {primaryFocus.map((task, index) => (
-                          <div key={task.id} className="rounded-2xl border bg-background p-4">
+                          <div key={task.id} className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
                             <div className="flex items-center justify-between gap-3">
                               <span className="text-xs font-semibold text-primary">#{index + 1}</span>
                               <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusColors[task.status] || "bg-muted text-foreground")}>
@@ -1563,11 +1716,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     </div>
 
                     <div className="space-y-4">
-                      <div className="rounded-3xl border bg-card p-4 shadow-sm">
+                      <div className={cn("rounded-3xl p-4", taskThemeStyles.panel)}>
                         <h4 className="font-semibold mb-3">{copy.secondaryQueue}</h4>
                         <div className="space-y-2">
                           {secondaryQueue.map((task) => (
-                            <div key={task.id} className="rounded-xl bg-muted/50 p-3">
+                            <div key={task.id} className={cn("rounded-xl p-3", taskThemeStyles.card)}>
                               <p className="text-sm font-medium">{task.description}</p>
                               <p className="text-xs text-muted-foreground mt-1">{[task.category, task.responsible].filter(Boolean).join(" • ")}</p>
                             </div>
@@ -1575,7 +1728,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         </div>
                       </div>
 
-                      <div className="rounded-3xl border bg-card p-4 shadow-sm">
+                      <div className={cn("rounded-3xl p-4", taskThemeStyles.panel)}>
                         <h4 className="font-semibold mb-3">{copy.quietBoard}</h4>
                         <div className="text-sm text-muted-foreground space-y-2">
                           <p>{copy.urgentFocus}: {displayTasks.filter((t) => t.urgent && t.status !== "בוצע").length}</p>
@@ -1591,10 +1744,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           }
           
             return (
-            <div ref={tableScrollRef} data-task-table className="min-h-0 h-full overflow-auto scroll-smooth">
+            <div ref={tableScrollRef} data-task-table className={cn("min-h-0 h-full overflow-auto scroll-smooth", taskThemeStyles.shell)}>
               <table className="w-full border-collapse min-w-[1200px]">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-muted">
+              <tr className={taskThemeStyles.tableHeader}>
                 {taskHeaders.map((header, i) => (
                   <th
                     key={i}
@@ -1613,7 +1766,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     key={task.id}
                     data-task-row={task.id}
                     className={cn(
-                      "border-b border-border hover:bg-accent/30 transition-colors cursor-pointer",
+                      "border-b border-border transition-colors cursor-pointer",
+                      taskThemeStyles.rowHover,
                       selectedRow === task.id && "bg-primary/10",
                       task.urgent && "bg-red-50 dark:bg-red-900/20 border-l-4 border-l-red-500",
                       task.overdue && task.status !== "בוצע" && !task.urgent && "bg-destructive/5"
