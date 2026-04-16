@@ -299,7 +299,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     stickyOverdue: "חריגה",
     stickyCreated: "נוצר",
     stickyUpdated: "עודכן",
-    stickyAi: "AI",
+    stickyAi: "AI + פעולות",
     noArchivedTasks: "אין משימות בארכיון",
     noCompletedTasks: "אין משימות שבוצעו",
     noTasksYet: "אין משימות עדיין",
@@ -319,6 +319,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     aiNeedDescription: "נא להזין תיאור משימה לפני בקשת עזרה מ-AI",
     aiNoResponse: "לא התקבלה תגובה מה-AI",
     aiError: "שגיאה בקבלת עזרה מ-AI",
+    aiActionHelp: "AI",
+    aiActionMental: "מנטלי",
+    aiActionArchive: "ארכיון",
+    aiActionRestore: "שחזור",
+    aiActionMove: "שנה",
     cancelUrgent: "בטל דחיפות",
     markUrgent: "סמן כדחוף",
     timelineTitle: "Timeline + Kanban",
@@ -387,7 +392,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     stickyOverdue: "Overdue",
     stickyCreated: "Created",
     stickyUpdated: "Updated",
-    stickyAi: "AI",
+    stickyAi: "AI + Actions",
     noArchivedTasks: "No archived tasks",
     noCompletedTasks: "No completed tasks",
     noTasksYet: "No tasks yet",
@@ -407,6 +412,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     aiNeedDescription: "Please add a task description before asking AI for help",
     aiNoResponse: "No response was received from AI",
     aiError: "Error getting AI help",
+    aiActionHelp: "AI",
+    aiActionMental: "Mental",
+    aiActionArchive: "Archive",
+    aiActionRestore: "Restore",
+    aiActionMove: "Year",
     cancelUrgent: "Remove urgency",
     markUrgent: "Mark as urgent",
     timelineTitle: "Timeline + Kanban",
@@ -1746,14 +1756,14 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             return (
             <div ref={tableScrollRef} data-task-table className={cn("min-h-0 h-full overflow-auto scroll-smooth", taskThemeStyles.shell)}>
               <table className="w-full border-collapse min-w-[1200px]">
-            <thead className="sticky top-0 z-10">
+            <thead className="sticky top-[104px] z-10 backdrop-blur supports-[backdrop-filter]:bg-background/85">
               <tr className={taskThemeStyles.tableHeader}>
                 {taskHeaders.map((header, i) => (
                   <th
                     key={i}
                     className="px-3 py-2 text-right text-sm font-medium text-muted-foreground border-b border-border whitespace-nowrap"
                   >
-                    {header}
+                    {i === taskHeaders.length - 1 ? copy.stickyAi : header}
                   </th>
                 ))}
               </tr>
@@ -1899,7 +1909,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                           title="קבל עזרה מ-AI"
                         >
                           <Sparkles className="h-3.5 w-3.5" />
-                          <span className="text-xs">AI</span>
+                          <span className="text-xs">{copy.aiActionHelp}</span>
                         </Button>
                         <Button
                           variant="ghost"
@@ -1913,6 +1923,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                           title="עזרה מנטלית"
                         >
                           <Brain className="h-3.5 w-3.5" />
+                          <span className="text-xs">{copy.aiActionMental}</span>
                         </Button>
                         {!readOnly && (
                           <Button
@@ -1926,9 +1937,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                             title={task.archived ? "החזר מארכיון" : "העבר לארכיון"}
                           >
                             {task.archived ? (
-                              <ArchiveRestore className="h-3.5 w-3.5" />
+                              <>
+                                <ArchiveRestore className="h-3.5 w-3.5" />
+                                <span className="text-xs">{copy.aiActionRestore}</span>
+                              </>
                             ) : (
-                              <Archive className="h-3.5 w-3.5" />
+                              <>
+                                <Archive className="h-3.5 w-3.5" />
+                                <span className="text-xs">{copy.aiActionArchive}</span>
+                              </>
                             )}
                           </Button>
                         )}
@@ -1945,6 +1962,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                             title="העבר לשנה אחרת"
                           >
                             <MoveRight className="h-3.5 w-3.5" />
+                            <span className="text-xs">{copy.aiActionMove}</span>
                           </Button>
                         )}
                       </div>
