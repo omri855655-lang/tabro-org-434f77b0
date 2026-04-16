@@ -1387,7 +1387,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         </div>
         </div>
         {/* Sticky info bar */}
-        {dashViewMode !== "table" && (
         <div className={cn("flex items-center gap-3 px-4 py-1.5 text-[11px] text-muted-foreground overflow-x-auto", taskThemeStyles.accentBar)}>
           <span className="font-medium min-w-[60px]">{copy.stickyUrgent}</span>
           <span className="font-medium min-w-[200px] flex-1">{copy.stickyDescription}</span>
@@ -1402,7 +1401,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <span className="font-medium min-w-[70px]">{copy.stickyUpdated}</span>
           <span className="font-medium min-w-[50px]">{copy.stickyAi}</span>
         </div>
-        )}
       </div>
 
       {/* Task Tabs with Table */}
@@ -1756,7 +1754,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             return (
             <div ref={tableScrollRef} data-task-table className={cn("min-h-0 h-full overflow-auto scroll-smooth", taskThemeStyles.shell)}>
               <table className="w-full border-collapse min-w-[1200px]">
-            <thead className="sticky top-0 z-10">
+            <thead>
               <tr className={taskThemeStyles.tableHeader}>
                 {taskHeaders.map((header, i) => (
                   <th
