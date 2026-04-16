@@ -16,12 +16,15 @@ import {
 import { toast } from "sonner";
 import { BookOpen, Tv, Lock } from "lucide-react";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { signIn, user, loading } = useAuth();
   const { themeId, themes, setThemeId } = useSiteAppearance();
+  const { lang, dir } = useLanguage();
+  const isHebrew = lang === "he";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,19 +39,97 @@ const Auth = () => {
   const schema = useMemo(
     () =>
       z.object({
-        email: z.string().trim().email("אימייל לא תקין"),
+        email: z.string().trim().email(isHebrew ? "אימייל לא תקין" : "Invalid email"),
         password: z
           .string()
           .trim()
-          .min(6, "סיסמה חייבת להכיל לפחות 6 תווים")
-          .max(128, "סיסמה ארוכה מדי"),
+          .min(6, isHebrew ? "סיסמה חייבת להכיל לפחות 6 תווים" : "Password must contain at least 6 characters")
+          .max(128, isHebrew ? "סיסמה ארוכה מדי" : "Password is too long"),
       }),
-    []
+    [isHebrew]
   );
 
+  const copy = isHebrew ? {
+    loginTitle: "התחברות | מערכת ניהול אישית",
+    signupTitle: "הרשמה | מערכת ניהול אישית",
+    formError: "שגיאה בטופס",
+    firstNameTooShort: "שם פרטי חייב להכיל לפחות 2 תווים",
+    lastNameTooShort: "שם משפחה חייב להכיל לפחות 2 תווים",
+    emailExists: "המייל הזה כבר רשום, נסה להתחבר",
+    signupError: "שגיאה בהרשמה: ",
+    signupSuccessConfirm: "נרשמת בהצלחה! בדוק את המייל שלך לאישור החשבון וגם בתיקיית ספאם/קידומי מכירות",
+    signupSuccess: "נרשמת בהצלחה!",
+    invalidLogin: "אימייל או סיסמה שגויים",
+    emailNotConfirmed: "יש לאשר את המייל לפני התחברות",
+    loginError: "שגיאה בהתחברות: ",
+    loginSuccess: "התחברת בהצלחה!",
+    loading: "טוען...",
+    login: "התחברות",
+    signup: "הרשמה",
+    loginDesc: "הזן את פרטי ההתחברות שלך",
+    signupDesc: "צור חשבון חדש כדי להתחיל",
+    firstName: "שם פרטי",
+    lastName: "שם משפחה",
+    firstNamePlaceholder: "ישראל",
+    lastNamePlaceholder: "ישראלי",
+    preferredLanguage: "שפה מועדפת / Preferred Language",
+    starterTheme: "עיצוב התחלתי",
+    email: "אימייל",
+    password: "סיסמה",
+    minPassword: "לפחות 6 תווים",
+    signingIn: "מתחבר...",
+    signingUp: "נרשם...",
+    loginAction: "התחבר",
+    signupAction: "הירשם",
+    enterEmailFirst: "הזן אימייל קודם",
+    resetError: "שגיאה: ",
+    resetSent: "נשלח מייל לאיפוס סיסמה",
+    forgotPassword: "שכחתי סיסמה",
+    noAccount: "אין לך חשבון? הירשם",
+    hasAccount: "כבר יש לך חשבון? התחבר",
+  } : {
+    loginTitle: "Sign In | Personal Management System",
+    signupTitle: "Sign Up | Personal Management System",
+    formError: "Form error",
+    firstNameTooShort: "First name must contain at least 2 characters",
+    lastNameTooShort: "Last name must contain at least 2 characters",
+    emailExists: "This email is already registered, try signing in",
+    signupError: "Sign-up error: ",
+    signupSuccessConfirm: "Signed up successfully! Check your email to confirm the account, including spam/promotions.",
+    signupSuccess: "Signed up successfully!",
+    invalidLogin: "Incorrect email or password",
+    emailNotConfirmed: "Please confirm your email before signing in",
+    loginError: "Sign-in error: ",
+    loginSuccess: "Signed in successfully!",
+    loading: "Loading...",
+    login: "Sign In",
+    signup: "Sign Up",
+    loginDesc: "Enter your sign-in details",
+    signupDesc: "Create a new account to get started",
+    firstName: "First name",
+    lastName: "Last name",
+    firstNamePlaceholder: "Israel",
+    lastNamePlaceholder: "Israeli",
+    preferredLanguage: "Preferred Language",
+    starterTheme: "Starter theme",
+    email: "Email",
+    password: "Password",
+    minPassword: "At least 6 characters",
+    signingIn: "Signing in...",
+    signingUp: "Signing up...",
+    loginAction: "Sign in",
+    signupAction: "Sign up",
+    enterEmailFirst: "Enter your email first",
+    resetError: "Error: ",
+    resetSent: "Password reset email sent",
+    forgotPassword: "Forgot password",
+    noAccount: "Don't have an account? Sign up",
+    hasAccount: "Already have an account? Sign in",
+  };
+
   useEffect(() => {
-    document.title = mode === "login" ? "התחברות | מערכת ניהול אישית" : "הרשמה | מערכת ניהול אישית";
-  }, [mode]);
+    document.title = mode === "login" ? copy.loginTitle : copy.signupTitle;
+  }, [mode, copy.loginTitle, copy.signupTitle]);
 
   useEffect(() => {
     if (loading) return;
@@ -62,7 +143,7 @@ const Auth = () => {
 
     const parsed = schema.safeParse({ email, password });
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? "שגיאה בטופס");
+      toast.error(parsed.error.issues[0]?.message ?? copy.formError);
       return;
     }
 
@@ -71,11 +152,11 @@ const Auth = () => {
 
     if (mode === "signup") {
       if (normalizedFirstName.length < 2) {
-        toast.error("שם פרטי חייב להכיל לפחות 2 תווים");
+        toast.error(copy.firstNameTooShort);
         return;
       }
       if (normalizedLastName.length < 2) {
-        toast.error("שם משפחה חייב להכיל לפחות 2 תווים");
+        toast.error(copy.lastNameTooShort);
         return;
       }
     }
@@ -103,20 +184,20 @@ const Auth = () => {
 
       if (error) {
         if (error.message.includes("already registered")) {
-          toast.error("המייל הזה כבר רשום, נסה להתחבר");
+          toast.error(copy.emailExists);
         } else {
-          toast.error("שגיאה בהרשמה: " + error.message);
+          toast.error(copy.signupError + error.message);
         }
         return;
       }
 
       // If email confirmation is required, user won't have a session yet
       if (data?.user && !data.session) {
-        toast.success("נרשמת בהצלחה! בדוק את המייל שלך לאישור החשבון וגם בתיקיית ספאם/קידומי מכירות");
+        toast.success(copy.signupSuccessConfirm);
         return;
       }
 
-      toast.success("נרשמת בהצלחה!");
+      toast.success(copy.signupSuccess);
       navigate("/personal");
     } else {
       const { error } = await signIn(parsed.data.email, parsed.data.password);
@@ -124,16 +205,16 @@ const Auth = () => {
 
       if (error) {
         if (error.message.includes("Invalid login credentials")) {
-          toast.error("אימייל או סיסמה שגויים");
+          toast.error(copy.invalidLogin);
         } else if (error.message.includes("Email not confirmed")) {
-          toast.error("יש לאשר את המייל לפני התחברות");
+          toast.error(copy.emailNotConfirmed);
         } else {
-          toast.error("שגיאה בהתחברות: " + error.message);
+          toast.error(copy.loginError + error.message);
         }
         return;
       }
 
-      toast.success("התחברת בהצלחה!");
+      toast.success(copy.loginSuccess);
       navigate("/personal");
     }
   };
@@ -141,7 +222,7 @@ const Auth = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">טוען...</div>
+        <div className="animate-pulse text-muted-foreground">{copy.loading}</div>
       </div>
     );
   }
@@ -149,7 +230,7 @@ const Auth = () => {
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4"
-      dir="rtl"
+      dir={dir}
     >
       <Card className="w-full max-w-md shadow-2xl border-0 bg-card/95 backdrop-blur">
         <CardHeader className="text-center space-y-4">
@@ -159,12 +240,12 @@ const Auth = () => {
             <Lock className="h-8 w-8" />
           </div>
           <CardTitle className="text-2xl font-bold">
-            {mode === "login" ? "התחברות" : "הרשמה"}
+            {mode === "login" ? copy.login : copy.signup}
           </CardTitle>
           <CardDescription>
             {mode === "login"
-              ? "הזן את פרטי ההתחברות שלך"
-              : "צור חשבון חדש כדי להתחיל"}
+              ? copy.loginDesc
+              : copy.signupDesc}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -173,20 +254,20 @@ const Auth = () => {
               <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">שם פרטי</Label>
+                  <Label htmlFor="firstName">{copy.firstName}</Label>
                   <Input
                     id="firstName"
-                    placeholder="ישראל"
+                    placeholder={copy.firstNamePlaceholder}
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">שם משפחה</Label>
+                  <Label htmlFor="lastName">{copy.lastName}</Label>
                   <Input
                     id="lastName"
-                    placeholder="ישראלי"
+                    placeholder={copy.lastNamePlaceholder}
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     required
@@ -194,7 +275,7 @@ const Auth = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>שפה מועדפת / Preferred Language</Label>
+                <Label>{copy.preferredLanguage}</Label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -217,7 +298,7 @@ const Auth = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>עיצוב התחלתי</Label>
+                <Label>{copy.starterTheme}</Label>
                 <Select value={themeId} onValueChange={setThemeId}>
                   <SelectTrigger>
                     <SelectValue />
@@ -235,7 +316,7 @@ const Auth = () => {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">אימייל</Label>
+              <Label htmlFor="email">{copy.email}</Label>
               <Input
                 id="email"
                 type="email"
@@ -248,7 +329,7 @@ const Auth = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">סיסמה</Label>
+              <Label htmlFor="password">{copy.password}</Label>
               <Input
                 id="password"
                 type="password"
@@ -259,18 +340,18 @@ const Auth = () => {
                 dir="ltr"
               />
               {mode === "signup" && (
-                <p className="text-xs text-muted-foreground">לפחות 6 תווים</p>
+                <p className="text-xs text-muted-foreground">{copy.minPassword}</p>
               )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading
                 ? mode === "login"
-                  ? "מתחבר..."
-                  : "נרשם..."
+                  ? copy.signingIn
+                  : copy.signingUp
                 : mode === "login"
-                ? "התחבר"
-                : "הירשם"}
+                ? copy.loginAction
+                : copy.signupAction}
             </Button>
           </form>
 
@@ -279,16 +360,16 @@ const Auth = () => {
               <Button
                 variant="link"
                 onClick={async () => {
-                  if (!email.trim()) { toast.error("הזן אימייל קודם"); return; }
+                  if (!email.trim()) { toast.error(copy.enterEmailFirst); return; }
                   const { error } = await (await import("@/integrations/supabase/client")).supabase.auth.resetPasswordForEmail(email.trim(), {
                     redirectTo: window.location.origin + "/reset-password",
                   });
-                  if (error) toast.error("שגיאה: " + error.message);
-                  else toast.success("נשלח מייל לאיפוס סיסמה");
+                  if (error) toast.error(copy.resetError + error.message);
+                  else toast.success(copy.resetSent);
                 }}
                 className="text-sm"
               >
-                שכחתי סיסמה
+                {copy.forgotPassword}
               </Button>
             )}
             <Button
@@ -297,8 +378,8 @@ const Auth = () => {
               className="text-sm"
             >
               {mode === "login"
-                ? "אין לך חשבון? הירשם"
-                : "כבר יש לך חשבון? התחבר"}
+                ? copy.noAccount
+                : copy.hasAccount}
             </Button>
           </div>
         </CardContent>

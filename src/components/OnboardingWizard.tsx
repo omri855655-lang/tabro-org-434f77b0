@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useLanguage } from "@/hooks/useLanguage";
 import {
   ListTodo, CalendarDays, Focus, FolderKanban, Bot, ShoppingCart,
   StickyNote, BookOpen, Trophy, Target, CreditCard, Apple,
@@ -81,12 +82,12 @@ const AI_EXAMPLES = [
 const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   const { user } = useAuth();
   const { themeId, themes, setThemeId } = useSiteAppearance();
+  const { lang, dir } = useLanguage();
   const [step, setStep] = useState(0);
   const [selectedDashboards, setSelectedDashboards] = useState<Set<string>>(
     new Set(DASHBOARD_OPTIONS.filter(d => d.defaultOn).map(d => d.key))
   );
 
-  const lang = localStorage.getItem("ui-language") || "he";
   const isHe = lang === "he" || lang === "ar";
   const STEPS = isHe ? STEPS_HE : STEPS_EN;
   const CORE_FEATURES = isHe ? CORE_FEATURES_HE : CORE_FEATURES_EN;
@@ -123,7 +124,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   const progress = ((step + 1) / STEPS.length) * 100;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
+    <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm flex items-center justify-center p-4" dir={dir}>
       <div className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
         {/* Progress bar */}
         <div className="h-1.5 bg-muted">
@@ -159,10 +160,10 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
                 <Sparkles className="h-10 w-10 text-primary" />
               </div>
               <div className="text-sm text-muted-foreground leading-relaxed space-y-2 text-right bg-muted/30 rounded-xl p-4 border border-border/50">
-                <p className="font-medium text-foreground">מה זה Tabro?</p>
-                <p>מערכת ניהול חיים מלאה — משימות, פרויקטים, לוז, קניות, פתקים, תשלומים ועוד.</p>
-                <p>בעזרת סוכן AI מובנה, אפשר לבצע פעולות בהוראה פשוטה בטקסט.</p>
-                <p>בשלבים הבאים תבחר עיצוב ותפעיל את הדשבורדים שמתאימים לך.</p>
+                <p className="font-medium text-foreground">{isHe ? "מה זה Tabro?" : "What is Tabro?"}</p>
+                <p>{isHe ? "מערכת ניהול חיים מלאה — משימות, פרויקטים, לוז, קניות, פתקים, תשלומים ועוד." : "A complete life management system — tasks, projects, planner, shopping, notes, payments and more."}</p>
+                <p>{isHe ? "בעזרת סוכן AI מובנה, אפשר לבצע פעולות בהוראה פשוטה בטקסט." : "With a built-in AI agent, you can perform actions with simple natural-language text."}</p>
+                <p>{isHe ? "בשלבים הבאים תבחר עיצוב ותפעיל את הדשבורדים שמתאימים לך." : "In the next steps you'll choose a design and enable the dashboards that fit you best."}</p>
               </div>
             </div>
           )}
@@ -170,7 +171,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
           {current.type === "theme" && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium">בחר עיצוב</Label>
+                <Label className="text-sm font-medium">{isHe ? "בחר עיצוב" : "Choose a design"}</Label>
                 <Select value={themeId} onValueChange={setThemeId}>
                   <SelectTrigger className="h-11">
                     <SelectValue />
@@ -188,10 +189,11 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
                 </Select>
               </div>
               <div className="bg-muted/30 rounded-xl p-4 border border-border/50 space-y-2">
-                <p className="text-sm font-medium text-foreground">טיפ:</p>
+                <p className="text-sm font-medium text-foreground">{isHe ? "טיפ:" : "Tip:"}</p>
                 <p className="text-xs text-muted-foreground">
-                  העיצוב "אקסקיוטיב" מציע מראה מקצועי עם סרגל צד כהה, בלי אימוג'ים — מתאים למי שרוצה ממשק בוגר ורגוע.
-                  אפשר תמיד לשנות את העיצוב מההגדרות.
+                  {isHe
+                    ? 'העיצוב "אקסקיוטיב" מציע מראה מקצועי עם סרגל צד כהה, בלי אימוג\'ים — מתאים למי שרוצה ממשק בוגר ורגוע. אפשר תמיד לשנות את העיצוב מההגדרות.'
+                    : 'The "Executive" theme offers a professional look with a dark sidebar and no emojis — ideal for a calmer, more mature workspace. You can always change the design later in Settings.'}
                 </p>
               </div>
             </div>
@@ -218,10 +220,10 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
             <div className="space-y-3">
               <div className="flex items-center gap-2 justify-end">
                 <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7 px-2">
-                  הפעל הכל
+                  {isHe ? "הפעל הכל" : "Enable all"}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={deselectAll} className="text-xs h-7 px-2">
-                  כבה הכל
+                  {isHe ? "כבה הכל" : "Disable all"}
                 </Button>
               </div>
               <div className="space-y-2 max-h-[290px] overflow-auto pr-1">
@@ -256,7 +258,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
                 })}
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                אפשר לשנות בכל עת מההגדרות — דשבורדים שכבויים לא מופיעים בתפריט
+                {isHe ? "אפשר לשנות בכל עת מההגדרות — דשבורדים שכבויים לא מופיעים בתפריט" : "You can change this anytime in Settings — disabled dashboards won't appear in the menu."}
               </p>
             </div>
           )}
