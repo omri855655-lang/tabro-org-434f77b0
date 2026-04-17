@@ -151,31 +151,48 @@ Deno.serve(async (req) => {
 
       // Send via Lovable Email infrastructure (verified notify.tabro.org domain)
       const idempotencyKey = `admin-msg-${crypto.randomUUID()}`
-      const { data: invokeData, error: invokeError } = await adminClient.functions.invoke('send-transactional-email', {
-        body: {
+      const sendResponse = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           templateName: 'admin-message',
           recipientEmail: to,
           idempotencyKey,
           templateData: { subject, body: htmlBody },
           replyTo: reply_to || 'info@tabro.org',
-        },
+        }),
       })
 
-      if (invokeError || (invokeData && (invokeData as any).error)) {
-        const errMsg = (invokeData as any)?.error || invokeError?.message || 'Failed to send'
+      const sendResponseText = await sendResponse.text()
+      let sendResponseData: Record<string, unknown> | null = null
+      if (sendResponseText) {
+        try {
+          sendResponseData = JSON.parse(sendResponseText) as Record<string, unknown>
+        } catch {
+          sendResponseData = null
+        }
+      }
+
+      if (!sendResponse.ok || sendResponseData?.error) {
+        const errMsg =
+          (typeof sendResponseData?.error === 'string' && sendResponseData.error) ||
+          sendResponseText ||
+          `Failed to send (status ${sendResponse.status})`
+
         await adminClient.from('email_send_log').insert({
           message_id: idempotencyKey, template_name: 'admin-compose', recipient_email: to, status: 'failed',
           error_message: String(errMsg).slice(0, 500),
           metadata: { subject, sent_by: user.email },
         })
+
         return new Response(JSON.stringify({ error: errMsg }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      await adminClient.from('email_send_log').insert({
-        message_id: idempotencyKey, template_name: 'admin-compose', recipient_email: to, status: 'sent',
-        metadata: { subject, sent_by: user.email, reply_to: reply_to || 'info@tabro.org', via: 'lovable-email' },
-      })
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ success: true, queued: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: corsHeaders })
