@@ -149,39 +149,28 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'to, subject, body required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      // Send via Lovable Email infrastructure (verified notify.tabro.org domain)
+      // Send via Lovable Email infrastructure using SDK invoke (handles JWT auth properly)
       const idempotencyKey = `admin-msg-${crypto.randomUUID()}`
-      const sendResponse = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${serviceKey}`,
-          apikey: serviceKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          templateName: 'admin-message',
-          recipientEmail: to,
-          idempotencyKey,
-          templateData: { subject, body: htmlBody },
-          replyTo: reply_to || 'info@tabro.org',
-        }),
-      })
-
-      const sendResponseText = await sendResponse.text()
-      let sendResponseData: Record<string, unknown> | null = null
-      if (sendResponseText) {
-        try {
-          sendResponseData = JSON.parse(sendResponseText) as Record<string, unknown>
-        } catch {
-          sendResponseData = null
+      const { data: sendData, error: sendError } = await adminClient.functions.invoke(
+        'send-transactional-email',
+        {
+          body: {
+            templateName: 'admin-message',
+            recipientEmail: to,
+            idempotencyKey,
+            templateData: { subject, body: htmlBody },
+            replyTo: reply_to || 'info@tabro.org',
+          },
         }
-      }
+      )
 
-      if (!sendResponse.ok || sendResponseData?.error) {
+      const sendResponseData = (sendData ?? null) as Record<string, unknown> | null
+
+      if (sendError || sendResponseData?.error) {
         const errMsg =
+          (sendError && (sendError.message || String(sendError))) ||
           (typeof sendResponseData?.error === 'string' && sendResponseData.error) ||
-          sendResponseText ||
-          `Failed to send (status ${sendResponse.status})`
+          'Failed to send email'
 
         await adminClient.from('email_send_log').insert({
           message_id: idempotencyKey, template_name: 'admin-compose', recipient_email: to, status: 'failed',
