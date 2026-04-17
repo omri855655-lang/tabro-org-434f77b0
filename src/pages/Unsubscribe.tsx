@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/config";
 import { useLanguage } from "@/hooks/useLanguage";
 
 const Unsubscribe = () => {
@@ -42,10 +43,8 @@ const Unsubscribe = () => {
       setStatus("invalid");
       return;
     }
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    fetch(`${supabaseUrl}/functions/v1/handle-email-unsubscribe?token=${token}`, {
-      headers: { apikey: anonKey },
+    fetch(`${SUPABASE_URL}/functions/v1/handle-email-unsubscribe?token=${token}`, {
+      headers: { apikey: SUPABASE_PUBLISHABLE_KEY },
     })
       .then((r) => r.json())
       .then((data) => {
