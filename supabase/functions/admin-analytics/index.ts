@@ -149,52 +149,31 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'to, subject, body required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      const lovableKey = Deno.env.get('LOVABLE_API_KEY')
-      const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
-      if (!resendKey) {
-        return new Response(JSON.stringify({ error: 'No email API key configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-      }
-
-      const apiUrl = lovableKey
-        ? 'https://connector-gateway.lovable.dev/resend/emails'
-        : 'https://api.resend.com/emails'
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (lovableKey) {
-        headers['Authorization'] = `Bearer ${lovableKey}`
-        headers['X-Connection-Api-Key'] = resendKey
-      } else {
-        headers['Authorization'] = `Bearer ${resendKey}`
-      }
-
-      const emailRes = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          from: 'Tabro <noreply@notify.tabro.org>',
-          to: [to],
-          subject,
-          html: `<div style="font-family:Arial,sans-serif;max-width:600px;">${htmlBody.replace(/\n/g, '<br/>')}</div>`,
-          reply_to: reply_to || 'info@tabro.org',
-        }),
+      // Send via Lovable Email infrastructure (verified notify.tabro.org domain)
+      const idempotencyKey = `admin-msg-${crypto.randomUUID()}`
+      const { data: invokeData, error: invokeError } = await adminClient.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'admin-message',
+          recipientEmail: to,
+          idempotencyKey,
+          templateData: { subject, body: htmlBody },
+          replyTo: reply_to || 'info@tabro.org',
+        },
       })
 
-      const messageId = crypto.randomUUID()
-      if (!emailRes.ok) {
-        const resBody = await emailRes.text()
-        // Log the failure with details
-        const errorDetail = resBody.includes('not verified') || resBody.includes('sandbox')
-          ? `Sandbox limitation: can only send to the Resend account owner email. Complete domain verification in Cloud → Emails to send to any address. (${resBody.slice(0, 200)})`
-          : resBody.slice(0, 500)
+      if (invokeError || (invokeData && (invokeData as any).error)) {
+        const errMsg = (invokeData as any)?.error || invokeError?.message || 'Failed to send'
         await adminClient.from('email_send_log').insert({
-          message_id: messageId, template_name: 'admin-compose', recipient_email: to, status: 'failed',
-          error_message: errorDetail,
+          message_id: idempotencyKey, template_name: 'admin-compose', recipient_email: to, status: 'failed',
+          error_message: String(errMsg).slice(0, 500),
           metadata: { subject, sent_by: user.email },
         })
-        return new Response(JSON.stringify({ error: errorDetail }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: errMsg }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
       await adminClient.from('email_send_log').insert({
-        message_id: messageId, template_name: 'admin-compose', recipient_email: to, status: 'sent', metadata: { subject, sent_by: user.email, reply_to: reply_to || 'info@tabro.org' },
+        message_id: idempotencyKey, template_name: 'admin-compose', recipient_email: to, status: 'sent',
+        metadata: { subject, sent_by: user.email, reply_to: reply_to || 'info@tabro.org', via: 'lovable-email' },
       })
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
