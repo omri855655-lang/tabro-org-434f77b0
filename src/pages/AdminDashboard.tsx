@@ -432,7 +432,24 @@ const AdminDashboard = () => {
                     });
                     setComposeSending(false);
                     if (error || data?.error) {
-                      const errMsg = data?.error || error?.message || "Error sending email";
+                      const errorWithContext = error as { message?: string; context?: { json?: () => Promise<any>; text?: () => Promise<string> } } | null;
+                      let errMsg = data?.error || error?.message || "Error sending email";
+                      if (!data?.error && errorWithContext?.context?.json) {
+                        try {
+                          const contextJson = await errorWithContext.context.json();
+                          if (contextJson?.error) errMsg = contextJson.error;
+                        } catch {
+                          // ignore context parse failures
+                        }
+                      }
+                      if ((!data?.error || errMsg === error?.message) && errorWithContext?.context?.text) {
+                        try {
+                          const contextText = await errorWithContext.context.text();
+                          if (contextText) errMsg = contextText;
+                        } catch {
+                          // ignore context parse failures
+                        }
+                      }
                       const displayMsg = errMsg.includes("Sandbox") || errMsg.includes("not verified")
                         ? (isHe ? "שגיאה: הדומיין עדיין לא אומת לשליחה חיצונית." : "Error: sender domain is not yet verified for external delivery.")
                         : errMsg;
