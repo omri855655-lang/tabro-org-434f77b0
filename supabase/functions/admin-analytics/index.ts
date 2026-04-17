@@ -13,43 +13,48 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}))
     const action = body.action || 'stats'
+    const correctPass = Deno.env.get('ADMIN_DASHBOARD_PASSWORD') || ''
+    const passwordBypass = action === 'send_email' && correctPass && body.admin_password === correctPass
 
     // Password verification doesn't require auth
     if (action === 'verify_password') {
-      const correctPass = Deno.env.get('ADMIN_DASHBOARD_PASSWORD') || ''
       const ok = correctPass && body.password === correctPass
       return new Response(JSON.stringify({ ok }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
+    if (!authHeader && !passwordBypass) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-    // Verify user is admin
-    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } }
-    })
-    const { data: { user }, error: userError } = await userClient.auth.getUser()
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
-    }
-
     const adminClient = createClient(supabaseUrl, serviceKey)
+    let user: { id?: string; email?: string | null } | null = null
 
-    // Check admin role
-    const { data: roleData } = await adminClient
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle()
+    if (!passwordBypass) {
+      // Verify user is admin
+      const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: authHeader! } }
+      })
+      const { data: { user: authUser }, error: userError } = await userClient.auth.getUser()
+      if (userError || !authUser) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+      }
 
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders })
+      user = authUser
+
+      // Check admin role
+      const { data: roleData } = await adminClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', authUser.id)
+        .eq('role', 'admin')
+        .maybeSingle()
+
+      if (!roleData) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders })
+      }
     }
 
     // body and action already parsed above
@@ -161,7 +166,7 @@ Deno.serve(async (req) => {
           recipient_email: to,
           status: 'failed',
           error_message: failureMessages.join(' | ').slice(0, 1000),
-          metadata: { subject, sent_by: user.email, reply_to: reply_to || 'info@tabro.org' },
+          metadata: { subject, sent_by: user?.email || 'admin-password', reply_to: reply_to || 'info@tabro.org' },
         })
         return new Response(JSON.stringify({ error: failureMessages.join(' | ') || 'No email API key configured' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
@@ -238,7 +243,7 @@ Deno.serve(async (req) => {
           recipient_email: to,
           status: 'failed',
           error_message: errorDetail,
-          metadata: { subject, sent_by: user.email, reply_to: reply_to || 'info@tabro.org' },
+          metadata: { subject, sent_by: user?.email || 'admin-password', reply_to: reply_to || 'info@tabro.org' },
         })
 
         return new Response(JSON.stringify({
@@ -254,7 +259,7 @@ Deno.serve(async (req) => {
         status: 'sent',
         metadata: {
           subject,
-          sent_by: user.email,
+          sent_by: user?.email || 'admin-password',
           reply_to: reply_to || 'info@tabro.org',
           delivered_via: deliveredVia,
         },

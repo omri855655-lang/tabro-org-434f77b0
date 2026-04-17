@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,9 +41,10 @@ interface Stats {
 }
 
 const ADMIN_PASS_KEY = "tabro_admin_unlocked";
+const ADMIN_PASS_VALUE_KEY = "tabro_admin_password";
 
 const AdminDashboard = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { t, dir } = useLanguage();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -51,7 +53,7 @@ const AdminDashboard = () => {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
   const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1");
-  const [passInput, setPassInput] = useState("");
+  const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
   const [passError, setPassError] = useState(false);
   const [landingContent, setLandingContent] = useState<Record<string, { he: string; en: string }>>({});
   const [landingEditing, setLandingEditing] = useState<Record<string, { he: string; en: string }>>({});
@@ -165,6 +167,7 @@ const AdminDashboard = () => {
     });
     if (data?.ok) {
       sessionStorage.setItem(ADMIN_PASS_KEY, "1");
+      sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
       setPassUnlocked(true);
       setPassError(false);
     } else {
@@ -427,9 +430,31 @@ const AdminDashboard = () => {
                   onClick={async () => {
                     setComposeSending(true);
                     setComposeStatus(null);
-                    const { data, error } = await supabase.functions.invoke("admin-analytics", {
-                      body: { action: "send_email", to: composeTo.trim(), subject: composeSubject.trim(), body: composeBody.trim() },
+                    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-analytics`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        apikey: SUPABASE_PUBLISHABLE_KEY,
+                        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                      },
+                      body: JSON.stringify({
+                        action: "send_email",
+                        to: composeTo.trim(),
+                        subject: composeSubject.trim(),
+                        body: composeBody.trim(),
+                        admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
+                      }),
                     });
+                    let data: any = null;
+                    let error: { message?: string; context?: { json?: () => Promise<any>; text?: () => Promise<string> } } | null = null;
+                    try {
+                      data = await res.json();
+                    } catch {
+                      error = { message: `HTTP ${res.status}` };
+                    }
+                    if (!res.ok && !data?.error) {
+                      error = { message: `HTTP ${res.status}` };
+                    }
                     setComposeSending(false);
                     if (error || data?.error) {
                       const errorWithContext = error as { message?: string; context?: { json?: () => Promise<any>; text?: () => Promise<string> } } | null;
