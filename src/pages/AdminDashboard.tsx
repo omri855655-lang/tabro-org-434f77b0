@@ -64,6 +64,7 @@ const AdminDashboard = () => {
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [composeSending, setComposeSending] = useState(false);
+  const [composeStatus, setComposeStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const isHe = dir === "rtl";
   const copy = isHe
     ? {
@@ -417,36 +418,47 @@ const AdminDashboard = () => {
             {/* Compose email */}
             <div className="border-t pt-4 space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2"><Send className="h-4 w-4" /> {isHe ? "שלח מייל" : "Compose Email"}</h4>
-              <Input placeholder={isHe ? "נמען (אימייל)" : "Recipient email"} value={composeTo} onChange={e => setComposeTo(e.target.value)} dir="ltr" />
-              <Input placeholder={isHe ? "נושא" : "Subject"} value={composeSubject} onChange={e => setComposeSubject(e.target.value)} />
-              <Textarea placeholder={isHe ? "תוכן ההודעה..." : "Message body..."} value={composeBody} onChange={e => setComposeBody(e.target.value)} rows={4} />
-              <Button
-                disabled={composeSending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
-                onClick={async () => {
-                  setComposeSending(true);
-                  const { data, error } = await supabase.functions.invoke("admin-analytics", {
-                    body: { action: "send_email", to: composeTo.trim(), subject: composeSubject.trim(), body: composeBody.trim() },
-                  });
-                  setComposeSending(false);
-                  if (error || data?.error) {
-                    const errMsg = data?.error || "Error sending email";
-                    // Show detailed sandbox error to admin
-                    if (errMsg.includes("Sandbox") || errMsg.includes("not verified")) {
-                      toast.error(isHe ? "שגיאה: הדומיין עדיין לא אומת. ניתן לשלוח רק לכתובת בעל החשבון ב-Resend. השלם את אימות הדומיין ב-Cloud → Emails." : errMsg, { duration: 8000 });
+              <Input placeholder={isHe ? "נמען (אימייל)" : "Recipient email"} value={composeTo} onChange={e => { setComposeTo(e.target.value); setComposeStatus(null); }} dir="ltr" />
+              <Input placeholder={isHe ? "נושא" : "Subject"} value={composeSubject} onChange={e => { setComposeSubject(e.target.value); setComposeStatus(null); }} />
+              <Textarea placeholder={isHe ? "תוכן ההודעה..." : "Message body..."} value={composeBody} onChange={e => { setComposeBody(e.target.value); setComposeStatus(null); }} rows={4} />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  disabled={composeSending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
+                  onClick={async () => {
+                    setComposeSending(true);
+                    setComposeStatus(null);
+                    const { data, error } = await supabase.functions.invoke("admin-analytics", {
+                      body: { action: "send_email", to: composeTo.trim(), subject: composeSubject.trim(), body: composeBody.trim() },
+                    });
+                    setComposeSending(false);
+                    if (error || data?.error) {
+                      const errMsg = data?.error || error?.message || "Error sending email";
+                      const displayMsg = errMsg.includes("Sandbox") || errMsg.includes("not verified")
+                        ? (isHe ? "שגיאה: הדומיין עדיין לא אומת לשליחה חיצונית." : "Error: sender domain is not yet verified for external delivery.")
+                        : errMsg;
+                      setComposeStatus({ type: "error", message: displayMsg });
+                      toast.error(displayMsg, { duration: 8000 });
                     } else {
-                      toast.error(errMsg);
+                      const successMsg = isHe ? "נשלח בהצלחה" : "Sent successfully";
+                      setComposeStatus({ type: "success", message: successMsg });
+                      toast.success(copy.emailSent);
+                      setComposeTo("");
+                      setComposeSubject("");
+                      setComposeBody("");
+                      fetchStats();
                     }
-                  } else {
-                    toast.success(copy.emailSent);
-                    setComposeTo(""); setComposeSubject(""); setComposeBody("");
-                    fetchStats();
-                  }
-                }}
-                className="gap-2"
-              >
-                {composeSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {isHe ? "שלח" : "Send"}
-              </Button>
+                  }}
+                  className="gap-2"
+                >
+                  {composeSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {isHe ? "שלח" : "Send"}
+                </Button>
+                {composeStatus ? (
+                  <Badge variant={composeStatus.type === "error" ? "destructive" : "default"} className="max-w-full whitespace-normal text-xs">
+                    {composeStatus.message}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
           </CardContent>
         </Card>
