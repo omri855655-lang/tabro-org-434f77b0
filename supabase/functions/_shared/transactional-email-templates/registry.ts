@@ -10,7 +10,9 @@ export interface TemplateEntry {
 }
 
 import { template as taskReminder } from './task-reminder.tsx'
+import { template as adminMessage } from './admin-message.tsx'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'task-reminder': taskReminder,
+  'admin-message': adminMessage,
 }
