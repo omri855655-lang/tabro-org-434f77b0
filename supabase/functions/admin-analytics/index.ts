@@ -149,39 +149,14 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'to, subject, body required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      const idempotencyKey = `admin-msg-${crypto.randomUUID()}`
       const lovableKey = Deno.env.get('LOVABLE_API_KEY')
       const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
       const messageId = crypto.randomUUID()
       const failureMessages: string[] = []
 
-      const { data: sendData, error: sendError } = await adminClient.functions.invoke(
-        'send-transactional-email',
-        {
-          body: {
-            templateName: 'admin-message',
-            recipientEmail: to,
-            idempotencyKey,
-            templateData: { subject, body: htmlBody },
-            replyTo: reply_to || 'info@tabro.org',
-          },
-        }
-      )
-
-      const sendResponseData = (sendData ?? null) as Record<string, unknown> | null
-      if (!sendError && !sendResponseData?.error) {
-        return new Response(JSON.stringify({ success: true, queued: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-      }
-
-      const queuedError =
-        (sendError && (sendError.message || String(sendError))) ||
-        (typeof sendResponseData?.error === 'string' && sendResponseData.error) ||
-        'Failed to queue email'
-      failureMessages.push(`send-transactional-email: ${String(queuedError).slice(0, 500)}`)
-
       if (!resendKey) {
         await adminClient.from('email_send_log').insert({
-          message_id: idempotencyKey,
+          message_id: messageId,
           template_name: 'admin-compose',
           recipient_email: to,
           status: 'failed',
