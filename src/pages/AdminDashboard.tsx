@@ -432,6 +432,31 @@ const AdminDashboard = () => {
                     setComposeStatus(null);
                     const controller = new AbortController();
                     const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+                    const payload = {
+                      action: "send_email",
+                      to: composeTo.trim(),
+                      subject: composeSubject.trim(),
+                      body: composeBody.trim(),
+                      admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
+                    };
+
+                    const finishSuccess = async () => {
+                      const successMsg = isHe ? "נשלח בהצלחה" : "Sent successfully";
+                      setComposeStatus({ type: "success", message: successMsg });
+                      toast.success(copy.emailSent);
+                      setComposeTo("");
+                      setComposeSubject("");
+                      setComposeBody("");
+                      await fetchStats();
+                    };
+
+                    const showSendError = (errMsg: string) => {
+                      const displayMsg = errMsg.includes("Sandbox") || errMsg.includes("not verified")
+                        ? (isHe ? "שגיאה: הדומיין עדיין לא אומת לשליחה חיצונית." : "Error: sender domain is not yet verified for external delivery.")
+                        : errMsg;
+                      setComposeStatus({ type: "error", message: displayMsg });
+                      toast.error(displayMsg, { duration: 8000 });
+                    };
 
                     try {
                       const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-analytics`, {
@@ -441,13 +466,7 @@ const AdminDashboard = () => {
                           apikey: SUPABASE_PUBLISHABLE_KEY,
                           "x-admin-password": passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
                         },
-                        body: JSON.stringify({
-                          action: "send_email",
-                          to: composeTo.trim(),
-                          subject: composeSubject.trim(),
-                          body: composeBody.trim(),
-                          admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
-                        }),
+                        body: JSON.stringify(payload),
                         signal: controller.signal,
                       });
 
@@ -466,27 +485,37 @@ const AdminDashboard = () => {
 
                       if (error || data?.error) {
                         const errMsg = data?.error || error?.message || "Error sending email";
-                        const displayMsg = errMsg.includes("Sandbox") || errMsg.includes("not verified")
-                          ? (isHe ? "שגיאה: הדומיין עדיין לא אומת לשליחה חיצונית." : "Error: sender domain is not yet verified for external delivery.")
-                          : errMsg;
-                        setComposeStatus({ type: "error", message: displayMsg });
-                        toast.error(displayMsg, { duration: 8000 });
+                        showSendError(errMsg);
                         return;
                       }
 
-                      const successMsg = isHe ? "נשלח בהצלחה" : "Sent successfully";
-                      setComposeStatus({ type: "success", message: successMsg });
-                      toast.success(copy.emailSent);
-                      setComposeTo("");
-                      setComposeSubject("");
-                      setComposeBody("");
-                      fetchStats();
+                      await finishSuccess();
                     } catch (error) {
-                      const message = error instanceof DOMException && error.name === "AbortError"
-                        ? (isHe ? "השליחה נתקעה או לקחה יותר מדי זמן. נסה שוב." : "Sending timed out. Please try again.")
-                        : (isHe ? "שגיאת רשת בזמן שליחה. בדוק חיבור ונסה שוב." : "Network error while sending. Please try again.");
-                      setComposeStatus({ type: "error", message });
-                      toast.error(message, { duration: 8000 });
+                      try {
+                        const { data, error: invokeError } = await supabase.functions.invoke("admin-analytics", {
+                          body: payload,
+                        });
+
+                        if (invokeError || data?.error) {
+                          const fallbackMessage =
+                            data?.error ||
+                            invokeError?.message ||
+                            (error instanceof DOMException && error.name === "AbortError"
+                              ? (isHe ? "השליחה נתקעה או לקחה יותר מדי זמן. נסה שוב." : "Sending timed out. Please try again.")
+                              : (isHe ? "שגיאת רשת בזמן שליחה. בדוק חיבור ונסה שוב." : "Network error while sending. Please try again."));
+                          showSendError(fallbackMessage);
+                          return;
+                        }
+
+                        await finishSuccess();
+                      } catch (fallbackError) {
+                        const message =
+                          fallbackError instanceof DOMException && fallbackError.name === "AbortError"
+                            ? (isHe ? "השליחה נתקעה או לקחה יותר מדי זמן. נסה שוב." : "Sending timed out. Please try again.")
+                            : (isHe ? "שגיאת רשת בזמן שליחה. בדוק חיבור ונסה שוב." : "Network error while sending. Please try again.");
+                        setComposeStatus({ type: "error", message });
+                        toast.error(message, { duration: 8000 });
+                      }
                     } finally {
                       window.clearTimeout(timeoutId);
                       setComposeSending(false);
