@@ -85,7 +85,7 @@ function parseJwtClaims(token: string): Record<string, unknown> | null {
 
 // Move a message to the dead letter queue and log the reason.
 async function moveToDlq(
-  supabase: ReturnType<typeof createClient<any>>,
+  supabase: any,
   queue: string,
   msg: QueueMessageRow,
   reason: string
@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     )
   }
 
-  const supabase = createClient<any>(supabaseUrl, supabaseServiceKey)
+  const supabase: any = createClient(supabaseUrl, supabaseServiceKey)
 
   // 1. Check rate-limit cooldown and read queue config
   const { data: state } = await supabase
