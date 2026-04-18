@@ -2,7 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/config";
+import {
+  ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
+  ADMIN_MAIL_SUPABASE_URL,
+} from "@/integrations/supabase/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -465,11 +468,11 @@ const AdminDashboard = () => {
                     };
 
                     try {
-                      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-analytics`, {
+                      const res = await fetch(`${ADMIN_MAIL_SUPABASE_URL}/functions/v1/admin-analytics`, {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
-                          apikey: SUPABASE_PUBLISHABLE_KEY,
+                          apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
                           "x-admin-password": passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
                         },
                         body: JSON.stringify(payload),
@@ -497,31 +500,12 @@ const AdminDashboard = () => {
 
                       await finishSuccess();
                     } catch (error) {
-                      try {
-                        const { data, error: invokeError } = await supabase.functions.invoke("admin-analytics", {
-                          body: payload,
-                        });
-
-                        if (invokeError || data?.error) {
-                          const fallbackMessage =
-                            data?.error ||
-                            invokeError?.message ||
-                            (error instanceof DOMException && error.name === "AbortError"
-                              ? (isHe ? "השליחה נתקעה או לקחה יותר מדי זמן. נסה שוב." : "Sending timed out. Please try again.")
-                              : (isHe ? "שגיאת רשת בזמן שליחה. בדוק חיבור ונסה שוב." : "Network error while sending. Please try again."));
-                          showSendError(fallbackMessage);
-                          return;
-                        }
-
-                        await finishSuccess();
-                      } catch (fallbackError) {
-                        const message =
-                          fallbackError instanceof DOMException && fallbackError.name === "AbortError"
-                            ? (isHe ? "השליחה נתקעה או לקחה יותר מדי זמן. נסה שוב." : "Sending timed out. Please try again.")
-                            : (isHe ? "שגיאת רשת בזמן שליחה. בדוק חיבור ונסה שוב." : "Network error while sending. Please try again.");
-                        setComposeStatus({ type: "error", message });
-                        toast.error(message, { duration: 8000 });
-                      }
+                      const message =
+                        error instanceof DOMException && error.name === "AbortError"
+                          ? (isHe ? "השליחה נתקעה או לקחה יותר מדי זמן. נסה שוב." : "Sending timed out. Please try again.")
+                          : (isHe ? "שגיאת רשת בזמן שליחה. בדוק חיבור ונסה שוב." : "Network error while sending. Please try again.");
+                      setComposeStatus({ type: "error", message });
+                      toast.error(message, { duration: 8000 });
                     } finally {
                       window.clearTimeout(timeoutId);
                       setComposeSending(false);
