@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -429,15 +430,31 @@ const AdminDashboard = () => {
                   onClick={async () => {
                     setComposeSending(true);
                     setComposeStatus(null);
-                    const { data, error } = await supabase.functions.invoke("admin-analytics", {
-                      body: {
+                    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-analytics`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        apikey: SUPABASE_PUBLISHABLE_KEY,
+                        "x-admin-password": passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
+                      },
+                      body: JSON.stringify({
                         action: "send_email",
                         to: composeTo.trim(),
                         subject: composeSubject.trim(),
                         body: composeBody.trim(),
                         admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
-                      },
+                      }),
                     });
+                    let data: any = null;
+                    let error: { message?: string } | null = null;
+                    try {
+                      data = await res.json();
+                    } catch {
+                      error = { message: `HTTP ${res.status}` };
+                    }
+                    if (!res.ok && !data?.error) {
+                      error = { message: `HTTP ${res.status}` };
+                    }
                     setComposeSending(false);
                     if (error || data?.error) {
                       let errMsg = data?.error || error?.message || "Error sending email";
