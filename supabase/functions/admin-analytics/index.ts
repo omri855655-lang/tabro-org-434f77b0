@@ -27,9 +27,11 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const adminClient = createClient(supabaseUrl, serviceKey)
 
-    if (action === 'send_email' && correctPass && (
-      body.admin_password === correctPass || adminPasswordHeader === correctPass
-    )) {
+    if (
+      action === 'send_email' &&
+      correctPass &&
+      (body.admin_password === correctPass || adminPasswordHeader === correctPass)
+    ) {
       const to = body.to?.trim().toLowerCase()
       const subject = body.subject?.trim()
       const plainBody = body.body?.trim()
@@ -146,15 +148,26 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: corsHeaders,
+      })
     }
 
     const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     })
-    const { data: { user }, error: userError } = await userClient.auth.getUser()
+
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser()
+
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: corsHeaders,
+      })
     }
 
     const { data: roleData } = await adminClient
@@ -165,92 +178,157 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (!roleData) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders })
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: corsHeaders,
+      })
     }
 
     if (action === 'stats') {
-      const listResult = await adminClient.auth.admin.listUsers({ perPage: 1, page: 1 })
-      const totalUsers = listResult.data?.users?.length ?? 0
+      const since = new Date()
+      since.setDate(since.getDate() - 30)
+      const sinceIso = since.toISOString()
 
-      const { data: usersData } = await adminClient.auth.admin.listUsers({ perPage: 1000, page: 1 })
-      const users = usersData?.users || []
+      const [
+        { count: totalUsers },
+        { count: recentSignups },
+        { count: totalTasks },
+        { count: totalLoginLogs },
+        { data: loginLogsRaw },
+        { data: recentEmailLogRaw },
+        { data: adminEmailsRaw },
+        { data: userListRaw },
+      ] = await Promise.all([
+        adminClient.from('profiles').select('id', { count: 'exact', head: true }),
+        adminClient.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sinceIso),
+        adminClient.from('tasks').select('id', { count: 'exact', head: true }),
+        adminClient.from('login_logs').select('id', { count: 'exact', head: true }),
+        adminClient.from('login_logs').select('user_email, logged_in_at').order('logged_in_at', { ascending: false }).limit(10),
+        adminClient
+          .from('email_send_log')
+          .select('message_id, template_name, recipient_email, status, error_message, created_at')
+          .order('created_at', { ascending: false })
+          .limit(30),
+        adminClient
+          .from('user_roles')
+          .select('user_id, created_at, profiles!inner(email)')
+          .eq('role', 'admin')
+          .order('created_at', { ascending: false }),
+        adminClient
+          .from('profiles')
+          .select('email, created_at, last_sign_in_at')
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ])
 
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      const recentSignups = users.filter(u => u.created_at >= thirtyDaysAgo).length
-      const recentLogins = users.filter(u => u.last_sign_in_at && u.last_sign_in_at >= thirtyDaysAgo).length
+      const recentLogins = (loginLogsRaw || []).filter((log) => {
+        const when = log.logged_in_at ? new Date(log.logged_in_at).getTime() : 0
+        return when >= new Date(sinceIso).getTime()
+      }).length
 
-      const { data: loginLogs, count: totalLogins } = await adminClient
-        .from('admin_login_log')
-        .select('*', { count: 'exact' })
-        .order('logged_in_at', { ascending: false })
-        .limit(50)
-
-      const { data: rawEmailLog } = await adminClient
-        .from('email_send_log')
-        .select('message_id, template_name, recipient_email, status, error_message, created_at')
-        .order('created_at', { ascending: false })
-        .limit(200)
-
-      const seenMessageIds = new Set<string>()
-      const recentEmailLog = []
-      for (const row of (rawEmailLog || [])) {
-        const dedupeKey = row.message_id || `${row.template_name}:${row.recipient_email}:${row.created_at}`
-        if (seenMessageIds.has(dedupeKey)) continue
-        seenMessageIds.add(dedupeKey)
-        recentEmailLog.push(row)
-        if (recentEmailLog.length >= 30) break
-      }
-
-      const { count: totalTasks } = await adminClient.from('tasks').select('*', { count: 'exact', head: true })
-      const { data: adminRoles } = await adminClient.from('user_roles').select('*').eq('role', 'admin')
-      const adminEmails = []
-      for (const ar of (adminRoles || [])) {
-        const found = users.find(u => u.id === ar.user_id)
-        if (found) adminEmails.push({ email: found.email, user_id: ar.user_id, created_at: ar.created_at })
-      }
-
-      const userList = users.map(u => ({
-        email: u.email,
-        created_at: u.created_at,
-        last_sign_in_at: u.last_sign_in_at,
+      const adminEmails = (adminEmailsRaw || []).map((entry: any) => ({
+        user_id: entry.user_id,
+        created_at: entry.created_at,
+        email: entry.profiles?.email || '',
       }))
 
-      return new Response(JSON.stringify({
-        totalUsers: totalUsers || users.length,
-        recentSignups,
-        recentLogins,
-        totalTasks,
-        totalLoginLogs: totalLogins || 0,
-        loginLogs: loginLogs || [],
-        adminEmails,
-        userList,
-        mailboxAddress: 'info@tabro.org',
-        recentEmailLog,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(
+        JSON.stringify({
+          totalUsers: totalUsers || 0,
+          recentSignups: recentSignups || 0,
+          recentLogins,
+          totalTasks: totalTasks || 0,
+          totalLoginLogs: totalLoginLogs || 0,
+          loginLogs: loginLogsRaw || [],
+          adminEmails,
+          userList: userListRaw || [],
+          mailboxAddress: 'info@tabro.org',
+          recentEmailLog: recentEmailLogRaw || [],
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
     }
 
     if (action === 'add_admin') {
       const email = body.email?.trim().toLowerCase()
       if (!email) {
-        return new Response(JSON.stringify({ error: 'Email required' }), { status: 400, headers: corsHeaders })
+        return new Response(JSON.stringify({ error: 'Email required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
-      const { data: usersData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-      const target = usersData?.users?.find(u => u.email === email)
-      if (!target) {
-        return new Response(JSON.stringify({ error: 'User not found. They must register first.' }), { status: 404, headers: corsHeaders })
+
+      const { data: profile } = await adminClient
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle()
+
+      if (!profile) {
+        return new Response(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
-      const { error } = await adminClient.from('user_roles').insert({ user_id: target.id, role: 'admin' })
+
+      const { error } = await adminClient.from('user_roles').upsert({
+        user_id: profile.id,
+        role: 'admin',
+      })
+
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders })
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
-    return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: corsHeaders })
-  } catch (err) {
-    return new Response(JSON.stringify({
-      error: err instanceof Error ? err.message : String(err),
-      code: 'ADMIN_ANALYTICS_UNHANDLED',
-    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (action === 'remove_admin') {
+      const userId = body.user_id
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'user_id required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const { error } = await adminClient
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify({ error: 'Unknown action' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+        code: 'ADMIN_ANALYTICS_UNHANDLED',
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    )
   }
 })
