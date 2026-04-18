@@ -42,6 +42,7 @@ interface Stats {
 
 const ADMIN_PASS_KEY = "tabro_admin_unlocked";
 const ADMIN_PASS_VALUE_KEY = "tabro_admin_password";
+const ADMIN_MAIL_UI_VERSION = "admin-mail-ui-2026-04-18-v1";
 
 const AdminDashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -420,7 +421,12 @@ const AdminDashboard = () => {
 
             {/* Compose email */}
             <div className="border-t pt-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2"><Send className="h-4 w-4" /> {isHe ? "שלח מייל" : "Compose Email"}</h4>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold flex items-center gap-2"><Send className="h-4 w-4" /> {isHe ? "שלח מייל" : "Compose Email"}</h4>
+                <Badge variant="outline" className="text-[10px] font-mono">
+                  {ADMIN_MAIL_UI_VERSION}
+                </Badge>
+              </div>
               <Input placeholder={isHe ? "נמען (אימייל)" : "Recipient email"} value={composeTo} onChange={e => { setComposeTo(e.target.value); setComposeStatus(null); }} dir="ltr" />
               <Input placeholder={isHe ? "נושא" : "Subject"} value={composeSubject} onChange={e => { setComposeSubject(e.target.value); setComposeStatus(null); }} />
               <Textarea placeholder={isHe ? "תוכן ההודעה..." : "Message body..."} value={composeBody} onChange={e => { setComposeBody(e.target.value); setComposeStatus(null); }} rows={4} />
