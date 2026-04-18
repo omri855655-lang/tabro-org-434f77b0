@@ -460,9 +460,18 @@ const AdminDashboard = () => {
                     };
 
                     const showSendError = (errMsg: string) => {
+                      if (errMsg === "Unauthorized") {
+                        sessionStorage.removeItem(ADMIN_PASS_KEY);
+                        sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
+                        setPassUnlocked(false);
+                        setPassInput("");
+                        setPassError(true);
+                      }
                       const displayMsg = errMsg.includes("Sandbox") || errMsg.includes("not verified")
                         ? (isHe ? "שגיאה: הדומיין עדיין לא אומת לשליחה חיצונית." : "Error: sender domain is not yet verified for external delivery.")
-                        : errMsg;
+                        : errMsg === "Unauthorized"
+                          ? (isHe ? "סיסמת האדמין התיישנה או שונתה. יש להזין אותה מחדש." : "Admin password expired or changed. Please enter it again.")
+                          : errMsg;
                       setComposeStatus({ type: "error", message: displayMsg });
                       toast.error(displayMsg, { duration: 8000 });
                     };
