@@ -56,8 +56,8 @@ const AdminDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
-  const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1");
-  const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
+  const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1" || localStorage.getItem(ADMIN_PASS_KEY) === "1");
+  const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
   const [passError, setPassError] = useState(false);
   const [landingContent, setLandingContent] = useState<Record<string, { he: string; en: string }>>({});
   const [landingEditing, setLandingEditing] = useState<Record<string, { he: string; en: string }>>({});
@@ -172,6 +172,8 @@ const AdminDashboard = () => {
     if (data?.ok) {
       sessionStorage.setItem(ADMIN_PASS_KEY, "1");
       sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
+      localStorage.setItem(ADMIN_PASS_KEY, "1");
+      localStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
       setPassUnlocked(true);
       setPassError(false);
     } else {
@@ -446,7 +448,7 @@ const AdminDashboard = () => {
                       to: composeTo.trim(),
                       subject: composeSubject.trim(),
                       body: composeBody.trim(),
-                      admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
+                      admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
                     };
 
                     const finishSuccess = async () => {
@@ -463,6 +465,8 @@ const AdminDashboard = () => {
                       if (errMsg === "Unauthorized") {
                         sessionStorage.removeItem(ADMIN_PASS_KEY);
                         sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
+                        localStorage.removeItem(ADMIN_PASS_KEY);
+                        localStorage.removeItem(ADMIN_PASS_VALUE_KEY);
                         setPassUnlocked(false);
                         setPassInput("");
                         setPassError(true);
@@ -482,7 +486,7 @@ const AdminDashboard = () => {
                         headers: {
                           "Content-Type": "application/json",
                           apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
-                          "x-admin-password": passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
+                          "x-admin-password": passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
                         },
                         body: JSON.stringify(payload),
                         signal: controller.signal,

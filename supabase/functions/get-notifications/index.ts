@@ -77,7 +77,7 @@ serve(async (req) => {
     // Deduplicate: for same event_id + notification_type, keep only one (prefer push)
     const seen = new Map<string, any>();
     for (const n of (notifications || [])) {
-      const key = `${n.event_id}_${n.notification_type}`;
+      const key = n.event_id ? `${n.event_id}_${n.notification_type}` : n.id;
       if (!seen.has(key)) {
         seen.set(key, n);
       } else if (n.channel === "push") {

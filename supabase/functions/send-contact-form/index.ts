@@ -1,4 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  buildPushPayload,
+  type PushSubscription as WebPushSubscription,
+  type PushMessage,
+  type VapidKeys,
+} from "https://esm.sh/@block65/webcrypto-web-push@1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,6 +12,32 @@ const corsHeaders = {
 }
 
 const ADMIN_EMAILS = ['omri855655@gmail.com', 'tabro855@gmail.com', 'info@tabro.org']
+
+async function sendPush(
+  subscription: { endpoint: string; p256dh: string; auth: string },
+  data: object,
+  vapid: VapidKeys,
+) {
+  const sub: WebPushSubscription = {
+    endpoint: subscription.endpoint,
+    expirationTime: null,
+    keys: { p256dh: subscription.p256dh, auth: subscription.auth },
+  };
+  const message: PushMessage = {
+    data: JSON.stringify(data),
+    options: { ttl: 86400 },
+  };
+  const payload = await buildPushPayload(message, sub, vapid);
+  const res = await fetch(subscription.endpoint, {
+    method: payload.method || "POST",
+    headers: payload.headers,
+    body: payload.body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Push failed (${res.status}): ${text}`);
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -49,11 +81,8 @@ Deno.serve(async (req) => {
 
     const emailSubject = `[פנייה] ${categoryLabels[category] || ''} - ${subject || 'ללא נושא'}`
     const replyTo = userEmail !== 'אנונימי' && userEmail !== 'Anonymous' ? userEmail : undefined
+    const fromAddress = 'Tabro <noreply@tabro.org>'
 
-    // Always use onboarding@resend.dev as sender (safe verified domain)
-    const fromAddress = 'Tabro <noreply@notify.tabro.org>'
-
-    // Send to each admin separately
     const results = await Promise.allSettled(
       ADMIN_EMAILS.map(async (toEmail) => {
         const apiUrl = lovableKey
@@ -89,22 +118,74 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
     await serviceClient.from('email_send_log').insert({
       message_id: messageId,
       template_name: 'contact-form',
-      recipient_email: 'info@tabro.org',
+      recipient_email: ADMIN_EMAILS.join(', '),
       status: succeeded > 0 ? 'sent' : 'failed',
       error_message: failed.length > 0 ? JSON.stringify(failed.map(f => (f as any).reason?.message).slice(0, 500)) : null,
       metadata: { subject, category, userEmail, recipients: ADMIN_EMAILS, succeeded },
     })
+
+    const { data: adminUsers } = await serviceClient
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'admin')
+
+    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY")
+    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY")
+    const vapid: VapidKeys | null =
+      vapidPublicKey && vapidPrivateKey
+        ? {
+            subject: "mailto:push@lovable.app",
+            publicKey: vapidPublicKey,
+            privateKey: vapidPrivateKey,
+          }
+        : null
+
+    for (const admin of adminUsers || []) {
+      const { data: pushSubs } = await serviceClient
+        .from("push_subscriptions")
+        .select("*")
+        .eq("user_id", admin.user_id)
+
+      let pushed = false
+
+      if (vapid && pushSubs && pushSubs.length > 0) {
+        for (const sub of pushSubs) {
+          try {
+            await sendPush(
+              { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+              {
+                title: "📨 פנייה חדשה ל-Tabro",
+                body: `${categoryLabels[category] || category} • ${subject || 'ללא נושא'}`,
+                url: "/personal",
+              },
+              vapid,
+            )
+            pushed = true
+          } catch (error) {
+            console.error("Contact-form push notification error:", error)
+          }
+        }
+      }
+
+      await serviceClient.from("sent_notifications").insert({
+        user_id: admin.user_id,
+        notification_type: "contact_form",
+        channel: pushed ? "push" : "email",
+      })
+    }
 
     if (succeeded === 0) {
       const errMsg = failed.length > 0 ? (failed[0] as any).reason?.message || 'Unknown error' : 'Failed to send'
       return new Response(JSON.stringify({ error: errMsg }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    return new Response(JSON.stringify({ success: true, sent: succeeded }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ success: true, sent: succeeded, notifiedAdmins: (adminUsers || []).length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    const message = err instanceof Error ? err.message : String(err)
+    return new Response(JSON.stringify({ error: message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
