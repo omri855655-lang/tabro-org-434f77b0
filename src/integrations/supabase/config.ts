@@ -1,12 +1,5 @@
-const DEFAULT_SUPABASE_PROJECT_ID = "slptgamuhzxiacmbpgkq";
-const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co`;
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_JoudyQj05l0JoIMVLiEJlw_77aFs14C";
+export const SUPABASE_PROJECT_ID = "slptgamuhzxiacmbpgkq";
 
-export const SUPABASE_PROJECT_ID =
-  import.meta.env.VITE_SUPABASE_PROJECT_ID || DEFAULT_SUPABASE_PROJECT_ID;
+export const SUPABASE_URL = "https://slptgamuhzxiacmbpgkq.supabase.co";
 
-export const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-
-export const SUPABASE_PUBLISHABLE_KEY =
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+export const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_JoudyQj05l0JoIMVLiEJlw_77aFs14C";
