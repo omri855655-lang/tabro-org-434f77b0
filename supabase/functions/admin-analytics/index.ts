@@ -5,6 +5,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -149,122 +158,50 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'send_email') {
-      const { to, subject, body: htmlBody, reply_to } = body
-      if (!to || !subject || !htmlBody) {
+      const to = body.to?.trim().toLowerCase()
+      const subject = body.subject?.trim()
+      const plainBody = body.body?.trim()
+      const replyTo = body.reply_to?.trim() || 'info@tabro.org'
+
+      if (!to || !subject || !plainBody) {
         return new Response(JSON.stringify({ error: 'to, subject, body required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      const lovableKey = Deno.env.get('LOVABLE_API_KEY')
-      const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
-      const messageId = crypto.randomUUID()
-      const failureMessages: string[] = []
+      const lines = plainBody
+        .split(/\n+/)
+        .map((line: string) => line.trim())
+        .filter(Boolean)
 
-      if (!resendKey) {
-        await adminClient.from('email_send_log').insert({
-          message_id: messageId,
-          template_name: 'admin-compose',
-          recipient_email: to,
-          status: 'failed',
-          error_message: failureMessages.join(' | ').slice(0, 1000),
-          metadata: { subject, sent_by: user?.email || 'admin-password', reply_to: reply_to || 'info@tabro.org' },
-        })
-        return new Response(JSON.stringify({ error: failureMessages.join(' | ') || 'No email API key configured' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-      }
-
-      const emailPayload = {
-        from: 'Tabro <noreply@notify.tabro.org>',
-        to: [to],
-        subject,
-        html: `<div style="font-family:Arial,sans-serif;max-width:600px;">${String(htmlBody).replace(/\n/g, '<br/>')}</div>`,
-        reply_to: reply_to || 'info@tabro.org',
-      }
-
-      const deliveryAttempts: Array<{
-        label: string
-        apiUrl: string
-        headers: Record<string, string>
-      }> = []
-
-      if (lovableKey) {
-        deliveryAttempts.push({
-          label: 'lovable-gateway',
-          apiUrl: 'https://connector-gateway.lovable.dev/resend/emails',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${lovableKey}`,
-            'X-Connection-Api-Key': resendKey,
+      const { data, error } = await adminClient.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'admin-message',
+          recipientEmail: to,
+          idempotencyKey: `admin-compose:${crypto.randomUUID()}`,
+          templateData: {
+            subject,
+            body: lines.join('\n\n'),
           },
-        })
-      }
-
-      deliveryAttempts.push({
-        label: 'resend-direct',
-        apiUrl: 'https://api.resend.com/emails',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resendKey}`,
         },
       })
 
-      let deliveredVia: string | null = null
-
-      for (const attempt of deliveryAttempts) {
-        try {
-          const emailRes = await fetch(attempt.apiUrl, {
-            method: 'POST',
-            headers: attempt.headers,
-            body: JSON.stringify(emailPayload),
-          })
-
-          if (emailRes.ok) {
-            deliveredVia = attempt.label
-            break
-          }
-
-          const resBody = await emailRes.text()
-          const trimmedBody = resBody.slice(0, 500)
-          const errorDetail = resBody.includes('not verified') || resBody.toLowerCase().includes('sandbox')
-            ? `Sandbox limitation: can only send to the Resend account owner email. Complete domain verification in Cloud → Emails to send to any address. (${trimmedBody.slice(0, 200)})`
-            : `${attempt.label}: ${trimmedBody || `HTTP ${emailRes.status}`}`
-
-          failureMessages.push(errorDetail)
-        } catch (error) {
-          failureMessages.push(
-            `${attempt.label}: ${error instanceof Error ? error.message : String(error)}`
-          )
-        }
-      }
-
-      if (!deliveredVia) {
-        const errorDetail = failureMessages.join(' | ').slice(0, 1000) || 'Unknown email delivery error'
+      const invokeError = error?.message || data?.error || null
+      if (invokeError) {
         await adminClient.from('email_send_log').insert({
-          message_id: messageId,
+          message_id: crypto.randomUUID(),
           template_name: 'admin-compose',
           recipient_email: to,
           status: 'failed',
-          error_message: errorDetail,
-          metadata: { subject, sent_by: user?.email || 'admin-password', reply_to: reply_to || 'info@tabro.org' },
+          error_message: String(invokeError).slice(0, 1000),
+          metadata: { subject, sent_by: user?.email || 'admin-password', reply_to: replyTo },
         })
 
         return new Response(JSON.stringify({
-          error: errorDetail,
+          error: invokeError,
           code: 'EMAIL_DELIVERY_FAILED',
         }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      await adminClient.from('email_send_log').insert({
-        message_id: messageId,
-        template_name: 'admin-compose',
-        recipient_email: to,
-        status: 'sent',
-        metadata: {
-          subject,
-          sent_by: user?.email || 'admin-password',
-          reply_to: reply_to || 'info@tabro.org',
-          delivered_via: deliveredVia,
-        },
-      })
-      return new Response(JSON.stringify({ success: true, delivered_via: deliveredVia }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ success: true, queued: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: corsHeaders })
