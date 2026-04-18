@@ -166,18 +166,31 @@ const AdminDashboard = () => {
   };
 
   const handlePassSubmit = async () => {
-    const { data } = await supabase.functions.invoke("admin-analytics", {
-      body: { action: "verify_password", password: passInput },
-    });
-    if (data?.ok) {
-      sessionStorage.setItem(ADMIN_PASS_KEY, "1");
-      sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
-      localStorage.setItem(ADMIN_PASS_KEY, "1");
-      localStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
-      setPassUnlocked(true);
-      setPassError(false);
-    } else {
+    try {
+      const res = await fetch(`${ADMIN_MAIL_SUPABASE_URL}/functions/v1/admin-analytics`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ action: "verify_password", password: passInput }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        sessionStorage.setItem(ADMIN_PASS_KEY, "1");
+        sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
+        localStorage.setItem(ADMIN_PASS_KEY, "1");
+        localStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
+        setPassUnlocked(true);
+        setPassError(false);
+        return;
+      }
+
       setPassError(true);
+    } catch {
+      setPassError(true);
+      toast.error(isHe ? "שגיאה בבדיקת סיסמת האדמין" : "Error verifying admin password");
     }
   };
 
