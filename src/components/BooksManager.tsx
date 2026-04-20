@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Search, BookOpen, Download } from 'lucide-react';
+import { Plus, Trash2, Search, BookOpen, Download, Eye } from 'lucide-react';
 import FileImport from '@/components/FileImport';
 import { useRecycleBin } from '@/hooks/useRecycleBin';
 import { exportToExcel } from '@/lib/exportToExcel';
@@ -17,7 +17,6 @@ import ListView from '@/components/views/ListView';
 import CardsView from '@/components/views/CardsView';
 import KanbanView from '@/components/views/KanbanView';
 import CompactView from '@/components/views/CompactView';
-import { useLanguage } from '@/hooks/useLanguage';
 import {
   Dialog,
   DialogContent,
@@ -61,15 +60,14 @@ const parseBookNotes = (notes: string | null): ParsedBookNotes => {
   return { plainNotes: notes, longSummary: "", chapterSummaries: [] };
 };
 
-const formatDateTime = (dateStr: string, locale: string) => {
+const formatDateTime = (dateStr: string) => {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  return date.toLocaleDateString(locale) + ' ' + date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString('he-IL') + ' ' + date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 };
 
 const BooksManager = () => {
   const { viewMode, themeKey, setViewMode, setTheme } = useDashboardDisplay("books");
-  const { lang, dir } = useLanguage();
   const { user } = useAuth();
   const { softDelete } = useRecycleBin();
   const [books, setBooks] = useState<Book[]>([]);
@@ -78,78 +76,6 @@ const BooksManager = () => {
   const [newBook, setNewBook] = useState({ title: '', author: '' });
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [bookDetail, setBookDetail] = useState<ParsedBookNotes>({ plainNotes: "", longSummary: "", chapterSummaries: [] });
-  const isHebrew = lang === 'he';
-  const locale = ({ he: 'he-IL', en: 'en-US', es: 'es-ES', zh: 'zh-CN', ar: 'ar-SA', ru: 'ru-RU' } as const)[lang];
-  const copy = isHebrew ? {
-    loadError: 'שגיאה בטעינת הספרים',
-    enterTitle: 'נא להזין שם ספר',
-    addError: 'שגיאה בהוספת הספר',
-    addSuccess: 'הספר נוסף בהצלחה',
-    updateStatusError: 'שגיאה בעדכון הסטטוס',
-    updateNotesError: 'שגיאה בעדכון ההערות',
-    movedToRecycle: 'הספר הועבר לסל המחזור',
-    importError: 'שגיאה בייבוא הספרים',
-    loading: 'טוען ספרים...',
-    read: 'נקראו',
-    reading: 'בקריאה',
-    toRead: 'לקרוא',
-    title: 'הספרים שלי',
-    booksCount: 'ספרים',
-    export: 'ייצוא',
-    import: 'ייבוא ספרים',
-    titlePlaceholder: 'שם הספר',
-    authorPlaceholder: 'מחבר',
-    addBook: 'הוסף ספר',
-    search: 'חפש ספר או מחבר...',
-    noResults: 'לא נמצאו תוצאות',
-    empty: 'אין ספרים עדיין',
-    titleCol: 'שם הספר',
-    authorCol: 'מחבר',
-    statusCol: 'סטטוס',
-    notesCol: 'הערות',
-    statusChangedCol: 'שינוי סטטוס',
-    createdCol: 'נוצר',
-    updatedCol: 'עודכן',
-    addNotes: 'הוסף הערות...',
-    sheetName: 'ספרים',
-  } : {
-    loadError: 'Error loading books',
-    enterTitle: 'Please enter a book title',
-    addError: 'Error adding book',
-    addSuccess: 'Book added successfully',
-    updateStatusError: 'Error updating status',
-    updateNotesError: 'Error updating notes',
-    movedToRecycle: 'Book moved to recycle bin',
-    importError: 'Error importing books',
-    loading: 'Loading books...',
-    read: 'Read',
-    reading: 'Reading',
-    toRead: 'To read',
-    title: 'My Books',
-    booksCount: 'books',
-    export: 'Export',
-    import: 'Import books',
-    titlePlaceholder: 'Book title',
-    authorPlaceholder: 'Author',
-    addBook: 'Add book',
-    search: 'Search books or authors...',
-    noResults: 'No results found',
-    empty: 'No books yet',
-    titleCol: 'Title',
-    authorCol: 'Author',
-    statusCol: 'Status',
-    notesCol: 'Notes',
-    statusChangedCol: 'Status changed',
-    createdCol: 'Created',
-    updatedCol: 'Updated',
-    addNotes: 'Add notes...',
-    sheetName: 'Books',
-  };
-  const statusOptions = [
-    { value: 'לקרוא', label: copy.toRead },
-    { value: 'בקריאה', label: copy.reading },
-    { value: 'נקרא', label: copy.read },
-  ];
 
   useEffect(() => {
     if (user) {
@@ -164,7 +90,7 @@ const BooksManager = () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error(copy.loadError);
+      toast.error('שגיאה בטעינת הספרים');
       console.error(error);
     } else {
       setBooks(data || []);
@@ -174,7 +100,7 @@ const BooksManager = () => {
 
   const addBook = async () => {
     if (!newBook.title.trim()) {
-      toast.error(copy.enterTitle);
+      toast.error('נא להזין שם ספר');
       return;
     }
 
@@ -187,10 +113,10 @@ const BooksManager = () => {
     });
 
     if (error) {
-      toast.error(copy.addError);
+      toast.error('שגיאה בהוספת הספר');
       console.error(error);
     } else {
-      toast.success(copy.addSuccess);
+      toast.success('הספר נוסף בהצלחה');
       setNewBook({ title: '', author: '' });
       fetchBooks();
     }
@@ -203,7 +129,7 @@ const BooksManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error(copy.updateStatusError);
+      toast.error('שגיאה בעדכון הסטטוס');
       return;
     }
 
@@ -217,7 +143,7 @@ const BooksManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error(copy.updateNotesError);
+      toast.error('שגיאה בעדכון ההערות');
       return;
     }
 
@@ -335,7 +261,7 @@ const BooksManager = () => {
     if (!book) return;
     const success = await softDelete('books', id, book);
     if (success) {
-      toast.success(copy.movedToRecycle);
+      toast.success('הספר הועבר לסל המחזור');
       setBooks((prev) => prev.filter((b) => b.id !== id));
     }
   };
@@ -352,7 +278,7 @@ const BooksManager = () => {
 
     const { error } = await supabase.from('books').insert(inserts);
     if (error) {
-      toast.error(copy.importError);
+      toast.error('שגיאה בייבוא הספרים');
       console.error(error);
     } else {
       fetchBooks();
@@ -366,7 +292,7 @@ const BooksManager = () => {
   );
 
   if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">{copy.loading}</div>;
+    return <div className="p-8 text-center text-muted-foreground">טוען ספרים...</div>;
   }
 
   const readCount = books.filter(b => b.status === 'נקרא').length;
@@ -374,71 +300,72 @@ const BooksManager = () => {
   const toReadCount = books.filter(b => b.status === 'לקרוא').length;
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
+    <div className="h-full flex flex-col p-4 overflow-hidden" dir="rtl">
       {/* Stats Dashboard */}
       <div className="grid grid-cols-3 gap-4 mb-4 flex-shrink-0">
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-green-600">{readCount}</div>
-          <div className="text-sm text-muted-foreground">{copy.read}</div>
+          <div className="text-sm text-muted-foreground">נקראו</div>
         </div>
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-blue-600">{readingCount}</div>
-          <div className="text-sm text-muted-foreground">{copy.reading}</div>
+          <div className="text-sm text-muted-foreground">בקריאה</div>
         </div>
         <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-orange-600">{toReadCount}</div>
-          <div className="text-sm text-muted-foreground">{copy.toRead}</div>
+          <div className="text-sm text-muted-foreground">לקרוא</div>
         </div>
       </div>
 
       {/* Header with count */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">
         <BookOpen className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">{copy.title}</h2>
-        <span className="text-sm text-muted-foreground">({books.length} {copy.booksCount})</span>
+        <h2 className="text-xl font-bold">הספרים שלי</h2>
+        <span className="text-sm text-muted-foreground">({books.length} ספרים)</span>
+        <span className="text-xs text-muted-foreground">פתח ספר עם דאבל־קליק על השורה או עם כפתור "פרטים"</span>
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
           books.map(b => ({ title: b.title, author: b.author || '', status: b.status || '', notes: parseBookNotes(b.notes).plainNotes || '' })),
-          [{ key: 'title', label: copy.titleCol }, { key: 'author', label: copy.authorCol }, { key: 'status', label: copy.statusCol }, { key: 'notes', label: copy.notesCol }],
-          copy.sheetName
+          [{ key: 'title', label: 'שם הספר' }, { key: 'author', label: 'מחבר' }, { key: 'status', label: 'סטטוס' }, { key: 'notes', label: 'הערות' }],
+          'ספרים'
         )}>
-          <Download className="h-3.5 w-3.5" />{copy.export}
+          <Download className="h-3.5 w-3.5" />ייצוא
         </Button>
-        <FileImport onImport={handleImportBooks} label={copy.import} />
+        <FileImport onImport={handleImportBooks} label="ייבוא ספרים" />
       </div>
 
       {/* Add new book */}
       <div className="flex gap-2 flex-wrap mb-4 flex-shrink-0">
         <Input
-          placeholder={copy.titlePlaceholder}
+          placeholder="שם הספר"
           value={newBook.title}
           onChange={(e) => setNewBook({ ...newBook, title: e.target.value })}
-          className={`flex-1 min-w-[200px] ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
-          dir={dir}
+          className="flex-1 min-w-[200px] text-right"
+          dir="rtl"
         />
         <Input
-          placeholder={copy.authorPlaceholder}
+          placeholder="מחבר"
           value={newBook.author}
           onChange={(e) => setNewBook({ ...newBook, author: e.target.value })}
-          className={`flex-1 min-w-[150px] ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
-          dir={dir}
+          className="flex-1 min-w-[150px] text-right"
+          dir="rtl"
         />
         <Button onClick={addBook}>
           <Plus className="h-4 w-4 ml-1" />
-          {copy.addBook}
+          הוסף ספר
         </Button>
       </div>
 
       {/* Search */}
       <div className="relative mb-4 flex-shrink-0">
-        <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground ${dir === 'rtl' ? 'right-3' : 'left-3'}`} />
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder={copy.search}
+          placeholder="חפש ספר או מחבר..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className={dir === 'rtl' ? 'pr-10 text-right' : 'pl-10 text-left'}
-          dir={dir}
+          className="pr-10 text-right"
+          dir="rtl"
         />
       </div>
 
@@ -452,11 +379,11 @@ const BooksManager = () => {
                 title: b.title,
                 subtitle: b.author,
                 status: b.status || 'לקרוא',
-                statusOptions,
+                statusOptions: [{ value: 'לקרוא', label: 'לקרוא' }, { value: 'בקריאה', label: 'בקריאה' }, { value: 'נקרא', label: 'נקרא' }],
                 notes: parseBookNotes(b.notes).plainNotes,
-                meta: formatDateTime(b.updated_at, locale),
+                meta: formatDateTime(b.updated_at),
               }))}
-              emptyText={searchTerm ? copy.noResults : copy.empty}
+              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין ספרים עדיין'}
               onStatusChange={updateBookStatus}
               onDelete={deleteBook}
             />
@@ -467,11 +394,11 @@ const BooksManager = () => {
                 title: b.title,
                 subtitle: b.author,
                 status: b.status || 'לקרוא',
-                statusOptions,
+                statusOptions: [{ value: 'לקרוא', label: 'לקרוא' }, { value: 'בקריאה', label: 'בקריאה' }, { value: 'נקרא', label: 'נקרא' }],
                 notes: parseBookNotes(b.notes).plainNotes,
-                meta: formatDateTime(b.updated_at, locale),
+                meta: formatDateTime(b.updated_at),
               }))}
-              emptyText={searchTerm ? copy.noResults : copy.empty}
+              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין ספרים עדיין'}
               onStatusChange={updateBookStatus}
               onDelete={deleteBook}
             />
@@ -485,11 +412,11 @@ const BooksManager = () => {
                 notes: parseBookNotes(b.notes).plainNotes,
               }))}
               columns={[
-                { value: 'לקרוא', label: copy.toRead, color: 'bg-orange-500/15' },
-                { value: 'בקריאה', label: copy.reading, color: 'bg-blue-500/15' },
-                { value: 'נקרא', label: copy.read, color: 'bg-green-500/15' },
+                { value: 'לקרוא', label: 'לקרוא', color: 'bg-orange-500/15' },
+                { value: 'בקריאה', label: 'בקריאה', color: 'bg-blue-500/15' },
+                { value: 'נקרא', label: 'נקרא', color: 'bg-green-500/15' },
               ]}
-              emptyText={searchTerm ? copy.noResults : copy.empty}
+              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין ספרים עדיין'}
               onStatusChange={updateBookStatus}
               onDelete={deleteBook}
             />
@@ -501,7 +428,7 @@ const BooksManager = () => {
                 status: b.status || 'לקרוא',
                 subtitle: b.author,
               }))}
-              emptyText={searchTerm ? copy.noResults : copy.empty}
+              emptyText={searchTerm ? 'לא נמצאו תוצאות' : 'אין ספרים עדיין'}
               onDelete={deleteBook}
             />
           ) : (
@@ -509,21 +436,22 @@ const BooksManager = () => {
             <Table className="min-w-[700px] sm:min-w-[980px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-right min-w-[220px] sticky right-0 bg-card z-10">{copy.titleCol}</TableHead>
-                  <TableHead className="text-right">{copy.authorCol}</TableHead>
-                  <TableHead className="text-right">{copy.statusCol}</TableHead>
-                  <TableHead className="text-right">{copy.notesCol}</TableHead>
-                  <TableHead className="text-right">{copy.statusChangedCol}</TableHead>
-                  <TableHead className="text-right">{copy.createdCol}</TableHead>
-                  <TableHead className="text-right">{copy.updatedCol}</TableHead>
+                  <TableHead className="text-right min-w-[220px] sticky right-0 bg-card z-10">שם הספר</TableHead>
+                  <TableHead className="text-right">מחבר</TableHead>
+                  <TableHead className="text-right">סטטוס</TableHead>
+                  <TableHead className="text-right">הערות</TableHead>
+                  <TableHead className="text-right">שינוי סטטוס</TableHead>
+                  <TableHead className="text-right">נוצר</TableHead>
+                  <TableHead className="text-right">עודכן</TableHead>
+                  <TableHead className="text-right">פרטים</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredBooks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
-                      {searchTerm ? copy.noResults : copy.empty}
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      {searchTerm ? 'לא נמצאו תוצאות' : 'אין ספרים עדיין'}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -533,7 +461,7 @@ const BooksManager = () => {
                         <Input
                           defaultValue={book.title}
                           className="border-0 bg-transparent p-0 h-auto text-right font-medium focus-visible:ring-1 min-w-[120px] sm:min-w-[200px] text-sm sm:text-base"
-                          dir={dir}
+                          dir="rtl"
                           onBlur={(e) => {
                             const val = e.target.value.trim();
                             if (val && val !== book.title) {
@@ -550,7 +478,7 @@ const BooksManager = () => {
                           defaultValue={book.author || ''}
                           placeholder="-"
                           className="border-0 bg-transparent p-0 h-auto text-right focus-visible:ring-1"
-                          dir={dir}
+                          dir="rtl"
                           onBlur={(e) => {
                             const val = e.target.value.trim() || null;
                             if (val !== (book.author || null)) {
@@ -566,29 +494,35 @@ const BooksManager = () => {
                         <Select value={book.status || 'לקרוא'} onValueChange={(value) => updateBookStatus(book.id, value)}>
                           <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {statusOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                            ))}
+                            <SelectItem value="לקרוא">לקרוא</SelectItem>
+                            <SelectItem value="בקריאה">בקריאה</SelectItem>
+                            <SelectItem value="נקרא">נקרא</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
                       <TableCell>
                         <InlineNotesTextarea
-                          placeholder={copy.addNotes}
+                          placeholder="הוסף הערות..."
                           initialValue={parseBookNotes(book.notes).plainNotes}
                           onCommit={(val) => updateBookNotes(book.id, val)}
-                          className={`min-w-[150px] min-h-[60px] w-full resize-y ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
-                          dir={dir}
+                          className="min-w-[150px] text-right min-h-[60px] w-full resize-y"
+                          dir="rtl"
                         />
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                        {book.status_changed_at ? formatDateTime(book.status_changed_at, locale) : '-'}
+                        {book.status_changed_at ? formatDateTime(book.status_changed_at) : '-'}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                        {formatDateTime(book.created_at, locale)}
+                        {formatDateTime(book.created_at)}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                        {formatDateTime(book.updated_at, locale)}
+                        {formatDateTime(book.updated_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" className="gap-1" onClick={() => openBookDetail(book)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          פרטים
+                        </Button>
                       </TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => deleteBook(book.id)} className="text-destructive hover:text-destructive">
@@ -605,44 +539,45 @@ const BooksManager = () => {
       </div>
 
       <Dialog open={!!selectedBook} onOpenChange={(open) => { if (!open) setSelectedBook(null); }}>
-        <DialogContent className="max-w-4xl" dir={dir}>
+        <DialogContent className="max-w-4xl" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{isHebrew ? 'פרטי ספר מורחבים' : 'Extended Book Details'}</DialogTitle>
+            <DialogTitle>פרטי ספר מורחבים</DialogTitle>
           </DialogHeader>
           {selectedBook && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>{copy.titleCol}</Label>
-                  <Input value={selectedBook.title} onChange={(e) => setSelectedBook({ ...selectedBook, title: e.target.value })} dir={dir} />
+                  <Label>שם הספר</Label>
+                  <Input value={selectedBook.title} onChange={(e) => setSelectedBook({ ...selectedBook, title: e.target.value })} />
                 </div>
                 <div className="space-y-1">
-                  <Label>{copy.authorCol}</Label>
-                  <Input value={selectedBook.author || ""} onChange={(e) => setSelectedBook({ ...selectedBook, author: e.target.value || null })} dir={dir} />
+                  <Label>מחבר</Label>
+                  <Input value={selectedBook.author || ""} onChange={(e) => setSelectedBook({ ...selectedBook, author: e.target.value || null })} />
                 </div>
               </div>
+
               <div className="space-y-1">
-                <Label>{isHebrew ? 'סיכום גדול / מסקנות' : 'Long Summary / Key Takeaways'}</Label>
+                <Label>סיכום גדול / מסקנות</Label>
                 <Textarea
                   value={bookDetail.longSummary}
                   onChange={(e) => setBookDetail((prev) => ({ ...prev, longSummary: e.target.value }))}
                   className="min-h-[150px]"
-                  placeholder={isHebrew ? 'כאן אפשר לכתוב סיכום רחב, רעיונות מרכזיים, ציטוטים ומסקנות.' : 'Write a broader summary, key ideas, quotes, and conclusions here.'}
-                  dir={dir}
+                  placeholder="כאן אפשר לכתוב סיכום רחב, רעיונות מרכזיים, ציטוטים ומסקנות."
                 />
               </div>
+
               <div className="space-y-1">
-                <Label>{copy.notesCol}</Label>
+                <Label>הערות קצרות</Label>
                 <Textarea
                   value={bookDetail.plainNotes}
                   onChange={(e) => setBookDetail((prev) => ({ ...prev, plainNotes: e.target.value }))}
                   className="min-h-[100px]"
-                  dir={dir}
                 />
               </div>
+
               <div className="space-y-3 rounded-xl border border-border p-4">
                 <div className="flex items-center justify-between">
-                  <div className="font-semibold">{isHebrew ? 'פרקים / חלקים וסיכומים' : 'Chapters / Sections & Summaries'}</div>
+                  <div className="font-semibold">פרקים / חלקים וסיכומים</div>
                   <Button
                     size="sm"
                     variant="outline"
@@ -652,12 +587,12 @@ const BooksManager = () => {
                     }))}
                   >
                     <Plus className="h-4 w-4 ml-1" />
-                    {isHebrew ? 'הוסף פרק' : 'Add chapter'}
+                    הוסף פרק
                   </Button>
                 </div>
                 <div className="space-y-3 max-h-[280px] overflow-auto">
                   {bookDetail.chapterSummaries.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">{isHebrew ? 'אין עדיין פרקים או חלקים שמורים.' : 'No saved chapters or sections yet.'}</div>
+                    <div className="text-sm text-muted-foreground">אין עדיין פרקים או חלקים שמורים.</div>
                   ) : bookDetail.chapterSummaries.map((chapter, index) => (
                     <div key={index} className="rounded-lg border border-border p-3 space-y-2">
                       <Input
@@ -666,8 +601,7 @@ const BooksManager = () => {
                           ...prev,
                           chapterSummaries: prev.chapterSummaries.map((entry, i) => i === index ? { ...entry, title: e.target.value } : entry),
                         }))}
-                        placeholder={isHebrew ? 'שם פרק / חלק' : 'Chapter / section title'}
-                        dir={dir}
+                        placeholder="שם פרק / חלק"
                       />
                       <Textarea
                         value={chapter.summary}
@@ -675,9 +609,8 @@ const BooksManager = () => {
                           ...prev,
                           chapterSummaries: prev.chapterSummaries.map((entry, i) => i === index ? { ...entry, summary: e.target.value } : entry),
                         }))}
-                        placeholder={isHebrew ? 'סיכום הפרק' : 'Chapter summary'}
+                        placeholder="סיכום הפרק"
                         className="min-h-[90px]"
-                        dir={dir}
                       />
                       <div className="flex justify-end">
                         <Button
@@ -689,21 +622,25 @@ const BooksManager = () => {
                             chapterSummaries: prev.chapterSummaries.filter((_, i) => i !== index),
                           }))}
                         >
-                          {isHebrew ? 'מחק פרק' : 'Remove chapter'}
+                          מחק פרק
                         </Button>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
+
               <div className="text-xs text-muted-foreground grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>{copy.statusChangedCol}: {selectedBook.status_changed_at ? formatDateTime(selectedBook.status_changed_at, locale) : '-'}</div>
-                <div>{copy.createdCol}: {formatDateTime(selectedBook.created_at, locale)}</div>
-                <div>{copy.updatedCol}: {formatDateTime(selectedBook.updated_at, locale)}</div>
+                <div>שינוי סטטוס: {selectedBook.status_changed_at ? formatDateTime(selectedBook.status_changed_at) : '-'}</div>
+                <div>נוצר: {formatDateTime(selectedBook.created_at)}</div>
+                <div>עודכן: {formatDateTime(selectedBook.updated_at)}</div>
               </div>
+
               <DialogFooter>
-                <Button variant="outline" onClick={() => setSelectedBook(null)}>{isHebrew ? 'סגור' : 'Close'}</Button>
-                <Button onClick={saveBookDetail}>{isHebrew ? 'שמור שינויים' : 'Save changes'}</Button>
+                <Button variant="outline" onClick={() => setSelectedBook(null)}>סגור</Button>
+                <Button onClick={saveBookDetail}>
+                  שמור שינויים
+                </Button>
               </DialogFooter>
             </div>
           )}

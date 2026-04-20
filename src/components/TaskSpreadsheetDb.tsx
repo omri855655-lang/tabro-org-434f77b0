@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3 } from "lucide-react";
+import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2 } from "lucide-react";
 import { BOARD_THEMES, type BoardTheme } from "@/hooks/useCustomBoards";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDashboardDisplay, type DashboardViewMode } from "@/hooks/useDashboardDisplay";
@@ -79,6 +79,7 @@ type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "
 
 type TaskColumnKey =
   | "index"
+  | "details"
   | "description"
   | "category"
   | "responsible"
@@ -93,6 +94,7 @@ type TaskColumnKey =
 
 const TASK_TABLE_COLUMNS: Array<{ key: TaskColumnKey; label: string; defaultWidth: number }> = [
   { key: "index", label: "דחוף / #", defaultWidth: 90 },
+  { key: "details", label: "פרטים", defaultWidth: 110 },
   { key: "description", label: "תיאור המשימה", defaultWidth: 380 },
   { key: "category", label: "סיווג", defaultWidth: 120 },
   { key: "responsible", label: "אחריות", defaultWidth: 130 },
@@ -193,6 +195,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   });
   const [detailHistory, setDetailHistory] = useState<TaskEditHistoryEntry[]>([]);
   const [detailHistoryLoading, setDetailHistoryLoading] = useState(false);
+  const [fitTableToScreen, setFitTableToScreen] = useState(() => {
+    return localStorage.getItem(`task-table-fit-${taskType}`) === "true";
+  });
 
   useEffect(() => {
     if (!pendingScrollTaskId) return;
@@ -218,6 +223,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   useEffect(() => {
     localStorage.setItem(`task-table-widths-${taskType}`, JSON.stringify(columnWidths));
   }, [columnWidths, taskType]);
+
+  useEffect(() => {
+    localStorage.setItem(`task-table-fit-${taskType}`, fitTableToScreen ? "true" : "false");
+  }, [fitTableToScreen, taskType]);
 
   useEffect(() => {
     const tableNode = tableScrollRef.current;
@@ -659,10 +668,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const pendingCount = tasks.filter((t) => t.status === "טרם החל").length;
   const inProgressCount = tasks.filter((t) => t.status === "בטיפול").length;
   const completionRate = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const getEffectiveColumnWidth = useCallback((key: TaskColumnKey) => {
+    const baseWidth = columnWidths[key];
+    if (!fitTableToScreen) return baseWidth;
+    return Math.max(MIN_COLUMN_WIDTH, Math.round(baseWidth * 0.78));
+  }, [columnWidths, fitTableToScreen]);
+
   const getColumnStyle = useCallback((key: TaskColumnKey) => ({
-    width: columnWidths[key],
-    minWidth: columnWidths[key],
-  }), [columnWidths]);
+    width: getEffectiveColumnWidth(key),
+    minWidth: getEffectiveColumnWidth(key),
+  }), [getEffectiveColumnWidth]);
 
   // Editable cell with suggestions for description
   const EditableCellWithSuggestions = ({
@@ -1183,6 +1198,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             ייצוא
           </Button>
           {!readOnly && <FileImport onImport={handleImportTasks} label="ייבוא משימות" />}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setFitTableToScreen((prev) => !prev)}
+            title="ברירת המחדל נשארת כמו עכשיו. זה רק מצב תצוגה נוסף כדי לראות יותר על המסך."
+          >
+            {fitTableToScreen ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+            {fitTableToScreen ? "חזור לרוחב רגיל" : "התאם למסך"}
+          </Button>
           {/* View mode buttons */}
           <div className="flex items-center border rounded-md overflow-hidden h-8">
             {([
@@ -1223,6 +1248,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             </PopoverContent>
           </Popover>
         </div>
+        </div>
+        <div className="px-3 pb-2 text-[11px] text-muted-foreground">
+          אפשר לפתוח משימה עם דאבל־קליק על השורה או עם כפתור <span className="font-medium text-foreground">פרטים</span>. זה לא פוגע בעריכה הרגילה של השדות.
         </div>
         {/* Sticky category/column headers bar */}
         <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
@@ -1407,10 +1435,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           
             return (
             <div ref={tableScrollRef} data-task-table className="min-h-0 h-full overflow-auto scroll-smooth">
-              <table className="w-full border-collapse min-w-[1200px]">
+              <table className={`w-full border-collapse ${fitTableToScreen ? "min-w-full" : "min-w-[1200px]"}`}>
             <colgroup>
               {TASK_TABLE_COLUMNS.map((column) => (
-                <col key={column.key} style={{ width: columnWidths[column.key] }} />
+                <col key={column.key} style={{ width: getEffectiveColumnWidth(column.key) }} />
               ))}
             </colgroup>
             <thead className="sticky top-0 z-10">
@@ -1463,6 +1491,20 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         <Flame className={cn("h-3 w-3", task.urgent ? "text-white" : "text-muted-foreground")} />
                       </button>
                       <span>{rowIndex + 1}</span>
+                    </td>
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("details")}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailTask(task);
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        פרטים
+                      </Button>
                     </td>
                     <td className="px-3 py-2 text-sm" style={getColumnStyle("description")}>
                       {renderEditableCell(task.description, task.id, "description")}
