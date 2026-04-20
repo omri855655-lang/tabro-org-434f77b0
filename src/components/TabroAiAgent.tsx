@@ -14,6 +14,16 @@ interface Message {
   content: string;
 }
 
+interface AiAgentPreferences {
+  enabled: boolean;
+  dailyBriefingEnabled: boolean;
+  emailDigestEnabled: boolean;
+  newsBriefingEnabled: boolean;
+  reminderEnabled: boolean;
+  reminderTime: string;
+  newsTopics: string;
+}
+
 const ACTION_LABELS: Record<string, string> = {
   add_task: "המשימה נוספה בהצלחה",
   update_task: "המשימה עודכנה",
@@ -51,6 +61,15 @@ const TabroAiAgent = () => {
     clearAndArchive,
     loadConversation,
   } = useTabroAiHistory();
+  const [aiPrefs, setAiPrefs] = useState<AiAgentPreferences>({
+    enabled: true,
+    dailyBriefingEnabled: true,
+    emailDigestEnabled: true,
+    newsBriefingEnabled: false,
+    reminderEnabled: false,
+    reminderTime: "08:00",
+    newsTopics: "",
+  });
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const copy = isHebrew ? {
@@ -103,6 +122,25 @@ const TabroAiAgent = () => {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const loadAiPrefs = async () => {
+      const { data } = await supabase
+        .from("user_preferences")
+        .select("notification_settings")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const nextPrefs = (data?.notification_settings as any)?.ai;
+      if (nextPrefs) {
+        setAiPrefs((prev) => ({ ...prev, ...nextPrefs }));
+      }
+    };
+
+    void loadAiPrefs();
+  }, [user]);
+
   const clearChat = () => {
     if (messages.length === 0) return;
     clearAndArchive();
@@ -114,9 +152,10 @@ const TabroAiAgent = () => {
     setShowHistory(false);
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || !user || loading) return;
-    const userMsg: Message = { role: "user", content: input.trim() };
+  const sendMessage = async (overrideInput?: string) => {
+    const finalInput = (overrideInput ?? input).trim();
+    if (!finalInput || !user || loading) return;
+    const userMsg: Message = { role: "user", content: finalInput };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
@@ -129,6 +168,7 @@ const TabroAiAgent = () => {
           conversationHistory: newMessages.slice(-10).map(m => ({ role: m.role, content: m.content })),
           userId: user.id,
           userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          aiPreferences: aiPrefs,
         },
       });
 
@@ -146,6 +186,39 @@ const TabroAiAgent = () => {
     }
     setLoading(false);
   };
+
+  const queuePrompt = (prompt: string) => {
+    setInput(prompt);
+    if (!open) setOpen(true);
+  };
+
+  const runQuickPrompt = async (prompt: string) => {
+    if (!open) setOpen(true);
+    await sendMessage(prompt);
+  };
+
+  const quickPrompts = [
+    aiPrefs.dailyBriefingEnabled
+      ? (isHebrew
+          ? "תן לי תדריך בוקר מלא וקבוע על היום שלי: פוקוס עיקרי, משימות דחופות, אירועים, מיילים חשובים ודברים שדורשים החלטה."
+          : "Give me a structured morning briefing for today: main focus, urgent tasks, events, important emails, and decisions needed.")
+      : null,
+    aiPrefs.emailDigestEnabled
+      ? (isHebrew
+          ? "סכם לי את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, ומה הכי חשוב לטפל בו קודם."
+          : "Summarize the latest synced emails by category, what needs a reply, and what matters most first.")
+      : null,
+    aiPrefs.newsBriefingEnabled
+      ? (isHebrew
+          ? `בנה לי תדריך חדשות בוקר לפי תחומי העניין שלי: ${aiPrefs.newsTopics || "חדשות כלליות"}. אם אין לך פיד חדשות חי, תגיד לי בדיוק מה חסר כדי להשלים את זה.`
+          : `Build me a morning news briefing for my interests: ${aiPrefs.newsTopics || "general news"}. If no live news source is available, tell me exactly what's missing.`)
+      : null,
+    aiPrefs.reminderEnabled
+      ? (isHebrew
+          ? `תזכיר לי מה חשוב לי היום סביב ${aiPrefs.reminderTime}, ותן לי תדריך מסודר לקראת השעה הזו.`
+          : `Remind me what matters today around ${aiPrefs.reminderTime} and give me a structured prep briefing.`)
+      : null,
+  ].filter(Boolean) as string[];
 
   if (!user) return null;
 
@@ -204,6 +277,55 @@ const TabroAiAgent = () => {
             </div>
           )}
 
+          <div className="px-3 py-2 border-b border-border bg-muted/20">
+            <div className="grid grid-cols-2 gap-2">
+              {aiPrefs.dailyBriefingEnabled && (
+                <button
+                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                  onClick={() => void runQuickPrompt(isHebrew
+                    ? "תן לי עכשיו תדריך בוקר מלא וקבוע: פוקוס עיקרי, משימות דחופות, אירועים להיום, מיילים חשובים לפי קטגוריות, דברים שדורשים החלטה, ומה לעשות ראשון."
+                    : "Give me a structured morning briefing now: main focus, urgent tasks, today's events, important emails by category, decisions needed, and what to do first.")}
+                >
+                  <span className="block text-xs font-semibold">{isHebrew ? "תדריך היום" : "Today's briefing"}</span>
+                  <span className="block text-[10px] text-muted-foreground">{isHebrew ? "סדר יום, דחופים והמלצה מה קודם" : "Agenda, urgent items, and what to tackle first"}</span>
+                </button>
+              )}
+              {aiPrefs.emailDigestEnabled && (
+                <button
+                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                  onClick={() => void runQuickPrompt(isHebrew
+                    ? "סכם לי עכשיו את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, מה אפשר לדחות, ומה הכי חשוב לי לטפל בו קודם."
+                    : "Summarize the latest synced emails by category, what needs a reply, what can wait, and what I should handle first.")}
+                >
+                  <span className="block text-xs font-semibold">{isHebrew ? "סיכום מיילים" : "Email summary"}</span>
+                  <span className="block text-[10px] text-muted-foreground">{isHebrew ? "מה חשוב, מה דחוף, ומה ממתין" : "What's important, urgent, or waiting"}</span>
+                </button>
+              )}
+              {aiPrefs.newsBriefingEnabled && (
+                <button
+                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                  onClick={() => void runQuickPrompt(isHebrew
+                    ? `בנה לי תדריך חדשות בוקר לפי תחומי העניין שלי: ${aiPrefs.newsTopics || "חדשות כלליות"}. אם אין מקור חדשות חי, תגיד לי בקצרה מה חסר.`
+                    : `Build me a morning news briefing for my interests: ${aiPrefs.newsTopics || "general news"}. If no live source exists, briefly tell me what's missing.`)}
+                >
+                  <span className="block text-xs font-semibold">{isHebrew ? "תדריך חדשות" : "News briefing"}</span>
+                  <span className="block text-[10px] text-muted-foreground">{aiPrefs.newsTopics || (isHebrew ? "לא הוגדרו תחומים" : "No topics set")}</span>
+                </button>
+              )}
+              {aiPrefs.reminderEnabled && (
+                <button
+                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                  onClick={() => void runQuickPrompt(isHebrew
+                    ? `תן לי תזכורת מסודרת סביב ${aiPrefs.reminderTime}, כולל מה חשוב לי לא לפספס היום.`
+                    : `Give me a structured reminder around ${aiPrefs.reminderTime}, including what I shouldn't miss today.`)}
+                >
+                  <span className="block text-xs font-semibold">{isHebrew ? "תזכורת AI" : "AI reminder"}</span>
+                  <span className="block text-[10px] text-muted-foreground">{isHebrew ? `שמורה לשעה ${aiPrefs.reminderTime}` : `Saved for ${aiPrefs.reminderTime}`}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Messages */}
           <ScrollArea className="flex-1 p-3" ref={scrollRef}>
             <div className="space-y-3">
@@ -212,6 +334,11 @@ const TabroAiAgent = () => {
                   <Bot className="h-10 w-10 mx-auto text-primary/40" />
                   <p>{copy.hello}</p>
                   <p className="text-xs">{copy.intro}</p>
+                  <div className="text-[10px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 max-w-[270px] mx-auto">
+                    {aiPrefs.reminderEnabled
+                      ? (isHebrew ? `תזכורת ה-AI שלך שמורה לשעה ${aiPrefs.reminderTime}` : `Your AI reminder is saved for ${aiPrefs.reminderTime}`)
+                      : (isHebrew ? "אפשר להפעיל תזכורות ותדריכי AI מתוך ההגדרות" : "You can enable AI reminders and briefings in settings")}
+                  </div>
                   <div className="flex flex-wrap gap-1 justify-center mt-3">
                     {copy.suggestions.map(s => (
                       <button
@@ -223,6 +350,28 @@ const TabroAiAgent = () => {
                       </button>
                     ))}
                   </div>
+                  {quickPrompts.length > 0 && (
+                    <div className="space-y-2 mt-3">
+                      <p className="text-[10px] font-semibold text-muted-foreground">{isHebrew ? "קיצורי דרך לפי ההגדרות שלך" : "Quick actions from your settings"}</p>
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        {quickPrompts.map((prompt) => (
+                          <button
+                            key={prompt}
+                            className="text-[10px] px-2 py-1 rounded-full border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors"
+                            onClick={() => queuePrompt(prompt)}
+                          >
+                            {prompt.includes("מיילים") || prompt.includes("emails")
+                              ? (isHebrew ? "סיכום מיילים" : "Email summary")
+                              : prompt.includes("חדשות") || prompt.includes("news")
+                                ? (isHebrew ? "תדריך חדשות" : "News briefing")
+                                : prompt.includes("תזכיר") || prompt.includes("Remind")
+                                  ? (isHebrew ? "תזכורת יומית" : "Daily reminder")
+                                  : (isHebrew ? "תדריך היום" : "Today's briefing")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {messages.map((msg, i) => (

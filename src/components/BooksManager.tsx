@@ -18,17 +18,48 @@ import CardsView from '@/components/views/CardsView';
 import KanbanView from '@/components/views/KanbanView';
 import CompactView from '@/components/views/CompactView';
 import { useLanguage } from '@/hooks/useLanguage';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 interface Book {
   id: string;
   title: string;
   author: string | null;
+  long_summary: string | null;
   status: string | null;
   notes: string | null;
   updated_at: string;
   created_at: string;
   status_changed_at: string | null;
 }
+
+interface ParsedBookNotes {
+  plainNotes: string;
+  longSummary: string;
+  chapterSummaries: Array<{ title: string; summary: string }>;
+}
+
+const parseBookNotes = (notes: string | null): ParsedBookNotes => {
+  if (!notes) return { plainNotes: "", longSummary: "", chapterSummaries: [] };
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && typeof parsed === "object") {
+      return {
+        plainNotes: typeof parsed.plainNotes === "string" ? parsed.plainNotes : "",
+        longSummary: typeof parsed.longSummary === "string" ? parsed.longSummary : "",
+        chapterSummaries: Array.isArray(parsed.chapterSummaries) ? parsed.chapterSummaries.filter(Boolean) : [],
+      };
+    }
+  } catch {}
+  return { plainNotes: notes, longSummary: "", chapterSummaries: [] };
+};
 
 const formatDateTime = (dateStr: string, locale: string) => {
   if (!dateStr) return '-';
@@ -45,6 +76,8 @@ const BooksManager = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [newBook, setNewBook] = useState({ title: '', author: '' });
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [bookDetail, setBookDetail] = useState<ParsedBookNotes>({ plainNotes: "", longSummary: "", chapterSummaries: [] });
   const isHebrew = lang === 'he';
   const locale = ({ he: 'he-IL', en: 'en-US', es: 'es-ES', zh: 'zh-CN', ar: 'ar-SA', ru: 'ru-RU' } as const)[lang];
   const copy = isHebrew ? {
@@ -149,6 +182,7 @@ const BooksManager = () => {
       user_id: user?.id,
       title: newBook.title,
       author: newBook.author || null,
+      long_summary: null,
       status: 'לקרוא',
     });
 
@@ -189,6 +223,112 @@ const BooksManager = () => {
 
     setBooks((prev) => prev.map((b) => (b.id === id ? { ...b, notes } : b)));
   };
+
+  const openBookDetail = (book: Book) => {
+    const parsed = parseBookNotes(book.notes);
+    setSelectedBook(book);
+    setBookDetail({
+      plainNotes: parsed.plainNotes,
+      longSummary: book.long_summary || parsed.longSummary,
+      chapterSummaries: parsed.chapterSummaries,
+    });
+  };
+
+  const saveBookDetail = async () => {
+    if (!selectedBook || !user) return;
+
+    const plainNotes = bookDetail.plainNotes.trim();
+    const longSummary = bookDetail.longSummary.trim();
+    const chapterRows = bookDetail.chapterSummaries
+      .map((chapter, index) => ({
+        user_id: user.id,
+        book_id: selectedBook.id,
+        chapter_title: chapter.title.trim() || null,
+        summary: chapter.summary.trim() || null,
+        sort_order: index,
+      }))
+      .filter((chapter) => chapter.chapter_title || chapter.summary);
+
+    const { error: bookError } = await supabase
+      .from('books')
+      .update({
+        title: selectedBook.title,
+        author: selectedBook.author || null,
+        notes: plainNotes || null,
+        long_summary: longSummary || null,
+      })
+      .eq('id', selectedBook.id);
+
+    if (bookError) {
+      toast.error('שגיאה בשמירת פרטי הספר');
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from('book_chapter_summaries')
+      .delete()
+      .eq('book_id', selectedBook.id);
+
+    if (deleteError) {
+      toast.error('שגיאה בעדכון פרקי הספר');
+      return;
+    }
+
+    if (chapterRows.length > 0) {
+      const { error: chapterError } = await supabase
+        .from('book_chapter_summaries')
+        .insert(chapterRows);
+
+      if (chapterError) {
+        toast.error('שגיאה בשמירת פרקי הספר');
+        return;
+      }
+    }
+
+    setBooks(prev => prev.map((book) => (
+      book.id === selectedBook.id
+        ? {
+            ...book,
+            title: selectedBook.title,
+            author: selectedBook.author || null,
+            notes: plainNotes || null,
+            long_summary: longSummary || null,
+          }
+        : book
+    )));
+    setSelectedBook(null);
+    toast.success('פרטי הספר נשמרו');
+  };
+
+  useEffect(() => {
+    if (!selectedBook) return;
+
+    let cancelled = false;
+
+    const loadChapterSummaries = async () => {
+      const { data, error } = await supabase
+        .from('book_chapter_summaries')
+        .select('chapter_title, summary, sort_order')
+        .eq('book_id', selectedBook.id)
+        .order('sort_order', { ascending: true });
+
+      if (cancelled || error || !data || data.length === 0) return;
+
+      setBookDetail((prev) => ({
+        ...prev,
+        chapterSummaries: data.map((chapter) => ({
+          title: chapter.chapter_title || '',
+          summary: chapter.summary || '',
+        })),
+      }));
+    };
+
+    void loadChapterSummaries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBook]);
 
   const deleteBook = async (id: string) => {
     const book = books.find(b => b.id === id);
@@ -259,7 +399,7 @@ const BooksManager = () => {
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          books.map(b => ({ title: b.title, author: b.author || '', status: b.status || '', notes: b.notes || '' })),
+          books.map(b => ({ title: b.title, author: b.author || '', status: b.status || '', notes: parseBookNotes(b.notes).plainNotes || '' })),
           [{ key: 'title', label: copy.titleCol }, { key: 'author', label: copy.authorCol }, { key: 'status', label: copy.statusCol }, { key: 'notes', label: copy.notesCol }],
           copy.sheetName
         )}>
@@ -313,7 +453,7 @@ const BooksManager = () => {
                 subtitle: b.author,
                 status: b.status || 'לקרוא',
                 statusOptions,
-                notes: b.notes,
+                notes: parseBookNotes(b.notes).plainNotes,
                 meta: formatDateTime(b.updated_at, locale),
               }))}
               emptyText={searchTerm ? copy.noResults : copy.empty}
@@ -328,7 +468,7 @@ const BooksManager = () => {
                 subtitle: b.author,
                 status: b.status || 'לקרוא',
                 statusOptions,
-                notes: b.notes,
+                notes: parseBookNotes(b.notes).plainNotes,
                 meta: formatDateTime(b.updated_at, locale),
               }))}
               emptyText={searchTerm ? copy.noResults : copy.empty}
@@ -342,7 +482,7 @@ const BooksManager = () => {
                 title: b.title,
                 subtitle: b.author,
                 status: b.status || 'לקרוא',
-                notes: b.notes,
+                notes: parseBookNotes(b.notes).plainNotes,
               }))}
               columns={[
                 { value: 'לקרוא', label: copy.toRead, color: 'bg-orange-500/15' },
@@ -388,7 +528,7 @@ const BooksManager = () => {
                   </TableRow>
                 ) : (
                   filteredBooks.map((book) => (
-                    <TableRow key={book.id}>
+                    <TableRow key={book.id} onDoubleClick={() => openBookDetail(book)}>
                       <TableCell className="font-medium text-right min-w-[140px] sm:min-w-[220px] sticky right-0 bg-card z-10 max-w-[200px] sm:max-w-none">
                         <Input
                           defaultValue={book.title}
@@ -435,7 +575,7 @@ const BooksManager = () => {
                       <TableCell>
                         <InlineNotesTextarea
                           placeholder={copy.addNotes}
-                          initialValue={book.notes}
+                          initialValue={parseBookNotes(book.notes).plainNotes}
                           onCommit={(val) => updateBookNotes(book.id, val)}
                           className={`min-w-[150px] min-h-[60px] w-full resize-y ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
                           dir={dir}
@@ -463,6 +603,112 @@ const BooksManager = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={!!selectedBook} onOpenChange={(open) => { if (!open) setSelectedBook(null); }}>
+        <DialogContent className="max-w-4xl" dir={dir}>
+          <DialogHeader>
+            <DialogTitle>{isHebrew ? 'פרטי ספר מורחבים' : 'Extended Book Details'}</DialogTitle>
+          </DialogHeader>
+          {selectedBook && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>{copy.titleCol}</Label>
+                  <Input value={selectedBook.title} onChange={(e) => setSelectedBook({ ...selectedBook, title: e.target.value })} dir={dir} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{copy.authorCol}</Label>
+                  <Input value={selectedBook.author || ""} onChange={(e) => setSelectedBook({ ...selectedBook, author: e.target.value || null })} dir={dir} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>{isHebrew ? 'סיכום גדול / מסקנות' : 'Long Summary / Key Takeaways'}</Label>
+                <Textarea
+                  value={bookDetail.longSummary}
+                  onChange={(e) => setBookDetail((prev) => ({ ...prev, longSummary: e.target.value }))}
+                  className="min-h-[150px]"
+                  placeholder={isHebrew ? 'כאן אפשר לכתוב סיכום רחב, רעיונות מרכזיים, ציטוטים ומסקנות.' : 'Write a broader summary, key ideas, quotes, and conclusions here.'}
+                  dir={dir}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{copy.notesCol}</Label>
+                <Textarea
+                  value={bookDetail.plainNotes}
+                  onChange={(e) => setBookDetail((prev) => ({ ...prev, plainNotes: e.target.value }))}
+                  className="min-h-[100px]"
+                  dir={dir}
+                />
+              </div>
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold">{isHebrew ? 'פרקים / חלקים וסיכומים' : 'Chapters / Sections & Summaries'}</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBookDetail((prev) => ({
+                      ...prev,
+                      chapterSummaries: [...prev.chapterSummaries, { title: "", summary: "" }],
+                    }))}
+                  >
+                    <Plus className="h-4 w-4 ml-1" />
+                    {isHebrew ? 'הוסף פרק' : 'Add chapter'}
+                  </Button>
+                </div>
+                <div className="space-y-3 max-h-[280px] overflow-auto">
+                  {bookDetail.chapterSummaries.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">{isHebrew ? 'אין עדיין פרקים או חלקים שמורים.' : 'No saved chapters or sections yet.'}</div>
+                  ) : bookDetail.chapterSummaries.map((chapter, index) => (
+                    <div key={index} className="rounded-lg border border-border p-3 space-y-2">
+                      <Input
+                        value={chapter.title}
+                        onChange={(e) => setBookDetail((prev) => ({
+                          ...prev,
+                          chapterSummaries: prev.chapterSummaries.map((entry, i) => i === index ? { ...entry, title: e.target.value } : entry),
+                        }))}
+                        placeholder={isHebrew ? 'שם פרק / חלק' : 'Chapter / section title'}
+                        dir={dir}
+                      />
+                      <Textarea
+                        value={chapter.summary}
+                        onChange={(e) => setBookDetail((prev) => ({
+                          ...prev,
+                          chapterSummaries: prev.chapterSummaries.map((entry, i) => i === index ? { ...entry, summary: e.target.value } : entry),
+                        }))}
+                        placeholder={isHebrew ? 'סיכום הפרק' : 'Chapter summary'}
+                        className="min-h-[90px]"
+                        dir={dir}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setBookDetail((prev) => ({
+                            ...prev,
+                            chapterSummaries: prev.chapterSummaries.filter((_, i) => i !== index),
+                          }))}
+                        >
+                          {isHebrew ? 'מחק פרק' : 'Remove chapter'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>{copy.statusChangedCol}: {selectedBook.status_changed_at ? formatDateTime(selectedBook.status_changed_at, locale) : '-'}</div>
+                <div>{copy.createdCol}: {formatDateTime(selectedBook.created_at, locale)}</div>
+                <div>{copy.updatedCol}: {formatDateTime(selectedBook.updated_at, locale)}</div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSelectedBook(null)}>{isHebrew ? 'סגור' : 'Close'}</Button>
+                <Button onClick={saveBookDetail}>{isHebrew ? 'שמור שינויים' : 'Save changes'}</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

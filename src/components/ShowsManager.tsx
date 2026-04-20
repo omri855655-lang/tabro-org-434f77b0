@@ -21,6 +21,15 @@ import CardsView from '@/components/views/CardsView';
 import KanbanView from '@/components/views/KanbanView';
 import CompactView from '@/components/views/CompactView';
 import { useLanguage } from '@/hooks/useLanguage';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 interface Show {
   id: string;
@@ -36,6 +45,32 @@ interface Show {
   created_at: string;
   status_changed_at: string | null;
 }
+
+interface ShowEpisodeNote {
+  season: number;
+  episode: number;
+  title: string;
+  summary: string;
+}
+
+interface ParsedShowNotes {
+  plainNotes: string;
+  episodeNotes: ShowEpisodeNote[];
+}
+
+const parseShowNotes = (notes: string | null): ParsedShowNotes => {
+  if (!notes) return { plainNotes: "", episodeNotes: [] };
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.episodeNotes)) {
+      return {
+        plainNotes: typeof parsed.plainNotes === "string" ? parsed.plainNotes : "",
+        episodeNotes: parsed.episodeNotes.filter(Boolean),
+      };
+    }
+  } catch {}
+  return { plainNotes: notes, episodeNotes: [] };
+};
 
 const formatDateTime = (dateStr: string, locale: string) => {
   if (!dateStr) return '-';
@@ -70,6 +105,8 @@ const ShowsManager = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [selectedShow, setSelectedShow] = useState<Show | null>(null);
+  const [showDetail, setShowDetail] = useState<ParsedShowNotes>({ plainNotes: "", episodeNotes: [] });
   const isHebrew = lang === 'he';
   const locale = ({ he: 'he-IL', en: 'en-US', es: 'es-ES', zh: 'zh-CN', ar: 'ar-SA', ru: 'ru-RU' } as const)[lang];
   const copy = isHebrew ? {
@@ -241,6 +278,127 @@ const ShowsManager = () => {
     }
   };
 
+  const openShowDetail = (show: Show) => {
+    const parsed = parseShowNotes(show.notes);
+    setSelectedShow(show);
+    setShowDetail({
+      plainNotes: parsed.plainNotes,
+      episodeNotes: parsed.episodeNotes,
+    });
+  };
+
+  const saveShowDetail = async () => {
+    if (!selectedShow || !user) return;
+
+    const plainNotes = showDetail.plainNotes.trim();
+    const episodeRows = showDetail.episodeNotes
+      .map((note, index) => ({
+        user_id: user.id,
+        show_id: selectedShow.id,
+        season_number: note.season || 1,
+        episode_number: note.episode || 1,
+        episode_title: note.title.trim() || null,
+        summary: note.summary.trim() || null,
+        sort_order: index,
+      }))
+      .filter((note) => note.episode_title || note.summary);
+
+    const { error: showError } = await supabase
+      .from('shows')
+      .update({
+        notes: plainNotes || null,
+        current_season: selectedShow.current_season,
+        current_episode: selectedShow.current_episode,
+        title: selectedShow.title,
+        category: selectedShow.category,
+        status: selectedShow.status,
+      })
+      .eq('id', selectedShow.id);
+
+    if (showError) {
+      toast.error(isHebrew ? 'שגיאה בשמירת פרטי הסדרה/הסרט' : 'Error saving show details');
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from('show_episode_notes')
+      .delete()
+      .eq('show_id', selectedShow.id);
+
+    if (deleteError) {
+      toast.error(isHebrew ? 'שגיאה בעדכון פרקי הסדרה' : 'Error updating episode notes');
+      return;
+    }
+
+    if (episodeRows.length > 0) {
+      const { error: episodeError } = await supabase
+        .from('show_episode_notes')
+        .insert(episodeRows);
+
+      if (episodeError) {
+        toast.error(isHebrew ? 'שגיאה בשמירת פרקי הסדרה' : 'Error saving episode notes');
+        return;
+      }
+    }
+
+    setShows((prev) => prev.map((show) => (
+      show.id === selectedShow.id
+        ? {
+            ...show,
+            title: selectedShow.title,
+            category: selectedShow.category,
+            status: selectedShow.status,
+            notes: plainNotes || null,
+            current_season: selectedShow.current_season,
+            current_episode: selectedShow.current_episode,
+          }
+        : show
+    )));
+    setSelectedShow(null);
+    toast.success(isHebrew ? 'פרטי הסדרה/הסרט נשמרו' : 'Show details saved');
+  };
+
+  useEffect(() => {
+    if (!selectedShow || selectedShow.type !== 'סדרה') return;
+
+    let cancelled = false;
+
+    const loadEpisodeNotes = async () => {
+      const { data, error } = await supabase
+        .from('show_episode_notes')
+        .select('season_number, episode_number, episode_title, summary, sort_order')
+        .eq('show_id', selectedShow.id)
+        .order('sort_order', { ascending: true });
+
+      if (cancelled || error || !data || data.length === 0) return;
+
+      setShowDetail((prev) => ({
+        ...prev,
+        episodeNotes: data.map((note) => ({
+          season: note.season_number || 1,
+          episode: note.episode_number || 1,
+          title: note.episode_title || '',
+          summary: note.summary || '',
+        })),
+      }));
+    };
+
+    void loadEpisodeNotes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedShow]);
+
+  const addEpisodeNote = () => {
+    const season = selectedShow?.current_season || 1;
+    const episode = (selectedShow?.current_episode || 0) + 1;
+    setShowDetail((prev) => ({
+      ...prev,
+      episodeNotes: [...prev.episodeNotes, { season, episode, title: "", summary: "" }],
+    }));
+  };
+
   const deleteShow = async (id: string) => {
     const show = shows.find(s => s.id === id);
     if (!show) return;
@@ -346,7 +504,7 @@ const ShowsManager = () => {
         <div className="flex-1" />
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          shows.map(s => ({ title: s.title, type: s.type || '', status: s.status || '', category: s.category || '', season: s.current_season, episode: s.current_episode, notes: s.notes || '' })),
+          shows.map(s => ({ title: s.title, type: s.type || '', status: s.status || '', category: s.category || '', season: s.current_season, episode: s.current_episode, notes: parseShowNotes(s.notes).plainNotes || '' })),
           [{ key: 'title', label: copy.nameCol }, { key: 'type', label: copy.typeCol }, { key: 'status', label: copy.statusCol }, { key: 'category', label: copy.categoryCol }, { key: 'season', label: copy.seasonCol }, { key: 'episode', label: copy.episodeCol }, { key: 'notes', label: copy.notesCol }],
           copy.sheetName
         )}>
@@ -487,7 +645,7 @@ const ShowsManager = () => {
                 subtitle: `${getTypeLabel(s.type)}${s.category ? ` • ${s.category}` : ''}`,
                 status: s.status || 'לצפות',
                 statusOptions,
-                notes: s.notes,
+                notes: parseShowNotes(s.notes).plainNotes,
                 meta: s.current_season ? `${copy.seasonCol} ${s.current_season} • ${copy.episodeCol} ${s.current_episode || '?'}` : undefined,
               }))}
               emptyText={searchTerm ? copy.noResults : copy.empty}
@@ -502,7 +660,7 @@ const ShowsManager = () => {
                 subtitle: `${getTypeLabel(s.type)}${s.category ? ` • ${s.category}` : ''}`,
                 status: s.status || 'לצפות',
                 statusOptions,
-                notes: s.notes,
+                notes: parseShowNotes(s.notes).plainNotes,
                 meta: s.current_season ? `${copy.seasonCol} ${s.current_season} • ${copy.episodeCol} ${s.current_episode || '?'}` : undefined,
               }))}
               emptyText={searchTerm ? copy.noResults : copy.empty}
@@ -516,7 +674,7 @@ const ShowsManager = () => {
                 title: s.title,
                 subtitle: `${getTypeLabel(s.type)}${s.category ? ` • ${s.category}` : ''}`,
                 status: s.status || 'לצפות',
-                notes: s.notes,
+                notes: parseShowNotes(s.notes).plainNotes,
               }))}
               columns={[
                 { value: 'לצפות', label: copy.toWatch, color: 'bg-orange-500/15' },
@@ -566,7 +724,7 @@ const ShowsManager = () => {
                   </TableRow>
                 ) : (
                   filteredAndSorted.map((show) => (
-                    <TableRow key={show.id}>
+                    <TableRow key={show.id} onDoubleClick={() => openShowDetail(show)}>
                       <TableCell className="font-medium">
                         <Input
                           defaultValue={show.title}
@@ -618,7 +776,7 @@ const ShowsManager = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <InlineNotesTextarea placeholder={copy.addNotes} initialValue={show.notes} onCommit={(val) => updateShow(show.id, { notes: val })} className={`min-w-[150px] min-h-[50px] w-full resize-y text-xs ${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir} />
+                        <InlineNotesTextarea placeholder={copy.addNotes} initialValue={parseShowNotes(show.notes).plainNotes} onCommit={(val) => updateShow(show.id, { notes: val })} className={`min-w-[150px] min-h-[50px] w-full resize-y text-xs ${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir} />
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{formatDateTime(show.created_at, locale)}</TableCell>
                       <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{show.status_changed_at ? formatDateTime(show.status_changed_at, locale) : '-'}</TableCell>
@@ -636,6 +794,149 @@ const ShowsManager = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={!!selectedShow} onOpenChange={(open) => { if (!open) setSelectedShow(null); }}>
+        <DialogContent className="max-w-4xl" dir={dir}>
+          <DialogHeader>
+            <DialogTitle>{isHebrew ? 'פרטי סדרה / סרט' : 'Show / Movie Details'}</DialogTitle>
+          </DialogHeader>
+          {selectedShow && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>{copy.nameCol}</Label>
+                  <Input value={selectedShow.title} onChange={(e) => setSelectedShow({ ...selectedShow, title: e.target.value })} dir={dir} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{copy.categoryCol}</Label>
+                  <Input value={selectedShow.category || ""} onChange={(e) => setSelectedShow({ ...selectedShow, category: e.target.value || null })} dir={dir} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label>{copy.typeCol}</Label>
+                  <Input value={getTypeLabel(selectedShow.type)} disabled dir={dir} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{copy.statusCol}</Label>
+                  <Select value={selectedShow.status || "לצפות"} onValueChange={(value) => setSelectedShow({ ...selectedShow, status: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>{copy.seasonCol}</Label>
+                  <Input type="number" min="1" value={selectedShow.current_season ?? ""} onChange={(e) => setSelectedShow({ ...selectedShow, current_season: parseNullableNumber(e.target.value) })} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{copy.episodeCol}</Label>
+                  <Input type="number" min="1" value={selectedShow.current_episode ?? ""} onChange={(e) => setSelectedShow({ ...selectedShow, current_episode: parseNullableNumber(e.target.value) })} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>{isHebrew ? 'סיכום כללי / הערות' : 'General summary / notes'}</Label>
+                <Textarea
+                  value={showDetail.plainNotes}
+                  onChange={(e) => setShowDetail((prev) => ({ ...prev, plainNotes: e.target.value }))}
+                  className="min-h-[100px]"
+                  dir={dir}
+                />
+              </div>
+
+              {selectedShow.type === 'סדרה' && (
+                <div className="space-y-3 rounded-xl border border-border p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold">{isHebrew ? 'פרקים וסיכומים' : 'Episodes & Summaries'}</div>
+                    <Button size="sm" variant="outline" onClick={addEpisodeNote}>
+                      <Plus className="h-4 w-4 ml-1" />
+                      {isHebrew ? 'הוסף פרק' : 'Add episode'}
+                    </Button>
+                  </div>
+                  <div className="space-y-3 max-h-[320px] overflow-auto">
+                    {showDetail.episodeNotes.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">{isHebrew ? 'אין עדיין פרקים שמורים.' : 'No saved episode notes yet.'}</div>
+                    ) : showDetail.episodeNotes.map((episode, index) => (
+                      <div key={index} className="rounded-lg border border-border p-3 space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            value={episode.season}
+                            onChange={(e) => setShowDetail((prev) => ({
+                              ...prev,
+                              episodeNotes: prev.episodeNotes.map((entry, i) => i === index ? { ...entry, season: Number(e.target.value) || 1 } : entry),
+                            }))}
+                            placeholder={copy.seasonCol}
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            value={episode.episode}
+                            onChange={(e) => setShowDetail((prev) => ({
+                              ...prev,
+                              episodeNotes: prev.episodeNotes.map((entry, i) => i === index ? { ...entry, episode: Number(e.target.value) || 1 } : entry),
+                            }))}
+                            placeholder={copy.episodeCol}
+                          />
+                          <Input
+                            value={episode.title}
+                            onChange={(e) => setShowDetail((prev) => ({
+                              ...prev,
+                              episodeNotes: prev.episodeNotes.map((entry, i) => i === index ? { ...entry, title: e.target.value } : entry),
+                            }))}
+                            placeholder={isHebrew ? 'שם הפרק' : 'Episode title'}
+                            dir={dir}
+                          />
+                        </div>
+                        <Textarea
+                          value={episode.summary}
+                          onChange={(e) => setShowDetail((prev) => ({
+                            ...prev,
+                            episodeNotes: prev.episodeNotes.map((entry, i) => i === index ? { ...entry, summary: e.target.value } : entry),
+                          }))}
+                          placeholder={isHebrew ? 'סיכום הפרק' : 'Episode summary'}
+                          className="min-h-[90px]"
+                          dir={dir}
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={() => setShowDetail((prev) => ({
+                              ...prev,
+                              episodeNotes: prev.episodeNotes.filter((_, i) => i !== index),
+                            }))}
+                          >
+                            {isHebrew ? 'מחק פרק' : 'Remove episode'}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>{copy.airDateCol}: {selectedShow.air_date ? new Date(selectedShow.air_date).toLocaleDateString(locale) : '-'}</div>
+                <div>{copy.createdCol}: {formatDateTime(selectedShow.created_at, locale)}</div>
+                <div>{copy.updatedCol}: {formatDateTime(selectedShow.updated_at, locale)}</div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSelectedShow(null)}>{isHebrew ? 'סגור' : 'Close'}</Button>
+                <Button onClick={saveShowDetail}>{isHebrew ? 'שמור שינויים' : 'Save changes'}</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

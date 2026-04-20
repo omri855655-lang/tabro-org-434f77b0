@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Clock, Moon, Mail, Smartphone, MessageCircle, Volume2, VolumeX, Plus, X, CalendarClock } from "lucide-react";
+import { Clock, Moon, Mail, Smartphone, MessageCircle, Volume2, VolumeX, Plus, X, CalendarClock, Bot, Newspaper, Inbox } from "lucide-react";
 import { toast } from "sonner";
 
 interface ChannelSettings {
@@ -27,6 +27,16 @@ interface PlannerSettings {
   invitationsEnabled: boolean;
 }
 
+interface AiSettings {
+  enabled: boolean;
+  dailyBriefingEnabled: boolean;
+  emailDigestEnabled: boolean;
+  newsBriefingEnabled: boolean;
+  reminderEnabled: boolean;
+  reminderTime: string;
+  newsTopics: string;
+}
+
 interface NotifPrefs {
   email: ChannelSettings;
   push: ChannelSettings;
@@ -36,6 +46,7 @@ interface NotifPrefs {
   quietHoursEnabled: boolean;
   dailyLimit: number;
   planner: PlannerSettings;
+  ai: AiSettings;
 }
 
 type ChannelKey = "email" | "push" | "telegram";
@@ -55,6 +66,15 @@ const DEFAULT_PREFS: NotifPrefs = {
     completionEnabled: true,
     reminderMinutes: [1, 10, 60],
     invitationsEnabled: true,
+  },
+  ai: {
+    enabled: true,
+    dailyBriefingEnabled: true,
+    emailDigestEnabled: true,
+    newsBriefingEnabled: false,
+    reminderEnabled: false,
+    reminderTime: "08:00",
+    newsTopics: "",
   },
 };
 
@@ -124,6 +144,15 @@ const normalizePrefs = (raw?: Partial<NotifPrefs> | null): NotifPrefs => ({
       ? [...new Set(raw.planner.reminderMinutes.filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b)
       : DEFAULT_PREFS.planner.reminderMinutes,
     invitationsEnabled: raw?.planner?.invitationsEnabled ?? DEFAULT_PREFS.planner.invitationsEnabled,
+  },
+  ai: {
+    enabled: raw?.ai?.enabled ?? DEFAULT_PREFS.ai.enabled,
+    dailyBriefingEnabled: raw?.ai?.dailyBriefingEnabled ?? DEFAULT_PREFS.ai.dailyBriefingEnabled,
+    emailDigestEnabled: raw?.ai?.emailDigestEnabled ?? DEFAULT_PREFS.ai.emailDigestEnabled,
+    newsBriefingEnabled: raw?.ai?.newsBriefingEnabled ?? DEFAULT_PREFS.ai.newsBriefingEnabled,
+    reminderEnabled: raw?.ai?.reminderEnabled ?? DEFAULT_PREFS.ai.reminderEnabled,
+    reminderTime: raw?.ai?.reminderTime || DEFAULT_PREFS.ai.reminderTime,
+    newsTopics: raw?.ai?.newsTopics || DEFAULT_PREFS.ai.newsTopics,
   },
 });
 
@@ -377,6 +406,102 @@ const NotificationSettings = () => {
                   </Badge>
                 ))}
               </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-primary" />
+              תדריכי AI ותזכורות
+            </div>
+            <Switch
+              checked={prefs.ai.enabled}
+              onCheckedChange={(checked) => {
+                save({ ...prefs, ai: { ...prefs.ai, enabled: checked } });
+                toast.success(checked ? "פיצ'רי ה-AI הופעלו" : "פיצ'רי ה-AI בוטלו");
+              }}
+            />
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">כאן מגדירים מה תרצה שסוכן ה-AI יכין עבורך: תדריך יומי, סיכום מיילים ותדריך חדשות לפי תחומי עניין.</p>
+        </CardHeader>
+
+        {prefs.ai.enabled && (
+          <CardContent className="space-y-4 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => save({ ...prefs, ai: { ...prefs.ai, dailyBriefingEnabled: !prefs.ai.dailyBriefingEnabled } })}
+                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.dailyBriefingEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <Bot className="h-3.5 w-3.5" />
+                  תדריך מלא על היום
+                </div>
+              </button>
+              <button
+                onClick={() => save({ ...prefs, ai: { ...prefs.ai, emailDigestEnabled: !prefs.ai.emailDigestEnabled } })}
+                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.emailDigestEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <Inbox className="h-3.5 w-3.5" />
+                  סיכום מיילים מסונכרנים
+                </div>
+              </button>
+              <button
+                onClick={() => save({ ...prefs, ai: { ...prefs.ai, newsBriefingEnabled: !prefs.ai.newsBriefingEnabled } })}
+                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.newsBriefingEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <Newspaper className="h-3.5 w-3.5" />
+                  תדריך חדשות בוקר
+                </div>
+              </button>
+              <button
+                onClick={() => save({ ...prefs, ai: { ...prefs.ai, reminderEnabled: !prefs.ai.reminderEnabled } })}
+                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.reminderEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5" />
+                  תזכורת קבועה ל-AI
+                </div>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">שעת תזכורת/תדריך</Label>
+                <Select
+                  value={prefs.ai.reminderTime}
+                  onValueChange={(v) => save({ ...prefs, ai: { ...prefs.ai, reminderTime: v } })}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HOURS.map((h) => (
+                      <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">תחומי עניין לחדשות</Label>
+                <Input
+                  value={prefs.ai.newsTopics}
+                  onChange={(e) => save({ ...prefs, ai: { ...prefs.ai, newsTopics: e.target.value } })}
+                  placeholder="למשל: טכנולוגיה, כלכלה, בריאות, ספורט"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
+              <p>התדריכים נשמרים עכשיו כהעדפה למשתמש, והסוכן יכול להשתמש בהם בתוך הממשק כבר עכשיו.</p>
+              <p>חדשות בזמן אמת יופעלו בצורה מלאה ברגע שנחבר מקור חדשות חיצוני, אבל כבר עכשיו אפשר לשמור תחומי עניין ופורמט.</p>
             </div>
           </CardContent>
         )}

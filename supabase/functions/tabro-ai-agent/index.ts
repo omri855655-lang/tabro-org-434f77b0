@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { message, conversationHistory, userId, userTimezone } = await req.json();
+    const { message, conversationHistory, userId, userTimezone, aiPreferences } = await req.json();
     const timezone = userTimezone || "Asia/Jerusalem";
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -21,14 +21,26 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch user profile for memory/personalization
-    const profileRes = await supabase.from("profiles").select("first_name, last_name, display_name, username, preferred_language").eq("user_id", userId).single();
+    const [profileRes, prefsRes, emailAnalysesRes, taskHistoryRes, showEpisodeNotesRes, bookChapterSummariesRes] = await Promise.all([
+      supabase.from("profiles").select("first_name, last_name, display_name, username, preferred_language").eq("user_id", userId).single(),
+      supabase.from("user_preferences").select("notification_settings").eq("user_id", userId).maybeSingle(),
+      supabase.from("email_analyses").select("email_subject, email_from, email_date, category, is_processed").eq("user_id", userId).order("email_date", { ascending: false }).limit(25),
+      supabase.from("task_edit_history").select("task_id, action_type, edited_by_name, edited_by_email, created_at, changed_count").eq("task_user_id", userId).order("created_at", { ascending: false }).limit(20),
+      supabase.from("show_episode_notes").select("show_id, season_number, episode_number, episode_title, summary").eq("user_id", userId).order("updated_at", { ascending: false }).limit(120),
+      supabase.from("book_chapter_summaries").select("book_id, chapter_title, summary").eq("user_id", userId).order("updated_at", { ascending: false }).limit(120),
+    ]);
     const profile = profileRes.data;
     const userName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.username || "";
+    const resolvedAiPreferences = aiPreferences || prefsRes.data?.notification_settings?.ai || null;
+    const recentEmails = emailAnalysesRes.data || [];
+    const recentTaskEdits = taskHistoryRes.data || [];
+    const showEpisodeNotes = showEpisodeNotesRes.data || [];
+    const bookChapterSummaries = bookChapterSummariesRes.data || [];
 
     // Fetch ALL context data for the user
     const [tasksRes, booksRes, projectsRes, eventsRes, showsRes, coursesRes, shoppingRes, podcastsRes, boardsRes, boardItemsRes, dreamGoalsRes, notesRes, paymentsRes] = await Promise.all([
       supabase.from("tasks").select("id, description, status, task_type, category, responsible, planned_end, sheet_name, urgent, overdue").eq("user_id", userId).eq("archived", false).limit(200),
-      supabase.from("books").select("id, title, author, status, notes").eq("user_id", userId).limit(200),
+      supabase.from("books").select("id, title, author, status, notes, long_summary").eq("user_id", userId).limit(200),
       supabase.from("projects").select("id, title, description, status, target_date").eq("user_id", userId).limit(50),
       supabase.from("calendar_events").select("id, title, start_time, end_time, category, description, color").eq("user_id", userId).order("start_time", { ascending: false }).limit(100),
       supabase.from("shows").select("id, title, status, type, current_season, current_episode").eq("user_id", userId).limit(100),
@@ -67,6 +79,7 @@ serve(async (req) => {
     const totalIncome = payments.filter(p => p.payment_type === "income").reduce((s, p) => s + p.amount, 0);
     const balance = totalIncome - totalExpenses;
     const unpaidExpenses = payments.filter(p => p.payment_type === "expense" && !p.paid).reduce((s, p) => s + p.amount, 0);
+    const allTasks = tasksRes.data || [];
 
     // Use the user's local timezone
     const userNow = new Date(new Date().toLocaleString("en-US", { timeZone: timezone }));
@@ -80,6 +93,21 @@ serve(async (req) => {
     const offsetHours = Math.round(offsetMs / (1000 * 60 * 60));
     const offsetSign = offsetHours >= 0 ? "+" : "-";
     const tzOffset = `${offsetSign}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
+    const urgentTasks = allTasks.filter((task: any) => task.urgent || task.overdue).slice(0, 8);
+    const tasksDueToday = allTasks.filter((task: any) => task.planned_end === today && task.status !== "בוצע").slice(0, 8);
+    const todayEvents = (eventsRes.data || []).filter((event: any) => (event.start_time || "").startsWith(today)).slice(0, 10);
+    const emailCategorySummary = Object.entries(
+      recentEmails.reduce((acc: Record<string, { total: number; pending: number }>, email: any) => {
+        const key = email.category || "לא מסווג";
+        if (!acc[key]) acc[key] = { total: 0, pending: 0 };
+        acc[key].total += 1;
+        if (!email.is_processed) acc[key].pending += 1;
+        return acc;
+      }, {})
+    )
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([category, stats]) => `- ${category}: ${stats.total} מיילים (${stats.pending} ממתינים)`)
+      .join('\n');
 
     const systemPrompt = `אתה Tabro AI - עוזר חכם עם שליטה מלאה באפליקציה. אתה מדבר עברית.
 ${userName ? `\n## המשתמש שלך: ${userName}\nתמיד זכור את השם הזה ופנה אליו בשמו כשמתאים.\n` : ''}
@@ -92,7 +120,7 @@ ${(tasksRes.data || []).filter(t => t.task_type === 'work').map(t => `- [ID:${t.
 ${(tasksRes.data || []).filter(t => t.task_type === 'personal').map(t => `- [ID:${t.id}] "${t.description}" | סטטוס: ${t.status} | קטגוריה: ${t.category || '-'} | מועד: ${t.planned_end || '-'} | גליון: ${t.sheet_name || '-'}`).join('\n')}
 
 ### ספרים (${(booksRes.data || []).length}):
-${(booksRes.data || []).map(b => `- [ID:${b.id}] "${b.title}" מאת ${b.author || '-'} | סטטוס: ${b.status}`).join('\n')}
+${(booksRes.data || []).map(b => `- [ID:${b.id}] "${b.title}" מאת ${b.author || '-'} | סטטוס: ${b.status}${b.long_summary ? ' | יש סיכום מורחב' : ''}`).join('\n')}
 
 ### פרויקטים (${(projectsRes.data || []).length}):
 ${(projectsRes.data || []).map(p => {
@@ -148,6 +176,38 @@ ${(notesRes.data || []).map((n: any) => `- [ID:${n.id}] "${n.title}" | ${n.conte
 תשלומים (${payments.length}):
 ${payments.slice(0, 50).map(p => `- [ID:${p.id}] "${p.title}" | ${p.payment_type === 'income' ? '+' : '-'}${p.amount} ${p.currency} | ${p.paid ? 'שולם' : 'לא שולם'} | ${p.category || '-'}${p.recurring ? ' (חוזר)' : ''}`).join('\n')}
 
+### מיילים מסונכרנים אחרונים (${recentEmails.length}):
+${recentEmails.map((email: any) => `- "${email.email_subject || '(ללא נושא)'}" | מאת: ${email.email_from || '-'} | קטגוריה: ${email.category || '-'} | תאריך: ${email.email_date || '-'}${email.is_processed ? ' | טופל' : ' | ממתין'}`).join('\n')}
+
+### סיכום מיילים לפי קטגוריות:
+${emailCategorySummary || 'אין עדיין מספיק מיילים מסונכרנים כדי לבנות קטגוריות.'}
+
+### תמונת בוקר מהירה:
+- משימות דחופות / באיחור: ${urgentTasks.length}
+${urgentTasks.map((task: any) => `  - "${task.description}" | סטטוס: ${task.status}${task.overdue ? ' | באיחור' : ''}${task.urgent ? ' | דחוף' : ''}`).join('\n')}
+- משימות להיום: ${tasksDueToday.length}
+${tasksDueToday.map((task: any) => `  - "${task.description}" | קטגוריה: ${task.category || '-'} | אחראי: ${task.responsible || '-'}`).join('\n')}
+- אירועים להיום: ${todayEvents.length}
+${todayEvents.map((event: any) => `  - "${event.title}" | ${event.start_time} עד ${event.end_time} | קטגוריה: ${event.category || '-'}`).join('\n')}
+
+### יומן עריכות אחרון במשימות (${recentTaskEdits.length}):
+${recentTaskEdits.map((entry: any) => `- ${entry.action_type} | משימה ${entry.task_id} | ${entry.changed_count || 0} שדות | על ידי ${entry.edited_by_name || entry.edited_by_email || 'לא ידוע'} | ${entry.created_at}`).join('\n')}
+
+### סיכומי פרקי סדרות (${showEpisodeNotes.length}):
+${showEpisodeNotes.slice(0, 30).map((episode: any) => `- סדרה ${episode.show_id} | עונה ${episode.season_number} פרק ${episode.episode_number}${episode.episode_title ? ` | ${episode.episode_title}` : ''}${episode.summary ? ` | סיכום: ${episode.summary.slice(0, 80)}` : ''}`).join('\n')}
+
+### סיכומי פרקי/חלקי ספרים (${bookChapterSummaries.length}):
+${bookChapterSummaries.slice(0, 30).map((chapter: any) => `- ספר ${chapter.book_id}${chapter.chapter_title ? ` | ${chapter.chapter_title}` : ''}${chapter.summary ? ` | סיכום: ${chapter.summary.slice(0, 80)}` : ''}`).join('\n')}
+
+### העדפות AI של המשתמש:
+${resolvedAiPreferences ? `
+- תדריך יומי: ${resolvedAiPreferences.dailyBriefingEnabled ? 'פעיל' : 'כבוי'}
+- סיכום מיילים: ${resolvedAiPreferences.emailDigestEnabled ? 'פעיל' : 'כבוי'}
+- תדריך חדשות: ${resolvedAiPreferences.newsBriefingEnabled ? 'פעיל' : 'כבוי'}
+- תזכורת AI קבועה: ${resolvedAiPreferences.reminderEnabled ? `פעילה בשעה ${resolvedAiPreferences.reminderTime || '08:00'}` : 'כבויה'}
+- תחומי עניין לחדשות: ${resolvedAiPreferences.newsTopics || 'לא הוגדרו'}
+` : 'אין העדפות AI שמורות.'}
+
 התאריך היום: ${today}
 השעה עכשיו (שעון ישראל): ${currentTime}
 אזור הזמן: Asia/Jerusalem (${tzOffset})
@@ -196,7 +256,7 @@ ${payments.slice(0, 50).map(p => `- [ID:${p.id}] "${p.title}" | ${p.payment_type
 
 עדכון סטטוס ספר:
 \`\`\`action
-{"type":"update_book","book_id":"UUID","status":"קורא"}
+{"type":"update_book","book_id":"UUID","status":"בקריאה"}
 \`\`\`
 
 פריט קניות:
@@ -283,7 +343,10 @@ ${payments.slice(0, 50).map(p => `- [ID:${p.id}] "${p.title}" | ${p.payment_type
 15. כשמבקשים לכתוב פתק - השתמש ב-add_note. אפשר גם לעדכן פתקים קיימים.
 16. כשהמשתמש אומר "קניתי משהו ב-X שקל" או "הוצאתי X" - הוסף הוצאה עם add_payment. נסה לזהות את הקטגוריה המתאימה.
 17. כשהמשתמש שואל על המצב הפיננסי - ענה מנתוני התשלומים שלמעלה.
-18. אל תשתמש באימוג'ים. תענה בטקסט נקי ומקצועי.`;
+18. אל תשתמש באימוג'ים. תענה בטקסט נקי ומקצועי.
+19. כשהמשתמש מבקש תדריך יומי או תדריך בוקר - תן תבנית קבועה ומסודרת: (1) פוקוס עיקרי להיום, (2) משימות דחופות/באיחור, (3) אירועים להיום, (4) מיילים חשובים לפי קטגוריות, (5) דברים שדורשים החלטה, (6) המלצה מה לעשות ראשון.
+20. כשהמשתמש מבקש סיכום מיילים - ענה אך ורק מתוך המיילים המסונכרנים שלמעלה, ועדיף לקבץ לפי קטגוריות, ממתינים לטיפול, ומה אפשר לדחות.
+21. כשהמשתמש מבקש חדשות חיות ואין לך מקור חדשות אמיתי בנתונים - אל תמציא. אמור בצורה ברורה שחסר חיבור לפיד חדשות חי, אבל אפשר כבר להכין פורמט תדריך לפי תחומי העניין השמורים.`;
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -461,7 +524,7 @@ async function executeAction(supabase: any, userId: string, action: any): Promis
           responsible: action.responsible || null,
           planned_end: action.planned_end || null,
           urgent: action.urgent || false,
-          status: action.status || "לא התחיל",
+          status: action.status || "טרם החל",
           sheet_name: action.sheet_name || String(new Date().getFullYear()),
           creator_name: "Tabro AI",
           creator_username: "tabro-ai",

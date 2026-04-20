@@ -11,7 +11,6 @@ import CardsView from "@/components/views/CardsView";
 import KanbanView from "@/components/views/KanbanView";
 import CompactView from "@/components/views/CompactView";
 import { useAuth } from "@/hooks/useAuth";
-import { taskHeaders } from "@/data/initialTasks";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -34,7 +33,8 @@ import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import SheetSharingDialog from "@/components/SheetSharingDialog";
 import FileImport from "@/components/FileImport";
 import ItemDetailDialog from "@/components/ItemDetailDialog";
-import { useLanguage } from "@/hooks/useLanguage";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface TaskSpreadsheetDbProps {
   title: string;
@@ -44,6 +44,17 @@ interface TaskSpreadsheetDbProps {
   fixedSheetName?: string | null;
   fixedSheetOwnerId?: string;
   ownerDisplayName?: string;
+}
+
+interface TaskEditHistoryEntry {
+  id: string;
+  action_type: string;
+  changed_count: number;
+  changed_fields: Record<string, { from?: unknown; to?: unknown }>;
+  created_at: string;
+  edited_by_email: string | null;
+  edited_by_name: string | null;
+  edited_by_username: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -64,160 +75,63 @@ const statusOrder: Record<string, number> = {
   "בוצע": 2,
 };
 
-const getTaskThemeStyles = (theme: BoardTheme) => {
-  const base = {
-    shell: "bg-background",
-    topBar: "bg-card border-b border-border",
-    toolbar: "bg-muted/30 border-b border-border",
-    accentBar: "bg-muted/50 border-t border-border/50",
-    panel: "bg-card border border-border shadow-sm",
-    card: "bg-card border border-border shadow-sm",
-    tableHeader: "bg-muted",
-    rowHover: "hover:bg-accent/30",
-  };
-
-  switch (theme) {
-    case "gradient":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-primary/5 via-background to-accent/5",
-        topBar: "bg-background/90 backdrop-blur border-b border-primary/15",
-        toolbar: "bg-primary/5 border-b border-primary/10 backdrop-blur",
-        accentBar: "bg-accent/5 border-t border-primary/10",
-        panel: "bg-card/85 backdrop-blur border border-primary/15 shadow-lg",
-        card: "bg-card/90 backdrop-blur border border-primary/15 shadow-md",
-        tableHeader: "bg-primary/5",
-        rowHover: "hover:bg-primary/5",
-      };
-    case "dark":
-      return {
-        ...base,
-        shell: "bg-zinc-950 text-zinc-100",
-        topBar: "bg-zinc-900 border-b border-zinc-800",
-        toolbar: "bg-zinc-900/95 border-b border-zinc-800",
-        accentBar: "bg-zinc-900 border-t border-zinc-800 text-zinc-400",
-        panel: "bg-zinc-900 border border-zinc-800 shadow-lg",
-        card: "bg-zinc-900 border border-zinc-800 shadow-md",
-        tableHeader: "bg-zinc-900",
-        rowHover: "hover:bg-zinc-800/70",
-      };
-    case "pastel":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-pink-50/50 via-background to-amber-50/40 dark:from-pink-950/10 dark:to-amber-950/10",
-        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-pink-200/40 dark:border-pink-800/20",
-        toolbar: "bg-pink-50/50 dark:bg-pink-950/10 border-b border-pink-200/30 dark:border-pink-800/20",
-        accentBar: "bg-amber-50/50 dark:bg-amber-950/10 border-t border-pink-200/30 dark:border-pink-800/20",
-        panel: "bg-white/90 dark:bg-card/90 border border-pink-200/40 dark:border-pink-800/30 shadow-sm",
-        card: "bg-white/90 dark:bg-card/90 border border-pink-200/40 dark:border-pink-800/30 shadow-sm",
-        tableHeader: "bg-pink-50/60 dark:bg-pink-950/10",
-        rowHover: "hover:bg-pink-50/50 dark:hover:bg-pink-950/10",
-      };
-    case "ocean":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-cyan-50/40 via-background to-sky-50/50 dark:from-cyan-950/10 dark:to-sky-950/10",
-        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-cyan-200/40 dark:border-cyan-800/20",
-        toolbar: "bg-cyan-50/50 dark:bg-cyan-950/10 border-b border-cyan-200/30 dark:border-cyan-800/20",
-        accentBar: "bg-sky-50/60 dark:bg-sky-950/10 border-t border-cyan-200/30 dark:border-cyan-800/20",
-        panel: "bg-white/90 dark:bg-card/90 border border-cyan-200/40 dark:border-cyan-800/30 shadow-sm",
-        card: "bg-white/90 dark:bg-card/90 border border-cyan-200/40 dark:border-cyan-800/30 shadow-sm",
-        tableHeader: "bg-cyan-50/60 dark:bg-cyan-950/10",
-        rowHover: "hover:bg-cyan-50/50 dark:hover:bg-cyan-950/10",
-      };
-    case "forest":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-emerald-50/40 via-background to-lime-50/40 dark:from-emerald-950/10 dark:to-lime-950/10",
-        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-emerald-200/40 dark:border-emerald-800/20",
-        toolbar: "bg-emerald-50/50 dark:bg-emerald-950/10 border-b border-emerald-200/30 dark:border-emerald-800/20",
-        accentBar: "bg-lime-50/50 dark:bg-lime-950/10 border-t border-emerald-200/30 dark:border-emerald-800/20",
-        panel: "bg-white/90 dark:bg-card/90 border border-emerald-200/40 dark:border-emerald-800/30 shadow-sm",
-        card: "bg-white/90 dark:bg-card/90 border border-emerald-200/40 dark:border-emerald-800/30 shadow-sm",
-        tableHeader: "bg-emerald-50/60 dark:bg-emerald-950/10",
-        rowHover: "hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10",
-      };
-    case "sunset":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-orange-50/40 via-background to-rose-50/50 dark:from-orange-950/10 dark:to-rose-950/10",
-        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-orange-200/40 dark:border-orange-800/20",
-        toolbar: "bg-orange-50/50 dark:bg-orange-950/10 border-b border-orange-200/30 dark:border-orange-800/20",
-        accentBar: "bg-rose-50/50 dark:bg-rose-950/10 border-t border-orange-200/30 dark:border-orange-800/20",
-        panel: "bg-white/90 dark:bg-card/90 border border-orange-200/40 dark:border-orange-800/30 shadow-sm",
-        card: "bg-white/90 dark:bg-card/90 border border-orange-200/40 dark:border-orange-800/30 shadow-sm",
-        tableHeader: "bg-orange-50/60 dark:bg-orange-950/10",
-        rowHover: "hover:bg-orange-50/50 dark:hover:bg-orange-950/10",
-      };
-    case "notion":
-      return {
-        ...base,
-        shell: "bg-background",
-        topBar: "bg-background border-b border-border",
-        toolbar: "bg-background border-b border-border",
-        accentBar: "bg-muted/30 border-t border-border/60 text-muted-foreground",
-        panel: "bg-background border border-border shadow-none",
-        card: "bg-background border border-border shadow-none",
-        tableHeader: "bg-background",
-        rowHover: "hover:bg-muted/40",
-      };
-    case "trello":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-blue-600/10 via-background to-sky-500/10",
-        topBar: "bg-blue-600 text-white border-b border-blue-700",
-        toolbar: "bg-blue-50/80 dark:bg-blue-950/20 border-b border-blue-200/30 dark:border-blue-900/30",
-        accentBar: "bg-white/70 dark:bg-card/70 border-t border-blue-200/30 dark:border-blue-900/30",
-        panel: "bg-white/90 dark:bg-card border border-blue-200/40 dark:border-blue-900/30 shadow-sm",
-        card: "bg-white dark:bg-card border-0 shadow-md",
-        tableHeader: "bg-blue-50/70 dark:bg-blue-950/10",
-        rowHover: "hover:bg-blue-50/60 dark:hover:bg-blue-950/10",
-      };
-    case "glass":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-primary/10 via-background to-accent/10",
-        topBar: "bg-white/45 dark:bg-white/5 backdrop-blur-xl border-b border-white/20 dark:border-white/10",
-        toolbar: "bg-white/35 dark:bg-white/5 backdrop-blur-xl border-b border-white/20 dark:border-white/10",
-        accentBar: "bg-white/25 dark:bg-white/5 backdrop-blur-xl border-t border-white/20 dark:border-white/10",
-        panel: "bg-white/35 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg",
-        card: "bg-white/40 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-md",
-        tableHeader: "bg-white/30 dark:bg-white/5 backdrop-blur-xl",
-        rowHover: "hover:bg-white/30 dark:hover:bg-white/5",
-      };
-    case "minimal":
-      return {
-        ...base,
-        shell: "bg-background",
-        topBar: "bg-background border-b border-border/50",
-        toolbar: "bg-background border-b border-border/50",
-        accentBar: "bg-background border-t border-border/50 text-muted-foreground",
-        panel: "bg-transparent border border-border/40 shadow-none",
-        card: "bg-transparent border border-border/40 shadow-none",
-        tableHeader: "bg-background",
-        rowHover: "hover:bg-muted/20",
-      };
-    case "colorful":
-      return {
-        ...base,
-        shell: "bg-gradient-to-br from-blue-50/30 via-background to-purple-50/30 dark:from-blue-950/10 dark:to-purple-950/10",
-        topBar: "bg-white/90 dark:bg-card/90 backdrop-blur border-b border-blue-200/30 dark:border-blue-800/20",
-        toolbar: "bg-gradient-to-r from-blue-50/70 to-purple-50/70 dark:from-blue-950/10 dark:to-purple-950/10 border-b border-blue-200/30 dark:border-blue-800/20",
-        accentBar: "bg-gradient-to-r from-cyan-50/60 to-violet-50/60 dark:from-cyan-950/10 dark:to-violet-950/10 border-t border-blue-200/30 dark:border-blue-800/20",
-        panel: "bg-white/90 dark:bg-card/90 border border-blue-200/40 dark:border-blue-800/30 shadow-sm",
-        card: "bg-white/95 dark:bg-card/90 border border-blue-200/40 dark:border-blue-800/30 shadow-md",
-        tableHeader: "bg-gradient-to-r from-blue-50/70 to-purple-50/70 dark:from-blue-950/10 dark:to-purple-950/10",
-        rowHover: "hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-      };
-    default:
-      return base;
-  }
-};
-
 type SortOption = "none" | "status" | "plannedEnd" | "overdue" | "createdAt" | "urgent";
 
+type TaskColumnKey =
+  | "index"
+  | "description"
+  | "category"
+  | "responsible"
+  | "status"
+  | "statusNotes"
+  | "progress"
+  | "plannedEnd"
+  | "overdue"
+  | "createdAt"
+  | "updatedAt"
+  | "ai";
+
+const TASK_TABLE_COLUMNS: Array<{ key: TaskColumnKey; label: string; defaultWidth: number }> = [
+  { key: "index", label: "דחוף / #", defaultWidth: 90 },
+  { key: "description", label: "תיאור המשימה", defaultWidth: 380 },
+  { key: "category", label: "סיווג", defaultWidth: 120 },
+  { key: "responsible", label: "אחריות", defaultWidth: 130 },
+  { key: "status", label: "סטטוס", defaultWidth: 130 },
+  { key: "statusNotes", label: "היכן זה עומד", defaultWidth: 240 },
+  { key: "progress", label: "משימות שבוצעו", defaultWidth: 240 },
+  { key: "plannedEnd", label: "סיום מתוכנן", defaultWidth: 130 },
+  { key: "overdue", label: "חריגה", defaultWidth: 90 },
+  { key: "createdAt", label: "נוצר", defaultWidth: 150 },
+  { key: "updatedAt", label: "עודכן", defaultWidth: 150 },
+  { key: "ai", label: "AI", defaultWidth: 200 },
+];
+
+const MIN_COLUMN_WIDTH = 72;
+const MAX_COLUMN_WIDTH = 520;
+
+const TASK_HISTORY_LABELS: Record<string, string> = {
+  description: "תיאור המשימה",
+  category: "סיווג",
+  responsible: "אחריות",
+  status: "סטטוס",
+  status_notes: "היכן זה עומד",
+  progress: "משימות שבוצעו",
+  planned_end: "סיום מתוכנן",
+  overdue: "חריגה",
+  urgent: "דחוף",
+  archived: "ארכוב",
+  sheet_name: "גליון",
+};
+
+const TASK_ACTION_LABELS: Record<string, string> = {
+  created: "יצירה",
+  updated: "עריכה",
+  archived: "ארכוב",
+  restored: "שחזור",
+  deleted: "מחיקה",
+};
+
 const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
-  const { lang, dir } = useLanguage();
   const isSharedSheet = !!fixedSheetOwnerId;
   const [sharedCollapsed, setSharedCollapsed] = useState(false);
   const { user } = useAuth();
@@ -247,200 +161,38 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [mentalDialogOpen, setMentalDialogOpen] = useState(false);
   const [mentalTask, setMentalTask] = useState<Task | null>(null);
   const [sharingDialogOpen, setSharingDialogOpen] = useState(false);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickyHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingScrollRef = useRef<"table" | "header" | null>(null);
   const [pendingScrollTaskId, setPendingScrollTaskId] = useState<string | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<TaskColumnKey, number>>(() => {
+    const defaults = TASK_TABLE_COLUMNS.reduce((acc, column) => {
+      acc[column.key] = column.defaultWidth;
+      return acc;
+    }, {} as Record<TaskColumnKey, number>);
+
+    try {
+      const raw = localStorage.getItem(`task-table-widths-${taskType}`);
+      if (!raw) return defaults;
+      const parsed = JSON.parse(raw);
+      return TASK_TABLE_COLUMNS.reduce((acc, column) => {
+        const value = Number(parsed?.[column.key]);
+        acc[column.key] = Number.isFinite(value)
+          ? Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, value))
+          : defaults[column.key];
+        return acc;
+      }, {} as Record<TaskColumnKey, number>);
+    } catch {
+      return defaults;
+    }
+  });
+  const [activeResize, setActiveResize] = useState<{ key: TaskColumnKey; startX: number; startWidth: number } | null>(null);
   const [hideCreatorInfo, setHideCreatorInfo] = useState(() => {
     return localStorage.getItem("hide-creator-info") === "true";
   });
-  const taskThemeStyles = getTaskThemeStyles(dashTheme as BoardTheme);
-  const isHebrew = lang === "he";
-  const copy = isHebrew ? {
-    loading: "טוען משימות...",
-    creatorFrom: "משותף מ:",
-    readOnly: "צפייה בלבד",
-    editMode: "עריכה",
-    showCreator: "הצג יוצר",
-    hideCreator: "הסתר יוצר",
-    showCreatorEditor: "הצג יוצר/עורך",
-    hideCreatorEditor: "הסתר יוצר/עורך",
-    done: "בוצע",
-    notStarted: "טרם החל",
-    inProgress: "בטיפול",
-    completionRate: "אחוז ביצוע:",
-    newTask: "משימה חדשה",
-    deleteTask: "מחק משימה",
-    sort: "מיון",
-    noSort: "ללא מיון",
-    byStatus: "לפי סטטוס",
-    byPlannedEnd: "לפי סיום מתוכנן",
-    byCreatedAt: "לפי תאריך יצירה",
-    byOverdue: "לפי חריגה",
-    byUrgent: "לפי דחיפות",
-    export: "ייצוא",
-    importTasks: "ייבוא משימות",
-    design: "עיצוב",
-    chooseDesign: "בחר עיצוב",
-    table: "טבלה",
-    list: "רשימה",
-    cards: "כרטיסים",
-    kanban: "קנבן",
-    compact: "קומפקט",
-    timeline: "ציר זמן",
-    summary: "סיכום מנהלים",
-    deep: "Deep Work",
-    stickyUrgent: "דחוף / #",
-    stickyDescription: "תיאור המשימה",
-    stickyCategory: "סיווג",
-    stickyResponsible: "אחריות",
-    stickyStatus: "סטטוס",
-    stickyProgress: "היכן זה עומד",
-    stickyCompleted: "משימות שבוצעו",
-    stickyPlanned: "סיום מתוכנן",
-    stickyOverdue: "חריגה",
-    stickyCreated: "נוצר",
-    stickyUpdated: "עודכן",
-    stickyAi: "AI",
-    noArchivedTasks: "אין משימות בארכיון",
-    noCompletedTasks: "אין משימות שבוצעו",
-    noTasksYet: "אין משימות עדיין",
-    addFirstTask: "הוסף משימה ראשונה",
-    similarTasks: "משימות דומות:",
-    shareError: "שגיאה בפתיחת שיתוף הגליון",
-    share: "שתף",
-    createSheetLogin: "יש להתחבר כדי ליצור גליון חדש",
-    sheetCreated: "נוצר בהצלחה",
-    sheetDeleted: "נמחק בהצלחה",
-    deleteSheetError: "שגיאה במחיקת הגליון",
-    moveTaskSuccess: "המשימה הועברה לגליון",
-    moveTaskError: "שגיאה בהעברת משימה",
-    archived: "המשימה הועברה לארכיון",
-    restored: "המשימה הוחזרה מהארכיון",
-    archiveError: "שגיאה בארכוב משימה",
-    aiNeedDescription: "נא להזין תיאור משימה לפני בקשת עזרה מ-AI",
-    aiNoResponse: "לא התקבלה תגובה מה-AI",
-    aiError: "שגיאה בקבלת עזרה מ-AI",
-    aiActionHelp: "AI",
-    aiActionMental: "מנטלי",
-    aiActionArchive: "ארכיון",
-    aiActionRestore: "שחזור",
-    aiActionMove: "שנה",
-    cancelUrgent: "בטל דחיפות",
-    markUrgent: "סמן כדחוף",
-    timelineTitle: "Timeline + Kanban",
-    timelineDesc: "ציר זמן לפי תאריך יעד, עם מעבר מהיר בין עומסים, משימות דחופות והשלמות.",
-    noDateBucket: "ללא תאריך יעד",
-    todayBucket: "היום",
-    weekBucket: "השבוע הקרוב",
-    laterBucket: "בהמשך",
-    overdueBucket: "באיחור",
-    items: "פריטים",
-    summaryTitle: "Executive Summary",
-    summaryDesc: "מבט-על מהיר על עומסים, צווארי בקבוק, בעלי אחריות ומשימות שדורשות תשומת לב.",
-    urgentFocus: "מה דורש תשומת לב עכשיו",
-    bottlenecks: "צווארי בקבוק",
-    topOwners: "חלוקת אחריות",
-    overdueItems: "משימות באיחור",
-    emptySummary: "אין מספיק משימות להצגת סיכום עדיין",
-    deepTitle: "Deep Work",
-    deepDesc: "רשימת פוקוס שקטה למשימות שכדאי לסיים עכשיו בלי הסחות דעת.",
-    primaryFocus: "פוקוס ראשי",
-    secondaryQueue: "תור משני",
-    quietBoard: "לוח שקט",
-    noFocusTasks: "אין כרגע משימות לפוקוס עמוק",
-  } : {
-    loading: "Loading tasks...",
-    creatorFrom: "Shared from:",
-    readOnly: "Read only",
-    editMode: "Editing",
-    showCreator: "Show creator",
-    hideCreator: "Hide creator",
-    showCreatorEditor: "Show creator/editor",
-    hideCreatorEditor: "Hide creator/editor",
-    done: "Done",
-    notStarted: "Not started",
-    inProgress: "In progress",
-    completionRate: "Completion rate:",
-    newTask: "New task",
-    deleteTask: "Delete task",
-    sort: "Sort",
-    noSort: "No sort",
-    byStatus: "By status",
-    byPlannedEnd: "By planned end",
-    byCreatedAt: "By created date",
-    byOverdue: "By overdue",
-    byUrgent: "By urgency",
-    export: "Export",
-    importTasks: "Import tasks",
-    design: "Design",
-    chooseDesign: "Choose design",
-    table: "Table",
-    list: "List",
-    cards: "Cards",
-    kanban: "Kanban",
-    compact: "Compact",
-    timeline: "Timeline",
-    summary: "Executive Summary",
-    deep: "Deep Work",
-    stickyUrgent: "Urgent / #",
-    stickyDescription: "Task description",
-    stickyCategory: "Category",
-    stickyResponsible: "Responsible",
-    stickyStatus: "Status",
-    stickyProgress: "Progress notes",
-    stickyCompleted: "Completed work",
-    stickyPlanned: "Planned end",
-    stickyOverdue: "Overdue",
-    stickyCreated: "Created",
-    stickyUpdated: "Updated",
-    stickyAi: "AI",
-    noArchivedTasks: "No archived tasks",
-    noCompletedTasks: "No completed tasks",
-    noTasksYet: "No tasks yet",
-    addFirstTask: "Add your first task",
-    similarTasks: "Similar tasks:",
-    shareError: "Error opening sheet sharing",
-    share: "Share",
-    createSheetLogin: "You need to sign in to create a new sheet",
-    sheetCreated: "created successfully",
-    sheetDeleted: "deleted successfully",
-    deleteSheetError: "Error deleting sheet",
-    moveTaskSuccess: "Task moved to sheet",
-    moveTaskError: "Error moving task",
-    archived: "Task moved to archive",
-    restored: "Task restored from archive",
-    archiveError: "Error archiving task",
-    aiNeedDescription: "Please add a task description before asking AI for help",
-    aiNoResponse: "No response was received from AI",
-    aiError: "Error getting AI help",
-    aiActionHelp: "AI",
-    aiActionMental: "Mental",
-    aiActionArchive: "Archive",
-    aiActionRestore: "Restore",
-    aiActionMove: "Year",
-    cancelUrgent: "Remove urgency",
-    markUrgent: "Mark as urgent",
-    timelineTitle: "Timeline + Kanban",
-    timelineDesc: "A date-driven workload view with quick prioritization and momentum tracking.",
-    noDateBucket: "No due date",
-    todayBucket: "Today",
-    weekBucket: "This week",
-    laterBucket: "Later",
-    overdueBucket: "Overdue",
-    items: "items",
-    summaryTitle: "Executive Summary",
-    summaryDesc: "A fast overview of workload, bottlenecks, owners and what needs attention.",
-    urgentFocus: "Needs attention now",
-    bottlenecks: "Bottlenecks",
-    topOwners: "Ownership split",
-    overdueItems: "Overdue tasks",
-    emptySummary: "There are not enough tasks yet to build a summary",
-    deepTitle: "Deep Work",
-    deepDesc: "A quiet focus queue for the tasks most worth finishing right now.",
-    primaryFocus: "Primary focus",
-    secondaryQueue: "Secondary queue",
-    quietBoard: "Quiet board",
-    noFocusTasks: "No deep focus tasks right now",
-  };
+  const [detailHistory, setDetailHistory] = useState<TaskEditHistoryEntry[]>([]);
+  const [detailHistoryLoading, setDetailHistoryLoading] = useState(false);
 
   useEffect(() => {
     if (!pendingScrollTaskId) return;
@@ -462,6 +214,96 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
     return () => window.clearTimeout(timeoutId);
   }, [pendingScrollTaskId, tasks, activeTaskTab]);
+
+  useEffect(() => {
+    localStorage.setItem(`task-table-widths-${taskType}`, JSON.stringify(columnWidths));
+  }, [columnWidths, taskType]);
+
+  useEffect(() => {
+    const tableNode = tableScrollRef.current;
+    const headerNode = stickyHeaderScrollRef.current;
+    if (!tableNode || !headerNode) return;
+
+    const syncFromTable = () => {
+      if (syncingScrollRef.current === "header") return;
+      syncingScrollRef.current = "table";
+      headerNode.scrollLeft = tableNode.scrollLeft;
+      window.requestAnimationFrame(() => {
+        syncingScrollRef.current = null;
+      });
+    };
+
+    const syncFromHeader = () => {
+      if (syncingScrollRef.current === "table") return;
+      syncingScrollRef.current = "header";
+      tableNode.scrollLeft = headerNode.scrollLeft;
+      window.requestAnimationFrame(() => {
+        syncingScrollRef.current = null;
+      });
+    };
+
+    tableNode.addEventListener("scroll", syncFromTable, { passive: true });
+    headerNode.addEventListener("scroll", syncFromHeader, { passive: true });
+    return () => {
+      tableNode.removeEventListener("scroll", syncFromTable);
+      headerNode.removeEventListener("scroll", syncFromHeader);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeResize) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const delta = event.clientX - activeResize.startX;
+      const nextWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, activeResize.startWidth + delta));
+      setColumnWidths((prev) => ({ ...prev, [activeResize.key]: nextWidth }));
+    };
+
+    const handleMouseUp = () => setActiveResize(null);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [activeResize]);
+
+  useEffect(() => {
+    if (!detailTask) {
+      setDetailHistory([]);
+      setDetailHistoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchTaskHistory = async () => {
+      setDetailHistoryLoading(true);
+      const { data, error } = await supabase
+        .from("task_edit_history")
+        .select("id, action_type, changed_count, changed_fields, created_at, edited_by_email, edited_by_name, edited_by_username")
+        .eq("task_id", detailTask.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Error fetching task edit history:", error);
+        setDetailHistory([]);
+      } else {
+        setDetailHistory((data || []) as TaskEditHistoryEntry[]);
+      }
+      setDetailHistoryLoading(false);
+    };
+
+    void fetchTaskHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailTask]);
 
   const compareSheetNames = useCallback((a: string, b: string) => {
     if (a === MAIN_SHEET_NAME && b !== MAIN_SHEET_NAME) return -1;
@@ -525,7 +367,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     }
 
     if (!user) {
-      toast.error(copy.createSheetLogin);
+      toast.error("יש להתחבר כדי ליצור גליון חדש");
       return;
     }
 
@@ -544,10 +386,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       // Update local state
       setAvailableSheets((prev) => [...new Set([...prev, sheetName])].sort(compareSheetNames));
       setSelectedSheet(sheetName);
-      toast.success(`${isHebrew ? `גליון "${sheetName}" ${copy.sheetCreated}` : `Sheet "${sheetName}" ${copy.sheetCreated}`}`);
+      toast.success(`גליון "${sheetName}" נוצר בהצלחה`);
     } catch (error: any) {
       console.error("Error adding sheet:", error);
-      toast.error(isHebrew ? "שגיאה ביצירת גליון חדש" : "Error creating sheet");
+      toast.error("שגיאה ביצירת גליון חדש");
     }
   };
 
@@ -579,11 +421,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         setSelectedSheet(null);
       }
       
-      toast.success(`${isHebrew ? `גליון "${sheetName}" ${copy.sheetDeleted}` : `Sheet "${sheetName}" ${copy.sheetDeleted}`}`);
+      toast.success(`גליון "${sheetName}" נמחק בהצלחה`);
       refetch();
     } catch (error: any) {
       console.error("Error deleting sheet:", error);
-      toast.error(copy.deleteSheetError);
+      toast.error("שגיאה במחיקת הגליון");
     }
   };
 
@@ -697,29 +539,45 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
       if (error) throw error;
 
-      toast.success(`${copy.moveTaskSuccess} "${targetSheet}"`);
+      toast.success(`המשימה הועברה לגליון "${targetSheet}"`);
       setMoveDialogOpen(false);
       setTaskToMove(null);
       refetch();
     } catch (error: any) {
       console.error("Error moving task:", error);
-      toast.error(copy.moveTaskError);
+      toast.error("שגיאה בהעברת משימה");
     }
   };
 
   const handleArchiveTask = async (task: Task) => {
     try {
       await updateTask(task.id, { archived: !task.archived });
-      toast.success(task.archived ? copy.restored : copy.archived);
+      toast.success(task.archived ? "המשימה הוחזרה מהארכיון" : "המשימה הועברה לארכיון");
     } catch (error: any) {
       console.error("Error archiving task:", error);
-      toast.error(copy.archiveError);
+      toast.error("שגיאה בארכוב משימה");
     }
+  };
+
+  const handleSaveTaskDetails = async () => {
+    if (!detailTask) return;
+    await updateTask(detailTask.id, {
+      description: detailTask.description,
+      category: detailTask.category,
+      responsible: detailTask.responsible,
+      status: detailTask.status,
+      statusNotes: detailTask.statusNotes,
+      progress: detailTask.progress,
+      plannedEnd: detailTask.plannedEnd,
+      urgent: detailTask.urgent,
+    });
+    setDetailTask(null);
+    toast.success("פרטי המשימה נשמרו");
   };
 
   const handleAiHelp = async (task: Task) => {
     if (!task.description.trim()) {
-      toast.error(copy.aiNeedDescription);
+      toast.error("נא להזין תיאור משימה לפני בקשת עזרה מ-AI");
       return;
     }
     
@@ -741,14 +599,24 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         throw new Error(data.error);
       }
 
-      setAiSuggestion(data.suggestion || copy.aiNoResponse);
+      setAiSuggestion(data.suggestion || "לא התקבלה תגובה מה-AI");
     } catch (error: any) {
       console.error("AI error:", error);
-      toast.error(error.message || copy.aiError);
+      toast.error(error.message || "שגיאה בקבלת עזרה מ-AI");
       setAiDialogOpen(false);
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const renderHistoryChangeSummary = (entry: TaskEditHistoryEntry) => {
+    const fieldKeys = Object.keys(entry.changed_fields || {});
+    if (fieldKeys.length === 0) {
+      return TASK_ACTION_LABELS[entry.action_type] || entry.action_type;
+    }
+    return fieldKeys
+      .map((key) => TASK_HISTORY_LABELS[key] || key)
+      .join(" ,");
   };
 
   const exportToCSV = () => {
@@ -791,37 +659,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const pendingCount = tasks.filter((t) => t.status === "טרם החל").length;
   const inProgressCount = tasks.filter((t) => t.status === "בטיפול").length;
   const completionRate = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
-  const taskStatusOptions = [
-    { value: "טרם החל", label: copy.notStarted },
-    { value: "בטיפול", label: copy.inProgress },
-    { value: "בוצע", label: copy.done },
-  ];
-
-  const kanbanColumns = [
-    { value: "טרם החל", label: copy.notStarted, color: "bg-muted" },
-    { value: "בטיפול", label: copy.inProgress, color: "bg-amber-100 dark:bg-amber-900/30" },
-    { value: "בוצע", label: copy.done, color: "bg-green-100 dark:bg-green-900/30" },
-  ];
-
-  const getTimelineBucket = (task: Task) => {
-    if (task.overdue && task.status !== "בוצע") return copy.overdueBucket;
-    if (!task.plannedEnd) return copy.noDateBucket;
-    const due = new Date(task.plannedEnd);
-    const today = new Date();
-    const endOfWeek = new Date();
-    endOfWeek.setDate(today.getDate() + 7);
-    if (due.toDateString() === today.toDateString()) return copy.todayBucket;
-    if (due <= endOfWeek) return copy.weekBucket;
-    return copy.laterBucket;
-  };
-
-  const bucketWeight = (label: string) => {
-    if (label === copy.overdueBucket) return 0;
-    if (label === copy.todayBucket) return 1;
-    if (label === copy.weekBucket) return 2;
-    if (label === copy.laterBucket) return 3;
-    return 4;
-  };
+  const getColumnStyle = useCallback((key: TaskColumnKey) => ({
+    width: columnWidths[key],
+    minWidth: columnWidths[key],
+  }), [columnWidths]);
 
   // Editable cell with suggestions for description
   const EditableCellWithSuggestions = ({
@@ -898,7 +739,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         />
         {showSuggestionsLocal && similarTasks.length > 0 && (
           <div className="absolute top-full right-0 left-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 max-h-48 overflow-auto">
-            <div className="p-2 text-xs text-muted-foreground border-b">{copy.similarTasks}</div>
+            <div className="p-2 text-xs text-muted-foreground border-b">משימות דומות:</div>
             {similarTasks.map((task) => (
               <div
                 key={task.id}
@@ -1167,13 +1008,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="mr-2 text-muted-foreground">{copy.loading}</span>
+        <span className="mr-2 text-muted-foreground">טוען משימות...</span>
       </div>
     );
   }
 
   return (
-    <div className={cn("flex flex-col h-full", taskThemeStyles.shell)} dir={dir}>
+    <div className="flex flex-col h-full bg-background" dir="rtl">
       {/* Shared sheet collapse toggle */}
       {isSharedSheet && (
         <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
@@ -1187,13 +1028,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             <span className="text-sm font-medium">{title}</span>
           </Button>
           {ownerDisplayName && (
-            <span className="text-xs text-muted-foreground">{copy.creatorFrom} {ownerDisplayName}</span>
+            <span className="text-xs text-muted-foreground">משותף מ: {ownerDisplayName}</span>
           )}
           <span className={cn(
             "text-xs px-2 py-0.5 rounded-full",
             readOnly ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
           )}>
-            {readOnly ? copy.readOnly : copy.editMode}
+            {readOnly ? "צפייה בלבד" : "עריכה"}
           </span>
           <Button
             variant="ghost"
@@ -1206,7 +1047,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             className="text-xs gap-1 mr-auto"
           >
             <Users className="h-3 w-3" />
-            {hideCreatorInfo ? copy.showCreator : copy.hideCreator}
+            {hideCreatorInfo ? "הצג יוצר" : "הסתר יוצר"}
           </Button>
         </div>
       )}
@@ -1224,7 +1065,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             className="text-xs gap-1"
           >
             <Users className="h-3 w-3" />
-            {hideCreatorInfo ? copy.showCreatorEditor : copy.hideCreatorEditor}
+            {hideCreatorInfo ? "הצג יוצר/עורך" : "הסתר יוצר/עורך"}
           </Button>
         </div>
       )}
@@ -1260,7 +1101,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 );
 
                 if (error) {
-                  toast.error(copy.shareError);
+                  toast.error("שגיאה בפתיחת שיתוף הגליון");
                   return;
                 }
 
@@ -1269,28 +1110,28 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               className="gap-1 ml-2 mr-2 shrink-0"
             >
               <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">{copy.share}</span>
+              <span className="hidden sm:inline">שתף</span>
             </Button>
           )}
         </div>
       )}
 
       {/* Stats Bar - sticky */}
-      <div className={cn("flex items-center gap-6 px-4 py-3 sticky top-0 z-20", taskThemeStyles.topBar)}>
+      <div className="flex items-center gap-6 px-4 py-3 bg-card border-b border-border sticky top-0 z-20">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span className="text-sm text-muted-foreground">{copy.done}: {completedCount}</span>
+          <span className="text-sm text-muted-foreground">בוצע: {completedCount}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-gray-400" />
-          <span className="text-sm text-muted-foreground">{copy.notStarted}: {pendingCount}</span>
+          <span className="text-sm text-muted-foreground">טרם החל: {pendingCount}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-amber-500" />
-          <span className="text-sm text-muted-foreground">{copy.inProgress}: {inProgressCount}</span>
+          <span className="text-sm text-muted-foreground">בטיפול: {inProgressCount}</span>
         </div>
         <div className="mr-auto flex items-center gap-2">
-          <span className="text-sm font-medium">{copy.completionRate}</span>
+          <span className="text-sm font-medium">אחוז ביצוע:</span>
           <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-primary transition-all"
@@ -1302,14 +1143,14 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       </div>
 
       {/* Toolbar - sticky below stats */}
-      <div className={cn("sticky top-[52px] z-20", taskThemeStyles.toolbar)}>
+      <div className="border-b border-border bg-muted/30 sticky top-[52px] z-20">
         <div className="flex items-center gap-2 p-3">
         <h2 className="text-lg font-semibold text-foreground ml-4">{title}</h2>
         {!readOnly && (
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={handleAddTask}>
               <Plus className="h-4 w-4 ml-1" />
-              {copy.newTask}
+              משימה חדשה
             </Button>
             <Button
               variant="outline"
@@ -1318,7 +1159,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               disabled={selectedRow === null}
             >
               <Trash2 className="h-4 w-4 ml-1" />
-              {copy.deleteTask}
+              מחק משימה
             </Button>
           </div>
         )}
@@ -1326,33 +1167,30 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
             <SelectTrigger className="w-[160px] h-8">
               <ArrowUpDown className="h-4 w-4 ml-1" />
-              <SelectValue placeholder={copy.sort} />
+              <SelectValue placeholder="מיון" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">{copy.noSort}</SelectItem>
-              <SelectItem value="status">{copy.byStatus}</SelectItem>
-              <SelectItem value="plannedEnd">{copy.byPlannedEnd}</SelectItem>
-              <SelectItem value="createdAt">{copy.byCreatedAt}</SelectItem>
-              <SelectItem value="overdue">{copy.byOverdue}</SelectItem>
-              <SelectItem value="urgent">{copy.byUrgent}</SelectItem>
+              <SelectItem value="none">ללא מיון</SelectItem>
+              <SelectItem value="status">לפי סטטוס</SelectItem>
+              <SelectItem value="plannedEnd">לפי סיום מתוכנן</SelectItem>
+              <SelectItem value="createdAt">לפי תאריך יצירה</SelectItem>
+              <SelectItem value="overdue">לפי חריגה</SelectItem>
+              <SelectItem value="urgent">לפי דחיפות</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="secondary" size="sm" onClick={exportToCSV}>
             <Download className="h-4 w-4 ml-1" />
-            {copy.export}
+            ייצוא
           </Button>
-          {!readOnly && <FileImport onImport={handleImportTasks} label={copy.importTasks} />}
+          {!readOnly && <FileImport onImport={handleImportTasks} label="ייבוא משימות" />}
           {/* View mode buttons */}
           <div className="flex items-center border rounded-md overflow-hidden h-8">
             {([
-              { mode: "table" as DashboardViewMode, icon: Grid3X3, label: copy.table },
-              { mode: "list" as DashboardViewMode, icon: ListIcon, label: copy.list },
-              { mode: "cards" as DashboardViewMode, icon: LayoutGrid, label: copy.cards },
-              { mode: "kanban" as DashboardViewMode, icon: CreditCard, label: copy.kanban },
-              { mode: "timeline" as DashboardViewMode, icon: Clock, label: copy.timeline },
-              { mode: "summary" as DashboardViewMode, icon: Brain, label: copy.summary },
-              { mode: "deep" as DashboardViewMode, icon: Sparkles, label: copy.deep },
-              { mode: "compact" as DashboardViewMode, icon: AlignJustify, label: copy.compact },
+              { mode: "table" as DashboardViewMode, icon: Grid3X3, label: "טבלה" },
+              { mode: "list" as DashboardViewMode, icon: ListIcon, label: "רשימה" },
+              { mode: "cards" as DashboardViewMode, icon: LayoutGrid, label: "כרטיסים" },
+              { mode: "kanban" as DashboardViewMode, icon: CreditCard, label: "קנבן" },
+              { mode: "compact" as DashboardViewMode, icon: AlignJustify, label: "קומפקט" },
             ]).map(({ mode, icon: Icon, label }) => (
               <button
                 key={mode}
@@ -1371,11 +1209,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <Popover>
             <PopoverTrigger asChild>
               <Button size="sm" variant="outline" className="h-8 gap-1 text-xs">
-                <Palette className="h-3.5 w-3.5" />{copy.design}
+                <Palette className="h-3.5 w-3.5" />עיצוב
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-2 max-h-[300px] overflow-y-auto" align="end">
-              <p className="text-xs font-semibold text-muted-foreground px-2 pb-1">{copy.chooseDesign}</p>
+              <p className="text-xs font-semibold text-muted-foreground px-2 pb-1">בחר עיצוב</p>
               {BOARD_THEMES.map((t) => (
                 <button key={t.value} onClick={() => setDashTheme(t.value)}
                   className={`w-full text-right px-3 py-2 rounded-md text-sm transition-colors flex items-center justify-between ${dashTheme === t.value ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}>
@@ -1386,20 +1224,32 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           </Popover>
         </div>
         </div>
-        {/* Sticky info bar */}
-        <div className={cn("flex items-center gap-3 px-4 py-1.5 text-[11px] text-muted-foreground overflow-x-auto", taskThemeStyles.accentBar)}>
-          <span className="font-medium min-w-[60px]">{copy.stickyUrgent}</span>
-          <span className="font-medium min-w-[200px] flex-1">{copy.stickyDescription}</span>
-          <span className="font-medium min-w-[80px]">{copy.stickyCategory}</span>
-          <span className="font-medium min-w-[80px]">{copy.stickyResponsible}</span>
-          <span className="font-medium min-w-[80px]">{copy.stickyStatus}</span>
-          <span className="font-medium min-w-[100px]">{copy.stickyProgress}</span>
-          <span className="font-medium min-w-[100px]">{copy.stickyCompleted}</span>
-          <span className="font-medium min-w-[90px]">{copy.stickyPlanned}</span>
-          <span className="font-medium min-w-[60px]">{copy.stickyOverdue}</span>
-          <span className="font-medium min-w-[70px]">{copy.stickyCreated}</span>
-          <span className="font-medium min-w-[70px]">{copy.stickyUpdated}</span>
-          <span className="font-medium min-w-[50px]">{copy.stickyAi}</span>
+        {/* Sticky category/column headers bar */}
+        <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
+          <div className="flex items-stretch bg-muted/50 text-[11px] text-muted-foreground min-w-max">
+            {TASK_TABLE_COLUMNS.map((column) => (
+              <div
+                key={column.key}
+                className="relative shrink-0 px-3 py-1.5 border-l border-border/40 font-medium"
+                style={getColumnStyle(column.key)}
+              >
+                <span>{column.label}</span>
+                <button
+                  type="button"
+                  className="absolute left-0 top-0 h-full w-2 cursor-col-resize opacity-30 hover:opacity-100 focus:opacity-100 bg-primary/20"
+                  aria-label={`שנה רוחב עמודת ${column.label}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    setActiveResize({
+                      key: column.key,
+                      startX: event.clientX,
+                      startWidth: columnWidths[column.key],
+                    });
+                  }}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1442,24 +1292,36 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             return (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <p className="text-lg">
-                  {viewMode === "archive" ? copy.noArchivedTasks : 
-                   viewMode === "completed" ? copy.noCompletedTasks : 
-                   copy.noTasksYet}
+                  {viewMode === "archive" ? "אין משימות בארכיון" : 
+                   viewMode === "completed" ? "אין משימות שבוצעו" : 
+                   "אין משימות עדיין"}
                 </p>
                 {!readOnly && viewMode === "active" && (
                   <Button variant="outline" className="mt-4" onClick={handleAddTask}>
                     <Plus className="h-4 w-4 ml-1" />
-                    {copy.addFirstTask}
+                    הוסף משימה ראשונה
                   </Button>
                 )}
               </div>
             );
           }
 
+          const taskStatusOptions = [
+            { value: "טרם החל", label: "טרם החל" },
+            { value: "בטיפול", label: "בטיפול" },
+            { value: "בוצע", label: "בוצע" },
+          ];
+
+          const kanbanColumns = [
+            { value: "טרם החל", label: "טרם החל", color: "bg-muted" },
+            { value: "בטיפול", label: "בטיפול", color: "bg-amber-100 dark:bg-amber-900/30" },
+            { value: "בוצע", label: "בוצע", color: "bg-green-100 dark:bg-green-900/30" },
+          ];
+
           // Non-table view modes
           if (dashViewMode === "list") {
             return (
-              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
+              <div className="p-3 overflow-auto h-full">
                 <ListView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1482,7 +1344,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
           if (dashViewMode === "cards") {
             return (
-              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
+              <div className="p-3 overflow-auto h-full">
                 <CardsView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1505,7 +1367,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
           if (dashViewMode === "kanban") {
             return (
-              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
+              <div className="p-3 overflow-auto h-full">
                 <KanbanView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1527,7 +1389,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
           if (dashViewMode === "compact") {
             return (
-              <div className={cn("p-3 overflow-auto h-full", taskThemeStyles.shell)}>
+              <div className="p-3 overflow-auto h-full">
                 <CompactView
                   items={displayTasks.map(t => ({
                     id: t.id,
@@ -1542,226 +1404,24 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               </div>
             );
           }
-
-          if (dashViewMode === "timeline") {
-            const timelineBuckets = displayTasks.reduce<Record<string, Task[]>>((acc, task) => {
-              const bucket = getTimelineBucket(task);
-              if (!acc[bucket]) acc[bucket] = [];
-              acc[bucket].push(task);
-              return acc;
-            }, {});
-
-            const orderedBuckets = Object.entries(timelineBuckets).sort((a, b) => bucketWeight(a[0]) - bucketWeight(b[0]));
-
-            return (
-              <div className={cn("p-4 overflow-auto h-full space-y-4", taskThemeStyles.shell)}>
-                <div className={cn("rounded-2xl p-4", taskThemeStyles.panel)}>
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <h3 className="text-lg font-semibold">{copy.timelineTitle}</h3>
-                      <p className="text-sm text-muted-foreground">{copy.timelineDesc}</p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      {orderedBuckets.map(([bucket, items]) => (
-                        <span key={bucket} className="rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-                          {bucket} · {items.length}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {orderedBuckets.map(([bucket, items]) => (
-                  <div key={bucket} className={cn("rounded-2xl overflow-hidden", taskThemeStyles.panel)}>
-                    <div className={cn("px-4 py-3 flex items-center justify-between", taskThemeStyles.accentBar)}>
-                      <h4 className="font-semibold">{bucket}</h4>
-                      <span className="text-xs text-muted-foreground">{items.length} {copy.items}</span>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      {items.map((task) => (
-                        <div key={task.id} className={cn("rounded-xl p-4 hover:shadow-md transition-shadow", taskThemeStyles.card)}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {task.urgent && <span className="rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-[11px] font-medium">{copy.byUrgent}</span>}
-                                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusColors[task.status] || "bg-muted text-foreground")}>
-                                  {task.status === "בוצע" ? copy.done : task.status === "בטיפול" ? copy.inProgress : copy.notStarted}
-                                </span>
-                                {task.overdue && task.status !== "בוצע" && (
-                                  <span className="rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[11px] font-medium">{copy.byOverdue}</span>
-                                )}
-                              </div>
-                              <p className="mt-2 text-sm font-semibold">{task.description || copy.noTasksYet}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {[task.category, task.responsible, task.plannedEnd].filter(Boolean).join(" • ")}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          }
-
-          if (dashViewMode === "summary") {
-            const urgentTasks = displayTasks.filter((t) => t.urgent && t.status !== "בוצע").slice(0, 5);
-            const overdueTasks = displayTasks.filter((t) => t.overdue && t.status !== "בוצע").slice(0, 5);
-            const bottlenecks = displayTasks.filter((t) => t.status === "בטיפול").slice(0, 5);
-            const ownerStats = displayTasks.reduce<Record<string, number>>((acc, task) => {
-              const owner = task.responsible?.trim() || (isHebrew ? "ללא אחראי" : "Unassigned");
-              acc[owner] = (acc[owner] || 0) + 1;
-              return acc;
-            }, {});
-            const topOwners = Object.entries(ownerStats).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-            return (
-              <div className={cn("p-4 overflow-auto h-full space-y-4", taskThemeStyles.shell)}>
-                <div className={cn("rounded-3xl p-5", taskThemeStyles.panel)}>
-                  <h3 className="text-xl font-semibold">{copy.summaryTitle}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{copy.summaryDesc}</p>
-                  <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
-                      <p className="text-xs text-muted-foreground">{copy.done}</p>
-                      <p className="text-2xl font-bold">{completedCount}</p>
-                    </div>
-                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
-                      <p className="text-xs text-muted-foreground">{copy.inProgress}</p>
-                      <p className="text-2xl font-bold">{inProgressCount}</p>
-                    </div>
-                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
-                      <p className="text-xs text-muted-foreground">{copy.urgentFocus}</p>
-                      <p className="text-2xl font-bold">{urgentTasks.length}</p>
-                    </div>
-                    <div className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
-                      <p className="text-xs text-muted-foreground">{copy.overdueItems}</p>
-                      <p className="text-2xl font-bold">{overdueTasks.length}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                  {[
-                    { title: copy.urgentFocus, items: urgentTasks },
-                    { title: copy.bottlenecks, items: bottlenecks },
-                    { title: copy.overdueItems, items: overdueTasks },
-                  ].map((section) => (
-                    <div key={section.title} className={cn("rounded-2xl p-4", taskThemeStyles.panel)}>
-                      <h4 className="font-semibold mb-3">{section.title}</h4>
-                      <div className="space-y-2">
-                        {section.items.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">{copy.emptySummary}</p>
-                        ) : section.items.map((task) => (
-                          <div key={task.id} className={cn("rounded-xl p-3", taskThemeStyles.card)}>
-                            <p className="text-sm font-medium">{task.description}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{[task.category, task.responsible].filter(Boolean).join(" • ")}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className={cn("rounded-2xl p-4", taskThemeStyles.panel)}>
-                  <h4 className="font-semibold mb-3">{copy.topOwners}</h4>
-                  <div className="space-y-2">
-                    {topOwners.map(([owner, count]) => (
-                      <div key={owner} className="flex items-center gap-3">
-                        <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
-                          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max((count / Math.max(displayTasks.length, 1)) * 100, 8)}%` }} />
-                        </div>
-                        <span className="text-sm min-w-[140px] truncate">{owner}</span>
-                        <span className="text-xs text-muted-foreground">{count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          if (dashViewMode === "deep") {
-            const focusTasks = [...displayTasks]
-              .filter((task) => task.status !== "בוצע")
-              .sort((a, b) => {
-                const score = (task: Task) => (task.urgent ? 0 : 1) + (task.overdue ? 0 : 2) + (task.status === "בטיפול" ? 0 : 3);
-                return score(a) - score(b);
-              });
-            const primaryFocus = focusTasks.slice(0, 3);
-            const secondaryQueue = focusTasks.slice(3, 9);
-
-            return (
-              <div className={cn("p-4 overflow-auto h-full", taskThemeStyles.shell)}>
-                <div className={cn("rounded-[28px] p-5", taskThemeStyles.panel)}>
-                  <h3 className="text-xl font-semibold">{copy.deepTitle}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{copy.deepDesc}</p>
-                </div>
-
-                {focusTasks.length === 0 ? (
-                  <div className={cn("mt-4 rounded-3xl border border-dashed p-10 text-center text-muted-foreground", taskThemeStyles.panel)}>
-                    {copy.noFocusTasks}
-                  </div>
-                ) : (
-                  <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
-                    <div className={cn("rounded-3xl p-4", taskThemeStyles.panel)}>
-                      <h4 className="font-semibold mb-4">{copy.primaryFocus}</h4>
-                      <div className="space-y-3">
-                        {primaryFocus.map((task, index) => (
-                          <div key={task.id} className={cn("rounded-2xl p-4", taskThemeStyles.card)}>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-xs font-semibold text-primary">#{index + 1}</span>
-                              <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusColors[task.status] || "bg-muted text-foreground")}>
-                                {task.status === "בוצע" ? copy.done : task.status === "בטיפול" ? copy.inProgress : copy.notStarted}
-                              </span>
-                            </div>
-                            <p className="mt-3 text-base font-semibold">{task.description}</p>
-                            <p className="mt-2 text-xs text-muted-foreground">{[task.category, task.responsible, task.plannedEnd].filter(Boolean).join(" • ")}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className={cn("rounded-3xl p-4", taskThemeStyles.panel)}>
-                        <h4 className="font-semibold mb-3">{copy.secondaryQueue}</h4>
-                        <div className="space-y-2">
-                          {secondaryQueue.map((task) => (
-                            <div key={task.id} className={cn("rounded-xl p-3", taskThemeStyles.card)}>
-                              <p className="text-sm font-medium">{task.description}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{[task.category, task.responsible].filter(Boolean).join(" • ")}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className={cn("rounded-3xl p-4", taskThemeStyles.panel)}>
-                        <h4 className="font-semibold mb-3">{copy.quietBoard}</h4>
-                        <div className="text-sm text-muted-foreground space-y-2">
-                          <p>{copy.urgentFocus}: {displayTasks.filter((t) => t.urgent && t.status !== "בוצע").length}</p>
-                          <p>{copy.overdueItems}: {displayTasks.filter((t) => t.overdue && t.status !== "בוצע").length}</p>
-                          <p>{copy.inProgress}: {displayTasks.filter((t) => t.status === "בטיפול").length}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          }
           
             return (
-            <div ref={tableScrollRef} data-task-table className={cn("min-h-0 h-full overflow-auto scroll-smooth", taskThemeStyles.shell)}>
+            <div ref={tableScrollRef} data-task-table className="min-h-0 h-full overflow-auto scroll-smooth">
               <table className="w-full border-collapse min-w-[1200px]">
-            <thead>
-              <tr className={taskThemeStyles.tableHeader}>
-                {taskHeaders.map((header, i) => (
+            <colgroup>
+              {TASK_TABLE_COLUMNS.map((column) => (
+                <col key={column.key} style={{ width: columnWidths[column.key] }} />
+              ))}
+            </colgroup>
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-muted">
+                {TASK_TABLE_COLUMNS.map((column) => (
                   <th
-                    key={i}
+                    key={column.key}
                     className="px-3 py-2 text-right text-sm font-medium text-muted-foreground border-b border-border whitespace-nowrap"
+                    style={getColumnStyle(column.key)}
                   >
-                    {i === taskHeaders.length - 1 ? copy.stickyAi : header}
+                    {column.label}
                   </th>
                 ))}
               </tr>
@@ -1774,15 +1434,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     key={task.id}
                     data-task-row={task.id}
                     className={cn(
-                      "border-b border-border transition-colors cursor-pointer",
-                      taskThemeStyles.rowHover,
+                      "border-b border-border hover:bg-accent/30 transition-colors cursor-pointer",
                       selectedRow === task.id && "bg-primary/10",
                       task.urgent && "bg-red-50 dark:bg-red-900/20 border-l-4 border-l-red-500",
                       task.overdue && task.status !== "בוצע" && !task.urgent && "bg-destructive/5"
                     )}
                     onClick={() => setSelectedRow(task.id)}
+                    onDoubleClick={() => setDetailTask(task)}
                   >
-                    <td className="px-3 py-2 text-sm text-muted-foreground w-12 flex items-center gap-1">
+                    <td className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-1" style={getColumnStyle("index")}>
                       {task.urgent && <Flame className="h-4 w-4 text-red-500" />}
                       <button
                         onClick={(e) => {
@@ -1804,16 +1464,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                       </button>
                       <span>{rowIndex + 1}</span>
                     </td>
-                    <td className="px-3 py-2 text-sm max-w-[300px]">
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("description")}>
                       {renderEditableCell(task.description, task.id, "description")}
                     </td>
-                    <td className="px-3 py-2 text-sm">
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("category")}>
                       {renderEditableCell(task.category, task.id, "category", "text-muted-foreground")}
                     </td>
-                    <td className="px-3 py-2 text-sm">
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("responsible")}>
                       {renderEditableCell(task.responsible, task.id, "responsible")}
                     </td>
-                    <td className="px-3 py-2 text-sm">
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("status")}>
                       <Select
                         value={task.status}
                         disabled={readOnly}
@@ -1850,16 +1510,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="px-3 py-2 text-sm max-w-[200px]">
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("statusNotes")}>
                       {renderEditableCell(task.statusNotes, task.id, "statusNotes", "text-muted-foreground text-xs")}
                     </td>
-                    <td className="px-3 py-2 text-sm max-w-[200px]">
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("progress")}>
                       {renderEditableCell(task.progress, task.id, "progress", "text-muted-foreground text-xs")}
                     </td>
-                    <td className="px-3 py-2 text-sm whitespace-nowrap">
+                    <td className="px-3 py-2 text-sm whitespace-nowrap" style={getColumnStyle("plannedEnd")}>
                       {renderEditableCell(task.plannedEnd, task.id, "plannedEnd")}
                     </td>
-                    <td className="px-3 py-2 text-sm text-center">
+                    <td className="px-3 py-2 text-sm text-center" style={getColumnStyle("overdue")}>
                       {task.overdue && task.status !== "בוצע" ? (
                         <span className="text-destructive font-medium">חריגה</span>
                       ) : (
@@ -1867,7 +1527,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                       )}
                     </td>
                     {/* Creator info moved under date columns - no separate column needed */}
-                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap" style={getColumnStyle("createdAt")}>
                       <div>{task.createdAt ? new Date(task.createdAt).toLocaleDateString('he-IL') + ' ' + new Date(task.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
                       {/* Always show AI attribution, respect hideCreatorInfo for human users */}
                       {task.creatorEmail === 'ai@tabro.app' && (
@@ -1881,7 +1541,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap" style={getColumnStyle("updatedAt")}>
                       <div>{task.updatedAt ? new Date(task.updatedAt).toLocaleDateString('he-IL') + ' ' + new Date(task.updatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '-'}</div>
                       {task.lastEditorEmail === 'ai@tabro.app' && (
                         <div className="text-[10px] text-purple-500/80 mt-0.5 flex items-center gap-0.5">
@@ -1894,7 +1554,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-sm">
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("ai")}>
                       <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
@@ -1907,7 +1567,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                           title="קבל עזרה מ-AI"
                         >
                           <Sparkles className="h-3.5 w-3.5" />
-                          <span className="text-xs">{copy.aiActionHelp}</span>
+                          <span className="text-xs">AI</span>
                         </Button>
                         <Button
                           variant="ghost"
@@ -1921,7 +1581,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                           title="עזרה מנטלית"
                         >
                           <Brain className="h-3.5 w-3.5" />
-                          <span className="text-xs">{copy.aiActionMental}</span>
                         </Button>
                         {!readOnly && (
                           <Button
@@ -1935,15 +1594,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                             title={task.archived ? "החזר מארכיון" : "העבר לארכיון"}
                           >
                             {task.archived ? (
-                              <>
-                                <ArchiveRestore className="h-3.5 w-3.5" />
-                                <span className="text-xs">{copy.aiActionRestore}</span>
-                              </>
+                              <ArchiveRestore className="h-3.5 w-3.5" />
                             ) : (
-                              <>
-                                <Archive className="h-3.5 w-3.5" />
-                                <span className="text-xs">{copy.aiActionArchive}</span>
-                              </>
+                              <Archive className="h-3.5 w-3.5" />
                             )}
                           </Button>
                         )}
@@ -1960,7 +1613,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                             title="העבר לשנה אחרת"
                           >
                             <MoveRight className="h-3.5 w-3.5" />
-                            <span className="text-xs">{copy.aiActionMove}</span>
                           </Button>
                         )}
                       </div>
@@ -2100,6 +1752,143 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         taskType={taskType}
         availableSheets={availableSheets}
       />
+
+      <Dialog open={!!detailTask} onOpenChange={(open) => { if (!open) setDetailTask(null); }}>
+        <DialogContent className="max-w-3xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>פרטי משימה מלאים</DialogTitle>
+          </DialogHeader>
+          {detailTask && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>תיאור המשימה</Label>
+                  <Textarea
+                    value={detailTask.description}
+                    onChange={(e) => setDetailTask({ ...detailTask, description: e.target.value })}
+                    className="min-h-[90px]"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>סיווג</Label>
+                    <Input value={detailTask.category} onChange={(e) => setDetailTask({ ...detailTask, category: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>אחריות</Label>
+                    <Input value={detailTask.responsible} onChange={(e) => setDetailTask({ ...detailTask, responsible: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>סיום מתוכנן</Label>
+                    <Input type="date" value={detailTask.plannedEnd || ""} onChange={(e) => setDetailTask({ ...detailTask, plannedEnd: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label>סטטוס</Label>
+                  <Select value={detailTask.status} onValueChange={(value) => setDetailTask({ ...detailTask, status: value as Task["status"] })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="טרם החל">טרם החל</SelectItem>
+                      <SelectItem value="בטיפול">בטיפול</SelectItem>
+                      <SelectItem value="בוצע">בוצע</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>דחוף</Label>
+                  <Button variant={detailTask.urgent ? "default" : "outline"} onClick={() => setDetailTask({ ...detailTask, urgent: !detailTask.urgent })}>
+                    {detailTask.urgent ? "כן, מסומן כדחוף" : "לא דחוף"}
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  <Label>גליון</Label>
+                  <Input value={detailTask.sheetName} disabled />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>היכן זה עומד</Label>
+                  <Textarea
+                    value={detailTask.statusNotes}
+                    onChange={(e) => setDetailTask({ ...detailTask, statusNotes: e.target.value })}
+                    className="min-h-[100px]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>משימות שבוצעו / התקדמות</Label>
+                  <Textarea
+                    value={detailTask.progress}
+                    onChange={(e) => setDetailTask({ ...detailTask, progress: e.target.value })}
+                    className="min-h-[100px]"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3 text-sm">
+                <div className="font-semibold">מעקב עריכות</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-muted-foreground">
+                  <div>
+                    <div className="font-medium text-foreground">נוצר על ידי</div>
+                    <div>{detailTask.creatorName || detailTask.creatorEmail || "לא ידוע"}</div>
+                    <div>{detailTask.createdAt ? new Date(detailTask.createdAt).toLocaleString('he-IL') : "-"}</div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground">עודכן לאחרונה על ידי</div>
+                    <div>{detailTask.lastEditorName || detailTask.lastEditorEmail || "לא ידוע"}</div>
+                    <div>{detailTask.updatedAt ? new Date(detailTask.updatedAt).toLocaleString('he-IL') : "-"}</div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-foreground">יומן עריכות מלא</div>
+                    <div className="text-xs text-muted-foreground">
+                      {detailHistory.length === 0
+                        ? "אין עדיין עריכות שמורות"
+                        : `${detailHistory.filter((entry) => entry.action_type !== "created").length} עריכות שמורות`}
+                    </div>
+                  </div>
+                  {detailHistoryLoading ? (
+                    <div className="text-xs text-muted-foreground">טוען היסטוריית עריכות...</div>
+                  ) : detailHistory.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">עדיין אין יומן עריכות מפורט למשימה הזו.</div>
+                  ) : (
+                    <div className="space-y-2 max-h-[220px] overflow-auto">
+                      {detailHistory.map((entry) => (
+                        <div key={entry.id} className="rounded-md border border-border/70 bg-background px-3 py-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="font-medium text-foreground">
+                              {TASK_ACTION_LABELS[entry.action_type] || entry.action_type}
+                              {entry.changed_count > 0 ? ` · ${entry.changed_count} שדות` : ""}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {entry.created_at ? new Date(entry.created_at).toLocaleString("he-IL") : "-"}
+                            </div>
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            על ידי {entry.edited_by_name || entry.edited_by_email || entry.edited_by_username || "לא ידוע"}
+                          </div>
+                          <div className="mt-1 text-xs text-foreground/80">
+                            {renderHistoryChangeSummary(entry)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDetailTask(null)}>סגור</Button>
+                <Button onClick={handleSaveTaskDetails}>שמור שינויים</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       </>
       )}
     </div>

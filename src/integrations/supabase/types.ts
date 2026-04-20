@@ -109,6 +109,7 @@ export type Database = {
           author: string | null
           created_at: string
           id: string
+          long_summary: string | null
           notes: string | null
           status: string | null
           status_changed_at: string | null
@@ -120,6 +121,7 @@ export type Database = {
           author?: string | null
           created_at?: string
           id?: string
+          long_summary?: string | null
           notes?: string | null
           status?: string | null
           status_changed_at?: string | null
@@ -131,6 +133,7 @@ export type Database = {
           author?: string | null
           created_at?: string
           id?: string
+          long_summary?: string | null
           notes?: string | null
           status?: string | null
           status_changed_at?: string | null
@@ -139,6 +142,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      book_chapter_summaries: {
+        Row: {
+          book_id: string
+          chapter_title: string | null
+          created_at: string
+          id: string
+          sort_order: number
+          summary: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          chapter_title?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          summary?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          chapter_title?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          summary?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_chapter_summaries_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       budget_targets: {
         Row: {
@@ -1933,6 +1977,53 @@ export type Database = {
         }
         Relationships: []
       }
+      show_episode_notes: {
+        Row: {
+          created_at: string
+          episode_number: number
+          episode_title: string | null
+          id: string
+          season_number: number
+          show_id: string
+          sort_order: number
+          summary: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          episode_number?: number
+          episode_title?: string | null
+          id?: string
+          season_number?: number
+          show_id: string
+          sort_order?: number
+          summary?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          episode_number?: number
+          episode_title?: string | null
+          id?: string
+          season_number?: number
+          show_id?: string
+          sort_order?: number
+          summary?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "show_episode_notes_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppressed_emails: {
         Row: {
           created_at: string
@@ -2027,6 +2118,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      task_edit_history: {
+        Row: {
+          action_type: string
+          changed_count: number
+          changed_fields: Json
+          created_at: string
+          edited_by_email: string | null
+          edited_by_name: string | null
+          edited_by_user_id: string | null
+          edited_by_username: string | null
+          id: string
+          sheet_name: string | null
+          task_id: string
+          task_type: string
+          task_user_id: string
+        }
+        Insert: {
+          action_type: string
+          changed_count?: number
+          changed_fields?: Json
+          created_at?: string
+          edited_by_email?: string | null
+          edited_by_name?: string | null
+          edited_by_user_id?: string | null
+          edited_by_username?: string | null
+          id?: string
+          sheet_name?: string | null
+          task_id: string
+          task_type: string
+          task_user_id: string
+        }
+        Update: {
+          action_type?: string
+          changed_count?: number
+          changed_fields?: Json
+          created_at?: string
+          edited_by_email?: string | null
+          edited_by_name?: string | null
+          edited_by_user_id?: string | null
+          edited_by_username?: string | null
+          id?: string
+          sheet_name?: string | null
+          task_id?: string
+          task_type?: string
+          task_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_edit_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasks: {
         Row: {
