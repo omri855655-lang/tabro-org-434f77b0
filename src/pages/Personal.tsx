@@ -36,6 +36,7 @@ import PaymentDashboard from "@/components/dashboards/PaymentDashboard";
 import ContactForm from "@/components/ContactForm";
 import NotesDashboard from "@/components/dashboards/NotesDashboard";
 import EmailIntegration from "@/components/EmailIntegration";
+import MeetingsDashboard from "@/components/MeetingsDashboard";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import SidebarLayout from "@/components/layouts/SidebarLayout";
 import CompactLayout from "@/components/layouts/CompactLayout";
@@ -43,7 +44,7 @@ import BottomNavLayout from "@/components/layouts/BottomNavLayout";
 import HamburgerLayout from "@/components/layouts/HamburgerLayout";
 import DashboardCardsLayout from "@/components/layouts/DashboardCardsLayout";
 import SplitViewLayout from "@/components/layouts/SplitViewLayout";
-import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight, Share2, Apple, Target, ShoppingCart, CreditCard, MessageSquare, StickyNote, Mail } from "lucide-react";
+import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight, Share2, Apple, Target, ShoppingCart, CreditCard, MessageSquare, StickyNote, Mail, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -95,6 +96,7 @@ const STATIC_TABS: TabDef[] = [
   { id: "shopping", icon: ShoppingCart, label: "shopping", visibilityKey: "shopping" },
   { id: "payments", icon: CreditCard, label: "payments", visibilityKey: "payments" },
   { id: "notes", icon: StickyNote, label: "notesTab", visibilityKey: "notes" },
+  { id: "meetings", icon: Mic, label: "meetingsTab", visibilityKey: "meetings" },
   { id: "email", icon: Mail, label: "email", visibilityKey: "email" },
   { id: "sharing", icon: Share2, label: "sharingTab" },
   { id: "contact", icon: MessageSquare, label: "contactForm" },
@@ -492,6 +494,7 @@ const Personal = () => {
       case "shopping": return <ShoppingDashboard />;
       case "payments": return <PaymentDashboard />;
       case "notes": return <NotesDashboard />;
+      case "meetings": return <MeetingsDashboard />;
       case "email": return <EmailIntegration />;
       case "sharing": return <SharingManagement />;
       case "contact": return <ContactForm />;

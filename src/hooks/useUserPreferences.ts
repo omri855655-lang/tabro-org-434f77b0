@@ -19,12 +19,13 @@ export const DEFAULT_TABS = [
   { id: "dreams", name: "מפת חלומות", removable: true },
   { id: "shopping", name: "קניות", removable: true },
   { id: "payments", name: "הכנסות והוצאות", removable: true },
+  { id: "meetings", name: "פגישות", removable: true },
   { id: "settings", name: "הגדרות", removable: false },
 ];
 
 export function useUserPreferences() {
   const { user } = useAuth();
-  const [hiddenTabs, setHiddenTabs] = useState<string[]>([]);
+  const [hiddenTabs, setHiddenTabs] = useState<string[]>(["meetings"]);
   const [loading, setLoading] = useState(true);
 
   const fetchPreferences = useCallback(async () => {
@@ -38,7 +39,11 @@ export function useUserPreferences() {
 
     if (data) {
       const normalized = ((data.hidden_tabs as string[]) || []).map((tab) => tab === "deeply" ? "zoneflow" : tab);
-      setHiddenTabs(normalized);
+      const hasExplicitMeetingsChoice = localStorage.getItem("tabro-meetings-tab-choice") === "1";
+      const withMeetingsDefault = hasExplicitMeetingsChoice || normalized.includes("meetings")
+        ? normalized
+        : [...normalized, "meetings"];
+      setHiddenTabs(withMeetingsDefault);
     }
     setLoading(false);
   }, [user]);
@@ -49,6 +54,9 @@ export function useUserPreferences() {
     if (!user) return;
     
     const normalizedTabId = tabId === "deeply" ? "zoneflow" : tabId;
+    if (normalizedTabId === "meetings") {
+      localStorage.setItem("tabro-meetings-tab-choice", "1");
+    }
     const newHidden = hiddenTabs.includes(normalizedTabId)
       ? hiddenTabs.filter(t => t !== normalizedTabId)
       : [...hiddenTabs.filter(t => t !== "deeply"), normalizedTabId];

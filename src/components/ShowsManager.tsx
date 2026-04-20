@@ -667,12 +667,12 @@ const ShowsManager = () => {
                       </TableCell>
                       <TableCell>
                         {show.type === 'סדרה' && (
-                          <Input type="number" min="1" defaultValue={show.current_season ?? ''} onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }} onBlur={(e) => { const next = parseNullableNumber(e.target.value); if (next !== (show.current_season ?? null)) updateShow(show.id, { current_season: next }); }} className="w-16 h-8" placeholder="-" />
+                          <Input type="number" min="1" defaultValue={show.current_season ?? ''} onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }} onBlur={(e) => { const next = parseNullableNumber(e.target.value); if (next !== (show.current_season ?? null)) updateShow(show.id, { current_season: next }); }} className="w-20 h-8" placeholder="עונה" />
                         )}
                       </TableCell>
                       <TableCell>
                         {show.type === 'סדרה' && (
-                          <Input type="number" min="1" defaultValue={show.current_episode ?? ''} onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }} onBlur={(e) => { const next = parseNullableNumber(e.target.value); if (next !== (show.current_episode ?? null)) updateShow(show.id, { current_episode: next }); }} className="w-16 h-8" placeholder="-" />
+                          <Input type="number" min="1" defaultValue={show.current_episode ?? ''} onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }} onBlur={(e) => { const next = parseNullableNumber(e.target.value); if (next !== (show.current_episode ?? null)) updateShow(show.id, { current_episode: next }); }} className="w-20 h-8" placeholder="פרק" />
                         )}
                       </TableCell>
                       <TableCell>
