@@ -17,7 +17,6 @@ import ProjectMembersPanel from '@/components/ProjectMembersPanel';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
 import TeamPerformanceDashboard from '@/components/projects/TeamPerformanceDashboard';
 import ProjectTaskDialog from '@/components/projects/ProjectTaskDialog';
-import { useLanguage } from '@/hooks/useLanguage';
 
 interface Project {
   id: string;
@@ -67,10 +66,10 @@ interface TaskAssignment {
 
 const MEMBER_DOT_COLORS = ["bg-primary", "bg-accent", "bg-foreground/70", "bg-secondary-foreground/70", "bg-muted-foreground", "bg-destructive"];
 
-const formatDateTime = (dateStr: string, locale: string) => {
+const formatDateTime = (dateStr: string) => {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  return date.toLocaleDateString(locale) + ' ' + date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString('he-IL') + ' ' + date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 };
 
 const getTaskPriorityScore = (task: ProjectTask) => {
@@ -80,8 +79,36 @@ const getTaskPriorityScore = (task: ProjectTask) => {
   return 2;
 };
 
+const getProjectStatusTone = (status: string | null) => {
+  switch (status) {
+    case 'הושלם':
+      return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20';
+    case 'בהמתנה':
+      return 'bg-amber-500/10 text-amber-700 border-amber-500/20';
+    default:
+      return 'bg-primary/10 text-primary border-primary/20';
+  }
+};
+
+const getProjectHealthLabel = (project: Project, tasks: ProjectTask[]) => {
+  if (!tasks.length) return { label: 'התחלה חדשה', tone: 'bg-slate-500/10 text-slate-700 border-slate-500/20' };
+  const completedTasks = tasks.filter(t => t.completed).length;
+  const urgentOpen = tasks.filter(t => t.urgent && !t.completed).length;
+  const overdue = tasks.filter(t => t.due_date && !t.completed && new Date(t.due_date) < new Date()).length;
+
+  if (completedTasks === tasks.length) {
+    return { label: 'סגור יפה', tone: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' };
+  }
+  if (urgentOpen > 0 || overdue > 0) {
+    return { label: 'דורש תשומת לב', tone: 'bg-rose-500/10 text-rose-700 border-rose-500/20' };
+  }
+  if (completedTasks >= Math.ceil(tasks.length * 0.6)) {
+    return { label: 'בשליטה טובה', tone: 'bg-sky-500/10 text-sky-700 border-sky-500/20' };
+  }
+  return { label: 'בתנועה', tone: 'bg-violet-500/10 text-violet-700 border-violet-500/20' };
+};
+
 const ProjectsManager = () => {
-  const { lang, dir } = useLanguage();
   const { user } = useAuth();
   const { softDelete } = useRecycleBin();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -108,151 +135,9 @@ const ProjectsManager = () => {
   const [assignDialogProject, setAssignDialogProject] = useState<string | null>(null);
   const [assignMember, setAssignMember] = useState('');
   const [assignResponsibility, setAssignResponsibility] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'פעיל' | 'בהמתנה' | 'הושלם'>('all');
   // Multi-assignee on new task creation
   const [newTaskPreAssignees, setNewTaskPreAssignees] = useState<Record<string, { memberId: string; responsibility: string }[]>>({});
-  const isHebrew = lang === 'he';
-  const locale = ({ he: 'he-IL', en: 'en-US', es: 'es-ES', zh: 'zh-CN', ar: 'ar-SA', ru: 'ru-RU' } as const)[lang];
-  const copy = isHebrew ? {
-    loadError: 'שגיאה בטעינת הפרויקטים',
-    enterTitle: 'נא להזין שם פרויקט',
-    addError: 'שגיאה בהוספת הפרויקט',
-    addSuccess: 'הפרויקט נוסף בהצלחה',
-    updateStatusError: 'שגיאה בעדכון הסטטוס',
-    updateTargetError: 'שגיאה בעדכון תאריך היעד',
-    recycleSuccess: 'הפרויקט הועבר לסל המחזור',
-    addTaskError: 'שגיאה בהוספת משימה',
-    assignError: 'שגיאה בהקצאה',
-    assignSuccess: 'אחראי נוסף למשימה',
-    updateTaskError: 'שגיאה בעדכון משימה',
-    deleteTaskError: 'שגיאה במחיקת משימה',
-    addLinkError: 'שגיאה בהוספת קישור',
-    linkAdded: 'הקישור נוסף',
-    deleteLinkError: 'שגיאה במחיקת קישור',
-    milestonesSaved: 'אבני דרך נוצרו ונשמרו',
-    milestonesError: 'שגיאה ביצירת אבני דרך',
-    milestoneDeleted: 'אבן דרך נמחקה',
-    milestoneAddedTask: 'נוספה כמשימה',
-    noPendingMilestones: 'אין אבני דרך לא מושלמות',
-    genericError: 'שגיאה',
-    tasksAdded: 'נוספו משימות',
-    chooseTeamMember: 'בחר חבר צוות קודם',
-    loading: 'טוען פרויקטים...',
-    active: 'פעילים',
-    completed: 'הושלמו',
-    onHold: 'בהמתנה',
-    title: 'הפרויקטים שלי',
-    projectsCount: 'פרויקטים',
-    titlePlaceholder: 'שם הפרויקט',
-    descriptionPlaceholder: 'תיאור (אופציונלי)',
-    add: 'הוסף',
-    addProject: 'הוסף פרויקט',
-    search: 'חפש פרויקט...',
-    noResults: 'לא נמצאו תוצאות',
-    empty: 'אין פרויקטים עדיין',
-    tasks: 'משימות',
-    addLink: 'הוסף קישור',
-    enterUrl: 'הכנס URL...',
-    progressCompleted: 'הושלם',
-    tasksRemaining: 'משימות נותרו',
-    aiMilestones: 'אבני דרך AI',
-    regenerate: 'צור מחדש',
-    recommendedMilestones: 'אבני דרך מומלצות:',
-    addAllAsTasks: 'הוסף הכל כמשימות',
-    addAsTask: 'הוסף כמשימה',
-    delete: 'מחק',
-    created: 'נוצר',
-    updated: 'עודכן',
-    newTask: 'משימה חדשה...',
-    assignTeamMember: 'הקצה לחבר צוות',
-    noAssignment: 'ללא הקצאה',
-    responsibilityPlaceholder: 'תפקיד/חלק במשימה...',
-    addToDashboard: 'הוסף גם לדשבורד...',
-    noDashboardSync: 'ללא סנכרון לדשבורד',
-    workTasks: 'משימות עבודה',
-    personalTasks: 'משימות אישיות',
-    addAnotherOwner: 'הוסף אחראי נוסף',
-    noTasksYet: 'אין משימות עדיין',
-    target: 'יעד',
-    groupedByOwner: 'חלוקה לפי אחראי',
-    urgent: 'דחוף',
-    responsibility: 'אחריות',
-    done: 'הושלם',
-    open: 'פתוח',
-    addAssigneeToTask: 'הוסף אחראי למשימה',
-    chooseTeamMemberShort: 'בחר חבר צוות',
-    responsibilityOptional: 'תפקיד/אחריות (אופציונלי)...',
-    addAssignee: 'הוסף אחראי',
-  } : {
-    loadError: 'Error loading projects',
-    enterTitle: 'Please enter a project name',
-    addError: 'Error adding project',
-    addSuccess: 'Project added successfully',
-    updateStatusError: 'Error updating status',
-    updateTargetError: 'Error updating target date',
-    recycleSuccess: 'Project moved to recycle bin',
-    addTaskError: 'Error adding task',
-    assignError: 'Assignment error',
-    assignSuccess: 'Assignee added to task',
-    updateTaskError: 'Error updating task',
-    deleteTaskError: 'Error deleting task',
-    addLinkError: 'Error adding link',
-    linkAdded: 'Link added',
-    deleteLinkError: 'Error deleting link',
-    milestonesSaved: 'Milestones created and saved',
-    milestonesError: 'Error generating milestones',
-    milestoneDeleted: 'Milestone deleted',
-    milestoneAddedTask: 'Added as task',
-    noPendingMilestones: 'No incomplete milestones',
-    genericError: 'Error',
-    tasksAdded: 'Tasks added',
-    chooseTeamMember: 'Choose a team member first',
-    loading: 'Loading projects...',
-    active: 'Active',
-    completed: 'Completed',
-    onHold: 'On hold',
-    title: 'My Projects',
-    projectsCount: 'projects',
-    titlePlaceholder: 'Project name',
-    descriptionPlaceholder: 'Description (optional)',
-    add: 'Add',
-    addProject: 'Add project',
-    search: 'Search projects...',
-    noResults: 'No results found',
-    empty: 'No projects yet',
-    tasks: 'tasks',
-    addLink: 'Add link',
-    enterUrl: 'Enter URL...',
-    progressCompleted: 'completed',
-    tasksRemaining: 'tasks remaining',
-    aiMilestones: 'AI milestones',
-    regenerate: 'Regenerate',
-    recommendedMilestones: 'Suggested milestones:',
-    addAllAsTasks: 'Add all as tasks',
-    addAsTask: 'Add as task',
-    delete: 'Delete',
-    created: 'Created',
-    updated: 'Updated',
-    newTask: 'New task...',
-    assignTeamMember: 'Assign team member',
-    noAssignment: 'No assignment',
-    responsibilityPlaceholder: 'Role/part in task...',
-    addToDashboard: 'Also add to dashboard...',
-    noDashboardSync: 'No dashboard sync',
-    workTasks: 'Work tasks',
-    personalTasks: 'Personal tasks',
-    addAnotherOwner: 'Add another assignee',
-    noTasksYet: 'No tasks yet',
-    target: 'Target',
-    groupedByOwner: 'Grouped by assignee',
-    urgent: 'Urgent',
-    responsibility: 'Responsibility',
-    done: 'Done',
-    open: 'Open',
-    addAssigneeToTask: 'Add assignee to task',
-    chooseTeamMemberShort: 'Choose team member',
-    responsibilityOptional: 'Role/responsibility (optional)...',
-    addAssignee: 'Add assignee',
-  };
 
   useEffect(() => {
     if (user) {
@@ -267,7 +152,7 @@ const ProjectsManager = () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error(copy.loadError);
+      toast.error('שגיאה בטעינת הפרויקטים');
       console.error(error);
     } else {
       setProjects(data || []);
@@ -334,7 +219,7 @@ const ProjectsManager = () => {
 
   const addProject = async () => {
     if (!newProject.title.trim()) {
-      toast.error(copy.enterTitle);
+      toast.error('נא להזין שם פרויקט');
       return;
     }
 
@@ -346,10 +231,10 @@ const ProjectsManager = () => {
     });
 
     if (error) {
-      toast.error(copy.addError);
+      toast.error('שגיאה בהוספת הפרויקט');
       console.error(error);
     } else {
-      toast.success(copy.addSuccess);
+      toast.success('הפרויקט נוסף בהצלחה');
       setNewProject({ title: '', description: '' });
       fetchProjects();
     }
@@ -362,7 +247,7 @@ const ProjectsManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error(copy.updateStatusError);
+      toast.error('שגיאה בעדכון הסטטוס');
       return;
     }
 
@@ -376,7 +261,7 @@ const ProjectsManager = () => {
       .eq('id', id);
 
     if (error) {
-      toast.error(copy.updateTargetError);
+      toast.error('שגיאה בעדכון תאריך היעד');
       return;
     }
 
@@ -388,7 +273,7 @@ const ProjectsManager = () => {
     if (!project) return;
     const success = await softDelete('projects', id, project);
     if (success) {
-      toast.success(copy.recycleSuccess);
+      toast.success('הפרויקט הועבר לסל המחזור');
       setProjects((prev) => prev.filter((p) => p.id !== id));
     }
   };
@@ -418,7 +303,7 @@ const ProjectsManager = () => {
     }).select().single();
 
     if (error) {
-      toast.error(copy.addTaskError);
+      toast.error('שגיאה בהוספת משימה');
       return;
     }
 
@@ -531,7 +416,7 @@ const ProjectsManager = () => {
       assignee_name: member.displayName === 'אני (בעל הפרויקט)' ? (user.email?.split('@')[0] || 'אני') : member.displayName,
       responsibility: assignResponsibility.trim() || null,
     }).select().single();
-    if (error) { toast.error(copy.assignError); return; }
+    if (error) { toast.error('שגיאה בהקצאה'); return; }
     setTaskAssignments(prev => ({
       ...prev,
       [taskId]: [...(prev[taskId] || []), data as TaskAssignment],
@@ -539,7 +424,7 @@ const ProjectsManager = () => {
     setAssignMember('');
     setAssignResponsibility('');
     setAssignDialogTask(null);
-    toast.success(copy.assignSuccess);
+    toast.success('אחראי נוסף למשימה');
   };
 
   const removeTaskAssignment = async (assignmentId: string, taskId: string) => {
@@ -557,7 +442,7 @@ const ProjectsManager = () => {
       .eq('id', task.id);
 
     if (error) {
-      toast.error(copy.updateTaskError);
+      toast.error('שגיאה בעדכון משימה');
       return;
     }
 
@@ -573,7 +458,7 @@ const ProjectsManager = () => {
     const { error } = await supabase.from('project_tasks').delete().eq('id', task.id);
 
     if (error) {
-      toast.error(copy.deleteTaskError);
+      toast.error('שגיאה במחיקת משימה');
       return;
     }
 
@@ -596,7 +481,7 @@ const ProjectsManager = () => {
       .eq('id', projectId);
 
     if (error) {
-      toast.error(copy.addLinkError);
+      toast.error('שגיאה בהוספת קישור');
       return;
     }
 
@@ -605,7 +490,7 @@ const ProjectsManager = () => {
     ));
     setNewLink('');
     setAddLinkDialogOpen(null);
-    toast.success(copy.linkAdded);
+    toast.success('הקישור נוסף');
   };
 
   const removeLink = async (projectId: string, linkIndex: number) => {
@@ -619,7 +504,7 @@ const ProjectsManager = () => {
       .eq('id', projectId);
 
     if (error) {
-      toast.error(copy.deleteLinkError);
+      toast.error('שגיאה במחיקת קישור');
       return;
     }
 
@@ -658,9 +543,9 @@ const ProjectsManager = () => {
       
       const saved = (savedMs || []).map((m: any) => ({ id: m.id, title: m.title, done: m.status === 'done', description: m.description }));
       setAiMilestones(prev => ({ ...prev, [project.id]: saved }));
-      toast.success(`${saved.length} ${copy.milestonesSaved}`);
+      toast.success(`נוצרו ${saved.length} אבני דרך ונשמרו`);
     } catch {
-      toast.error(copy.milestonesError);
+      toast.error('שגיאה ביצירת אבני דרך');
     } finally {
       setAiMilestonesLoading(null);
     }
@@ -707,7 +592,7 @@ const ProjectsManager = () => {
       ...prev,
       [projectId]: prev[projectId].filter((_, i) => i !== index),
     }));
-    toast.success(copy.milestoneDeleted);
+    toast.success('אבן דרך נמחקה');
   };
 
   const convertMilestoneToTask = async (projectId: string, index: number) => {
@@ -725,13 +610,13 @@ const ProjectsManager = () => {
       sort_order: maxOrder + 1,
     }).select().single();
     
-    if (error) { toast.error(copy.addTaskError); return; }
+    if (error) { toast.error('שגיאה בהוספת משימה'); return; }
     
     setProjectTasks(prev => ({
       ...prev,
       [projectId]: [...(prev[projectId] || []), data as ProjectTask],
     }));
-    toast.success(`"${milestone.title}" ${copy.milestoneAddedTask}`);
+    toast.success(`"${milestone.title}" נוספה כמשימה`);
   };
 
   const convertAllMilestonesToTasks = async (projectId: string) => {
@@ -748,16 +633,16 @@ const ProjectsManager = () => {
       sort_order: maxOrder + idx + 1,
     }));
     
-    if (inserts.length === 0) { toast.info(copy.noPendingMilestones); return; }
+    if (inserts.length === 0) { toast.info('אין אבני דרך לא מושלמות'); return; }
     
     const { data, error } = await supabase.from('project_tasks').insert(inserts).select();
-    if (error) { toast.error(copy.genericError); return; }
+    if (error) { toast.error('שגיאה'); return; }
     
     setProjectTasks(prev => ({
       ...prev,
       [projectId]: [...(prev[projectId] || []), ...(data as ProjectTask[])],
     }));
-    toast.success(`${copy.tasksAdded}: ${inserts.length}`);
+    toast.success(`נוספו ${inserts.length} משימות`);
   };
 
   const handleTaskUpdate = (taskId: string, updates: Record<string, any>) => {
@@ -786,83 +671,156 @@ const ProjectsManager = () => {
     });
   };
 
-  const filteredProjects = projects.filter(
-    (project) =>
+  const filteredProjects = projects.filter((project) => {
+    const matchesSearch =
       project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+      (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = statusFilter === 'all' || (project.status || 'פעיל') === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">{copy.loading}</div>;
+  if (loading) {
+    return <div className="p-8 text-center text-muted-foreground">טוען פרויקטים...</div>;
+  }
 
   const activeCount = projects.filter(p => p.status === 'פעיל').length;
   const completedCount = projects.filter(p => p.status === 'הושלם').length;
   const onHoldCount = projects.filter(p => p.status === 'בהמתנה').length;
+  const totalTasks = Object.values(projectTasks).flat().length;
+  const urgentTasks = Object.values(projectTasks).flat().filter(task => task.urgent && !task.completed).length;
+  const overdueTasks = Object.values(projectTasks).flat().filter(task => task.due_date && !task.completed && new Date(task.due_date) < new Date()).length;
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
-      {/* Stats Dashboard */}
-      <div className="grid grid-cols-3 gap-4 mb-4 flex-shrink-0">
-        <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-primary">{activeCount}</div>
-          <div className="text-sm text-muted-foreground">{copy.active}</div>
+    <div className="h-full flex flex-col gap-4 p-4 overflow-hidden bg-gradient-to-b from-background via-background to-muted/20" dir="rtl">
+      <div className="rounded-2xl border bg-card/80 p-5 shadow-sm flex-shrink-0">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs text-primary">
+              <FolderKanban className="h-3.5 w-3.5" />
+              מרחב פרויקטים חכם
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-bold tracking-tight">ניהול פרויקטים ברור, צוותי, ומדויק</h2>
+              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                כאן אתה רואה מהר מה מתקדם, מה נתקע, מה דחוף, ומי אחראי על כל חלק. השדרוג במסך הזה נועד לתת לך מבט ניהולי אמיתי בלי לאבד את הפעולות שכבר עבדו.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:min-w-[320px]">
+            <div className="rounded-xl border bg-background p-3">
+              <div className="text-xs text-muted-foreground">סה״כ פרויקטים</div>
+              <div className="mt-1 text-2xl font-semibold">{projects.length}</div>
+            </div>
+            <div className="rounded-xl border bg-background p-3">
+              <div className="text-xs text-muted-foreground">סה״כ משימות</div>
+              <div className="mt-1 text-2xl font-semibold">{totalTasks}</div>
+            </div>
+            <div className="rounded-xl border bg-background p-3">
+              <div className="text-xs text-muted-foreground">דחופות פתוחות</div>
+              <div className="mt-1 text-2xl font-semibold text-rose-600">{urgentTasks}</div>
+            </div>
+            <div className="rounded-xl border bg-background p-3">
+              <div className="text-xs text-muted-foreground">באיחור</div>
+              <div className="mt-1 text-2xl font-semibold text-amber-600">{overdueTasks}</div>
+            </div>
+          </div>
         </div>
-        <div className="bg-accent/15 border border-accent/30 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-accent-foreground">{completedCount}</div>
-          <div className="text-sm text-muted-foreground">{copy.completed}</div>
-        </div>
-        <div className="bg-muted border border-border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-foreground">{onHoldCount}</div>
-          <div className="text-sm text-muted-foreground">{copy.onHold}</div>
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-primary/20 bg-primary/10 p-4">
+            <div className="text-2xl font-bold text-primary">{activeCount}</div>
+            <div className="text-sm text-muted-foreground">פעילים</div>
+          </div>
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <div className="text-2xl font-bold text-emerald-700">{completedCount}</div>
+            <div className="text-sm text-muted-foreground">הושלמו</div>
+          </div>
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+            <div className="text-2xl font-bold text-amber-700">{onHoldCount}</div>
+            <div className="text-sm text-muted-foreground">בהמתנה</div>
+          </div>
+          <div className="rounded-xl border bg-muted/70 p-4">
+            <div className="text-2xl font-bold text-foreground">{filteredProjects.length}</div>
+            <div className="text-sm text-muted-foreground">מוצגים כרגע</div>
+          </div>
         </div>
       </div>
 
-      {/* Header with count */}
-      <div className="flex items-center gap-2 mb-4 flex-shrink-0">
-        <FolderKanban className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">{copy.title}</h2>
-        <span className="text-sm text-muted-foreground">({projects.length} {copy.projectsCount})</span>
-      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] flex-shrink-0">
+        <div className="rounded-2xl border bg-card/80 p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">מרכז שליטה מהיר</div>
+              <div className="text-xs text-muted-foreground">חיפוש, סינון ומעבר מהיר לפרויקטים שצריך לראות עכשיו</div>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חפש לפי שם פרויקט או תיאור..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-10 text-right"
+                dir="rtl"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(value: 'all' | 'פעיל' | 'בהמתנה' | 'הושלם') => setStatusFilter(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="סנן לפי סטטוס" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">כל הסטטוסים</SelectItem>
+                <SelectItem value="פעיל">פעיל</SelectItem>
+                <SelectItem value="בהמתנה">בהמתנה</SelectItem>
+                <SelectItem value="הושלם">הושלם</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">תוצאות: {filteredProjects.length}</span>
+            <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">פעילים: {activeCount}</span>
+            <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">באיחור: {overdueTasks}</span>
+            <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">דחופות: {urgentTasks}</span>
+          </div>
+        </div>
 
-      {/* Add new project */}
-      <div className="flex gap-2 flex-wrap mb-4 flex-shrink-0">
-        <Input
-          placeholder={copy.titlePlaceholder}
-          value={newProject.title}
-          onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
-          className={`flex-1 min-w-[200px] ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
-          dir={dir}
-        />
-        <Input
-          placeholder={copy.descriptionPlaceholder}
-          value={newProject.description}
-          onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-          className={`flex-1 min-w-[200px] ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
-          dir={dir}
-        />
-        <Button onClick={addProject}>
-          <Plus className="h-4 w-4 ml-1" />
-          {copy.addProject}
-        </Button>
-      </div>
-
-      {/* Search */}
-      <div className="relative mb-4 flex-shrink-0">
-        <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground ${dir === 'rtl' ? 'right-3' : 'left-3'}`} />
-        <Input
-          placeholder={copy.search}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className={dir === 'rtl' ? 'pr-10 text-right' : 'pl-10 text-left'}
-          dir={dir}
-        />
+        <div className="rounded-2xl border bg-card/80 p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <Plus className="h-4 w-4 text-primary" />
+            <div>
+              <div className="text-sm font-semibold">הקם פרויקט חדש</div>
+              <div className="text-xs text-muted-foreground">שם ברור, תיאור קצר, ומשם אפשר להתחיל להאציל משימות וצוות</div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Input
+              placeholder="שם הפרויקט"
+              value={newProject.title}
+              onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+              className="text-right"
+              dir="rtl"
+            />
+            <Textarea
+              placeholder="מה המטרה של הפרויקט, מה נחשב הצלחה, ומה חשוב לזכור?"
+              value={newProject.description}
+              onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+              className="min-h-[84px] text-right"
+              dir="rtl"
+            />
+            <Button onClick={addProject} className="w-full">
+              <Plus className="ml-1 h-4 w-4" />
+              הוסף פרויקט
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Projects list with scroll */}
-      <div className="flex-1 min-h-0 border rounded-lg overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden rounded-2xl border bg-card/70 shadow-sm">
         <div className="h-full overflow-auto">
           {filteredProjects.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? copy.noResults : copy.empty}
+              {searchTerm ? 'לא נמצאו תוצאות' : 'אין פרויקטים עדיין'}
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -874,6 +832,9 @@ const ProjectsManager = () => {
                 });
                 const completedTasks = tasks.filter(t => t.completed).length;
                 const isExpanded = expandedProjects.has(project.id);
+                const urgentOpenTasks = tasks.filter(t => t.urgent && !t.completed).length;
+                const overdueProjectTasks = tasks.filter(t => t.due_date && !t.completed && new Date(t.due_date) < new Date()).length;
+                const health = getProjectHealthLabel(project, tasks);
                 const groupedTasks = getAssignableMembers(project.id).map((member) => {
                   const items = tasks.filter((task) => {
                     const primaryMatch = task.assigned_email === member.email;
@@ -888,108 +849,146 @@ const ProjectsManager = () => {
 
                 return (
                   <Collapsible key={project.id} open={isExpanded} onOpenChange={() => toggleExpanded(project.id)}>
-                    <div className="p-4 bg-card hover:bg-accent/50 transition-colors">
-                      <div className="flex items-center gap-3">
+                    <div className="border-b border-border/70 p-4 transition-colors hover:bg-accent/20">
+                      <div className="flex items-start gap-3">
                         <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="mt-1 h-8 w-8 shrink-0 rounded-full">
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
                           </Button>
                         </CollapsibleTrigger>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">{project.title}</h3>
+                        <div className="flex-1 space-y-3">
+                          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-lg font-semibold">{project.title}</h3>
+                                <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-medium", getProjectStatusTone(project.status))}>
+                                  {project.status || 'פעיל'}
+                                </span>
+                                <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-medium", health.tone)}>
+                                  {health.label}
+                                </span>
+                                {urgentOpenTasks > 0 && (
+                                  <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-700">
+                                    {urgentOpenTasks} דחופות
+                                  </span>
+                                )}
+                                {overdueProjectTasks > 0 && (
+                                  <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                                    {overdueProjectTasks} באיחור
+                                  </span>
+                                )}
+                              </div>
+                              {project.description && (
+                                <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{project.description}</p>
+                              )}
+                            </div>
+
+                            <div className="grid gap-2 sm:grid-cols-3 xl:min-w-[360px]">
+                              <div className="rounded-xl border bg-background px-3 py-2">
+                                <div className="text-[11px] text-muted-foreground">התקדמות משימות</div>
+                                <div className="mt-1 text-sm font-semibold">{tasks.length ? `${completedTasks}/${tasks.length}` : 'עדיין אין'}</div>
+                              </div>
+                              <div className="rounded-xl border bg-background px-3 py-2">
+                                <div className="text-[11px] text-muted-foreground">יעד</div>
+                                <div className="mt-1 text-sm font-semibold">{project.target_date ? new Date(project.target_date).toLocaleDateString('he-IL') : 'לא הוגדר'}</div>
+                              </div>
+                              <div className="rounded-xl border bg-background px-3 py-2">
+                                <div className="text-[11px] text-muted-foreground">עודכן לאחרונה</div>
+                                <div className="mt-1 text-sm font-semibold">{formatDateTime(project.updated_at)}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-3 rounded-2xl border bg-background/80 p-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Select
+                                value={project.status || 'פעיל'}
+                                onValueChange={(value) => updateProjectStatus(project.id, value)}
+                              >
+                                <SelectTrigger className="w-[130px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="פעיל">פעיל</SelectItem>
+                                  <SelectItem value="בהמתנה">בהמתנה</SelectItem>
+                                  <SelectItem value="הושלם">הושלם</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="date"
+                                value={project.target_date || ''}
+                                onChange={(e) => updateProjectTargetDate(project.id, e.target.value)}
+                                className="w-[160px]"
+                              />
+                              <Dialog open={addLinkDialogOpen === project.id} onOpenChange={(open) => setAddLinkDialogOpen(open ? project.id : null)}>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm" className="gap-1.5">
+                                    <Link2 className="h-4 w-4" />
+                                    הוסף קישור
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent dir="rtl">
+                                  <DialogHeader>
+                                    <DialogTitle>הוסף קישור</DialogTitle>
+                                  </DialogHeader>
+                                  <Input
+                                    placeholder="הכנס URL..."
+                                    value={newLink}
+                                    onChange={(e) => setNewLink(e.target.value)}
+                                    dir="ltr"
+                                  />
+                                  <DialogFooter>
+                                    <Button onClick={() => addLink(project.id)}>הוסף</Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => deleteProject(project.id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="ml-1 h-4 w-4" />
+                                מחק
+                              </Button>
+                            </div>
+
+                            {project.links && project.links.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {project.links.map((link, index) => (
+                                  <div key={index} className="flex items-center gap-1 rounded-full border bg-muted/60 px-2.5 py-1 text-xs">
+                                    <a href={link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                                      <ExternalLink className="h-3 w-3" />
+                                      {(() => { try { return new URL(link).hostname; } catch { return link.slice(0, 30); } })()}
+                                    </a>
+                                    <button
+                                      onClick={() => removeLink(project.id, index)}
+                                      className="ml-1 text-muted-foreground hover:text-destructive"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
                             {tasks.length > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                ({completedTasks}/{tasks.length} {copy.tasks})
-                              </span>
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                  <span>התקדמות כללית</span>
+                                  <span>{Math.round((completedTasks / tasks.length) * 100)}%</span>
+                                </div>
+                                <Progress value={tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0} className="h-2.5" />
+                                <p className="text-[11px] text-muted-foreground">
+                                  {tasks.length - completedTasks} משימות פתוחות, {completedTasks} הושלמו
+                                </p>
+                              </div>
                             )}
                           </div>
-                          {project.description && (
-                            <p className="text-sm text-muted-foreground mt-1">{project.description}</p>
-                          )}
                         </div>
-                        <Select
-                          value={project.status || 'פעיל'}
-                          onValueChange={(value) => updateProjectStatus(project.id, value)}
-                        >
-                          <SelectTrigger className="w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="פעיל">פעיל</SelectItem>
-                            <SelectItem value="בהמתנה">בהמתנה</SelectItem>
-                            <SelectItem value="הושלם">הושלם</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="date"
-                          value={project.target_date || ''}
-                          onChange={(e) => updateProjectTargetDate(project.id, e.target.value)}
-                          className="w-[150px]"
-                        />
-                        <Dialog open={addLinkDialogOpen === project.id} onOpenChange={(open) => setAddLinkDialogOpen(open ? project.id : null)}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="icon">
-                              <Link2 className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent dir={dir}>
-                            <DialogHeader>
-                              <DialogTitle>{copy.addLink}</DialogTitle>
-                            </DialogHeader>
-                            <Input
-                              placeholder={copy.enterUrl}
-                              value={newLink}
-                              onChange={(e) => setNewLink(e.target.value)}
-                              dir="ltr"
-                            />
-                            <DialogFooter>
-                              <Button onClick={() => addLink(project.id)}>{copy.add}</Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteProject(project.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      {/* Links */}
-                      {project.links && project.links.length > 0 && (
-                        <div className="flex gap-2 mt-2 mr-11 flex-wrap">
-                          {project.links.map((link, index) => (
-                            <div key={index} className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
-                              <a href={link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                                <ExternalLink className="h-3 w-3" />
-                                {(() => { try { return new URL(link).hostname; } catch { return link.slice(0, 30); } })()}
-                              </a>
-                              <button
-                                onClick={() => removeLink(project.id, index)}
-                                className="text-muted-foreground hover:text-destructive ml-1"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Progress Bar */}
-                      {tasks.length > 0 && (
-                        <div className="mt-3 mr-11 space-y-1">
-                          <Progress value={tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0} className="h-2" />
-                          <p className="text-[10px] text-muted-foreground">
-                            {Math.round((completedTasks / tasks.length) * 100)}% {copy.progressCompleted} — {tasks.length - completedTasks} {copy.tasksRemaining}
-                          </p>
-                        </div>
-                      )}
 
                       {/* AI Milestones Button */}
-                      <div className="mt-2 mr-11">
+                      <div className="mr-11 mt-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -998,7 +997,7 @@ const ProjectsManager = () => {
                           onClick={(e) => { e.stopPropagation(); generateAiMilestones(project); }}
                         >
                           {aiMilestonesLoading === project.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          {aiMilestones[project.id] ? copy.regenerate : copy.aiMilestones}
+                          {aiMilestones[project.id] ? 'צור מחדש' : 'אבני דרך AI'}
                         </Button>
                       </div>
 
@@ -1006,9 +1005,9 @@ const ProjectsManager = () => {
                       {aiMilestones[project.id] && aiMilestones[project.id].length > 0 && (
                         <div className="mt-2 mr-11 space-y-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">{copy.recommendedMilestones}</p>
+                            <p className="text-xs font-medium text-muted-foreground">אבני דרך מומלצות:</p>
                             <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-0.5" onClick={() => convertAllMilestonesToTasks(project.id)}>
-                              <ArrowDownToLine className="h-3 w-3" />{copy.addAllAsTasks}
+                              <ArrowDownToLine className="h-3 w-3" />הוסף הכל כמשימות
                             </Button>
                           </div>
                           {aiMilestones[project.id].map((ms, idx) => (
@@ -1017,10 +1016,10 @@ const ProjectsManager = () => {
                                 {ms.done ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
                               </button>
                               <span className={cn("flex-1", ms.done && 'line-through text-muted-foreground')}>{ms.title}</span>
-                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => convertMilestoneToTask(project.id, idx)} title={copy.addAsTask}>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => convertMilestoneToTask(project.id, idx)} title="הוסף כמשימה">
                                 <Plus className="h-3 w-3" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => deleteMilestone(project.id, idx)} title={copy.delete}>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => deleteMilestone(project.id, idx)} title="מחק">
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             </div>
@@ -1032,9 +1031,9 @@ const ProjectsManager = () => {
                         </div>
                       )}
 
-                      <div className="flex gap-4 mt-2 mr-11 text-xs text-muted-foreground">
-                        <span>{copy.created}: {formatDateTime(project.created_at, locale)}</span>
-                        <span>{copy.updated}: {formatDateTime(project.updated_at, locale)}</span>
+                      <div className="mr-11 mt-2 flex gap-4 text-xs text-muted-foreground">
+                        <span>נוצר: {formatDateTime(project.created_at)}</span>
+                        <span>עודכן: {formatDateTime(project.updated_at)}</span>
                       </div>
                     </div>
 
@@ -1044,12 +1043,12 @@ const ProjectsManager = () => {
                         <div className="space-y-2 mb-3">
                           <div className="flex gap-2">
                             <Input
-                              placeholder={copy.newTask}
+                              placeholder="משימה חדשה..."
                               value={newTaskTitle[project.id] || ''}
                               onChange={(e) => setNewTaskTitle(prev => ({ ...prev, [project.id]: e.target.value }))}
                               onKeyDown={(e) => e.key === 'Enter' && addProjectTask(project.id)}
-                              className={`flex-1 ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
-                              dir={dir}
+                              className="flex-1 text-right"
+                              dir="rtl"
                             />
                             <Button size="sm" onClick={() => addProjectTask(project.id)}>
                               <Plus className="h-4 w-4" />
@@ -1061,10 +1060,10 @@ const ProjectsManager = () => {
                               onValueChange={(v) => setNewTaskAssignee(prev => ({ ...prev, [project.id]: v === '__none__' ? '' : v }))}
                             >
                               <SelectTrigger className="w-[160px] h-8 text-xs">
-                                <SelectValue placeholder={copy.assignTeamMember} />
+                                <SelectValue placeholder="הקצה לחבר צוות" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">{copy.noAssignment}</SelectItem>
+                                <SelectItem value="__none__">ללא הקצאה</SelectItem>
                                 {getAssignableMembers(project.id).map(m => (
                                   <SelectItem key={m.id} value={m.id}>
                                     {m.displayName}
@@ -1073,23 +1072,23 @@ const ProjectsManager = () => {
                               </SelectContent>
                             </Select>
                             <Input
-                              placeholder={copy.responsibilityPlaceholder}
+                              placeholder="תפקיד/חלק במשימה..."
                               value={newTaskNotes[project.id] || ''}
                               onChange={(e) => setNewTaskNotes(prev => ({ ...prev, [project.id]: e.target.value }))}
                               className="w-[200px] h-8 text-xs"
-                              dir={dir}
+                              dir="rtl"
                             />
                             <Select
                               value={newTaskPushToWork[project.id] ? String(newTaskPushToWork[project.id]) : '__none__'}
                               onValueChange={(v) => setNewTaskPushToWork(prev => ({ ...prev, [project.id]: v === '__none__' ? false : v as any }))}
                             >
                               <SelectTrigger className="w-[180px] h-8 text-xs">
-                                <SelectValue placeholder={copy.addToDashboard} />
+                                <SelectValue placeholder="הוסף גם לדשבורד..." />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">{copy.noDashboardSync}</SelectItem>
-                                <SelectItem value="work">{copy.workTasks}</SelectItem>
-                                <SelectItem value="personal">{copy.personalTasks}</SelectItem>
+                                <SelectItem value="__none__">ללא סנכרון לדשבורד</SelectItem>
+                                <SelectItem value="work">משימות עבודה</SelectItem>
+                                <SelectItem value="personal">משימות אישיות</SelectItem>
                                 {customBoardsList.map(b => (
                                   <SelectItem key={b.id} value={`board:${b.id}`}>{b.name}</SelectItem>
                                 ))}
@@ -1120,7 +1119,7 @@ const ProjectsManager = () => {
                             className="text-[10px] h-6 px-2 mt-1"
                             onClick={() => {
                               const assigneeId = newTaskAssignee[project.id];
-                              if (!assigneeId) { toast.error(copy.chooseTeamMember); return; }
+                              if (!assigneeId) { toast.error('בחר חבר צוות קודם'); return; }
                               const responsibility = newTaskNotes[project.id]?.trim() || '';
                               setNewTaskPreAssignees(prev => ({
                                 ...prev,
@@ -1130,13 +1129,13 @@ const ProjectsManager = () => {
                               setNewTaskNotes(prev => ({ ...prev, [project.id]: '' }));
                             }}
                           >
-                            + {copy.addAnotherOwner}
+                            + הוסף אחראי נוסף
                           </Button>
                         </div>
 
                         {/* Tasks list */}
                         {tasks.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">{copy.noTasksYet}</p>
+                          <p className="text-sm text-muted-foreground">אין משימות עדיין</p>
                         ) : (
                           <div className="space-y-2">
                             {tasks.map((task) => (
@@ -1180,7 +1179,7 @@ const ProjectsManager = () => {
                                   )}
                                   {task.due_date && (
                                     <span className="text-[10px] text-muted-foreground block">
-                                      {copy.target}: {new Date(task.due_date).toLocaleDateString(locale)}
+                                      יעד: {new Date(task.due_date).toLocaleDateString('he-IL')}
                                     </span>
                                   )}
                                   {/* Multi-assignee chips with colored dots */}
@@ -1267,7 +1266,7 @@ const ProjectsManager = () => {
 
                         {groupedTasks.length > 0 && (
                           <div className="mt-4 space-y-2 rounded-lg border bg-background/70 p-3">
-                            <p className="text-xs font-semibold text-muted-foreground">{copy.groupedByOwner}</p>
+                            <p className="text-xs font-semibold text-muted-foreground">חלוקה לפי אחראי</p>
                             {groupedTasks.map((group, index) => (
                               <div key={group.id} className="rounded-lg border bg-card p-2">
                                 <div className="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -1289,15 +1288,15 @@ const ProjectsManager = () => {
                                         <div className="min-w-0">
                                           <div className="flex items-center gap-2">
                                             <span className={cn(task.completed && 'line-through text-muted-foreground')}>{task.title}</span>
-                                            {task.urgent && <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">{copy.urgent}</span>}
+                                            {task.urgent && <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] text-destructive">דחוף</span>}
                                           </div>
                                           {(directResponsibility || extraResponsibilities) && (
                                             <div className="mt-1 text-muted-foreground">
-                                              {copy.responsibility}: {directResponsibility || extraResponsibilities}
+                                              אחריות: {directResponsibility || extraResponsibilities}
                                             </div>
                                           )}
                                         </div>
-                                        <span className="shrink-0 text-[10px] text-muted-foreground">{task.completed ? copy.done : (task.status || copy.open)}</span>
+                                        <span className="shrink-0 text-[10px] text-muted-foreground">{task.completed ? 'הושלם' : (task.status || 'פתוח')}</span>
                                       </div>
                                     );
                                   })}
@@ -1329,13 +1328,13 @@ const ProjectsManager = () => {
 
       {/* Multi-assign dialog */}
       <Dialog open={!!assignDialogTask} onOpenChange={(open) => { if (!open) setAssignDialogTask(null); }}>
-        <DialogContent dir={dir}>
+        <DialogContent dir="rtl">
           <DialogHeader>
-            <DialogTitle>{copy.addAssigneeToTask}</DialogTitle>
+            <DialogTitle>הוסף אחראי למשימה</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <Select value={assignMember} onValueChange={setAssignMember}>
-              <SelectTrigger><SelectValue placeholder={copy.chooseTeamMemberShort} /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="בחר חבר צוות" /></SelectTrigger>
               <SelectContent>
                 {getAssignableMembers(assignDialogProject || '').map(m => (
                   <SelectItem key={m.id} value={m.id}>
@@ -1345,15 +1344,15 @@ const ProjectsManager = () => {
               </SelectContent>
             </Select>
             <Input
-              placeholder={copy.responsibilityOptional}
+              placeholder="תפקיד/אחריות (אופציונלי)..."
               value={assignResponsibility}
               onChange={e => setAssignResponsibility(e.target.value)}
-              dir={dir}
+              dir="rtl"
             />
           </div>
           <DialogFooter>
             <Button onClick={() => assignDialogTask && assignDialogProject && addTaskAssignment(assignDialogTask, assignDialogProject)} disabled={!assignMember}>
-              {copy.addAssignee}
+              הוסף אחראי
             </Button>
           </DialogFooter>
         </DialogContent>
