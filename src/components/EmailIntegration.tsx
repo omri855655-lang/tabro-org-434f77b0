@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
 
+type SmartBucket = "action" | "finance" | "shopping" | "updates" | "personal" | "low";
+
 const CATEGORY_ICONS: Record<string, typeof Mail> = {
   payment: CreditCard,
   task: ListTodo,
@@ -30,6 +32,84 @@ const CATEGORY_COLORS: Record<string, string> = {
   personal: "bg-gray-500/15 text-gray-700",
 };
 
+const SMART_BUCKET_META: Record<SmartBucket, { icon: typeof Mail; color: string }> = {
+  action: { icon: ListTodo, color: "bg-rose-500/12 text-rose-700" },
+  finance: { icon: CreditCard, color: "bg-blue-500/12 text-blue-700" },
+  shopping: { icon: ShoppingCart, color: "bg-green-500/12 text-green-700" },
+  updates: { icon: FileText, color: "bg-violet-500/12 text-violet-700" },
+  personal: { icon: User, color: "bg-slate-500/12 text-slate-700" },
+  low: { icon: Mail, color: "bg-muted text-muted-foreground" },
+};
+
+const extractSenderDomain = (from?: string | null) => {
+  if (!from) return "";
+  const match = from.match(/@([a-z0-9.-]+\.[a-z]{2,})/i);
+  return match?.[1]?.toLowerCase() || "";
+};
+
+const includesAny = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
+
+const getSmartBucket = (analysis: { category: string; email_subject: string | null; email_from: string | null }): SmartBucket => {
+  const subject = (analysis.email_subject || "").toLowerCase();
+  const sender = (analysis.email_from || "").toLowerCase();
+  const senderDomain = extractSenderDomain(analysis.email_from);
+  const haystack = `${subject} ${sender} ${senderDomain}`;
+
+  if (
+    analysis.category === "task" ||
+    includesAny(haystack, ["action required", "follow up", "reply needed", "meeting", "deadline", "urgent", "asap", "דחוף", "פגישה", "לטיפול", "משימה"])
+  ) {
+    return "action";
+  }
+
+  if (
+    analysis.category === "payment" ||
+    analysis.category === "bill" ||
+    includesAny(haystack, ["invoice", "payment", "receipt", "charge", "billing", "due", "statement", "חשבון", "חשבונית", "תשלום", "חיוב", "קבלה"])
+  ) {
+    return "finance";
+  }
+
+  if (
+    analysis.category === "shopping" ||
+    includesAny(haystack, ["order", "shipping", "delivery", "amazon", "purchase", "shop", "tracking", "משלוח", "הזמנה", "קניה", "קנייה"])
+  ) {
+    return "shopping";
+  }
+
+  if (
+    analysis.category === "newsletter" ||
+    analysis.category === "social" ||
+    includesAny(haystack, ["unsubscribe", "newsletter", "digest", "weekly update", "social", "promotion", "promotions", "mailchimp", "substack"])
+  ) {
+    return "low";
+  }
+
+  if (
+    includesAny(haystack, ["update", "status", "summary", "digest", "notification", "report", "alert", "system", "עדכון", "התראה", "סיכום"])
+  ) {
+    return "updates";
+  }
+
+  return "personal";
+};
+
+const getSmartPriority = (
+  analysis: { email_subject: string | null; email_from: string | null; category: string },
+  smartBucket: SmartBucket
+) => {
+  const haystack = `${analysis.email_subject || ""} ${analysis.email_from || ""}`.toLowerCase();
+  const hasUrgency = includesAny(haystack, ["urgent", "asap", "today", "deadline", "דחוף", "היום", "בהקדם"]);
+  const hasDue = includesAny(haystack, ["invoice", "payment", "bill", "due", "receipt", "תשלום", "חשבונית", "חיוב"]);
+
+  if (smartBucket === "action") return hasUrgency ? 5 : 4;
+  if (smartBucket === "finance") return hasDue ? 4 : 3;
+  if (smartBucket === "shopping") return 2.5;
+  if (smartBucket === "updates") return 2;
+  if (smartBucket === "personal") return 2.2;
+  return 1;
+};
+
 const EmailIntegration = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
@@ -40,6 +120,7 @@ const EmailIntegration = () => {
   const [reviewResult, setReviewResult] = useState<string | null>(null);
   const [displayCount, setDisplayCount] = useState(50);
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [smartFilter, setSmartFilter] = useState<"all" | SmartBucket>("all");
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "sender">("newest");
   const [showAiChat, setShowAiChat] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -62,6 +143,30 @@ const EmailIntegration = () => {
       shopping: t("catShopping" as any),
     };
     return map[cat] || cat;
+  };
+
+  const getSmartLabel = (bucket: SmartBucket) => {
+    if (isHe) {
+      const labels: Record<SmartBucket, string> = {
+        action: "דורש פעולה",
+        finance: "פיננסים וחשבונות",
+        shopping: "קניות ומשלוחים",
+        updates: "עדכונים ומערכות",
+        personal: "אישי ושוטף",
+        low: "רעש נמוך",
+      };
+      return labels[bucket];
+    }
+
+    const labels: Record<SmartBucket, string> = {
+      action: "Needs action",
+      finance: "Finance",
+      shopping: "Shopping",
+      updates: "Updates",
+      personal: "Personal",
+      low: "Low priority",
+    };
+    return labels[bucket];
   };
 
   const handleSync = async (connId: string) => {
@@ -96,23 +201,70 @@ const EmailIntegration = () => {
     return () => window.clearInterval(timer);
   }, [connections.length, autoSyncEnabled, autoSyncConnections]);
 
-  const recentEmails = useMemo(() => {
-    let filtered = analyses.filter((a) => {
+  const baseRecentEmails = useMemo(() => {
+    return analyses.filter((a) => {
       if (!a.email_date) return false;
       return isAfter(new Date(a.email_date), subDays(new Date(), 14));
     });
+  }, [analyses]);
+
+  const smartInbox = useMemo(() => {
+    const enriched = baseRecentEmails.map((analysis) => {
+      const smartBucket = getSmartBucket(analysis);
+      const smartPriority = getSmartPriority(analysis, smartBucket);
+      const senderDomain = extractSenderDomain(analysis.email_from);
+      return {
+        ...analysis,
+        smartBucket,
+        smartPriority,
+        senderDomain,
+      };
+    });
+
+    const smartSummary = enriched.reduce((acc, email) => {
+      acc[email.smartBucket] = (acc[email.smartBucket] || 0) + 1;
+      return acc;
+    }, {} as Record<SmartBucket, number>);
+
+    const priorityQueue = [...enriched]
+      .filter((email) => email.smartPriority >= 3)
+      .sort((a, b) => {
+        if (b.smartPriority !== a.smartPriority) return b.smartPriority - a.smartPriority;
+        return new Date(b.email_date || 0).getTime() - new Date(a.email_date || 0).getTime();
+      })
+      .slice(0, 6);
+
+    const senderDomains = Object.entries(
+      enriched.reduce((acc, email) => {
+        const key = email.senderDomain || "unknown";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    )
+      .filter(([domain]) => domain !== "unknown")
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    return { enriched, smartSummary, priorityQueue, senderDomains };
+  }, [baseRecentEmails]);
+
+  const recentEmails = useMemo(() => {
+    let filtered = [...smartInbox.enriched];
     if (categoryFilter !== "all") {
       filtered = filtered.filter(a => a.category === categoryFilter);
     }
-    // Sort
+    if (smartFilter !== "all") {
+      filtered = filtered.filter(a => a.smartBucket === smartFilter);
+    }
     if (sortMode === "oldest") {
       filtered.sort((a, b) => new Date(a.email_date!).getTime() - new Date(b.email_date!).getTime());
     } else if (sortMode === "sender") {
-      filtered.sort((a, b) => (a.email_from || "").localeCompare(b.email_from || ""));
+      filtered.sort((a, b) => (a.senderDomain || a.email_from || "").localeCompare(b.senderDomain || b.email_from || ""));
+    } else {
+      filtered.sort((a, b) => new Date(b.email_date!).getTime() - new Date(a.email_date!).getTime());
     }
-    // newest is default order from DB
     return filtered;
-  }, [analyses, categoryFilter, sortMode]);
+  }, [smartInbox.enriched, categoryFilter, smartFilter, sortMode]);
 
   const displayEmails = recentEmails.slice(0, displayCount);
 
@@ -300,8 +452,81 @@ const EmailIntegration = () => {
         </Card>
       )}
 
+      {baseRecentEmails.length > 0 && (
+        <Card className="card-surface">
+          <CardHeader>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ArrowUpDown className="h-4 w-4" />
+                {isHe ? "מיון אוטומטי חכם של המיילים" : "Smart automatic mail sorting"}
+              </CardTitle>
+              <Select value={smartFilter} onValueChange={(value) => setSmartFilter(value as "all" | SmartBucket)}>
+                <SelectTrigger className="h-8 w-[170px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{isHe ? "כל המסלולים" : "All lanes"}</SelectItem>
+                  {(Object.keys(SMART_BUCKET_META) as SmartBucket[]).map((bucket) => (
+                    <SelectItem key={bucket} value={bucket}>{getSmartLabel(bucket)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(SMART_BUCKET_META) as SmartBucket[]).map((bucket) => {
+                const Icon = SMART_BUCKET_META[bucket].icon;
+                const count = smartInbox.smartSummary[bucket] || 0;
+                return (
+                  <Badge key={bucket} variant="outline" className={`gap-1 ${SMART_BUCKET_META[bucket].color}`}>
+                    <Icon className="h-3 w-3" />
+                    {getSmartLabel(bucket)}: {count}
+                  </Badge>
+                );
+              })}
+            </div>
+
+            {smartInbox.priorityQueue.length > 0 && (
+              <div className="rounded-xl border bg-muted/20 p-3">
+                <div className="mb-2 text-sm font-medium">{isHe ? "תור תשומת לב מיידית" : "Needs attention now"}</div>
+                <div className="space-y-2">
+                  {smartInbox.priorityQueue.map((email) => {
+                    const Icon = SMART_BUCKET_META[email.smartBucket].icon;
+                    return (
+                      <div key={email.id} className="flex items-start gap-2 rounded-lg bg-background px-3 py-2 text-sm">
+                        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{email.email_subject || (isHe ? "(ללא נושא)" : "(No subject)")}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {email.email_from || "-"} {email.senderDomain ? `· ${email.senderDomain}` : ""}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={`text-[10px] ${SMART_BUCKET_META[email.smartBucket].color}`}>
+                          {getSmartLabel(email.smartBucket)}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {smartInbox.senderDomains.length > 0 && (
+              <div className="flex flex-wrap gap-2 text-xs">
+                {smartInbox.senderDomains.map(([domain, count]) => (
+                  <span key={domain} className="rounded-full border bg-background px-3 py-1 text-muted-foreground">
+                    {domain} · {count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent Emails with filters */}
-      {(recentEmails.length > 0 || categoryFilter !== "all") && (
+      {(recentEmails.length > 0 || categoryFilter !== "all" || smartFilter !== "all") && (
         <Card className="card-surface">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -352,18 +577,26 @@ const EmailIntegration = () => {
             <div className="space-y-1">
               {displayEmails.map((a) => {
                 const Icon = CATEGORY_ICONS[a.category] || Mail;
+                const SmartIcon = SMART_BUCKET_META[a.smartBucket].icon;
                 const isSent = a.email_from && connectedEmails.includes(a.email_from.toLowerCase());
                 return (
                   <div key={a.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="flex-1 truncate">{a.email_subject || (isHe ? "(ללא נושא)" : "(No subject)")}</span>
                     <span className="text-xs text-muted-foreground truncate max-w-[120px]">{a.email_from}</span>
+                    {a.senderDomain && (
+                      <span className="text-[10px] text-muted-foreground">{a.senderDomain}</span>
+                    )}
                     {isSent && <Badge variant="secondary" className="text-[9px]">{t("sent" as any)}</Badge>}
                     {a.email_date && (
                       <span className="text-[10px] text-muted-foreground">{format(new Date(a.email_date), "dd/MM")}</span>
                     )}
                     <Badge variant="outline" className={`text-[9px] ${CATEGORY_COLORS[a.category] || ""}`}>
                       {getCategoryLabel(a.category)}
+                    </Badge>
+                    <Badge variant="outline" className={`gap-1 text-[9px] ${SMART_BUCKET_META[a.smartBucket].color}`}>
+                      <SmartIcon className="h-3 w-3" />
+                      {getSmartLabel(a.smartBucket)}
                     </Badge>
                   </div>
                 );
