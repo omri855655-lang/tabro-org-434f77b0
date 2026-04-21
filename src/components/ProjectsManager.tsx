@@ -986,6 +986,7 @@ const ProjectsManager = () => {
                             )}
                           </div>
                         </div>
+                      </div>
 
                       {/* AI Milestones Button */}
                       <div className="mr-11 mt-2">
