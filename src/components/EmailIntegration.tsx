@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useEmailIntegration } from "@/hooks/useEmailIntegration";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,9 @@ const EmailIntegration = () => {
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "sender">("newest");
   const [showAiChat, setShowAiChat] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => {
+    return localStorage.getItem("email-auto-sync-enabled") !== "false";
+  });
   const aiChatHistory = useDashboardChatHistory("email-insights");
 
   const isHe = lang === "he" || lang === "ar";
@@ -66,6 +69,32 @@ const EmailIntegration = () => {
     await syncEmails(connId);
     setSyncing(null);
   };
+
+  const autoSyncConnections = useCallback(async () => {
+    if (!autoSyncEnabled || loading || syncing) return;
+    const now = Date.now();
+    for (const conn of connections) {
+      const lastSyncTs = conn.last_sync ? new Date(conn.last_sync).getTime() : 0;
+      const staleEnough = !lastSyncTs || now - lastSyncTs > 10 * 60 * 1000;
+      if (!staleEnough) continue;
+      setSyncing(conn.id);
+      await syncEmails(conn.id);
+      setSyncing(null);
+    }
+  }, [autoSyncEnabled, loading, syncing, connections, syncEmails]);
+
+  useEffect(() => {
+    localStorage.setItem("email-auto-sync-enabled", String(autoSyncEnabled));
+  }, [autoSyncEnabled]);
+
+  useEffect(() => {
+    if (!connections.length || !autoSyncEnabled) return;
+    autoSyncConnections();
+    const timer = window.setInterval(() => {
+      autoSyncConnections();
+    }, 10 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [connections.length, autoSyncEnabled, autoSyncConnections]);
 
   const recentEmails = useMemo(() => {
     let filtered = analyses.filter((a) => {
@@ -193,10 +222,23 @@ const EmailIntegration = () => {
               <Mail className="h-5 w-5" />
               {t("emailAccounts" as any)}
             </CardTitle>
-            <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1">
-              <Plus className="h-3 w-3" />
-              {t("addConnection" as any)}
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 rounded-md border px-2 py-1 text-xs">
+                <span>{isHe ? "סנכרון אוטומטי" : "Auto sync"}</span>
+                <Button
+                  variant={autoSyncEnabled ? "default" : "outline"}
+                  size="sm"
+                  className="h-6 px-2 text-[11px]"
+                  onClick={() => setAutoSyncEnabled((prev) => !prev)}
+                >
+                  {autoSyncEnabled ? (isHe ? "פעיל" : "On") : (isHe ? "כבוי" : "Off")}
+                </Button>
+              </div>
+              <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1">
+                <Plus className="h-3 w-3" />
+                {t("addConnection" as any)}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
