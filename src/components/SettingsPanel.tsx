@@ -188,7 +188,6 @@ const SettingsPanel = () => {
       dreams: "dreams",
       shopping: "shopping",
       payments: "payments",
-      meetings: "meetingsTab",
       settings: "settings",
     };
 
