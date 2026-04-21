@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,6 +22,7 @@ type MeetingRecord = {
   decisions: string;
   actionItems: string;
   followUpNotes: string;
+  followUpEmailDraft: string;
   updatedAt: string;
 };
 
@@ -40,6 +41,7 @@ const createMeeting = (): MeetingRecord => ({
   decisions: "",
   actionItems: "",
   followUpNotes: "",
+  followUpEmailDraft: "",
   updatedAt: new Date().toISOString(),
 });
 
@@ -56,6 +58,7 @@ const normalizeMeeting = (meeting: Partial<MeetingRecord>): MeetingRecord => ({
   decisions: meeting.decisions || "",
   actionItems: meeting.actionItems || "",
   followUpNotes: meeting.followUpNotes || "",
+  followUpEmailDraft: meeting.followUpEmailDraft || "",
   updatedAt: meeting.updatedAt || new Date().toISOString(),
 });
 
@@ -74,6 +77,23 @@ const MeetingsDashboard = () => {
   const [meetings, setMeetings] = useState<MeetingRecord[]>(() => loadMeetings());
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const selectedMeetingRef = useRef<MeetingRecord | null>(null);
+  const speechSupported = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  useEffect(() => {
+    selectedMeetingRef.current = selectedMeeting;
+  }, [selectedMeeting]);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
 
   const saveMeetings = (next: MeetingRecord[]) => {
     setMeetings(next);
@@ -127,6 +147,7 @@ const MeetingsDashboard = () => {
           <div class="section"><h2>החלטות</h2><pre>${meeting.decisions || "-"}</pre></div>
           <div class="section"><h2>משימות המשך</h2><pre>${meeting.actionItems || "-"}</pre></div>
           <div class="section"><h2>המשך / מעקב</h2><pre>${meeting.followUpNotes || "-"}</pre></div>
+          <div class="section"><h2>טיוטת מייל המשך</h2><pre>${meeting.followUpEmailDraft || "-"}</pre></div>
           <div class="section"><h2>תמלול / הקלטה מודבקת</h2><pre>${meeting.transcript || "-"}</pre></div>
         </body>
       </html>
@@ -161,6 +182,41 @@ const MeetingsDashboard = () => {
     }
   };
 
+  const generateFollowUpEmail = async () => {
+    if (!selectedMeeting?.transcript.trim() && !selectedMeeting?.aiSummary.trim()) {
+      toast.error("צריך קודם תמלול או סיכום פגישה כדי לנסח מייל המשך");
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const prompt = `נסח מייל המשך מקצועי אחרי פגישה. החזר טיוטה ברורה וקצרה עם: נושא מוצע, פתיח, נקודות מרכזיות, החלטות, משימות המשך ו-next steps.
+
+כותרת פגישה: ${selectedMeeting.title || "פגישה"}
+סוג פגישה: ${selectedMeeting.meetingType || "-"}
+משתתפים: ${selectedMeeting.attendees || "-"}
+סיכום קצר: ${selectedMeeting.shortSummary || "-"}
+סיכום AI: ${selectedMeeting.aiSummary || "-"}
+החלטות: ${selectedMeeting.decisions || "-"}
+משימות המשך: ${selectedMeeting.actionItems || "-"}
+תמלול/הערות: ${selectedMeeting.transcript || "-"}`;
+
+      const { data, error } = await supabase.functions.invoke("tabro-ai-agent", {
+        body: { message: prompt, source: "meetings-dashboard-follow-up" },
+      });
+      if (error) throw error;
+
+      const followUpEmailDraft = data?.reply || data?.response || data?.message || "לא התקבלה טיוטת מייל";
+      upsertMeeting({ ...selectedMeeting, followUpEmailDraft });
+      toast.success("טיוטת מייל המשך נוצרה");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "שגיאה ביצירת טיוטת מייל");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const generateMeetingActions = async () => {
     if (!selectedMeeting?.transcript.trim()) {
       toast.error("צריך קודם להדביק תמלול או סיכום שיחה");
@@ -189,6 +245,73 @@ const MeetingsDashboard = () => {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const startLiveTranscript = () => {
+    if (!speechSupported) {
+      toast.error("הדפדפן הזה לא תומך כרגע בתמלול חי");
+      return;
+    }
+    if (!selectedMeetingRef.current) {
+      toast.error("צריך לפתוח פגישה לפני שמתחילים הקלטה");
+      return;
+    }
+
+    try {
+      const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognitionCtor();
+      recognition.lang = document?.documentElement?.dir === "rtl" ? "he-IL" : "en-US";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event: any) => {
+        let finalTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const result = event.results[i];
+          if (result?.isFinal) {
+            finalTranscript += result[0]?.transcript || "";
+          }
+        }
+
+        if (!finalTranscript.trim()) return;
+
+        setSelectedMeeting((prev) => {
+          if (!prev) return prev;
+          const separator = prev.transcript.trim() ? "\n" : "";
+          return {
+            ...prev,
+            transcript: `${prev.transcript}${separator}${finalTranscript.trim()}`,
+          };
+        });
+      };
+
+      recognition.onerror = () => {
+        setIsRecording(false);
+        recognitionRef.current = null;
+        toast.error("התמלול החי נעצר. אפשר לנסות שוב.");
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+        recognitionRef.current = null;
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsRecording(true);
+      toast.success("ההקלטה והתמלול החיים התחילו");
+    } catch (error) {
+      console.error(error);
+      toast.error("לא הצלחנו להתחיל הקלטה חיה בדפדפן הזה");
+    }
+  };
+
+  const stopLiveTranscript = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
   };
 
   return (
@@ -318,6 +441,23 @@ const MeetingsDashboard = () => {
 
               <div className="space-y-1">
                 <Label>תמלול / הקלטה מודבקת</Label>
+                <div className="flex flex-wrap items-center gap-2 pb-2">
+                  <Button
+                    type="button"
+                    variant={isRecording ? "destructive" : "outline"}
+                    className="gap-2"
+                    onClick={isRecording ? stopLiveTranscript : startLiveTranscript}
+                    disabled={!speechSupported}
+                  >
+                    <Mic className="h-4 w-4" />
+                    {isRecording ? "עצור הקלטה חיה" : "התחל הקלטה + תמלול"}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {speechSupported
+                      ? "הדפדפן יתמלל ישירות לתוך התיבה בזמן אמת."
+                      : "בדפדפן הזה אפשר להדביק תמלול ידנית או להשתמש בדפדפן תומך."}
+                  </span>
+                </div>
                 <Textarea value={selectedMeeting.transcript} onChange={(e) => setSelectedMeeting({ ...selectedMeeting, transcript: e.target.value })} className="min-h-[180px]" placeholder="כאן אפשר להדביק תמלול מלא או הערות גולמיות מהפגישה." />
               </div>
 
@@ -335,6 +475,10 @@ const MeetingsDashboard = () => {
                     <Button variant="outline" className="gap-2" disabled={aiLoading} onClick={generateMeetingActions}>
                       <FileText className="h-4 w-4" />
                       {aiLoading ? "מנתח..." : "הפק החלטות ומשימות"}
+                    </Button>
+                    <Button variant="outline" className="gap-2" disabled={aiLoading} onClick={generateFollowUpEmail}>
+                      <Sparkles className="h-4 w-4" />
+                      {aiLoading ? "מנסח..." : "טיוטת מייל המשך"}
                     </Button>
                     <Button variant="outline" className="gap-2" onClick={() => exportMeetingPdf(selectedMeeting)}>
                       <Download className="h-4 w-4" />
@@ -385,6 +529,16 @@ const MeetingsDashboard = () => {
                     placeholder="מה צריך לבדוק בהמשך, מועד פגישה חוזרת, ונקודות פתוחות."
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>טיוטת מייל המשך</Label>
+                <Textarea
+                  value={selectedMeeting.followUpEmailDraft}
+                  onChange={(e) => setSelectedMeeting({ ...selectedMeeting, followUpEmailDraft: e.target.value })}
+                  className="min-h-[150px]"
+                  placeholder="כאן תופיע טיוטת מייל שאפשר לשלוח אחרי הפגישה, עם נקודות עיקריות, החלטות ומשימות."
+                />
               </div>
 
               <DialogFooter className="gap-2 sm:justify-between">

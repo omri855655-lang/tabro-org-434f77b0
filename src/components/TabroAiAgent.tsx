@@ -24,6 +24,16 @@ interface AiAgentPreferences {
   newsTopics: string;
 }
 
+interface AgentModeShortcut {
+  key: string;
+  titleHe: string;
+  titleEn: string;
+  descHe: string;
+  descEn: string;
+  promptHe: string;
+  promptEn: string;
+}
+
 const ACTION_LABELS: Record<string, string> = {
   add_task: "המשימה נוספה בהצלחה",
   update_task: "המשימה עודכנה",
@@ -220,6 +230,54 @@ const TabroAiAgent = () => {
       : null,
   ].filter(Boolean) as string[];
 
+  const agentModes: AgentModeShortcut[] = [
+    {
+      key: "project-review",
+      titleHe: "סקירת פרויקטים",
+      titleEn: "Project review",
+      descHe: "מה תקוע, מה דחוף, ומה דורש החלטה",
+      descEn: "What's blocked, urgent, and needs a decision",
+      promptHe: "תן לי סקירת פרויקטים ניהולית: מה תקוע, מה באיחור, מה דחוף, ואיזה פרויקט דורש החלטה שלי היום.",
+      promptEn: "Give me a managerial projects review: what's blocked, overdue, urgent, and which project needs my decision today.",
+    },
+    {
+      key: "inbox-triage",
+      titleHe: "טריאז׳ מיילים",
+      titleEn: "Inbox triage",
+      descHe: "מה דורש תשובה מיידית ומה אפשר לדחות",
+      descEn: "What needs a response now and what can wait",
+      promptHe: "עשה לי טריאז׳ מלא למיילים: מה דורש תגובה מיידית, מה אפשר לדחות, ומה אפשר לארכב בלי לפגוע בכלום.",
+      promptEn: "Triage my inbox: what needs an immediate response, what can wait, and what can be archived safely.",
+    },
+    {
+      key: "meeting-prep",
+      titleHe: "הכנה לפגישה",
+      titleEn: "Meeting prep",
+      descHe: "תדריך קצר לפני שיחה או ישיבה",
+      descEn: "Quick prep before a conversation or meeting",
+      promptHe: "תכין לי תדריך קצר לפגישה: מה הרקע, מה המטרות, מה כדאי לשאול, ומה לא לשכוח להגיד.",
+      promptEn: "Prepare a short meeting brief: background, goals, questions to ask, and what not to forget to say.",
+    },
+    {
+      key: "focus-coach",
+      titleHe: "מאמן פוקוס",
+      titleEn: "Focus coach",
+      descHe: "מה הכי חשוב לי עכשיו ואיך להיכנס לפעולה",
+      descEn: "What matters most right now and how to start",
+      promptHe: "פעל כמאמן פוקוס: קח את כל מה שיש לי היום ותגיד לי מה הכי חשוב, מה להוריד מהרעש, ואיך להתחיל ב-20 הדקות הקרובות.",
+      promptEn: "Act as a focus coach: use everything on my plate today and tell me what matters most, what to ignore, and how to start in the next 20 minutes.",
+    },
+    {
+      key: "executive-summary",
+      titleHe: "סיכום מנהלים",
+      titleEn: "Executive summary",
+      descHe: "מצב מהיר של היום, השבוע, והסיכונים",
+      descEn: "Fast status on today, this week, and risks",
+      promptHe: "תן לי סיכום מנהלים קצר: מצב היום, השבוע, דחופים, סיכונים, ומה דורש תשומת לב מיוחדת.",
+      promptEn: "Give me a short executive summary: today, this week, urgent items, risks, and what needs special attention.",
+    },
+  ];
+
   if (!user) return null;
 
   return (
@@ -372,6 +430,21 @@ const TabroAiAgent = () => {
                       </div>
                     </div>
                   )}
+                  <div className="space-y-2 mt-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground">{isHebrew ? "מצבי סוכן חכמים" : "Agent modes"}</p>
+                    <div className="grid gap-2 text-right">
+                      {agentModes.map((mode) => (
+                        <button
+                          key={mode.key}
+                          className="rounded-lg border border-border bg-background/70 px-3 py-2 text-right transition-colors hover:bg-muted"
+                          onClick={() => queuePrompt(isHebrew ? mode.promptHe : mode.promptEn)}
+                        >
+                          <span className="block text-xs font-semibold">{isHebrew ? mode.titleHe : mode.titleEn}</span>
+                          <span className="block text-[10px] text-muted-foreground">{isHebrew ? mode.descHe : mode.descEn}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
               {messages.map((msg, i) => (

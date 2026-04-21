@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { Component, type ErrorInfo, type ReactNode, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +19,36 @@ import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
 import NotificationSettings from "@/components/NotificationSettings";
 import RecycleBin from "@/components/RecycleBin";
+
+class SettingsSectionBoundary extends Component<{ title: string; children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[SettingsPanel:${this.props.title}]`, error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-destructive">{this.props.title}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>החלק הזה בהגדרות נפל זמנית ולא יטען כרגע.</p>
+            <p>שאר ההגדרות נשארו פעילות כדי לא להפיל את כל המסך.</p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const ChangePasswordForm = () => {
   const { t } = useLanguage();
@@ -192,7 +222,37 @@ const SettingsPanel = () => {
       settings: "settings",
     };
 
-    return t((keyMap[tabId] || tabId) as any);
+    const fallbackLabels: Record<string, string> = {
+      dashboard: isEnglish ? "Dashboard" : "דשבורד",
+      tasks: isEnglish ? "Tasks" : "משימות",
+      work: isEnglish ? "Work" : "עבודה",
+      books: isEnglish ? "Books" : "ספרים",
+      shows: isEnglish ? "Shows & Movies" : "סדרות וסרטים",
+      podcasts: isEnglish ? "Podcasts" : "פודקאסטים",
+      routine: isEnglish ? "Daily Routine" : "לוז יומי",
+      projects: isEnglish ? "Projects" : "פרויקטים",
+      courses: isEnglish ? "Courses" : "קורסים",
+      planner: isEnglish ? "Planner" : "מתכנן",
+      zoneflow: "ZoneFlow",
+      challenges: isEnglish ? "Challenges" : "אתגרים",
+      nutrition: isEnglish ? "Nutrition" : "תזונה",
+      dreams: isEnglish ? "Dream Roadmap" : "מפת חלומות",
+      shopping: isEnglish ? "Shopping" : "קניות",
+      payments: isEnglish ? "Payments" : "הכנסות והוצאות",
+      notes: isEnglish ? "Notes" : "פתקים",
+      email: isEnglish ? "Email" : "מייל",
+      sharing: isEnglish ? "Sharing" : "שיתוף",
+      contact: isEnglish ? "Contact" : "פנייה / תמיכה",
+      meetings: isEnglish ? "Meetings" : "פגישות",
+      settings: isEnglish ? "Settings" : "הגדרות",
+    };
+
+    try {
+      const translated = t((keyMap[tabId] || tabId) as any);
+      return translated || fallbackLabels[tabId] || tabId;
+    } catch {
+      return fallbackLabels[tabId] || tabId;
+    }
   };
 
   useEffect(() => {
@@ -293,6 +353,7 @@ const SettingsPanel = () => {
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6" dir={dir}>
+      <SettingsSectionBoundary title={isEnglish ? "Settings" : "הגדרות"}>
       {/* Profile Name Card */}
       <Card>
         <CardHeader>
@@ -720,16 +781,20 @@ const SettingsPanel = () => {
       </Card>
 
       {/* Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />{t("notifications" as any)}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <NotificationSettings />
-        </CardContent>
-      </Card>
+      <SettingsSectionBoundary title={isEnglish ? "Notifications" : "התראות"}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />{t("notifications" as any)}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <NotificationSettings />
+          </CardContent>
+        </Card>
+      </SettingsSectionBoundary>
 
-      <TelegramSettings />
+      <SettingsSectionBoundary title="Telegram">
+        <TelegramSettings />
+      </SettingsSectionBoundary>
 
       {/* Hebrew Date */}
       <Card>
@@ -804,6 +869,7 @@ const SettingsPanel = () => {
           </Button>
         </CardContent>
       </Card>
+      </SettingsSectionBoundary>
     </div>
   );
 };

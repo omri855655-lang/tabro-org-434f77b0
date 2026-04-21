@@ -64,7 +64,18 @@ interface TaskAssignment {
   responsibility: string | null;
 }
 
+interface InitialProjectMemberDraft {
+  email: string;
+  role: string;
+  jobTitle: string;
+}
+
 const MEMBER_DOT_COLORS = ["bg-primary", "bg-accent", "bg-foreground/70", "bg-secondary-foreground/70", "bg-muted-foreground", "bg-destructive"];
+const PROJECT_ROLE_LABELS: Record<string, string> = {
+  manager: "מנהל",
+  member: "חבר צוות",
+  viewer: "צופה",
+};
 
 const formatDateTime = (dateStr: string) => {
   if (!dateStr) return '-';
@@ -138,6 +149,9 @@ const ProjectsManager = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'פעיל' | 'בהמתנה' | 'הושלם'>('all');
   // Multi-assignee on new task creation
   const [newTaskPreAssignees, setNewTaskPreAssignees] = useState<Record<string, { memberId: string; responsibility: string }[]>>({});
+  const [initialProjectMembers, setInitialProjectMembers] = useState<InitialProjectMemberDraft[]>([
+    { email: "", role: "member", jobTitle: "" },
+  ]);
 
   useEffect(() => {
     if (user) {
@@ -223,21 +237,94 @@ const ProjectsManager = () => {
       return;
     }
 
-    const { error } = await supabase.from('projects').insert({
+    const invitedMembers = initialProjectMembers
+      .map((member) => ({
+        email: member.email.trim().toLowerCase(),
+        role: member.role,
+        jobTitle: member.jobTitle.trim(),
+      }))
+      .filter((member) => member.email);
+
+    const invalidMember = invitedMembers.find((member) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(member.email));
+    if (invalidMember) {
+      toast.error(`אימייל לא תקין בצוות: ${invalidMember.email}`);
+      return;
+    }
+
+    const { data: createdProject, error } = await supabase.from('projects').insert({
       user_id: user?.id,
       title: newProject.title,
       description: newProject.description || null,
       status: 'פעיל',
-    });
+    }).select().single();
 
     if (error) {
       toast.error('שגיאה בהוספת הפרויקט');
       console.error(error);
     } else {
+      const ownerEmail = (user?.email || "").trim().toLowerCase();
+      const uniqueMembers = new Map<string, InitialProjectMemberDraft>();
+
+      if (ownerEmail) {
+        uniqueMembers.set(ownerEmail, {
+          email: ownerEmail,
+          role: "manager",
+          jobTitle: "בעל הפרויקט",
+        });
+      }
+
+      invitedMembers.forEach((member) => {
+        const existing = uniqueMembers.get(member.email);
+        if (!existing || existing.role !== "manager") {
+          uniqueMembers.set(member.email, {
+            email: member.email,
+            role: member.email === ownerEmail ? "manager" : member.role,
+            jobTitle: member.jobTitle,
+          });
+        }
+      });
+
+      const memberRows = Array.from(uniqueMembers.values()).map((member) => {
+        const isSelf = member.email === ownerEmail;
+        return {
+          project_id: createdProject.id,
+          invited_email: member.email,
+          role: member.role,
+          job_title: member.jobTitle || null,
+          invited_by: user?.id,
+          user_id: isSelf ? user?.id : null,
+          invited_display_name: isSelf ? (user?.email?.split('@')[0] || 'אני') : null,
+          status: 'approved',
+        };
+      });
+
+      if (memberRows.length > 0) {
+        const { error: membersError } = await supabase.from('project_members').insert(memberRows);
+        if (membersError) {
+          console.error(membersError);
+          toast.error('הפרויקט נוצר, אבל חלק מאנשי הצוות לא נשמרו');
+        }
+      }
+
       toast.success('הפרויקט נוסף בהצלחה');
       setNewProject({ title: '', description: '' });
+      setInitialProjectMembers([{ email: "", role: "member", jobTitle: "" }]);
       fetchProjects();
     }
+  };
+
+  const updateInitialProjectMember = (index: number, field: keyof InitialProjectMemberDraft, value: string) => {
+    setInitialProjectMembers((prev) => prev.map((member, memberIndex) => (
+      memberIndex === index ? { ...member, [field]: value } : member
+    )));
+  };
+
+  const addInitialProjectMemberRow = () => {
+    setInitialProjectMembers((prev) => [...prev, { email: "", role: "member", jobTitle: "" }]);
+  };
+
+  const removeInitialProjectMemberRow = (index: number) => {
+    setInitialProjectMembers((prev) => prev.filter((_, memberIndex) => memberIndex !== index));
   };
 
   const updateProjectStatus = async (id: string, status: string) => {
@@ -807,6 +894,57 @@ const ProjectsManager = () => {
               className="min-h-[84px] text-right"
               dir="rtl"
             />
+            <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">צוות התחלתי ותפקידים</div>
+                  <div className="text-xs text-muted-foreground">אפשר לצרף כבר עכשיו את אנשי הצוות הראשונים ולשייך להם תפקיד.</div>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addInitialProjectMemberRow}>
+                  <Plus className="ml-1 h-4 w-4" />
+                  הוסף איש צוות
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {initialProjectMembers.map((member, index) => (
+                  <div key={`initial-member-${index}`} className="grid gap-2 rounded-xl border bg-background p-3 md:grid-cols-[minmax(0,1.3fr)_140px_minmax(0,1fr)_40px]">
+                    <Input
+                      type="email"
+                      placeholder="אימייל של איש צוות"
+                      value={member.email}
+                      onChange={(e) => updateInitialProjectMember(index, "email", e.target.value)}
+                      dir="ltr"
+                    />
+                    <Select value={member.role} onValueChange={(value) => updateInitialProjectMember(index, "role", value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manager">מנהל</SelectItem>
+                        <SelectItem value="member">חבר צוות</SelectItem>
+                        <SelectItem value="viewer">צופה</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="תפקיד / אחריות"
+                      value={member.jobTitle}
+                      onChange={(e) => updateInitialProjectMember(index, "jobTitle", e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive"
+                      onClick={() => removeInitialProjectMemberRow(index)}
+                      disabled={initialProjectMembers.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
             <Button onClick={addProject} className="w-full">
               <Plus className="ml-1 h-4 w-4" />
               הוסף פרויקט
@@ -900,6 +1038,28 @@ const ProjectsManager = () => {
                           </div>
 
                           <div className="flex flex-col gap-3 rounded-2xl border bg-background/80 p-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-medium text-muted-foreground">צוות:</span>
+                              {(projectMembers[project.id] || []).length === 0 ? (
+                                <span className="rounded-full border bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground">עדיין לא צורף צוות</span>
+                              ) : (
+                                <>
+                                  {(projectMembers[project.id] || []).slice(0, 4).map((member, index) => (
+                                    <span key={member.id} className="inline-flex items-center gap-2 rounded-full border bg-muted/60 px-2.5 py-1 text-[11px]">
+                                      <span className={cn("h-2 w-2 rounded-full", MEMBER_DOT_COLORS[index % MEMBER_DOT_COLORS.length])} />
+                                      <span>{member.invited_display_name || member.invited_email.split("@")[0]}</span>
+                                      <span className="text-muted-foreground">{PROJECT_ROLE_LABELS[member.role] || member.role}</span>
+                                    </span>
+                                  ))}
+                                  {(projectMembers[project.id] || []).length > 4 && (
+                                    <span className="rounded-full border bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground">
+                                      +{(projectMembers[project.id] || []).length - 4} נוספים
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+
                             <div className="flex flex-wrap items-center gap-2">
                               <Select
                                 value={project.status || 'פעיל'}
