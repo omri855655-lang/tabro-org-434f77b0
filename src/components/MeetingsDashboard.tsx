@@ -13,10 +13,15 @@ type MeetingRecord = {
   id: string;
   title: string;
   meetingDate: string;
+  meetingType: string;
   attendees: string;
   shortSummary: string;
   transcript: string;
   aiSummary: string;
+  executiveBrief: string;
+  decisions: string;
+  actionItems: string;
+  followUpNotes: string;
   updatedAt: string;
 };
 
@@ -26,11 +31,32 @@ const createMeeting = (): MeetingRecord => ({
   id: crypto.randomUUID(),
   title: "",
   meetingDate: new Date().toISOString().slice(0, 16),
+  meetingType: "",
   attendees: "",
   shortSummary: "",
   transcript: "",
   aiSummary: "",
+  executiveBrief: "",
+  decisions: "",
+  actionItems: "",
+  followUpNotes: "",
   updatedAt: new Date().toISOString(),
+});
+
+const normalizeMeeting = (meeting: Partial<MeetingRecord>): MeetingRecord => ({
+  id: meeting.id || crypto.randomUUID(),
+  title: meeting.title || "",
+  meetingDate: meeting.meetingDate || new Date().toISOString().slice(0, 16),
+  meetingType: meeting.meetingType || "",
+  attendees: meeting.attendees || "",
+  shortSummary: meeting.shortSummary || "",
+  transcript: meeting.transcript || "",
+  aiSummary: meeting.aiSummary || "",
+  executiveBrief: meeting.executiveBrief || "",
+  decisions: meeting.decisions || "",
+  actionItems: meeting.actionItems || "",
+  followUpNotes: meeting.followUpNotes || "",
+  updatedAt: meeting.updatedAt || new Date().toISOString(),
 });
 
 const loadMeetings = (): MeetingRecord[] => {
@@ -38,7 +64,7 @@ const loadMeetings = (): MeetingRecord[] => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeMeeting) : [];
   } catch {
     return [];
   }
@@ -94,9 +120,13 @@ const MeetingsDashboard = () => {
         </head>
         <body>
           <h1>${meeting.title || "פגישה ללא כותרת"}</h1>
-          <div class="meta">תאריך: ${meeting.meetingDate || "-"} | משתתפים: ${meeting.attendees || "-"}</div>
+          <div class="meta">תאריך: ${meeting.meetingDate || "-"} | סוג פגישה: ${meeting.meetingType || "-"} | משתתפים: ${meeting.attendees || "-"}</div>
+          <div class="section"><h2>תדריך מנהלים</h2><pre>${meeting.executiveBrief || "-"}</pre></div>
           <div class="section"><h2>סיכום שיחה</h2><pre>${meeting.shortSummary || "-"}</pre></div>
           <div class="section"><h2>סיכום AI</h2><pre>${meeting.aiSummary || "-"}</pre></div>
+          <div class="section"><h2>החלטות</h2><pre>${meeting.decisions || "-"}</pre></div>
+          <div class="section"><h2>משימות המשך</h2><pre>${meeting.actionItems || "-"}</pre></div>
+          <div class="section"><h2>המשך / מעקב</h2><pre>${meeting.followUpNotes || "-"}</pre></div>
           <div class="section"><h2>תמלול / הקלטה מודבקת</h2><pre>${meeting.transcript || "-"}</pre></div>
         </body>
       </html>
@@ -126,6 +156,36 @@ const MeetingsDashboard = () => {
     } catch (error: any) {
       console.error(error);
       toast.error(error?.message || "שגיאה ביצירת סיכום AI");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const generateMeetingActions = async () => {
+    if (!selectedMeeting?.transcript.trim()) {
+      toast.error("צריך קודם להדביק תמלול או סיכום שיחה");
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const prompt = `קרא את תמלול הפגישה והחזר 3 חלקים ברורים:\n1) תדריך מנהלים קצר של עד 6 שורות\n2) החלטות שהתקבלו\n3) משימות המשך אופרטיביות עם בעלים אם ידוע.\n\nכותרת: ${selectedMeeting.title || "פגישה"}\nסוג פגישה: ${selectedMeeting.meetingType || "-"}\nמשתתפים: ${selectedMeeting.attendees || "-"}\n\nתמלול:\n${selectedMeeting.transcript}`;
+      const { data, error } = await supabase.functions.invoke("tabro-ai-agent", {
+        body: { message: prompt, source: "meetings-dashboard-actions" },
+      });
+      if (error) throw error;
+
+      const content = data?.reply || data?.response || data?.message || "";
+      upsertMeeting({
+        ...selectedMeeting,
+        executiveBrief: content,
+        decisions: content,
+        actionItems: content,
+      });
+      toast.success("נוצרה שכבת החלטות ומשימות");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "שגיאה ביצירת החלטות ומשימות");
     } finally {
       setAiLoading(false);
     }
@@ -194,8 +254,9 @@ const MeetingsDashboard = () => {
                   <div className="text-sm text-muted-foreground">
                     תאריך: {meeting.meetingDate ? new Date(meeting.meetingDate).toLocaleString("he-IL") : "-"}
                   </div>
+                  <div className="text-sm text-muted-foreground">סוג: {meeting.meetingType || "-"}</div>
                   <div className="text-sm text-muted-foreground">משתתפים: {meeting.attendees || "-"}</div>
-                  <div className="line-clamp-2 text-sm">{meeting.shortSummary || meeting.aiSummary || "אין עדיין סיכום."}</div>
+                  <div className="line-clamp-2 text-sm">{meeting.executiveBrief || meeting.shortSummary || meeting.aiSummary || "אין עדיין סיכום."}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" className="gap-1" onClick={() => setSelectedMeeting(meeting)}>
@@ -237,6 +298,15 @@ const MeetingsDashboard = () => {
               </div>
 
               <div className="space-y-1">
+                <Label>סוג פגישה</Label>
+                <Input
+                  value={selectedMeeting.meetingType}
+                  onChange={(e) => setSelectedMeeting({ ...selectedMeeting, meetingType: e.target.value })}
+                  placeholder="לדוגמה: סטטוס שבועי, לקוח, הנהלה, 1:1"
+                />
+              </div>
+
+              <div className="space-y-1">
                 <Label>משתתפים</Label>
                 <Input value={selectedMeeting.attendees} onChange={(e) => setSelectedMeeting({ ...selectedMeeting, attendees: e.target.value })} placeholder="לדוגמה: עומרי, יעל, צוות שיווק" />
               </div>
@@ -255,12 +325,16 @@ const MeetingsDashboard = () => {
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
                     <div className="font-semibold">סיכום AI</div>
-                    <div className="text-xs text-muted-foreground">ה‑AI יסכם החלטות, משימות המשך ונקודות חשובות מתוך התמלול.</div>
+                    <div className="text-xs text-muted-foreground">ה‑AI יסכם נקודות מרכזיות, תדריך מנהלים, החלטות ומשימות המשך מתוך התמלול.</div>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" className="gap-2" disabled={aiLoading} onClick={generateAiSummary}>
                       <Sparkles className="h-4 w-4" />
                       {aiLoading ? "מייצר..." : "הפק סיכום AI"}
+                    </Button>
+                    <Button variant="outline" className="gap-2" disabled={aiLoading} onClick={generateMeetingActions}>
+                      <FileText className="h-4 w-4" />
+                      {aiLoading ? "מנתח..." : "הפק החלטות ומשימות"}
                     </Button>
                     <Button variant="outline" className="gap-2" onClick={() => exportMeetingPdf(selectedMeeting)}>
                       <Download className="h-4 w-4" />
@@ -269,6 +343,48 @@ const MeetingsDashboard = () => {
                   </div>
                 </div>
                 <Textarea value={selectedMeeting.aiSummary} onChange={(e) => setSelectedMeeting({ ...selectedMeeting, aiSummary: e.target.value })} className="min-h-[150px]" placeholder="סיכום ה‑AI יופיע כאן, ואפשר גם לערוך אותו ידנית." />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>תדריך מנהלים</Label>
+                  <Textarea
+                    value={selectedMeeting.executiveBrief}
+                    onChange={(e) => setSelectedMeeting({ ...selectedMeeting, executiveBrief: e.target.value })}
+                    className="min-h-[130px]"
+                    placeholder="גרסה קצרה וברורה למי שרוצה להבין מהר מה קרה בפגישה."
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>החלטות שהתקבלו</Label>
+                  <Textarea
+                    value={selectedMeeting.decisions}
+                    onChange={(e) => setSelectedMeeting({ ...selectedMeeting, decisions: e.target.value })}
+                    className="min-h-[130px]"
+                    placeholder="החלטות מרכזיות שעלו מהשיחה."
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>משימות המשך</Label>
+                  <Textarea
+                    value={selectedMeeting.actionItems}
+                    onChange={(e) => setSelectedMeeting({ ...selectedMeeting, actionItems: e.target.value })}
+                    className="min-h-[130px]"
+                    placeholder="משימות, אחריות, ולוחות זמנים מתוך הפגישה."
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>מעקב / פולואו‑אפ</Label>
+                  <Textarea
+                    value={selectedMeeting.followUpNotes}
+                    onChange={(e) => setSelectedMeeting({ ...selectedMeeting, followUpNotes: e.target.value })}
+                    className="min-h-[130px]"
+                    placeholder="מה צריך לבדוק בהמשך, מועד פגישה חוזרת, ונקודות פתוחות."
+                  />
+                </div>
               </div>
 
               <DialogFooter className="gap-2 sm:justify-between">

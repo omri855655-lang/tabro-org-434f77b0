@@ -110,6 +110,27 @@ const getSmartPriority = (
   return 1;
 };
 
+const getSmartHeadline = (bucket: SmartBucket, isHe: boolean) => {
+  const labels: Record<SmartBucket, string> = isHe
+    ? {
+        action: "מה דורש טיפול עכשיו",
+        finance: "פיננסים ותשלומים",
+        shopping: "קניות ומשלוחים",
+        updates: "עדכונים שכדאי לסרוק",
+        personal: "אישי ושוטף",
+        low: "מיילים ברעש נמוך",
+      }
+    : {
+        action: "What needs action now",
+        finance: "Finance and bills",
+        shopping: "Orders and deliveries",
+        updates: "Updates worth scanning",
+        personal: "Personal flow",
+        low: "Low-noise email",
+      };
+  return labels[bucket];
+};
+
 const EmailIntegration = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
@@ -245,7 +266,25 @@ const EmailIntegration = () => {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    return { enriched, smartSummary, priorityQueue, senderDomains };
+    const bucketHighlights = (Object.keys(SMART_BUCKET_META) as SmartBucket[]).reduce((acc, bucket) => {
+      acc[bucket] = enriched
+        .filter((email) => email.smartBucket === bucket)
+        .sort((a, b) => {
+          if (b.smartPriority !== a.smartPriority) return b.smartPriority - a.smartPriority;
+          return new Date(b.email_date || 0).getTime() - new Date(a.email_date || 0).getTime();
+        })
+        .slice(0, bucket === "low" ? 2 : 4);
+      return acc;
+    }, {} as Record<SmartBucket, typeof enriched>);
+
+    const smartDigest = {
+      actionDueNow: enriched.filter((email) => email.smartBucket === "action" && email.smartPriority >= 4).length,
+      financeWatch: enriched.filter((email) => email.smartBucket === "finance").length,
+      deliveryTrack: enriched.filter((email) => email.smartBucket === "shopping").length,
+      lowNoise: enriched.filter((email) => email.smartBucket === "low").length,
+    };
+
+    return { enriched, smartSummary, priorityQueue, senderDomains, bucketHighlights, smartDigest };
   }, [baseRecentEmails]);
 
   const recentEmails = useMemo(() => {
@@ -474,6 +513,25 @@ const EmailIntegration = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-xl border bg-background p-3">
+                <div className="text-xs text-muted-foreground">{isHe ? "צריך טיפול מיידי" : "Action now"}</div>
+                <div className="mt-1 text-2xl font-semibold">{smartInbox.smartDigest.actionDueNow}</div>
+              </div>
+              <div className="rounded-xl border bg-background p-3">
+                <div className="text-xs text-muted-foreground">{isHe ? "מעקב פיננסי" : "Finance watch"}</div>
+                <div className="mt-1 text-2xl font-semibold">{smartInbox.smartDigest.financeWatch}</div>
+              </div>
+              <div className="rounded-xl border bg-background p-3">
+                <div className="text-xs text-muted-foreground">{isHe ? "משלוחים והזמנות" : "Orders & shipping"}</div>
+                <div className="mt-1 text-2xl font-semibold">{smartInbox.smartDigest.deliveryTrack}</div>
+              </div>
+              <div className="rounded-xl border bg-background p-3">
+                <div className="text-xs text-muted-foreground">{isHe ? "רעש נמוך" : "Low-noise mail"}</div>
+                <div className="mt-1 text-2xl font-semibold">{smartInbox.smartDigest.lowNoise}</div>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               {(Object.keys(SMART_BUCKET_META) as SmartBucket[]).map((bucket) => {
                 const Icon = SMART_BUCKET_META[bucket].icon;
@@ -521,6 +579,40 @@ const EmailIntegration = () => {
                 ))}
               </div>
             )}
+
+            <div className="grid gap-3 xl:grid-cols-3">
+              {(Object.keys(SMART_BUCKET_META) as SmartBucket[])
+                .filter((bucket) => (smartInbox.bucketHighlights[bucket] || []).length > 0)
+                .map((bucket) => {
+                  const Icon = SMART_BUCKET_META[bucket].icon;
+                  return (
+                    <div key={bucket} className="rounded-xl border bg-background p-3">
+                      <div className="mb-3 flex items-center gap-2">
+                        <div className={`rounded-lg p-2 ${SMART_BUCKET_META[bucket].color}`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">{getSmartHeadline(bucket, isHe)}</div>
+                          <div className="text-xs text-muted-foreground">{getSmartLabel(bucket)}</div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {smartInbox.bucketHighlights[bucket].map((email) => (
+                          <div key={email.id} className="rounded-lg border bg-muted/20 px-3 py-2">
+                            <div className="truncate text-sm font-medium">
+                              {email.email_subject || (isHe ? "(ללא נושא)" : "(No subject)")}
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                              <span className="truncate">{email.senderDomain || email.email_from || "-"}</span>
+                              <span>{email.email_date ? format(new Date(email.email_date), "dd/MM") : "-"}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           </CardContent>
         </Card>
       )}
