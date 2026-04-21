@@ -35,6 +35,8 @@ import FileImport from "@/components/FileImport";
 import ItemDetailDialog from "@/components/ItemDetailDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { taskHeaders } from "@/data/initialTasks";
 
 interface TaskSpreadsheetDbProps {
   title: string;
@@ -671,7 +673,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const getEffectiveColumnWidth = useCallback((key: TaskColumnKey) => {
     const baseWidth = columnWidths[key];
     if (!fitTableToScreen) return baseWidth;
-    return Math.max(MIN_COLUMN_WIDTH, Math.round(baseWidth * 0.78));
+    return Math.max(MIN_COLUMN_WIDTH, Math.round(baseWidth * 0.62));
   }, [columnWidths, fitTableToScreen]);
 
   const getColumnStyle = useCallback((key: TaskColumnKey) => ({
@@ -1250,7 +1252,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         </div>
         </div>
         <div className="px-3 pb-2 text-[11px] text-muted-foreground">
-          אפשר לפתוח משימה עם דאבל־קליק על השורה או עם כפתור <span className="font-medium text-foreground">פרטים</span>. זה לא פוגע בעריכה הרגילה של השדות.
+          אפשר לפתוח משימה עם דאבל־קליק על השורה, עם לחיצה על מספר המשימה, או עם אייקון העין הקטן. זה לא פוגע בעריכה הרגילה של השדות.
         </div>
         {/* Sticky category/column headers bar */}
         <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
@@ -1435,7 +1437,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           
             return (
             <div ref={tableScrollRef} data-task-table className="min-h-0 h-full overflow-auto scroll-smooth">
-              <table className={`w-full border-collapse ${fitTableToScreen ? "min-w-full" : "min-w-[1200px]"}`}>
+              <table className={`w-full border-collapse ${fitTableToScreen ? "min-w-full text-[11px]" : "min-w-[1200px]"}`}>
             <colgroup>
               {TASK_TABLE_COLUMNS.map((column) => (
                 <col key={column.key} style={{ width: getEffectiveColumnWidth(column.key) }} />
@@ -1490,20 +1492,30 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                       >
                         <Flame className={cn("h-3 w-3", task.urgent ? "text-white" : "text-muted-foreground")} />
                       </button>
-                      <span>{rowIndex + 1}</span>
-                    </td>
-                    <td className="px-3 py-2 text-sm" style={getColumnStyle("details")}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1"
+                      <button
+                        type="button"
+                        className="rounded px-1 font-medium hover:bg-accent"
                         onClick={(e) => {
                           e.stopPropagation();
                           setDetailTask(task);
                         }}
+                        title="פתח פרטי משימה"
+                      >
+                        {rowIndex + 1}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("details")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="mr-auto h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailTask(task);
+                        }}
+                        title="פתח פרטי משימה"
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        פרטים
                       </Button>
                     </td>
                     <td className="px-3 py-2 text-sm" style={getColumnStyle("description")}>
