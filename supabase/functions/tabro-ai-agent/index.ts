@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { message, conversationHistory, userId, userTimezone, aiPreferences } = await req.json();
+    const { message, conversationHistory, userId, userTimezone, aiPreferences, attachments, agentMode } = await req.json();
     const timezone = userTimezone || "Asia/Jerusalem";
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -108,6 +108,24 @@ serve(async (req) => {
       .sort((a, b) => b[1].total - a[1].total)
       .map(([category, stats]) => `- ${category}: ${stats.total} מיילים (${stats.pending} ממתינים)`)
       .join('\n');
+
+    const attachmentSummary = Array.isArray(attachments) && attachments.length > 0
+      ? attachments.map((file: any, index: number) => `- קובץ ${index + 1}: ${file.name || "ללא שם"} | סוג: ${file.type || "-"} | גודל: ${file.size || 0}
+  תקציר: ${(file.preview || "").slice(0, 400)}
+  ${(file.extractedText ? `תוכן קריא:\n${String(file.extractedText).slice(0, 4000)}` : "אין תוכן קריא מלא מהלקוח, אז הסתמך על המטא-דאטה והתקציר.")}`).join('\n')
+      : 'לא הועלו קבצים בבקשה הנוכחית.';
+
+    const modeInstruction = agentMode
+      ? `מצב הסוכן שנבחר כרגע: ${agentMode}.
+אם הבקשה פתוחה, תן עדיפות לסגנון עבודה שמתאים למצב הזה:
+- daily: תדריך בוקר ומיקוד יומי
+- email: טריאז׳, סיכום ותגובה למיילים
+- projects: תמונת מצב, חסמים והמלצות על פרויקטים
+- meeting: הכנה לפגישה, שאלות, החלטות ו-follow-up
+- focus: פירוק עבודה, סדר עדיפויות ורעש להורדה
+- files: סיכום קבצים, תובנות ומשימות המשך
+- general: שיחה פתוחה ורחבה`
+      : "לא נבחר מצב סוכן מפורש. פעל בהתאם לבקשת המשתמש.";
 
     const systemPrompt = `אתה Tabro AI - עוזר חכם עם שליטה מלאה באפליקציה. אתה מדבר עברית.
 ${userName ? `\n## המשתמש שלך: ${userName}\nתמיד זכור את השם הזה ופנה אליו בשמו כשמתאים.\n` : ''}
@@ -207,6 +225,12 @@ ${resolvedAiPreferences ? `
 - תזכורת AI קבועה: ${resolvedAiPreferences.reminderEnabled ? `פעילה בשעה ${resolvedAiPreferences.reminderTime || '08:00'}` : 'כבויה'}
 - תחומי עניין לחדשות: ${resolvedAiPreferences.newsTopics || 'לא הוגדרו'}
 ` : 'אין העדפות AI שמורות.'}
+
+### מצב עבודה נוכחי:
+${modeInstruction}
+
+### קבצים שהמשתמש העלה:
+${attachmentSummary}
 
 התאריך היום: ${today}
 השעה עכשיו (שעון ישראל): ${currentTime}
@@ -346,7 +370,9 @@ ${resolvedAiPreferences ? `
 18. אל תשתמש באימוג'ים. תענה בטקסט נקי ומקצועי.
 19. כשהמשתמש מבקש תדריך יומי או תדריך בוקר - תן תבנית קבועה ומסודרת: (1) פוקוס עיקרי להיום, (2) משימות דחופות/באיחור, (3) אירועים להיום, (4) מיילים חשובים לפי קטגוריות, (5) דברים שדורשים החלטה, (6) המלצה מה לעשות ראשון.
 20. כשהמשתמש מבקש סיכום מיילים - ענה אך ורק מתוך המיילים המסונכרנים שלמעלה, ועדיף לקבץ לפי קטגוריות, ממתינים לטיפול, ומה אפשר לדחות.
-21. כשהמשתמש מבקש חדשות חיות ואין לך מקור חדשות אמיתי בנתונים - אל תמציא. אמור בצורה ברורה שחסר חיבור לפיד חדשות חי, אבל אפשר כבר להכין פורמט תדריך לפי תחומי העניין השמורים.`;
+21. כשהמשתמש מבקש חדשות חיות ואין לך מקור חדשות אמיתי בנתונים - אל תמציא. אמור בצורה ברורה שחסר חיבור לפיד חדשות חי, אבל אפשר כבר להכין פורמט תדריך לפי תחומי העניין השמורים.
+22. אם הועלו קבצים, שלב את התוכן והמטא-דאטה שלהם בתשובה שלך, והצע פעולות המשך מעשיות.
+23. אם המשתמש מבקש סיכום קבצים, תן תשובה מסודרת: (1) מה יש בקבצים, (2) תובנות, (3) משימות/סיכונים, (4) המלצה מה לעשות הלאה.`;
 
     const messages = [
       { role: "system", content: systemPrompt },

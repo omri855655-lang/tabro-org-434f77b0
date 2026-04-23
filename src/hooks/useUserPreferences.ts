@@ -20,12 +20,13 @@ export const DEFAULT_TABS = [
   { id: "shopping", name: "קניות", removable: true },
   { id: "payments", name: "הכנסות והוצאות", removable: true },
   { id: "meetings", name: "פגישות", removable: true },
+  { id: "ai-workspace", name: "Tabro AI", removable: true },
   { id: "settings", name: "הגדרות", removable: false },
 ];
 
 export function useUserPreferences() {
   const { user } = useAuth();
-  const [hiddenTabs, setHiddenTabs] = useState<string[]>(["meetings"]);
+  const [hiddenTabs, setHiddenTabs] = useState<string[]>(["meetings", "ai-workspace"]);
   const [loading, setLoading] = useState(true);
 
   const fetchPreferences = useCallback(async () => {
@@ -40,10 +41,15 @@ export function useUserPreferences() {
     if (data) {
       const normalized = ((data.hidden_tabs as string[]) || []).map((tab) => tab === "deeply" ? "zoneflow" : tab);
       const hasExplicitMeetingsChoice = localStorage.getItem("tabro-meetings-tab-choice") === "1";
-      const withMeetingsDefault = hasExplicitMeetingsChoice || normalized.includes("meetings")
-        ? normalized
-        : [...normalized, "meetings"];
-      setHiddenTabs(withMeetingsDefault);
+      const hasExplicitAiWorkspaceChoice = localStorage.getItem("tabro-ai-workspace-tab-choice") === "1";
+      const withDefaultHiddenTabs = [...normalized];
+      if (!hasExplicitMeetingsChoice && !withDefaultHiddenTabs.includes("meetings")) {
+        withDefaultHiddenTabs.push("meetings");
+      }
+      if (!hasExplicitAiWorkspaceChoice && !withDefaultHiddenTabs.includes("ai-workspace")) {
+        withDefaultHiddenTabs.push("ai-workspace");
+      }
+      setHiddenTabs(withDefaultHiddenTabs);
     }
     setLoading(false);
   }, [user]);
@@ -56,6 +62,9 @@ export function useUserPreferences() {
     const normalizedTabId = tabId === "deeply" ? "zoneflow" : tabId;
     if (normalizedTabId === "meetings") {
       localStorage.setItem("tabro-meetings-tab-choice", "1");
+    }
+    if (normalizedTabId === "ai-workspace") {
+      localStorage.setItem("tabro-ai-workspace-tab-choice", "1");
     }
     const newHidden = hiddenTabs.includes(normalizedTabId)
       ? hiddenTabs.filter(t => t !== normalizedTabId)

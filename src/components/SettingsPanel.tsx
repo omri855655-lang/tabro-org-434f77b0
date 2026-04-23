@@ -219,6 +219,7 @@ const SettingsPanel = () => {
       shopping: "shopping",
       payments: "payments",
       meetings: "meetingsTab",
+      "ai-workspace": "Tabro AI",
       settings: "settings",
     };
 

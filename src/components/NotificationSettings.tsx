@@ -28,6 +28,12 @@ interface PlannerSettings {
   completionEnabled: boolean;
   reminderMinutes: number[];
   invitationsEnabled: boolean;
+  sameDayChannel: "app" | "email" | "both" | "off";
+  dayBeforeEnabled: boolean;
+  dayBeforeChannel: "app" | "email" | "both" | "off";
+  dayBeforeTime: string;
+  completionChannel: "app" | "email" | "both" | "off";
+  invitationsChannel: "app" | "email" | "both" | "off";
 }
 
 interface AiSettings {
@@ -67,6 +73,12 @@ const DEFAULT_PREFS: NotifPrefs = {
     completionEnabled: true,
     reminderMinutes: [1, 10, 60],
     invitationsEnabled: true,
+    sameDayChannel: "both",
+    dayBeforeEnabled: false,
+    dayBeforeChannel: "both",
+    dayBeforeTime: "18:00",
+    completionChannel: "app",
+    invitationsChannel: "both",
   },
   ai: {
     enabled: true,
@@ -100,6 +112,12 @@ const HOURS = Array.from({ length: 24 }, (_, i) => {
 });
 
 const REMINDER_OPTIONS = [1, 5, 10, 15, 30, 60];
+const DELIVERY_OPTIONS = [
+  { value: "off", label: "כבוי" },
+  { value: "app", label: "רק באפליקציה" },
+  { value: "email", label: "רק במייל" },
+  { value: "both", label: "גם במייל וגם באפליקציה" },
+] as const;
 const LIMIT_OPTIONS = [
   { value: "0", label: "ללא הגבלה" },
   { value: "3", label: "3 ביום" },
@@ -144,6 +162,20 @@ const normalizePrefs = (raw?: Partial<NotifPrefs> | null): NotifPrefs => ({
       ? [...new Set(raw.planner.reminderMinutes.filter((value) => Number.isFinite(value) && value > 0))].sort((a, b) => a - b)
       : DEFAULT_PREFS.planner.reminderMinutes,
     invitationsEnabled: raw?.planner?.invitationsEnabled ?? DEFAULT_PREFS.planner.invitationsEnabled,
+    sameDayChannel:
+      raw?.planner?.sameDayChannel ||
+      ((raw?.planner?.pushEnabled ?? DEFAULT_PREFS.planner.pushEnabled) && (raw?.planner?.emailEnabled ?? DEFAULT_PREFS.planner.emailEnabled)
+        ? "both"
+        : raw?.planner?.pushEnabled ?? DEFAULT_PREFS.planner.pushEnabled
+          ? "app"
+          : raw?.planner?.emailEnabled ?? DEFAULT_PREFS.planner.emailEnabled
+            ? "email"
+            : "off"),
+    dayBeforeEnabled: raw?.planner?.dayBeforeEnabled ?? DEFAULT_PREFS.planner.dayBeforeEnabled,
+    dayBeforeChannel: raw?.planner?.dayBeforeChannel || DEFAULT_PREFS.planner.dayBeforeChannel,
+    dayBeforeTime: raw?.planner?.dayBeforeTime || DEFAULT_PREFS.planner.dayBeforeTime,
+    completionChannel: raw?.planner?.completionChannel || (raw?.planner?.completionEnabled ? "app" : DEFAULT_PREFS.planner.completionChannel),
+    invitationsChannel: raw?.planner?.invitationsChannel || (raw?.planner?.invitationsEnabled ? "both" : DEFAULT_PREFS.planner.invitationsChannel),
   },
   ai: {
     enabled: raw?.ai?.enabled ?? DEFAULT_PREFS.ai.enabled,
@@ -155,6 +187,22 @@ const normalizePrefs = (raw?: Partial<NotifPrefs> | null): NotifPrefs => ({
     newsTopics: raw?.ai?.newsTopics || DEFAULT_PREFS.ai.newsTopics,
   },
 });
+
+const deliveryToLegacyFlags = (value: PlannerSettings["sameDayChannel"]) => ({
+  emailEnabled: value === "email" || value === "both",
+  pushEnabled: value === "app" || value === "both",
+});
+
+const withPlannerChannelSync = (planner: PlannerSettings): PlannerSettings => {
+  const sameDayFlags = deliveryToLegacyFlags(planner.sameDayChannel);
+  return {
+    ...planner,
+    emailEnabled: sameDayFlags.emailEnabled,
+    pushEnabled: sameDayFlags.pushEnabled,
+    completionEnabled: planner.completionChannel !== "off",
+    invitationsEnabled: planner.invitationsChannel !== "off",
+  };
+};
 
 const NotificationSettings = () => {
   const { user } = useAuth();
@@ -288,10 +336,20 @@ const NotificationSettings = () => {
 
     void savePrefs({
       ...prefs,
-      planner: {
+      planner: withPlannerChannelSync({
         ...prefs.planner,
         reminderMinutes: reminderMinutes.length ? reminderMinutes : [minutes],
-      },
+      }),
+    });
+  };
+
+  const updatePlanner = (patch: Partial<PlannerSettings>) => {
+    void savePrefs({
+      ...prefs,
+      planner: withPlannerChannelSync({
+        ...prefs.planner,
+        ...patch,
+      }),
     });
   };
 
@@ -428,31 +486,102 @@ const NotificationSettings = () => {
               <CalendarClock className="h-4 w-4 text-primary" />
               תזכורות מתכנן לו״ז
             </div>
-            <Switch checked={prefs.planner.enabled} onCheckedChange={(checked) => void savePrefs({ ...prefs, planner: { ...prefs.planner, enabled: checked } })} />
+            <Switch checked={prefs.planner.enabled} onCheckedChange={(checked) => updatePlanner({ enabled: checked })} />
           </CardTitle>
-          <p className="text-xs text-muted-foreground">הלוז יכול להמשיך להזכיר במייל, ב‑Push ובתזכורות סיום, בלי לפגוע בשאר ההגדרות.</p>
+          <p className="text-xs text-muted-foreground">עכשיו אפשר להחליט לכל סוג תזכורת אם היא תגיע רק באפליקציה, רק במייל, או בשניהם, כולל תזכורת יום לפני.</p>
         </CardHeader>
         {prefs.planner.enabled && (
           <CardContent className="space-y-4 pt-0">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {[
-                { key: "pushEnabled", label: "Push לפני אירוע" },
-                { key: "emailEnabled", label: "מייל לפני אירוע" },
-                { key: "completionEnabled", label: "התראת סיום אירוע" },
-                { key: "invitationsEnabled", label: "התראות זימונים" },
-              ].map((option) => {
-                const value = prefs.planner[option.key as keyof PlannerSettings] as boolean;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => void savePrefs({ ...prefs, planner: { ...prefs.planner, [option.key]: !value } })}
-                    className={`rounded-lg border p-3 text-right text-xs ${value ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-1 gap-3">
+              <div className="rounded-xl border p-3 bg-muted/10 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold">תזכורת רגילה לפני אירוע</p>
+                    <p className="text-[11px] text-muted-foreground">זוהי התזכורת הראשית שמגיעה לפני האירוע לפי המרווח שתבחר.</p>
+                  </div>
+                  <Select value={prefs.planner.sameDayChannel} onValueChange={(value) => updatePlanner({ sameDayChannel: value as PlannerSettings["sameDayChannel"] })}>
+                    <SelectTrigger className="w-full sm:w-56 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DELIVERY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value} className="text-xs">{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="rounded-xl border p-3 bg-muted/10 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold">תזכורת יום לפני</p>
+                    <p className="text-[11px] text-muted-foreground">מומלץ לפגישות חשובות, נסיעות או דברים שאסור לפספס.</p>
+                  </div>
+                  <Switch checked={prefs.planner.dayBeforeEnabled} onCheckedChange={(checked) => updatePlanner({ dayBeforeEnabled: checked })} />
+                </div>
+
+                {prefs.planner.dayBeforeEnabled && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">ערוץ שליחה</Label>
+                      <Select value={prefs.planner.dayBeforeChannel} onValueChange={(value) => updatePlanner({ dayBeforeChannel: value as PlannerSettings["dayBeforeChannel"] })}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DELIVERY_OPTIONS.filter((option) => option.value !== "off").map((option) => (
+                            <SelectItem key={option.value} value={option.value} className="text-xs">{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">שעה ביום שלפני</Label>
+                      <Select value={prefs.planner.dayBeforeTime} onValueChange={(value) => updatePlanner({ dayBeforeTime: value })}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HOURS.map((hour) => (
+                            <SelectItem key={hour.value} value={hour.value} className="text-xs">{hour.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border p-3 bg-muted/10 space-y-2">
+                  <p className="text-xs font-semibold">התראת סיום אירוע</p>
+                  <Select value={prefs.planner.completionChannel} onValueChange={(value) => updatePlanner({ completionChannel: value as PlannerSettings["completionChannel"] })}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DELIVERY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value} className="text-xs">{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="rounded-xl border p-3 bg-muted/10 space-y-2">
+                  <p className="text-xs font-semibold">זימונים, הזמנות ושינויים</p>
+                  <Select value={prefs.planner.invitationsChannel} onValueChange={(value) => updatePlanner({ invitationsChannel: value as PlannerSettings["invitationsChannel"] })}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DELIVERY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value} className="text-xs">{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -469,6 +598,11 @@ const NotificationSettings = () => {
                   </Badge>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">רעיון מומלץ לקהל רחב</p>
+              <p>תזכורת רגילה: גם במייל וגם באפליקציה · תזכורת יום לפני: רק במייל · סיום אירוע: רק באפליקציה.</p>
             </div>
           </CardContent>
         )}
@@ -540,8 +674,9 @@ const NotificationSettings = () => {
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-              ההעדפות כאן מזינות גם את Tabro AI, גם את התדריכים, וגם את ערוצי ההתראות העתידיים לאייפון ולדפדפן.
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
+              <p>ההעדפות כאן מזינות גם את Tabro AI, גם את התדריכים, וגם את ערוצי ההתראות העתידיים לאייפון ולדפדפן.</p>
+              <p>אם תדליק מההגדרות את טאב Tabro AI, תקבל גם דשבורד שיחה מלא עם העלאת קבצים ומצבי סוכן.</p>
             </div>
           </CardContent>
         )}
