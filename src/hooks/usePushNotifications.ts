@@ -19,11 +19,15 @@ function urlBase64ToUint8Array(base64String: string) {
 async function getOrRegisterSW(): Promise<ServiceWorkerRegistration> {
   // Check for existing registration first
   const existing = await navigator.serviceWorker.getRegistration("/");
-  if (existing) return existing;
+  if (existing) {
+    await navigator.serviceWorker.ready;
+    return existing;
+  }
 
   // Register our push SW as fallback
   const reg = await navigator.serviceWorker.register("/sw-push.js", { scope: "/" });
   await reg.update();
+  await navigator.serviceWorker.ready;
   return reg;
 }
 
@@ -60,6 +64,11 @@ export function usePushNotifications() {
     if (!user || !isSupported) return false;
 
     try {
+      if (!window.isSecureContext) {
+        toast.error("התראות Push דורשות חיבור מאובטח (HTTPS) או אפליקציה מותקנת");
+        return false;
+      }
+
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         toast.error("יש לאשר התראות בדפדפן");
@@ -94,6 +103,28 @@ export function usePushNotifications() {
         return false;
       }
 
+      const existingSubscription = await pm.getSubscription();
+      if (existingSubscription) {
+        const existingJson = existingSubscription.toJSON();
+        if (existingJson.endpoint && existingJson.keys?.p256dh && existingJson.keys?.auth) {
+          const { error } = await supabase.from("push_subscriptions").upsert(
+            {
+              user_id: user.id,
+              endpoint: existingJson.endpoint,
+              p256dh: existingJson.keys.p256dh,
+              auth: existingJson.keys.auth,
+            },
+            { onConflict: "endpoint" }
+          );
+
+          if (error) throw error;
+
+          setIsSubscribed(true);
+          toast.success("התראות push כבר היו פעילות וחוברו מחדש לחשבון שלך");
+          return true;
+        }
+      }
+
       let subscription;
       try {
         subscription = await pm.subscribe({
@@ -103,14 +134,20 @@ export function usePushNotifications() {
       } catch (pushErr: any) {
         console.error("PushManager.subscribe error:", pushErr);
         const isBrave = !!(navigator as any).brave;
-        if (pushErr.message?.includes("push service") || pushErr.message?.includes("AbortError")) {
+        const message = String(pushErr?.message || "");
+        const name = String(pushErr?.name || "");
+        if (message.includes("push service") || message.includes("AbortError") || name === "AbortError") {
           if (isBrave) {
-            toast.error("ב-Brave: ודא ש-Shields כבוי לאתר זה (לחץ על אייקון האריה בשורת הכתובת) ונסה שוב");
+            toast.error("ב-Brave שירות ה-Push לא זמין כרגע. אם Shields כבר כבוי, נסה לרענן, לפתוח חלון פרטי, או להתקין את האתר למסך הבית ואז לנסות שוב.");
           } else {
             toast.error("שגיאת push service - נסה להתקין את האפליקציה (PWA) או להשתמש ב-Chrome/Brave/Edge");
           }
+        } else if (name === "NotAllowedError") {
+          toast.error("הדפדפן חסם את הרשמת ה-Push. בדוק הרשאות אתר ונסה שוב.");
+        } else if (name === "NotSupportedError") {
+          toast.error("הדפדפן או סביבת העבודה הזו לא תומכים כרגע ב-Push.");
         } else {
-          toast.error(`שגיאה בהרשמה: ${pushErr.message}`);
+          toast.error(`שגיאה בהרשמה ל-Push: ${message || "נסה שוב"}`);
         }
         return false;
       }
