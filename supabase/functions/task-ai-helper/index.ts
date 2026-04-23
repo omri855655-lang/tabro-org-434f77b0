@@ -499,6 +499,29 @@ ${taskDescription}
         }
       }
 
+      if (milestones.length === 0 && typeof suggestion === "string") {
+        try {
+          const parsedSuggestion = JSON.parse(suggestion);
+          if (Array.isArray(parsedSuggestion)) {
+            milestones = parsedSuggestion;
+          } else if (Array.isArray(parsedSuggestion?.milestones)) {
+            milestones = parsedSuggestion.milestones;
+          }
+        } catch {
+          milestones = suggestion
+            .split("\n")
+            .map((line: string) => line.replace(/^\s*[-*•\d\.\)\-]+\s*/, "").trim())
+            .filter((line: string) => line.length >= 2 && line.length <= 220)
+            .filter((line: string) => !line.startsWith("{") && !line.startsWith("[") && !line.includes("```"))
+            .slice(0, requestedCount)
+            .map((title: string, index: number) => ({
+              title,
+              week: index + 1,
+              description: title,
+            }));
+        }
+      }
+
       milestones = milestones
         .map((milestone: any, index: number) => ({
           title: typeof milestone?.title === "string" ? milestone.title.trim() : "",

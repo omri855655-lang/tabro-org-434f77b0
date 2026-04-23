@@ -160,6 +160,7 @@ const EmailIntegration = () => {
   const [displayCount, setDisplayCount] = useState(50);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [smartFilter, setSmartFilter] = useState<"all" | SmartBucket>("all");
+  const [importanceFilter, setImportanceFilter] = useState<"all" | "important" | "low">("all");
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "sender">("newest");
   const [showAiChat, setShowAiChat] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -375,6 +376,11 @@ const EmailIntegration = () => {
     if (smartFilter !== "all") {
       filtered = filtered.filter(a => a.smartBucket === smartFilter);
     }
+    if (importanceFilter === "important") {
+      filtered = filtered.filter((a) => a.importantForUser || a.smartPriority >= 4.5);
+    } else if (importanceFilter === "low") {
+      filtered = filtered.filter((a) => a.lowPriorityForUser || a.smartBucket === "low");
+    }
     if (sortMode === "oldest") {
       filtered.sort((a, b) => new Date(a.email_date!).getTime() - new Date(b.email_date!).getTime());
     } else if (sortMode === "sender") {
@@ -383,7 +389,7 @@ const EmailIntegration = () => {
       filtered.sort((a, b) => new Date(b.email_date!).getTime() - new Date(a.email_date!).getTime());
     }
     return filtered;
-  }, [smartInbox.enriched, categoryFilter, smartFilter, sortMode]);
+  }, [smartInbox.enriched, categoryFilter, smartFilter, importanceFilter, sortMode]);
 
   const displayEmails = recentEmails.slice(0, displayCount);
 
@@ -779,17 +785,29 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
                 <ArrowUpDown className="h-4 w-4" />
                 {isHe ? "מיון אוטומטי חכם של המיילים" : "Smart automatic mail sorting"}
               </CardTitle>
-              <Select value={smartFilter} onValueChange={(value) => setSmartFilter(value as "all" | SmartBucket)}>
-                <SelectTrigger className="h-8 w-[170px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{isHe ? "כל המסלולים" : "All lanes"}</SelectItem>
-                  {(Object.keys(SMART_BUCKET_META) as SmartBucket[]).map((bucket) => (
-                    <SelectItem key={bucket} value={bucket}>{getSmartLabel(bucket)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                <Select value={smartFilter} onValueChange={(value) => setSmartFilter(value as "all" | SmartBucket)}>
+                  <SelectTrigger className="h-8 w-[170px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{isHe ? "כל המסלולים" : "All lanes"}</SelectItem>
+                    {(Object.keys(SMART_BUCKET_META) as SmartBucket[]).map((bucket) => (
+                      <SelectItem key={bucket} value={bucket}>{getSmartLabel(bucket)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={importanceFilter} onValueChange={(value) => setImportanceFilter(value as "all" | "important" | "low")}>
+                  <SelectTrigger className="h-8 w-[170px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{isHe ? "כל רמות החשיבות" : "All importance levels"}</SelectItem>
+                    <SelectItem value="important">{isHe ? "רק חשובים לי" : "Only important to me"}</SelectItem>
+                    <SelectItem value="low">{isHe ? "רק רעש נמוך" : "Only low priority"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1002,6 +1020,16 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
                       <SmartIcon className="h-3 w-3" />
                       {getSmartLabel(a.smartBucket)}
                     </Badge>
+                    {a.importantForUser && (
+                      <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-700">
+                        {isHe ? "חשוב לי" : "Important to me"}
+                      </Badge>
+                    )}
+                    {a.lowPriorityForUser && (
+                      <Badge variant="outline" className="text-[9px] bg-slate-500/10 text-slate-700">
+                        {isHe ? "רעש נמוך" : "Low noise"}
+                      </Badge>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

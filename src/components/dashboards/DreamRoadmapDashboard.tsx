@@ -39,6 +39,22 @@ interface DreamGoal {
 
 const MILESTONE_OPTIONS = [10, 15, 20, 30, 40, 50, 75, 100];
 
+const parseRoadmapLines = (rawText: string, requestedCount: number, stageLabel: string) => {
+  const lines = rawText
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-*•\d\.\)\-]+\s*/, "").trim())
+    .filter((line) => line.length >= 2 && line.length <= 220)
+    .filter((line) => !line.startsWith("{") && !line.startsWith("[") && !line.includes("```"))
+    .slice(0, requestedCount);
+
+  return lines.map((title, index) => ({
+    id: `ms-fallback-${Date.now()}-${index}`,
+    title: title || `${stageLabel} ${index + 1}`,
+    done: false,
+    week: index + 1,
+  }));
+};
+
 const DreamRoadmapDashboard = () => {
   const { lang, dir } = useLanguage();
   const isHebrew = lang === "he";
@@ -193,10 +209,19 @@ const DreamRoadmapDashboard = () => {
         body: { taskDescription: goal.title, taskCategory: "dream_roadmap", customPrompt: goal.description || "", milestoneCount: requestedCount },
       });
       if (error) throw error;
-      const milestones = normalizeMilestones(Array.isArray(data?.milestones) ? data.milestones : [], requestedCount);
+      let milestones = normalizeMilestones(Array.isArray(data?.milestones) ? data.milestones : [], requestedCount);
+      if (milestones.length === 0 && typeof data?.suggestion === "string") {
+        milestones = parseRoadmapLines(data.suggestion, requestedCount, copy.stage);
+      }
+      if (milestones.length === 0) {
+        throw new Error("No milestones generated");
+      }
       setPendingRoadmap({ goalId: goal.id, milestones });
       toast.success(`${copy.roadmapCreated} ${milestones.length} ${copy.roadmapCheck}`);
-    } catch { toast.error(copy.roadmapError); } finally { setGeneratingRoadmap(null); }
+    } catch (generationError) {
+      console.error("Dream roadmap generation error", generationError);
+      toast.error(copy.roadmapError);
+    } finally { setGeneratingRoadmap(null); }
   };
 
   const approveRoadmap = async () => {
