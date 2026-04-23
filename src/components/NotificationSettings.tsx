@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Clock, Moon, Mail, Smartphone, MessageCircle, Volume2, VolumeX, Plus, X, CalendarClock, Bot, Newspaper, Inbox } from "lucide-react";
+import { Bot, CalendarClock, Clock, Inbox, Mail, MessageCircle, Moon, Newspaper, Smartphone, VolumeX } from "lucide-react";
 import { toast } from "sonner";
+
+type ChannelKey = "email" | "push" | "telegram";
 
 interface ChannelSettings {
   enabled: boolean;
@@ -50,11 +52,9 @@ interface NotifPrefs {
   ai: AiSettings;
 }
 
-type ChannelKey = "email" | "push" | "telegram";
-
 const DEFAULT_PREFS: NotifPrefs = {
   email: { enabled: true, sendTime: "08:00", sendTimes: ["08:00"], content: ["tasks", "budget", "weekly", "projects"] },
-  push: { enabled: true, sendTime: "08:00", sendTimes: ["08:00"], content: ["tasks", "budget", "projects"] },
+  push: { enabled: true, sendTime: "08:00", sendTimes: ["08:00"], content: ["tasks", "budget", "projects", "calendar"] },
   telegram: { enabled: false, sendTime: "09:00", sendTimes: ["09:00"], content: ["weekly"] },
   quietHoursStart: "22:00",
   quietHoursEnd: "07:00",
@@ -79,13 +79,19 @@ const DEFAULT_PREFS: NotifPrefs = {
   },
 };
 
+const CHANNEL_META = [
+  { key: "email" as const, label: "מייל", icon: Mail, desc: "התראות לכתובת המייל שלך" },
+  { key: "push" as const, label: "Push (אפליקציה)", icon: Smartphone, desc: "התראות בדפדפן ובמכשיר, כולל באייפון כשמאשרים הרשאות" },
+  { key: "telegram" as const, label: "טלגרם", icon: MessageCircle, desc: "הודעות בטלגרם" },
+];
+
 const CONTENT_OPTIONS = [
   { key: "tasks", label: "תזכורות משימות", desc: "משימות קרובות לדד-ליין" },
   { key: "budget", label: "התראות תקציב", desc: "חריגה מ-80% מהתקציב" },
   { key: "weekly", label: "סיכום שבועי", desc: "דוח ביצועים שבועי" },
   { key: "projects", label: "עדכוני פרויקטים", desc: "שינויים בפרויקטים משותפים" },
   { key: "shopping", label: "עדכוני קניות", desc: "שינויים ברשימות קניות משותפות" },
-  { key: "calendar", label: "תזכורות אירועים", desc: "אירועים מהלוז" },
+  { key: "calendar", label: "תזכורות אירועים", desc: "אירועים ופגישות מהלוז" },
 ];
 
 const HOURS = Array.from({ length: 24 }, (_, i) => {
@@ -93,6 +99,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => {
   return { value: `${h}:00`, label: `${h}:00` };
 });
 
+const REMINDER_OPTIONS = [1, 5, 10, 15, 30, 60];
 const LIMIT_OPTIONS = [
   { value: "0", label: "ללא הגבלה" },
   { value: "3", label: "3 ביום" },
@@ -101,18 +108,10 @@ const LIMIT_OPTIONS = [
   { value: "15", label: "15 ביום" },
 ];
 
-const CHANNEL_META = [
-  { key: "email" as const, label: "מייל", icon: Mail, desc: "התראות לכתובת המייל שלך" },
-  { key: "push" as const, label: "Push (אפליקציה)", icon: Smartphone, desc: "התראות בדפדפן ובמכשיר" },
-  { key: "telegram" as const, label: "טלגרם", icon: MessageCircle, desc: "הודעות בטלגרם" },
-];
-
-const REMINDER_OPTIONS = [1, 5, 10, 15, 30, 60];
-
 const uniqueTimes = (times: string[]) => [...new Set(times.filter(Boolean))].sort();
 
 const normalizeChannel = (channel: Partial<ChannelSettings> | undefined, defaults: ChannelSettings): ChannelSettings => {
-  const sendTimes = uniqueTimes(
+  const nextTimes = uniqueTimes(
     Array.isArray(channel?.sendTimes) && channel.sendTimes.length
       ? channel.sendTimes
       : channel?.sendTime
@@ -122,8 +121,8 @@ const normalizeChannel = (channel: Partial<ChannelSettings> | undefined, default
 
   return {
     enabled: channel?.enabled ?? defaults.enabled,
-    sendTime: sendTimes[0] || defaults.sendTime,
-    sendTimes,
+    sendTime: nextTimes[0] || defaults.sendTime,
+    sendTimes: nextTimes,
     content: Array.isArray(channel?.content) && channel.content.length ? channel.content : defaults.content,
   };
 };
@@ -142,7 +141,7 @@ const normalizePrefs = (raw?: Partial<NotifPrefs> | null): NotifPrefs => ({
     pushEnabled: raw?.planner?.pushEnabled ?? DEFAULT_PREFS.planner.pushEnabled,
     completionEnabled: raw?.planner?.completionEnabled ?? DEFAULT_PREFS.planner.completionEnabled,
     reminderMinutes: Array.isArray(raw?.planner?.reminderMinutes) && raw.planner.reminderMinutes.length
-      ? [...new Set(raw.planner.reminderMinutes.filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b)
+      ? [...new Set(raw.planner.reminderMinutes.filter((value) => Number.isFinite(value) && value > 0))].sort((a, b) => a - b)
       : DEFAULT_PREFS.planner.reminderMinutes,
     invitationsEnabled: raw?.planner?.invitationsEnabled ?? DEFAULT_PREFS.planner.invitationsEnabled,
   },
@@ -169,62 +168,87 @@ const NotificationSettings = () => {
   });
 
   useEffect(() => {
-    if (!user) {
-      const local = localStorage.getItem("notification-prefs");
-      if (local) {
-        try {
-          const parsed = JSON.parse(local);
-          setPrefs(normalizePrefs(parsed));
-        } catch {
+    let mounted = true;
+
+    const loadPrefs = async () => {
+      try {
+        if (!user) {
+          const local = localStorage.getItem("notification-prefs");
+          const parsed = local ? JSON.parse(local) : null;
+          if (mounted) {
+            const normalized = normalizePrefs(parsed);
+            setPrefs(normalized);
+            setPendingTimes({
+              email: normalized.email.sendTimes[0] || "08:00",
+              push: normalized.push.sendTimes[0] || "08:00",
+              telegram: normalized.telegram.sendTimes[0] || "09:00",
+            });
+            setLoaded(true);
+          }
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("user_preferences")
+          .select("notification_settings")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (mounted) {
+          const normalized = normalizePrefs((data?.notification_settings as Partial<NotifPrefs> | null) || null);
+          setPrefs(normalized);
+          setPendingTimes({
+            email: normalized.email.sendTimes[0] || "08:00",
+            push: normalized.push.sendTimes[0] || "08:00",
+            telegram: normalized.telegram.sendTimes[0] || "09:00",
+          });
+          setLoaded(true);
+        }
+      } catch (error) {
+        console.error("NotificationSettings load error", error);
+        if (mounted) {
           setPrefs(DEFAULT_PREFS);
+          setLoaded(true);
+          toast.error("לא הצלחנו לטעון את ההתראות. נטענו הגדרות ברירת מחדל.");
         }
       }
-      setLoaded(true);
-      return;
-    }
-
-    const load = async () => {
-      const { data } = await supabase
-        .from("user_preferences")
-        .select("notification_settings")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const nextPrefs = normalizePrefs((data?.notification_settings as Partial<NotifPrefs> | null) || null);
-      setPrefs(nextPrefs);
-      setPendingTimes({
-        email: nextPrefs.email.sendTimes[0] || "08:00",
-        push: nextPrefs.push.sendTimes[0] || "08:00",
-        telegram: nextPrefs.telegram.sendTimes[0] || "09:00",
-      });
-      setLoaded(true);
     };
 
-    load();
+    void loadPrefs();
+
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
-  const save = useCallback(async (newPrefs: NotifPrefs) => {
-    const normalized = normalizePrefs(newPrefs);
+  const savePrefs = useCallback(async (nextPrefs: NotifPrefs) => {
+    const normalized = normalizePrefs(nextPrefs);
     setPrefs(normalized);
-
-    if (!user) {
-      localStorage.setItem("notification-prefs", JSON.stringify(normalized));
-      return;
-    }
-
-    setSaving(true);
-    await supabase
-      .from("user_preferences")
-      .upsert({ user_id: user.id, notification_settings: normalized as any }, { onConflict: "user_id" });
-    setSaving(false);
-
+    localStorage.setItem("notification-prefs", JSON.stringify(normalized));
     localStorage.setItem("notification-email-enabled", String(normalized.email.enabled));
     localStorage.setItem("notification-push-enabled", String(normalized.push.enabled));
     localStorage.setItem("notification-telegram-enabled", String(normalized.telegram.enabled));
+
+    if (!user) return;
+
+    try {
+      setSaving(true);
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: user.id, notification_settings: normalized as any }, { onConflict: "user_id" });
+      if (error) throw error;
+    } catch (error) {
+      console.error("NotificationSettings save error", error);
+      toast.error("שגיאה בשמירת ההתראות");
+    } finally {
+      setSaving(false);
+    }
   }, [user]);
 
   const updateChannel = (channel: ChannelKey, patch: Partial<ChannelSettings>) => {
-    save({
+    void savePrefs({
       ...prefs,
       [channel]: normalizeChannel({ ...prefs[channel], ...patch }, DEFAULT_PREFS[channel]),
     });
@@ -232,64 +256,85 @@ const NotificationSettings = () => {
 
   const toggleContent = (channel: ChannelKey, contentKey: string) => {
     const current = prefs[channel].content;
-    const newContent = current.includes(contentKey)
-      ? current.filter((c) => c !== contentKey)
+    const content = current.includes(contentKey)
+      ? current.filter((item) => item !== contentKey)
       : [...current, contentKey];
-    updateChannel(channel, { content: newContent });
+    updateChannel(channel, { content });
   };
 
   const addSendTime = (channel: ChannelKey) => {
-    const nextTime = pendingTimes[channel];
-    if (prefs[channel].sendTimes.includes(nextTime)) {
+    const pending = pendingTimes[channel];
+    if (prefs[channel].sendTimes.includes(pending)) {
       toast.error("השעה כבר נוספה");
       return;
     }
-    updateChannel(channel, { sendTimes: [...prefs[channel].sendTimes, nextTime] });
+    updateChannel(channel, { sendTimes: [...prefs[channel].sendTimes, pending] });
   };
 
   const removeSendTime = (channel: ChannelKey, time: string) => {
-    const next = prefs[channel].sendTimes.filter((entry) => entry !== time);
-    if (next.length === 0) {
+    const nextTimes = prefs[channel].sendTimes.filter((entry) => entry !== time);
+    if (!nextTimes.length) {
       toast.error("חייבת להישאר לפחות שעה אחת");
       return;
     }
-    updateChannel(channel, { sendTimes: next, sendTime: next[0] });
+    updateChannel(channel, { sendTimes: nextTimes, sendTime: nextTimes[0] });
   };
 
-  const togglePlannerMinute = (minutes: number) => {
+  const togglePlannerReminder = (minutes: number) => {
     const exists = prefs.planner.reminderMinutes.includes(minutes);
-    const nextMinutes = exists
-      ? prefs.planner.reminderMinutes.filter((m) => m !== minutes)
+    const reminderMinutes = exists
+      ? prefs.planner.reminderMinutes.filter((value) => value !== minutes)
       : [...prefs.planner.reminderMinutes, minutes].sort((a, b) => a - b);
 
-    save({
+    void savePrefs({
       ...prefs,
       planner: {
         ...prefs.planner,
-        reminderMinutes: nextMinutes.length ? nextMinutes : [minutes],
+        reminderMinutes: reminderMinutes.length ? reminderMinutes : [minutes],
       },
     });
   };
 
-  if (!loaded) return null;
+  const requestPushPermission = async () => {
+    try {
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        toast.error("הדפדפן הזה לא תומך בהתראות Push");
+        return;
+      }
+      const result = await Notification.requestPermission();
+      if (result === "granted") {
+        toast.success("התראות Push אושרו");
+      } else if (result === "denied") {
+        toast.error("ההתראות נחסמו. אפשר לשנות זאת מהגדרות הדפדפן.");
+      } else {
+        toast.info("הבקשה להתראות נסגרה בלי אישור");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("לא הצלחנו לבקש הרשאת התראות");
+    }
+  };
+
+  const pushStatus = useMemo(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
+    return Notification.permission;
+  }, []);
+
+  if (!loaded) {
+    return <div className="py-4 text-sm text-muted-foreground">טוען התראות...</div>;
+  }
 
   return (
     <div className="space-y-4">
       {CHANNEL_META.map(({ key, label, icon: Icon, desc }) => (
         <Card key={key}>
           <CardHeader className="py-3">
-            <CardTitle className="text-sm flex items-center justify-between">
+            <CardTitle className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-primary" />
                 {label}
               </div>
-              <Switch
-                checked={prefs[key].enabled}
-                onCheckedChange={(checked) => {
-                  updateChannel(key, { enabled: checked });
-                  toast.success(checked ? `${label} הופעלו` : `${label} בוטלו`);
-                }}
-              />
+              <Switch checked={prefs[key].enabled} onCheckedChange={(checked) => updateChannel(key, { enabled: checked })} />
             </CardTitle>
             <p className="text-xs text-muted-foreground">{desc}</p>
           </CardHeader>
@@ -297,29 +342,40 @@ const NotificationSettings = () => {
           {prefs[key].enabled && (
             <CardContent className="space-y-3 pt-0">
               {key === "push" && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground">
-                  באייפון כדאי לאשר התראות בדפדפן ולהוסיף את Tabro למסך הבית כדי שהתראות Push יעבדו בצורה הטובה ביותר.
+                <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3 text-[11px] text-muted-foreground">
+                  <p>באייפון כדאי לאשר התראות בדפדפן ולהוסיף את Tabro למסך הבית כדי לקבל חוויה קרובה לאפליקציה.</p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={pushStatus === "granted" ? "default" : "outline"}>
+                      {pushStatus === "granted" ? "התראות מאושרות" : pushStatus === "denied" ? "התראות חסומות" : pushStatus === "unsupported" ? "לא נתמך" : "טרם אושר"}
+                    </Badge>
+                    <Button variant="outline" size="sm" onClick={() => void requestPushPermission()}>
+                      בקש הרשאת Push
+                    </Button>
+                  </div>
                 </div>
               )}
+
               <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                     <Label className="text-xs">שעות שליחה</Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Select value={pendingTimes[key]} onValueChange={(v) => setPendingTimes((prev) => ({ ...prev, [key]: v }))}>
-                      <SelectTrigger className="w-24 h-7 text-xs">
+                    <Select value={pendingTimes[key]} onValueChange={(value) => setPendingTimes((prev) => ({ ...prev, [key]: value }))}>
+                      <SelectTrigger className="h-8 w-24 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {HOURS.map((h) => (
-                          <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>
+                        {HOURS.map((hour) => (
+                          <SelectItem key={hour.value} value={hour.value} className="text-xs">
+                            {hour.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => addSendTime(key)}>
-                      <Plus className="h-3 w-3" />הוסף שעה
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => addSendTime(key)}>
+                      הוסף שעה
                     </Button>
                   </div>
                 </div>
@@ -328,8 +384,8 @@ const NotificationSettings = () => {
                   {prefs[key].sendTimes.map((time) => (
                     <Badge key={time} variant="secondary" className="gap-1 pr-2">
                       {time}
-                      <button onClick={() => removeSendTime(key, time)} className="rounded-full hover:bg-background/70 p-0.5">
-                        <X className="h-3 w-3" />
+                      <button type="button" onClick={() => removeSendTime(key, time)} className="rounded-full p-0.5 hover:bg-background/70">
+                        ×
                       </button>
                     </Badge>
                   ))}
@@ -337,22 +393,28 @@ const NotificationSettings = () => {
               </div>
 
               <Separator />
-              <p className="text-xs font-medium text-muted-foreground">תוכן ההתראות:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {CONTENT_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    onClick={() => toggleContent(key, opt.key)}
-                    className={`text-right rounded-md border p-2 text-xs transition-colors ${
-                      prefs[key].content.includes(opt.key)
-                        ? "bg-primary/10 border-primary/40 text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
-                    }`}
-                  >
-                    <span className="block font-medium">{opt.label}</span>
-                    <span className="block text-[10px] opacity-70">{opt.desc}</span>
-                  </button>
-                ))}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">תוכן ההתראות</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {CONTENT_OPTIONS.map((option) => {
+                    const active = prefs[key].content.includes(option.key);
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => toggleContent(key, option.key)}
+                        className={`rounded-md border p-2 text-right text-xs transition-colors ${
+                          active
+                            ? "border-primary/40 bg-primary/10 text-primary"
+                            : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                        }`}
+                      >
+                        <span className="block font-medium">{option.label}</span>
+                        <span className="block text-[10px] opacity-70">{option.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </CardContent>
           )}
@@ -361,41 +423,36 @@ const NotificationSettings = () => {
 
       <Card>
         <CardHeader className="py-3">
-          <CardTitle className="text-sm flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-primary" />
               תזכורות מתכנן לו״ז
             </div>
-            <Switch
-              checked={prefs.planner.enabled}
-              onCheckedChange={(checked) => {
-                save({ ...prefs, planner: { ...prefs.planner, enabled: checked } });
-                toast.success(checked ? "תזכורות הלוז הופעלו" : "תזכורות הלוז בוטלו");
-              }}
-            />
+            <Switch checked={prefs.planner.enabled} onCheckedChange={(checked) => void savePrefs({ ...prefs, planner: { ...prefs.planner, enabled: checked } })} />
           </CardTitle>
-          <p className="text-xs text-muted-foreground">ברירת המחדל נשארת כמו עכשיו: הלוז ממשיך לשלוח תזכורות גם אם שאר ההתראות כבויות, אבל עכשיו אפשר לכוון את זה כאן.</p>
+          <p className="text-xs text-muted-foreground">הלוז יכול להמשיך להזכיר במייל, ב‑Push ובתזכורות סיום, בלי לפגוע בשאר ההגדרות.</p>
         </CardHeader>
-
         {prefs.planner.enabled && (
           <CardContent className="space-y-4 pt-0">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <button
-                onClick={() => save({ ...prefs, planner: { ...prefs.planner, pushEnabled: !prefs.planner.pushEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.planner.pushEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >Push לפני אירוע</button>
-              <button
-                onClick={() => save({ ...prefs, planner: { ...prefs.planner, emailEnabled: !prefs.planner.emailEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.planner.emailEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >מייל לפני אירוע</button>
-              <button
-                onClick={() => save({ ...prefs, planner: { ...prefs.planner, completionEnabled: !prefs.planner.completionEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.planner.completionEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >התראת סיום אירוע</button>
-              <button
-                onClick={() => save({ ...prefs, planner: { ...prefs.planner, invitationsEnabled: !prefs.planner.invitationsEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.planner.invitationsEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >התראות זימונים</button>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {[
+                { key: "pushEnabled", label: "Push לפני אירוע" },
+                { key: "emailEnabled", label: "מייל לפני אירוע" },
+                { key: "completionEnabled", label: "התראת סיום אירוע" },
+                { key: "invitationsEnabled", label: "התראות זימונים" },
+              ].map((option) => {
+                const value = prefs.planner[option.key as keyof PlannerSettings] as boolean;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => void savePrefs({ ...prefs, planner: { ...prefs.planner, [option.key]: !value } })}
+                    className={`rounded-lg border p-3 text-right text-xs ${value ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="space-y-2">
@@ -406,7 +463,7 @@ const NotificationSettings = () => {
                     key={minutes}
                     variant={prefs.planner.reminderMinutes.includes(minutes) ? "default" : "outline"}
                     className="cursor-pointer"
-                    onClick={() => togglePlannerMinute(minutes)}
+                    onClick={() => togglePlannerReminder(minutes)}
                   >
                     {minutes === 60 ? "שעה" : `${minutes} דק׳`}
                   </Badge>
@@ -419,76 +476,54 @@ const NotificationSettings = () => {
 
       <Card>
         <CardHeader className="py-3">
-          <CardTitle className="text-sm flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
               <Bot className="h-4 w-4 text-primary" />
-              תדריכי AI ותזכורות
+              תדריכי AI והתראות AI
             </div>
-            <Switch
-              checked={prefs.ai.enabled}
-              onCheckedChange={(checked) => {
-                save({ ...prefs, ai: { ...prefs.ai, enabled: checked } });
-                toast.success(checked ? "פיצ'רי ה-AI הופעלו" : "פיצ'רי ה-AI בוטלו");
-              }}
-            />
+            <Switch checked={prefs.ai.enabled} onCheckedChange={(checked) => void savePrefs({ ...prefs, ai: { ...prefs.ai, enabled: checked } })} />
           </CardTitle>
-          <p className="text-xs text-muted-foreground">כאן מגדירים מה תרצה שסוכן ה-AI יכין עבורך: תדריך יומי, סיכום מיילים ותדריך חדשות לפי תחומי עניין.</p>
+          <p className="text-xs text-muted-foreground">כאן שומרים את כל ההעדפות של הסוכן: תדריך יומי, סיכום מיילים, חדשות, ותזכורת קבועה.</p>
         </CardHeader>
-
         {prefs.ai.enabled && (
           <CardContent className="space-y-4 pt-0">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                onClick={() => save({ ...prefs, ai: { ...prefs.ai, dailyBriefingEnabled: !prefs.ai.dailyBriefingEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.dailyBriefingEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >
-                <div className="flex items-center gap-2">
-                  <Bot className="h-3.5 w-3.5" />
-                  תדריך מלא על היום
-                </div>
-              </button>
-              <button
-                onClick={() => save({ ...prefs, ai: { ...prefs.ai, emailDigestEnabled: !prefs.ai.emailDigestEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.emailDigestEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >
-                <div className="flex items-center gap-2">
-                  <Inbox className="h-3.5 w-3.5" />
-                  סיכום מיילים מסונכרנים
-                </div>
-              </button>
-              <button
-                onClick={() => save({ ...prefs, ai: { ...prefs.ai, newsBriefingEnabled: !prefs.ai.newsBriefingEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.newsBriefingEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >
-                <div className="flex items-center gap-2">
-                  <Newspaper className="h-3.5 w-3.5" />
-                  תדריך חדשות בוקר
-                </div>
-              </button>
-              <button
-                onClick={() => save({ ...prefs, ai: { ...prefs.ai, reminderEnabled: !prefs.ai.reminderEnabled } })}
-                className={`rounded-lg border p-3 text-right text-xs ${prefs.ai.reminderEnabled ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
-              >
-                <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5" />
-                  תזכורת קבועה ל-AI
-                </div>
-              </button>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {[
+                { key: "dailyBriefingEnabled", label: "תדריך מלא על היום", icon: Bot },
+                { key: "emailDigestEnabled", label: "סיכום מיילים מסונכרנים", icon: Inbox },
+                { key: "newsBriefingEnabled", label: "תדריך חדשות בוקר", icon: Newspaper },
+                { key: "reminderEnabled", label: "תזכורת AI קבועה", icon: Clock },
+              ].map((option) => {
+                const ActiveIcon = option.icon;
+                const value = prefs.ai[option.key as keyof AiSettings] as boolean;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => void savePrefs({ ...prefs, ai: { ...prefs.ai, [option.key]: !value } })}
+                    className={`rounded-lg border p-3 text-right text-xs ${value ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground"}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ActiveIcon className="h-3.5 w-3.5" />
+                      {option.label}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">שעת תזכורת/תדריך</Label>
-                <Select
-                  value={prefs.ai.reminderTime}
-                  onValueChange={(v) => save({ ...prefs, ai: { ...prefs.ai, reminderTime: v } })}
-                >
+                <Select value={prefs.ai.reminderTime} onValueChange={(value) => void savePrefs({ ...prefs, ai: { ...prefs.ai, reminderTime: value } })}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {HOURS.map((h) => (
-                      <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>
+                    {HOURS.map((hour) => (
+                      <SelectItem key={hour.value} value={hour.value} className="text-xs">
+                        {hour.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -498,16 +533,15 @@ const NotificationSettings = () => {
                 <Label className="text-xs">תחומי עניין לחדשות</Label>
                 <Input
                   value={prefs.ai.newsTopics}
-                  onChange={(e) => save({ ...prefs, ai: { ...prefs.ai, newsTopics: e.target.value } })}
+                  onChange={(event) => void savePrefs({ ...prefs, ai: { ...prefs.ai, newsTopics: event.target.value } })}
                   placeholder="למשל: טכנולוגיה, כלכלה, בריאות, ספורט"
                   className="h-8 text-xs"
                 />
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
-              <p>התדריכים נשמרים עכשיו כהעדפה למשתמש, והסוכן יכול להשתמש בהם בתוך הממשק כבר עכשיו.</p>
-              <p>חדשות בזמן אמת יופעלו בצורה מלאה ברגע שנחבר מקור חדשות חיצוני, אבל כבר עכשיו אפשר לשמור תחומי עניין ופורמט.</p>
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+              ההעדפות כאן מזינות גם את Tabro AI, גם את התדריכים, וגם את ערוצי ההתראות העתידיים לאייפון ולדפדפן.
             </div>
           </CardContent>
         )}
@@ -515,46 +549,52 @@ const NotificationSettings = () => {
 
       <Card>
         <CardHeader className="py-3">
-          <CardTitle className="text-sm flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
               <Moon className="h-4 w-4 text-primary" />
               שעות שקט
             </div>
-            <Switch
-              checked={prefs.quietHoursEnabled}
-              onCheckedChange={(checked) => {
-                save({ ...prefs, quietHoursEnabled: checked });
-                toast.success(checked ? "שעות שקט הופעלו" : "שעות שקט בוטלו");
-              }}
-            />
+            <Switch checked={prefs.quietHoursEnabled} onCheckedChange={(checked) => void savePrefs({ ...prefs, quietHoursEnabled: checked })} />
           </CardTitle>
-          <p className="text-xs text-muted-foreground">לא יישלחו התראות בשעות אלו</p>
+          <p className="text-xs text-muted-foreground">לא יישלחו התראות בשעות האלו.</p>
         </CardHeader>
         {prefs.quietHoursEnabled && (
           <CardContent className="space-y-3 pt-0">
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
                 <Label className="text-xs">מ-</Label>
-                <Select value={prefs.quietHoursStart} onValueChange={(v) => save({ ...prefs, quietHoursStart: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <Select value={prefs.quietHoursStart} onValueChange={(value) => void savePrefs({ ...prefs, quietHoursStart: value })}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {HOURS.map((h) => <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>)}
+                    {HOURS.map((hour) => (
+                      <SelectItem key={hour.value} value={hour.value} className="text-xs">
+                        {hour.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex-1">
+              <div className="space-y-1">
                 <Label className="text-xs">עד-</Label>
-                <Select value={prefs.quietHoursEnd} onValueChange={(v) => save({ ...prefs, quietHoursEnd: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <Select value={prefs.quietHoursEnd} onValueChange={(value) => void savePrefs({ ...prefs, quietHoursEnd: value })}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {HOURS.map((h) => <SelectItem key={h.value} value={h.value} className="text-xs">{h.label}</SelectItem>)}
+                    {HOURS.map((hour) => (
+                      <SelectItem key={hour.value} value={hour.value} className="text-xs">
+                        {hour.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <VolumeX className="h-3.5 w-3.5" />
-              <span>התראות שיגיעו בשעות שקט יישמרו ויישלחו בבוקר</span>
+              התראות שיגיעו בשעות השקט יישמרו ויטופלו בהמשך.
             </div>
           </CardContent>
         )}
@@ -563,30 +603,27 @@ const NotificationSettings = () => {
       <Card>
         <CardHeader className="py-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            <Volume2 className="h-4 w-4 text-primary" />
+            <Mail className="h-4 w-4 text-primary" />
             כמות התראות ביום
           </CardTitle>
-          <p className="text-xs text-muted-foreground">הגבל את מספר ההתראות שתקבל ביום</p>
         </CardHeader>
         <CardContent className="pt-0">
-          <Select
-            value={String(prefs.dailyLimit)}
-            onValueChange={(v) => {
-              save({ ...prefs, dailyLimit: Number(v) });
-              toast.success(v === "0" ? "ללא הגבלה" : `מוגבל ל-${v} התראות ביום`);
-            }}
-          >
-            <SelectTrigger className="h-8 text-xs w-40"><SelectValue /></SelectTrigger>
+          <Select value={String(prefs.dailyLimit)} onValueChange={(value) => void savePrefs({ ...prefs, dailyLimit: Number(value) })}>
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {LIMIT_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+              {LIMIT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value} className="text-xs">
+                  {option.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </CardContent>
       </Card>
 
-      {saving && <p className="text-xs text-muted-foreground text-center animate-pulse">שומר...</p>}
+      {saving && <p className="text-center text-xs text-muted-foreground animate-pulse">שומר...</p>}
     </div>
   );
 };
