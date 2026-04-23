@@ -24,11 +24,32 @@ export interface EmailAnalysis {
   is_processed: boolean;
 }
 
+export interface EmailPriorityPrefs {
+  vipSenders: string[];
+  lowPrioritySenders: string[];
+  importantKeywords: string[];
+  ignoredKeywords: string[];
+  importantCategories: string[];
+  notifyOnImportantPush: boolean;
+  notifyOnImportantEmail: boolean;
+}
+
+const DEFAULT_EMAIL_PRIORITY_PREFS: EmailPriorityPrefs = {
+  vipSenders: [],
+  lowPrioritySenders: [],
+  importantKeywords: [],
+  ignoredKeywords: [],
+  importantCategories: ["task", "payment", "bill"],
+  notifyOnImportantPush: true,
+  notifyOnImportantEmail: false,
+};
+
 export function useEmailIntegration() {
   const { user } = useAuth();
   const { lang, t } = useLanguage();
   const [connections, setConnections] = useState<EmailConnection[]>([]);
   const [analyses, setAnalyses] = useState<EmailAnalysis[]>([]);
+  const [emailPriorityPrefs, setEmailPriorityPrefs] = useState<EmailPriorityPrefs>(DEFAULT_EMAIL_PRIORITY_PREFS);
   const [loading, setLoading] = useState(true);
   const isHe = lang === "he" || lang === "ar";
 
@@ -63,14 +84,39 @@ export function useEmailIntegration() {
     }
   }, [user]);
 
+  const fetchEmailPriorityPrefs = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from("user_preferences")
+        .select("notification_settings")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+
+      const nextPrefs = (data?.notification_settings as Record<string, any> | null)?.emailTriage;
+      setEmailPriorityPrefs({
+        ...DEFAULT_EMAIL_PRIORITY_PREFS,
+        ...(nextPrefs || {}),
+        vipSenders: Array.isArray(nextPrefs?.vipSenders) ? nextPrefs.vipSenders : DEFAULT_EMAIL_PRIORITY_PREFS.vipSenders,
+        lowPrioritySenders: Array.isArray(nextPrefs?.lowPrioritySenders) ? nextPrefs.lowPrioritySenders : DEFAULT_EMAIL_PRIORITY_PREFS.lowPrioritySenders,
+        importantKeywords: Array.isArray(nextPrefs?.importantKeywords) ? nextPrefs.importantKeywords : DEFAULT_EMAIL_PRIORITY_PREFS.importantKeywords,
+        ignoredKeywords: Array.isArray(nextPrefs?.ignoredKeywords) ? nextPrefs.ignoredKeywords : DEFAULT_EMAIL_PRIORITY_PREFS.ignoredKeywords,
+        importantCategories: Array.isArray(nextPrefs?.importantCategories) ? nextPrefs.importantCategories : DEFAULT_EMAIL_PRIORITY_PREFS.importantCategories,
+      });
+    } catch (e) {
+      console.error("Error fetching email priority prefs:", e);
+    }
+  }, [user]);
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchConnections(), fetchAnalyses()]);
+      await Promise.all([fetchConnections(), fetchAnalyses(), fetchEmailPriorityPrefs()]);
       setLoading(false);
     };
     init();
-  }, [fetchConnections, fetchAnalyses]);
+  }, [fetchConnections, fetchAnalyses, fetchEmailPriorityPrefs]);
 
   const addConnection = useCallback(async (provider: string, emailAddress: string, settings?: Record<string, any>) => {
     if (!user) return null;
@@ -123,6 +169,39 @@ export function useEmailIntegration() {
     }
   }, [fetchAnalyses, isHe, t]);
 
+  const saveEmailPriorityPrefs = useCallback(async (nextPrefs: EmailPriorityPrefs) => {
+    if (!user) return false;
+    try {
+      const { data, error: fetchError } = await supabase
+        .from("user_preferences")
+        .select("notification_settings")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+
+      const existingSettings = ((data?.notification_settings as Record<string, any> | null) || {});
+      const mergedSettings = {
+        ...existingSettings,
+        emailTriage: nextPrefs,
+      };
+
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({
+          user_id: user.id,
+          notification_settings: mergedSettings as any,
+        }, { onConflict: "user_id" });
+      if (error) throw error;
+
+      setEmailPriorityPrefs(nextPrefs);
+      return true;
+    } catch (e) {
+      console.error("Error saving email priority prefs:", e);
+      toast.error(isHe ? "שגיאה בשמירת העדפות המיילים" : "Error saving email preferences");
+      return false;
+    }
+  }, [user, isHe]);
+
   const categorySummary = analyses.reduce((acc, a) => {
     acc[a.category] = (acc[a.category] || 0) + 1;
     return acc;
@@ -136,6 +215,8 @@ export function useEmailIntegration() {
     removeConnection,
     syncEmails,
     categorySummary,
-    refetch: () => Promise.all([fetchConnections(), fetchAnalyses()]),
+    emailPriorityPrefs,
+    saveEmailPriorityPrefs,
+    refetch: () => Promise.all([fetchConnections(), fetchAnalyses(), fetchEmailPriorityPrefs()]),
   };
 }

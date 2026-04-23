@@ -16,7 +16,7 @@ type Message = {
   content: string;
 };
 
-type AgentMode = "general" | "daily" | "email" | "projects" | "meeting" | "focus" | "files";
+type AgentMode = "general" | "daily" | "email" | "projects" | "meeting" | "focus" | "files" | "reply" | "executive" | "planner";
 
 type AttachmentContext = {
   id: string;
@@ -66,6 +66,21 @@ const MODE_PRESETS: Record<AgentMode, { title: string; prompt: string; icon: typ
     title: "סיכום קבצים",
     prompt: "נתח את הקבצים שהעליתי, תן תקציר ברור, הוצא תובנות, משימות והמלצות פעולה.",
     icon: FileText,
+  },
+  reply: {
+    title: "תשובה למייל / הודעה",
+    prompt: "נסח לי תשובה מקצועית, ברורה וקצרה למייל או להודעה, עם טון מתאים, נקודות פעולה, וסגירה נכונה.",
+    icon: Send,
+  },
+  executive: {
+    title: "סיכום מנהלים",
+    prompt: "תן לי סיכום מנהלים קצר וברור: מה דחוף, מה תקוע, מה הושלם, ומה דורש החלטה ממני.",
+    icon: Briefcase,
+  },
+  planner: {
+    title: "תכנון ביצוע",
+    prompt: "בנה לי תוכנית ביצוע מעשית להיום או לשבוע: סדר עדיפויות, חלוקת זמן, אבני דרך, ומה אפשר לדחות.",
+    icon: Target,
   },
 };
 
@@ -327,7 +342,7 @@ export default function TabroAiWorkspace() {
 
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex flex-wrap gap-2">
-                      {["תן לי תדריך בוקר", "מה הכי דחוף לי היום?", "נסח לי מייל המשך", "סכם את הקבצים שהעליתי"].map((prompt) => (
+                      {["תן לי תדריך בוקר", "מה הכי דחוף לי היום?", "נסח לי מייל המשך", "סכם את הקבצים שהעליתי", "תן לי סיכום מנהלים", "בנה לי תוכנית עבודה להיום"].map((prompt) => (
                         <Button key={prompt} variant="ghost" size="sm" onClick={() => setInput(prompt)} className="text-xs">
                           {prompt}
                         </Button>
@@ -353,6 +368,8 @@ export default function TabroAiWorkspace() {
                     { icon: Inbox, text: "סיכום מיילים לפי קטגוריות וטריאז׳" },
                     { icon: Briefcase, text: "סקירת פרויקטים עם המלצות פעולה" },
                     { icon: FileText, text: "סיכום קבצים, מסמכים וטיוטות" },
+                    { icon: Send, text: "ניסוח תשובה למיילים, follow-up והודעות המשך" },
+                    { icon: Target, text: "בניית תוכנית עבודה יומית/שבועית עם סדר עדיפויות" },
                     { icon: Newspaper, text: "תדריך חדשות לפי תחומי עניין כשהמקור זמין" },
                   ].map((item) => {
                     const Icon = item.icon;

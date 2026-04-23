@@ -1,15 +1,15 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useEmailIntegration } from "@/hooks/useEmailIntegration";
+import { EmailPriorityPrefs, useEmailIntegration } from "@/hooks/useEmailIntegration";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Plus, Trash2, RefreshCw, Loader2, Inbox, CreditCard, ListTodo, ShoppingCart, FileText, User, Sparkles, Eye, ArrowUpDown, MessageCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Mail, Plus, Trash2, RefreshCw, Loader2, Inbox, CreditCard, ListTodo, ShoppingCart, FileText, User, Sparkles, Eye, ArrowUpDown, MessageCircle, Star, BellRing, BellOff, X } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import EmailConnectionDialog from "@/components/EmailConnectionDialog";
 import { format, subDays, isAfter } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
@@ -46,6 +46,8 @@ const extractSenderDomain = (from?: string | null) => {
   const match = from.match(/@([a-z0-9.-]+\.[a-z]{2,})/i);
   return match?.[1]?.toLowerCase() || "";
 };
+
+const normalizeToken = (value: string) => value.trim().toLowerCase();
 
 const includesAny = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
 
@@ -96,18 +98,35 @@ const getSmartBucket = (analysis: { category: string; email_subject: string | nu
 
 const getSmartPriority = (
   analysis: { email_subject: string | null; email_from: string | null; category: string },
-  smartBucket: SmartBucket
+  smartBucket: SmartBucket,
+  prefs?: EmailPriorityPrefs
 ) => {
   const haystack = `${analysis.email_subject || ""} ${analysis.email_from || ""}`.toLowerCase();
   const hasUrgency = includesAny(haystack, ["urgent", "asap", "today", "deadline", "דחוף", "היום", "בהקדם"]);
   const hasDue = includesAny(haystack, ["invoice", "payment", "bill", "due", "receipt", "תשלום", "חשבונית", "חיוב"]);
+  const senderDomain = extractSenderDomain(analysis.email_from);
 
-  if (smartBucket === "action") return hasUrgency ? 5 : 4;
-  if (smartBucket === "finance") return hasDue ? 4 : 3;
-  if (smartBucket === "shopping") return 2.5;
-  if (smartBucket === "updates") return 2;
-  if (smartBucket === "personal") return 2.2;
-  return 1;
+  let basePriority = 1;
+
+  if (smartBucket === "action") basePriority = hasUrgency ? 5 : 4;
+  else if (smartBucket === "finance") basePriority = hasDue ? 4 : 3;
+  else if (smartBucket === "shopping") basePriority = 2.5;
+  else if (smartBucket === "updates") basePriority = 2;
+  else if (smartBucket === "personal") basePriority = 2.2;
+
+  if (!prefs) return basePriority;
+
+  if (prefs.importantCategories.includes(analysis.category)) basePriority += 0.75;
+  if (prefs.vipSenders.includes(senderDomain) || prefs.vipSenders.includes((analysis.email_from || "").toLowerCase())) {
+    basePriority += 2.25;
+  }
+  if (prefs.lowPrioritySenders.includes(senderDomain) || prefs.lowPrioritySenders.includes((analysis.email_from || "").toLowerCase())) {
+    basePriority -= 1.5;
+  }
+  if (prefs.importantKeywords.some((keyword) => haystack.includes(keyword))) basePriority += 1.5;
+  if (prefs.ignoredKeywords.some((keyword) => haystack.includes(keyword))) basePriority -= 1.25;
+
+  return Math.max(0.5, Math.min(6, basePriority));
 };
 
 const getSmartHeadline = (bucket: SmartBucket, isHe: boolean) => {
@@ -133,8 +152,7 @@ const getSmartHeadline = (bucket: SmartBucket, isHe: boolean) => {
 
 const EmailIntegration = () => {
   const { t, lang } = useLanguage();
-  const { user } = useAuth();
-  const { connections, analyses, loading, removeConnection, syncEmails, categorySummary } = useEmailIntegration();
+  const { connections, analyses, loading, removeConnection, syncEmails, categorySummary, emailPriorityPrefs, saveEmailPriorityPrefs } = useEmailIntegration();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
@@ -145,12 +163,50 @@ const EmailIntegration = () => {
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "sender">("newest");
   const [showAiChat, setShowAiChat] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [pendingVipSender, setPendingVipSender] = useState("");
+  const [pendingLowSender, setPendingLowSender] = useState("");
+  const [pendingImportantKeyword, setPendingImportantKeyword] = useState("");
+  const [pendingIgnoredKeyword, setPendingIgnoredKeyword] = useState("");
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => {
     return localStorage.getItem("email-auto-sync-enabled") !== "false";
   });
   const aiChatHistory = useDashboardChatHistory("email-insights");
 
   const isHe = lang === "he" || lang === "ar";
+
+  const persistEmailPrefs = useCallback(async (updater: (current: EmailPriorityPrefs) => EmailPriorityPrefs) => {
+    setSavingPrefs(true);
+    const success = await saveEmailPriorityPrefs(updater(emailPriorityPrefs));
+    if (success) {
+      toast.success(isHe ? "העדפות החשיבות במייל נשמרו" : "Email importance preferences saved");
+    }
+    setSavingPrefs(false);
+  }, [emailPriorityPrefs, isHe, saveEmailPriorityPrefs]);
+
+  const addTokenToList = useCallback(async (
+    listKey: keyof Pick<EmailPriorityPrefs, "vipSenders" | "lowPrioritySenders" | "importantKeywords" | "ignoredKeywords">,
+    rawValue: string,
+    clear: () => void,
+  ) => {
+    const value = normalizeToken(rawValue);
+    if (!value) return;
+    await persistEmailPrefs((current) => ({
+      ...current,
+      [listKey]: Array.from(new Set([...(current[listKey] as string[]), value])),
+    }));
+    clear();
+  }, [persistEmailPrefs]);
+
+  const removeTokenFromList = useCallback(async (
+    listKey: keyof Pick<EmailPriorityPrefs, "vipSenders" | "lowPrioritySenders" | "importantKeywords" | "ignoredKeywords">,
+    value: string,
+  ) => {
+    await persistEmailPrefs((current) => ({
+      ...current,
+      [listKey]: (current[listKey] as string[]).filter((entry) => entry !== value),
+    }));
+  }, [persistEmailPrefs]);
 
   const getCategoryLabel = (cat: string) => {
     const map: Record<string, string> = {
@@ -232,13 +288,28 @@ const EmailIntegration = () => {
   const smartInbox = useMemo(() => {
     const enriched = baseRecentEmails.map((analysis) => {
       const smartBucket = getSmartBucket(analysis);
-      const smartPriority = getSmartPriority(analysis, smartBucket);
       const senderDomain = extractSenderDomain(analysis.email_from);
+      const smartPriority = getSmartPriority(analysis, smartBucket, emailPriorityPrefs);
+      const importantForUser =
+        emailPriorityPrefs.vipSenders.includes(senderDomain) ||
+        emailPriorityPrefs.vipSenders.includes((analysis.email_from || "").toLowerCase()) ||
+        emailPriorityPrefs.importantCategories.includes(analysis.category) ||
+        emailPriorityPrefs.importantKeywords.some((keyword) =>
+          `${analysis.email_subject || ""} ${analysis.email_from || ""}`.toLowerCase().includes(keyword),
+        );
+      const lowPriorityForUser =
+        emailPriorityPrefs.lowPrioritySenders.includes(senderDomain) ||
+        emailPriorityPrefs.lowPrioritySenders.includes((analysis.email_from || "").toLowerCase()) ||
+        emailPriorityPrefs.ignoredKeywords.some((keyword) =>
+          `${analysis.email_subject || ""} ${analysis.email_from || ""}`.toLowerCase().includes(keyword),
+        );
       return {
         ...analysis,
         smartBucket,
         smartPriority,
         senderDomain,
+        importantForUser,
+        lowPriorityForUser,
       };
     });
 
@@ -282,10 +353,19 @@ const EmailIntegration = () => {
       financeWatch: enriched.filter((email) => email.smartBucket === "finance").length,
       deliveryTrack: enriched.filter((email) => email.smartBucket === "shopping").length,
       lowNoise: enriched.filter((email) => email.smartBucket === "low").length,
+      personalImportant: enriched.filter((email) => email.importantForUser).length,
     };
 
-    return { enriched, smartSummary, priorityQueue, senderDomains, bucketHighlights, smartDigest };
-  }, [baseRecentEmails]);
+    const importantNow = enriched
+      .filter((email) => email.importantForUser || email.smartPriority >= 4.5)
+      .sort((a, b) => {
+        if (b.smartPriority !== a.smartPriority) return b.smartPriority - a.smartPriority;
+        return new Date(b.email_date || 0).getTime() - new Date(a.email_date || 0).getTime();
+      })
+      .slice(0, 8);
+
+    return { enriched, smartSummary, priorityQueue, senderDomains, bucketHighlights, smartDigest, importantNow };
+  }, [baseRecentEmails, emailPriorityPrefs]);
 
   const recentEmails = useMemo(() => {
     let filtered = [...smartInbox.enriched];
@@ -310,6 +390,25 @@ const EmailIntegration = () => {
   // Check if email is "sent" by the user
   const connectedEmails = connections.map(c => c.email_address.toLowerCase());
 
+  const importantEmailContext = useMemo(() => {
+    const importantEmails = smartInbox.importantNow.slice(0, 10).map((email) => ({
+      subject: email.email_subject,
+      from: email.email_from,
+      date: email.email_date,
+      category: email.category,
+      smartBucket: email.smartBucket,
+      priority: email.smartPriority,
+      importantForUser: email.importantForUser,
+    }));
+
+    return {
+      preferences: emailPriorityPrefs,
+      importantEmails,
+      senderDomains: smartInbox.senderDomains,
+      smartDigest: smartInbox.smartDigest,
+    };
+  }, [emailPriorityPrefs, smartInbox]);
+
   const handleReviewEmails = async () => {
     if (recentEmails.length === 0) return;
     setReviewing(true);
@@ -323,14 +422,23 @@ const EmailIntegration = () => {
         from: e.email_from,
         date: e.email_date,
         category: e.category,
+        smartBucket: e.smartBucket,
+        priority: e.smartPriority,
+        importantForUser: e.importantForUser,
       }));
 
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
           type: "custom",
           prompt: lang === "he"
-            ? `סקור את 14 הימים האחרונים של המיילים שלי ותן לי סיכום: מה חשוב, מה דורש תשומת לב, ומה אפשר להתעלם ממנו. הנה המיילים:\n${JSON.stringify(emailSummary, null, 2)}`
-            : `Review my last 14 days of emails and give me a summary: what's important, what needs attention, and what can be ignored. Here are the emails:\n${JSON.stringify(emailSummary, null, 2)}`,
+            ? `סקור את 14 הימים האחרונים של המיילים שלי לפי ההעדפות האישיות שלי, ותן לי סיכום: מה באמת חשוב לי, מה דורש תשומת לב, ומה אפשר להתעלם ממנו.
+העדפות משתמש:\n${JSON.stringify(importantEmailContext.preferences, null, 2)}
+סיכום חשובים כרגע:\n${JSON.stringify(importantEmailContext.importantEmails, null, 2)}
+כלל המיילים:\n${JSON.stringify(emailSummary, null, 2)}`
+            : `Review my last 14 days of emails using my personal importance preferences. Tell me what truly matters, what needs attention, and what can be safely ignored.
+User preferences:\n${JSON.stringify(importantEmailContext.preferences, null, 2)}
+Important right now:\n${JSON.stringify(importantEmailContext.importantEmails, null, 2)}
+All emails:\n${JSON.stringify(emailSummary, null, 2)}`,
         },
       });
       if (error) throw error;
@@ -355,9 +463,18 @@ const EmailIntegration = () => {
         from: e.email_from,
         date: e.email_date,
         category: e.category,
+        smartBucket: e.smartBucket,
+        priority: e.smartPriority,
+        importantForUser: e.importantForUser,
       }));
 
-      const context = `הנה סיכום מיילים אחרונים (14 יום אחרונים):\n${JSON.stringify(emailSummary, null, 2)}`;
+      const context = `הנה סיכום מיילים אחרונים (14 יום אחרונים):\n${JSON.stringify(emailSummary, null, 2)}
+
+העדפות המשתמש לגבי מה חשוב במייל:
+${JSON.stringify(importantEmailContext.preferences, null, 2)}
+
+מיילים שמדורגים כרגע כחשובים במיוחד:
+${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
 
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
@@ -494,6 +611,169 @@ const EmailIntegration = () => {
       {baseRecentEmails.length > 0 && (
         <Card className="card-surface">
           <CardHeader>
+            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Star className="h-4 w-4 text-amber-500" />
+                  {isHe ? "מה חשוב לי במייל" : "What matters to me in email"}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isHe
+                    ? "למד את המערכת אילו שולחים, מילות מפתח וקטגוריות חשובים לך או להפך."
+                    : "Teach the system which senders, keywords, and categories matter to you — or should stay low-noise."}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant="outline" className="gap-1">
+                  <BellRing className="h-3 w-3" />
+                  {emailPriorityPrefs.notifyOnImportantPush ? (isHe ? "התראה על חשובים: כן" : "Important push alerts: on") : (isHe ? "התראה על חשובים: לא" : "Important push alerts: off")}
+                </Badge>
+                <Button
+                  size="sm"
+                  variant={emailPriorityPrefs.notifyOnImportantPush ? "default" : "outline"}
+                  className="h-8 gap-1"
+                  disabled={savingPrefs}
+                  onClick={() => persistEmailPrefs((current) => ({
+                    ...current,
+                    notifyOnImportantPush: !current.notifyOnImportantPush,
+                  }))}
+                >
+                  {emailPriorityPrefs.notifyOnImportantPush ? <BellRing className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
+                  {isHe ? "Push על חשובים" : "Push for important"}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 xl:grid-cols-2">
+              <div className="rounded-xl border bg-background p-3 space-y-2">
+                <div className="text-sm font-medium">{isHe ? "שולחים חשובים / VIP" : "VIP senders"}</div>
+                <div className="flex gap-2">
+                  <Input
+                    value={pendingVipSender}
+                    onChange={(event) => setPendingVipSender(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void addTokenToList("vipSenders", pendingVipSender, () => setPendingVipSender(""));
+                      }
+                    }}
+                    placeholder={isHe ? "example@company.com או domain.com" : "example@company.com or domain.com"}
+                  />
+                  <Button size="sm" disabled={savingPrefs} onClick={() => void addTokenToList("vipSenders", pendingVipSender, () => setPendingVipSender(""))}>
+                    {isHe ? "הוסף" : "Add"}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {emailPriorityPrefs.vipSenders.map((sender) => (
+                    <Badge key={sender} variant="secondary" className="gap-1">
+                      <Star className="h-3 w-3" />
+                      {sender}
+                      <button type="button" onClick={() => void removeTokenFromList("vipSenders", sender)}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-background p-3 space-y-2">
+                <div className="text-sm font-medium">{isHe ? "שולחים ברעש נמוך" : "Low-priority senders"}</div>
+                <div className="flex gap-2">
+                  <Input
+                    value={pendingLowSender}
+                    onChange={(event) => setPendingLowSender(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void addTokenToList("lowPrioritySenders", pendingLowSender, () => setPendingLowSender(""));
+                      }
+                    }}
+                    placeholder={isHe ? "newsletter@... או domain.com" : "newsletter@... or domain.com"}
+                  />
+                  <Button size="sm" variant="outline" disabled={savingPrefs} onClick={() => void addTokenToList("lowPrioritySenders", pendingLowSender, () => setPendingLowSender(""))}>
+                    {isHe ? "הוסף" : "Add"}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {emailPriorityPrefs.lowPrioritySenders.map((sender) => (
+                    <Badge key={sender} variant="outline" className="gap-1">
+                      {sender}
+                      <button type="button" onClick={() => void removeTokenFromList("lowPrioritySenders", sender)}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-background p-3 space-y-2">
+                <div className="text-sm font-medium">{isHe ? "מילות מפתח חשובות" : "Important keywords"}</div>
+                <div className="flex gap-2">
+                  <Input
+                    value={pendingImportantKeyword}
+                    onChange={(event) => setPendingImportantKeyword(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void addTokenToList("importantKeywords", pendingImportantKeyword, () => setPendingImportantKeyword(""));
+                      }
+                    }}
+                    placeholder={isHe ? "דחוף, מנכ\"ל, לקוח..." : "urgent, CEO, client..."}
+                  />
+                  <Button size="sm" disabled={savingPrefs} onClick={() => void addTokenToList("importantKeywords", pendingImportantKeyword, () => setPendingImportantKeyword(""))}>
+                    {isHe ? "הוסף" : "Add"}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {emailPriorityPrefs.importantKeywords.map((keyword) => (
+                    <Badge key={keyword} className="gap-1 bg-amber-500/15 text-amber-700 hover:bg-amber-500/15">
+                      {keyword}
+                      <button type="button" onClick={() => void removeTokenFromList("importantKeywords", keyword)}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-background p-3 space-y-2">
+                <div className="text-sm font-medium">{isHe ? "מה אפשר להתעלם ממנו" : "Ignore / low-noise keywords"}</div>
+                <div className="flex gap-2">
+                  <Input
+                    value={pendingIgnoredKeyword}
+                    onChange={(event) => setPendingIgnoredKeyword(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void addTokenToList("ignoredKeywords", pendingIgnoredKeyword, () => setPendingIgnoredKeyword(""));
+                      }
+                    }}
+                    placeholder={isHe ? "promo, weekly update..." : "promo, weekly update..."}
+                  />
+                  <Button size="sm" variant="outline" disabled={savingPrefs} onClick={() => void addTokenToList("ignoredKeywords", pendingIgnoredKeyword, () => setPendingIgnoredKeyword(""))}>
+                    {isHe ? "הוסף" : "Add"}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {emailPriorityPrefs.ignoredKeywords.map((keyword) => (
+                    <Badge key={keyword} variant="outline" className="gap-1">
+                      {keyword}
+                      <button type="button" onClick={() => void removeTokenFromList("ignoredKeywords", keyword)}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {baseRecentEmails.length > 0 && (
+        <Card className="card-surface">
+          <CardHeader>
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
                 <ArrowUpDown className="h-4 w-4" />
@@ -530,7 +810,36 @@ const EmailIntegration = () => {
                 <div className="text-xs text-muted-foreground">{isHe ? "רעש נמוך" : "Low-noise mail"}</div>
                 <div className="mt-1 text-2xl font-semibold">{smartInbox.smartDigest.lowNoise}</div>
               </div>
+              <div className="rounded-xl border bg-background p-3 md:col-span-2 xl:col-span-4">
+                <div className="text-xs text-muted-foreground">{isHe ? "חשובים לפי ההעדפות שלי" : "Important based on my preferences"}</div>
+                <div className="mt-1 text-2xl font-semibold">{smartInbox.smartDigest.personalImportant}</div>
+              </div>
             </div>
+
+            {smartInbox.importantNow.length > 0 && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-700">
+                  <Star className="h-4 w-4" />
+                  {isHe ? "מה שחשוב לי עכשיו" : "What matters to me right now"}
+                </div>
+                <div className="space-y-2">
+                  {smartInbox.importantNow.map((email) => (
+                    <div key={email.id} className="flex items-start gap-2 rounded-lg bg-background px-3 py-2 text-sm">
+                      <Star className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{email.email_subject || (isHe ? "(ללא נושא)" : "(No subject)")}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {email.email_from || "-"} {email.senderDomain ? `· ${email.senderDomain}` : ""}
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700">
+                        {email.smartPriority.toFixed(1)}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               {(Object.keys(SMART_BUCKET_META) as SmartBucket[]).map((bucket) => {
@@ -671,6 +980,9 @@ const EmailIntegration = () => {
                 const Icon = CATEGORY_ICONS[a.category] || Mail;
                 const SmartIcon = SMART_BUCKET_META[a.smartBucket].icon;
                 const isSent = a.email_from && connectedEmails.includes(a.email_from.toLowerCase());
+                const senderKey = a.senderDomain || (a.email_from || "").toLowerCase();
+                const isVipSender = !!senderKey && emailPriorityPrefs.vipSenders.includes(senderKey);
+                const isLowSender = !!senderKey && emailPriorityPrefs.lowPrioritySenders.includes(senderKey);
                 return (
                   <div key={a.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -690,6 +1002,42 @@ const EmailIntegration = () => {
                       <SmartIcon className="h-3 w-3" />
                       {getSmartLabel(a.smartBucket)}
                     </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-6 w-6 ${isVipSender ? "text-amber-500" : "text-muted-foreground"}`}
+                      title={isHe ? "סמן שולח חשוב" : "Mark sender as important"}
+                      onClick={() => {
+                        if (!senderKey) return;
+                        void persistEmailPrefs((current) => ({
+                          ...current,
+                          vipSenders: isVipSender
+                            ? current.vipSenders.filter((value) => value !== senderKey)
+                            : Array.from(new Set([...current.vipSenders, senderKey])),
+                          lowPrioritySenders: current.lowPrioritySenders.filter((value) => value !== senderKey),
+                        }));
+                      }}
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-6 w-6 ${isLowSender ? "text-slate-500" : "text-muted-foreground"}`}
+                      title={isHe ? "סמן כרעש נמוך" : "Mark as low priority"}
+                      onClick={() => {
+                        if (!senderKey) return;
+                        void persistEmailPrefs((current) => ({
+                          ...current,
+                          lowPrioritySenders: isLowSender
+                            ? current.lowPrioritySenders.filter((value) => value !== senderKey)
+                            : Array.from(new Set([...current.lowPrioritySenders, senderKey])),
+                          vipSenders: current.vipSenders.filter((value) => value !== senderKey),
+                        }));
+                      }}
+                    >
+                      <BellOff className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 );
               })}

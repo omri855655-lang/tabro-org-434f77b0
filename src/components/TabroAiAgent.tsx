@@ -259,6 +259,15 @@ const TabroAiAgent = () => {
       promptEn: "Prepare a short meeting brief: background, goals, questions to ask, and what not to forget to say.",
     },
     {
+      key: "reply-draft",
+      titleHe: "טיוטת תשובה",
+      titleEn: "Reply draft",
+      descHe: "ניסוח מייל או הודעת המשך מהירה",
+      descEn: "Draft a quick email or follow-up message",
+      promptHe: "נסח לי טיוטת תשובה מקצועית, קצרה וברורה למייל/הודעה, כולל נושא מתאים וקריאה לפעולה אם צריך.",
+      promptEn: "Draft me a professional, concise reply to an email/message, including a suitable subject and call to action if needed.",
+    },
+    {
       key: "focus-coach",
       titleHe: "מאמן פוקוס",
       titleEn: "Focus coach",
@@ -275,6 +284,15 @@ const TabroAiAgent = () => {
       descEn: "Fast status on today, this week, and risks",
       promptHe: "תן לי סיכום מנהלים קצר: מצב היום, השבוע, דחופים, סיכונים, ומה דורש תשומת לב מיוחדת.",
       promptEn: "Give me a short executive summary: today, this week, urgent items, risks, and what needs special attention.",
+    },
+    {
+      key: "day-plan",
+      titleHe: "תוכנית ליום",
+      titleEn: "Day plan",
+      descHe: "לפרק את היום לביצוע מעשי",
+      descEn: "Turn the day into an execution plan",
+      promptHe: "בנה לי תוכנית ביצוע ברורה להיום: מה קודם, כמה זמן לכל בלוק, מה אפשר לדחות, ואיפה אני עלול להיתקע.",
+      promptEn: "Build me a clear execution plan for today: what goes first, time blocks, what can be deferred, and where I may get stuck.",
     },
   ];
 
