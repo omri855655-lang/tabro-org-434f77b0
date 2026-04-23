@@ -78,9 +78,15 @@ const MeetingsDashboard = () => {
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isAudioRecording, setIsAudioRecording] = useState(false);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const selectedMeetingRef = useRef<MeetingRecord | null>(null);
   const speechSupported = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const mediaRecorderSupported = typeof window !== "undefined" && typeof MediaRecorder !== "undefined" && !!navigator?.mediaDevices?.getUserMedia;
 
   useEffect(() => {
     selectedMeetingRef.current = selectedMeeting;
@@ -92,8 +98,15 @@ const MeetingsDashboard = () => {
         recognitionRef.current.stop();
         recognitionRef.current = null;
       }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
     };
-  }, []);
+  }, [audioPreviewUrl]);
 
   const saveMeetings = (next: MeetingRecord[]) => {
     setMeetings(next);
@@ -257,10 +270,11 @@ const MeetingsDashboard = () => {
       return;
     }
 
-    try {
+    const runRecognition = async () => {
       const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognitionCtor();
-      recognition.lang = document?.documentElement?.dir === "rtl" ? "he-IL" : "en-US";
+      const browserLanguage = (navigator.language || "he-IL").toLowerCase();
+      recognition.lang = browserLanguage.startsWith("he") || browserLanguage.startsWith("iw") ? "he-IL" : navigator.language || "en-US";
       recognition.continuous = true;
       recognition.interimResults = true;
 
@@ -285,9 +299,13 @@ const MeetingsDashboard = () => {
         });
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (event: any) => {
         setIsRecording(false);
         recognitionRef.current = null;
+        if (event?.error === "not-allowed" || event?.error === "service-not-allowed") {
+          toast.error("הדפדפן חסם את המיקרופון. אשר הרשאה ונסה שוב.");
+          return;
+        }
         toast.error("התמלול החי נעצר. אפשר לנסות שוב.");
       };
 
@@ -300,10 +318,17 @@ const MeetingsDashboard = () => {
       recognition.start();
       setIsRecording(true);
       toast.success("ההקלטה והתמלול החיים התחילו");
-    } catch (error) {
-      console.error(error);
-      toast.error("לא הצלחנו להתחיל הקלטה חיה בדפדפן הזה");
-    }
+    };
+
+    navigator.mediaDevices?.getUserMedia?.({ audio: true })
+      .then((stream) => {
+        stream.getTracks().forEach((track) => track.stop());
+        return runRecognition();
+      })
+      .catch((error) => {
+        console.error(error);
+        toast.error("לא קיבלנו הרשאת מיקרופון מהדפדפן.");
+      });
   };
 
   const stopLiveTranscript = () => {
@@ -312,6 +337,54 @@ const MeetingsDashboard = () => {
       recognitionRef.current = null;
     }
     setIsRecording(false);
+  };
+
+  const startAudioRecording = async () => {
+    if (!mediaRecorderSupported) {
+      toast.error("הקלטת אודיו לא נתמכת בדפדפן הזה");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mediaStreamRef.current = stream;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (audioPreviewUrl) {
+          URL.revokeObjectURL(audioPreviewUrl);
+        }
+        const nextUrl = URL.createObjectURL(blob);
+        setAudioPreviewUrl(nextUrl);
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        setIsAudioRecording(false);
+        toast.success("הקלטת האודיו נשמרה זמנית בדף ואפשר להאזין לה");
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsAudioRecording(true);
+      toast.success("הקלטת האודיו התחילה");
+    } catch (error) {
+      console.error(error);
+      toast.error("לא הצלחנו להתחיל הקלטת אודיו. בדוק הרשאות מיקרופון.");
+    }
+  };
+
+  const stopAudioRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
   };
 
   return (
@@ -452,12 +525,28 @@ const MeetingsDashboard = () => {
                     <Mic className="h-4 w-4" />
                     {isRecording ? "עצור הקלטה חיה" : "התחל הקלטה + תמלול"}
                   </Button>
+                  <Button
+                    type="button"
+                    variant={isAudioRecording ? "destructive" : "outline"}
+                    className="gap-2"
+                    onClick={isAudioRecording ? stopAudioRecording : startAudioRecording}
+                    disabled={!mediaRecorderSupported}
+                  >
+                    <Mic className="h-4 w-4" />
+                    {isAudioRecording ? "עצור הקלטת אודיו" : "הקלט אודיו בלבד"}
+                  </Button>
                   <span className="text-xs text-muted-foreground">
                     {speechSupported
                       ? "הדפדפן יתמלל ישירות לתוך התיבה בזמן אמת."
                       : "בדפדפן הזה אפשר להדביק תמלול ידנית או להשתמש בדפדפן תומך."}
                   </span>
                 </div>
+                {audioPreviewUrl && (
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <div className="mb-2 text-xs text-muted-foreground">הקלטת אודיו זמנית מהדפדפן</div>
+                    <audio controls className="w-full" src={audioPreviewUrl} />
+                  </div>
+                )}
                 <Textarea value={selectedMeeting.transcript} onChange={(e) => setSelectedMeeting({ ...selectedMeeting, transcript: e.target.value })} className="min-h-[180px]" placeholder="כאן אפשר להדביק תמלול מלא או הערות גולמיות מהפגישה." />
               </div>
 

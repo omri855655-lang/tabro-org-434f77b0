@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Clock, Moon, Mail, Smartphone, MessageCircle, Volume2, VolumeX, Plus, X, CalendarClock, Bot, Newspaper, Inbox } from "lucide-react";
 import { toast } from "sonner";
 
@@ -295,6 +296,11 @@ const NotificationSettings = () => {
 
           {prefs[key].enabled && (
             <CardContent className="space-y-3 pt-0">
+              {key === "push" && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground">
+                  באייפון כדאי לאשר התראות בדפדפן ולהוסיף את Tabro למסך הבית כדי שהתראות Push יעבדו בצורה הטובה ביותר.
+                </div>
+              )}
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
