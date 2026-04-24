@@ -607,13 +607,40 @@ const ProjectsManager = () => {
         body: {
           taskDescription: project.title,
           taskCategory: 'project_milestones',
-          customPrompt: `צור רשימת אבני דרך (milestones) לפרויקט "${project.title}". ${project.description ? `תיאור: ${project.description}` : ''} החזר רשימה של עד 10 אבני דרך מסודרות מ-0% ל-100% השלמה. כל אבן דרך צריכה להיות קצרה וספציפית.`,
+          customPrompt: `צור רשימת אבני דרך (milestones) לפרויקט "${project.title}". ${project.description ? `תיאור: ${project.description}` : ''} החזר 10 אבני דרך קצרות, פרקטיות ומדורגות, שורה אחת לכל אבן דרך. אם אתה מחזיר JSON, השתמש במערך milestones.`,
         },
       });
       if (error) throw error;
-      const text = data?.suggestion || '';
-      const lines = text.split('\n').map((l: string) => l.replace(/^\s*[-*•\d\.\)\-]+\s*/, '').trim()).filter((l: string) => l.length > 2);
-      const milestones = lines.slice(0, 10).map((title: string, idx: number) => ({ title, done: false, description: null }));
+      const suggestion = typeof data?.suggestion === 'string' ? data.suggestion : '';
+      const structuredMilestones = Array.isArray(data?.milestones)
+        ? data.milestones
+        : (() => {
+            try {
+              if (!suggestion) return [];
+              const parsed = JSON.parse(suggestion);
+              if (Array.isArray(parsed)) return parsed;
+              if (Array.isArray(parsed?.milestones)) return parsed.milestones;
+            } catch {
+              return [];
+            }
+            return [];
+          })();
+
+      const parsedTitles = structuredMilestones.length > 0
+        ? structuredMilestones
+            .map((milestone: any) => typeof milestone?.title === 'string' ? milestone.title.trim() : '')
+            .filter((title: string) => title.length > 2)
+        : suggestion
+            .split('\n')
+            .map((line: string) => line.replace(/^\s*[-*•\d\.\)\-]+\s*/, '').trim())
+            .filter((line: string) => line.length > 2 && !line.startsWith('{') && !line.startsWith('[') && !line.includes('```'));
+
+      const uniqueTitles = [...new Set(parsedTitles)].slice(0, 10);
+      const milestones = uniqueTitles.map((title: string) => ({ title, done: false, description: null }));
+
+      if (milestones.length === 0) {
+        throw new Error('No milestones generated');
+      }
       
       // Save to DB
       const inserts = milestones.map((m: any, idx: number) => ({

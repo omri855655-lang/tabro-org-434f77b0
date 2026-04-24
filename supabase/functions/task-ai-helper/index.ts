@@ -369,38 +369,54 @@ ${taskDescription}
 
     if (taskCategory === 'dream_roadmap') {
       const requestedCount = Math.min(100, Math.max(10, Number(milestoneCount) || 15));
+      const useStructuredRoadmapTool = requestedCount <= 50;
       requestBody.tools = [
-        {
-          type: "function",
-          function: {
-            name: "generate_milestones",
-            description: `Generate exactly ${requestedCount} milestones for a dream roadmap.`,
-            parameters: {
-              type: "object",
-              properties: {
-                milestones: {
-                  type: "array",
-                  minItems: requestedCount,
-                  maxItems: requestedCount,
-                  items: {
+        ...(useStructuredRoadmapTool
+          ? [
+              {
+                type: "function" as const,
+                function: {
+                  name: "generate_milestones",
+                  description: `Generate exactly ${requestedCount} milestones for a dream roadmap.`,
+                  parameters: {
                     type: "object",
                     properties: {
-                      title: { type: "string" },
-                      week: { type: "integer", minimum: 1, maximum: requestedCount },
-                      description: { type: "string" },
+                      milestones: {
+                        type: "array",
+                        minItems: requestedCount,
+                        maxItems: requestedCount,
+                        items: {
+                          type: "object",
+                          properties: {
+                            title: { type: "string" },
+                            week: { type: "integer", minimum: 1, maximum: requestedCount },
+                            description: { type: "string" },
+                          },
+                          required: ["title", "week", "description"],
+                          additionalProperties: false,
+                        },
+                      },
                     },
-                    required: ["title", "week", "description"],
+                    required: ["milestones"],
                     additionalProperties: false,
                   },
                 },
               },
-              required: ["milestones"],
-              additionalProperties: false,
-            },
-          },
-        },
+            ]
+          : []),
       ];
-      requestBody.tool_choice = { type: "function", function: { name: "generate_milestones" } };
+      if (useStructuredRoadmapTool) {
+        requestBody.tool_choice = { type: "function", function: { name: "generate_milestones" } };
+      } else {
+        delete requestBody.tools;
+        requestBody.messages = [
+          ...aiMessages,
+          {
+            role: "user",
+            content: `החזר רשימת אבני דרך פשוטה בטקסט רגיל, שורה אחת לכל אבן דרך, בלי JSON ובלי markdown. צור בדיוק ${requestedCount} אבני דרך.`,
+          },
+        ];
+      }
     }
 
     let response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
