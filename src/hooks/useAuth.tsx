@@ -17,6 +17,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const getSignInEffectKey = (session: Session | null) => {
+    if (!session?.user) return null;
+    return `tabro-signin-side-effects:${session.user.id}:${session.expires_at || "session"}`;
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const {
@@ -28,6 +33,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Log sign-in events + send one-time welcome email
       if (event === 'SIGNED_IN' && session?.user) {
+        const dedupeKey = getSignInEffectKey(session);
+        if (dedupeKey && sessionStorage.getItem(dedupeKey) === '1') {
+          return;
+        }
+        if (dedupeKey) {
+          sessionStorage.setItem(dedupeKey, '1');
+        }
+
         supabase.from('admin_login_log').insert({
           user_id: session.user.id,
           user_email: session.user.email,

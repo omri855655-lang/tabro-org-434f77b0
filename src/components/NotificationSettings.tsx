@@ -274,12 +274,14 @@ const NotificationSettings = () => {
   const savePrefs = useCallback(async (nextPrefs: NotifPrefs) => {
     const normalized = normalizePrefs(nextPrefs);
     setPrefs(normalized);
-    localStorage.setItem("notification-prefs", JSON.stringify(normalized));
-    localStorage.setItem("notification-email-enabled", String(normalized.email.enabled));
-    localStorage.setItem("notification-push-enabled", String(normalized.push.enabled));
-    localStorage.setItem("notification-telegram-enabled", String(normalized.telegram.enabled));
 
-    if (!user) return;
+    if (!user) {
+      localStorage.setItem("notification-prefs", JSON.stringify(normalized));
+      localStorage.setItem("notification-email-enabled", String(normalized.email.enabled));
+      localStorage.setItem("notification-push-enabled", String(normalized.push.enabled));
+      localStorage.setItem("notification-telegram-enabled", String(normalized.telegram.enabled));
+      return;
+    }
 
     try {
       setSaving(true);
@@ -287,13 +289,20 @@ const NotificationSettings = () => {
         .from("user_preferences")
         .upsert({ user_id: user.id, notification_settings: normalized as any }, { onConflict: "user_id" });
       if (error) throw error;
+
+      localStorage.setItem("notification-prefs", JSON.stringify(normalized));
+      localStorage.setItem("notification-email-enabled", String(normalized.email.enabled));
+      localStorage.setItem("notification-push-enabled", String(normalized.push.enabled));
+      localStorage.setItem("notification-telegram-enabled", String(normalized.telegram.enabled));
     } catch (error) {
       console.error("NotificationSettings save error", error);
+      const fallback = normalizePrefs(prefs);
+      setPrefs(fallback);
       toast.error("שגיאה בשמירת ההתראות");
     } finally {
       setSaving(false);
     }
-  }, [user]);
+  }, [prefs, user]);
 
   const updateChannel = (channel: ChannelKey, patch: Partial<ChannelSettings>) => {
     void savePrefs({

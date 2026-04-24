@@ -177,7 +177,15 @@ const DreamRoadmapDashboard = () => {
   };
 
   const deleteGoal = async (id: string) => {
-    await supabase.from("dream_goals").delete().eq("id", id);
+    const { error } = await supabase
+      .from("dream_goals")
+      .update({ archived: true })
+      .eq("id", id);
+    if (error) {
+      console.error("Dream goal archive error", error);
+      toast.error(copy.genericError);
+      return;
+    }
     setGoals((prev) => prev.filter((goal) => goal.id !== id));
     toast.success(copy.deleted);
   };

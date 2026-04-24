@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, FileText, Sparkles, Download, Mic, CalendarClock, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 type MeetingRecord = {
@@ -26,7 +27,8 @@ type MeetingRecord = {
   updatedAt: string;
 };
 
-const STORAGE_KEY = "tabro-meetings-dashboard-v1";
+const LEGACY_STORAGE_KEY = "tabro-meetings-dashboard-v1";
+const buildStorageKey = (userId?: string | null) => `tabro-meetings-dashboard-v1:${userId || "guest"}`;
 
 const createMeeting = (): MeetingRecord => ({
   id: crypto.randomUUID(),
@@ -62,9 +64,9 @@ const normalizeMeeting = (meeting: Partial<MeetingRecord>): MeetingRecord => ({
   updatedAt: meeting.updatedAt || new Date().toISOString(),
 });
 
-const loadMeetings = (): MeetingRecord[] => {
+const loadMeetings = (storageKey: string): MeetingRecord[] => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.map(normalizeMeeting) : [];
@@ -74,7 +76,9 @@ const loadMeetings = (): MeetingRecord[] => {
 };
 
 const MeetingsDashboard = () => {
-  const [meetings, setMeetings] = useState<MeetingRecord[]>(() => loadMeetings());
+  const { user } = useAuth();
+  const storageKey = useMemo(() => buildStorageKey(user?.id), [user?.id]);
+  const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -91,6 +95,22 @@ const MeetingsDashboard = () => {
   useEffect(() => {
     selectedMeetingRef.current = selectedMeeting;
   }, [selectedMeeting]);
+
+  useEffect(() => {
+    const scopedMeetings = loadMeetings(storageKey);
+    setMeetings(scopedMeetings);
+    setSelectedMeeting((prev) => {
+      if (!prev) return null;
+      return scopedMeetings.find((meeting) => meeting.id === prev.id) || null;
+    });
+  }, [storageKey]);
+
+  useEffect(() => {
+    // Clean up the legacy global cache key once scoped storage is active.
+    if (user?.id && localStorage.getItem(LEGACY_STORAGE_KEY)) {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     return () => {
@@ -110,7 +130,7 @@ const MeetingsDashboard = () => {
 
   const saveMeetings = (next: MeetingRecord[]) => {
     setMeetings(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(storageKey, JSON.stringify(next));
   };
 
   const sortedMeetings = useMemo(

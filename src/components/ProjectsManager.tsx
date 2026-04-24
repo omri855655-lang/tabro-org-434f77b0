@@ -86,7 +86,7 @@ const formatDateTime = (dateStr: string) => {
 const getTaskPriorityScore = (task: ProjectTask) => {
   if (task.completed) return 3;
   if (task.urgent) return 0;
-  if (task.status === 'בתהליך') return 1;
+  if (task.status === 'בטיפול') return 1;
   return 2;
 };
 
