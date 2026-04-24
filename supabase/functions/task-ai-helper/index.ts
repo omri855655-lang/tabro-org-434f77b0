@@ -403,7 +403,7 @@ ${taskDescription}
       requestBody.tool_choice = { type: "function", function: { name: "generate_milestones" } };
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    let response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -411,6 +411,42 @@ ${taskDescription}
       },
       body: JSON.stringify(requestBody),
     });
+
+    if (!response.ok) {
+      if (taskCategory === "dream_roadmap") {
+        console.warn("Dream roadmap tool call failed, retrying with plain-text fallback");
+        const fallbackMessages = aiMessages.length > 0
+          ? [...aiMessages]
+          : [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ];
+
+        fallbackMessages.push({
+          role: "user",
+          content: `אם אינך יכול להחזיר כלי מובנה, החזר רשימת אבני דרך פשוטה בטקסט רגיל, שורה אחת לכל אבן דרך. צור בדיוק ${Math.min(100, Math.max(10, Number(milestoneCount) || 15))} אבני דרך.`,
+        });
+
+        const fallbackResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: fallbackMessages,
+          }),
+        });
+
+        if (fallbackResponse.ok) {
+          response = fallbackResponse;
+        } else {
+          const fallbackErrorText = await fallbackResponse.text();
+          console.error("Dream roadmap fallback AI gateway error:", fallbackResponse.status, fallbackErrorText);
+        }
+      }
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
