@@ -17,6 +17,8 @@ project_id = "isnhgyycowmnlxtmbmwm"
     verify_jwt = true
   [functions.send-push-notifications]
     verify_jwt = false
+  [functions.send-contact-form]
+    verify_jwt = false
   [functions.send-task-reminders]
     verify_jwt = false
   [functions.tabro-ai-agent]
