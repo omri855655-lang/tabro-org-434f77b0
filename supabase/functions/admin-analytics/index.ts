@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const allowPasswordBypass = hasAdminPassword && ['stats', 'add_admin', 'remove_admin'].includes(action)
+    const allowPasswordBypass = hasAdminPassword && ['stats', 'mailbox', 'add_admin', 'remove_admin'].includes(action)
 
     if (!allowPasswordBypass) {
       const authHeader = req.headers.get('Authorization')
@@ -185,6 +185,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (action === 'mailbox') {
+      const { data: recentEmailLogRaw } = await adminClient
+        .from('email_send_log')
+        .select('message_id, template_name, recipient_email, status, error_message, created_at, metadata')
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      const inbox = (recentEmailLogRaw || []).filter((row) => row.template_name === 'contact-form' || row.template_name === 'contact_form')
+      const outbox = (recentEmailLogRaw || []).filter((row) => row.template_name !== 'contact-form' && row.template_name !== 'contact_form')
+
+      return new Response(
+        JSON.stringify({
+          mailboxAddress: 'info@tabro.org',
+          recentEmailLog: recentEmailLogRaw || [],
+          inboxCount: inbox.length,
+          outboxCount: outbox.length,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     if (action === 'stats') {
       const since = new Date()
       since.setDate(since.getDate() - 30)
@@ -196,20 +217,14 @@ Deno.serve(async (req) => {
         { count: totalTasks },
         { count: totalLoginLogs },
         { data: loginLogsRaw },
-        { data: recentEmailLogRaw },
         { data: adminEmailsRaw },
         { data: userListRaw },
       ] = await Promise.all([
         adminClient.from('profiles').select('id', { count: 'exact', head: true }),
         adminClient.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sinceIso),
         adminClient.from('tasks').select('id', { count: 'exact', head: true }),
-        adminClient.from('login_logs').select('id', { count: 'exact', head: true }),
-        adminClient.from('login_logs').select('user_email, logged_in_at').order('logged_in_at', { ascending: false }).limit(10),
-        adminClient
-          .from('email_send_log')
-          .select('message_id, template_name, recipient_email, status, error_message, created_at, metadata')
-          .order('created_at', { ascending: false })
-          .limit(30),
+        adminClient.from('admin_login_log').select('id', { count: 'exact', head: true }),
+        adminClient.from('admin_login_log').select('user_email, user_id, logged_in_at').order('logged_in_at', { ascending: false }).limit(200),
         adminClient
           .from('user_roles')
           .select('user_id, created_at, profiles!inner(email)')
@@ -222,10 +237,38 @@ Deno.serve(async (req) => {
           .limit(50),
       ])
 
-      const recentLogins = (loginLogsRaw || []).filter((log) => {
+      const recentLoginLogs = (loginLogsRaw || []).filter((log) => {
         const when = log.logged_in_at ? new Date(log.logged_in_at).getTime() : 0
         return when >= new Date(sinceIso).getTime()
-      }).length
+      })
+
+      const activeUserKeys = new Set(
+        recentLoginLogs
+          .map((log: any) => log.user_id || log.user_email)
+          .filter(Boolean),
+      )
+
+      const loginByUser = Array.from(
+        recentLoginLogs.reduce((acc: Map<string, { user_email: string; count: number; last_login_at: string }>, log: any) => {
+          const key = log.user_id || log.user_email || 'unknown'
+          const current = acc.get(key)
+          if (!current) {
+            acc.set(key, {
+              user_email: log.user_email || 'unknown',
+              count: 1,
+              last_login_at: log.logged_in_at,
+            })
+          } else {
+            current.count += 1
+            if (new Date(log.logged_in_at).getTime() > new Date(current.last_login_at).getTime()) {
+              current.last_login_at = log.logged_in_at
+            }
+          }
+          return acc
+        }, new Map()).values(),
+      )
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20)
 
       const adminEmails = (adminEmailsRaw || []).map((entry: any) => ({
         user_id: entry.user_id,
@@ -237,14 +280,17 @@ Deno.serve(async (req) => {
         JSON.stringify({
           totalUsers: totalUsers || 0,
           recentSignups: recentSignups || 0,
-          recentLogins,
+          recentLogins: recentLoginLogs.length,
+          activeUsers30d: activeUserKeys.size,
+          loginEvents30d: recentLoginLogs.length,
           totalTasks: totalTasks || 0,
           totalLoginLogs: totalLoginLogs || 0,
           loginLogs: loginLogsRaw || [],
+          loginByUser,
           adminEmails,
           userList: userListRaw || [],
           mailboxAddress: 'info@tabro.org',
-          recentEmailLog: recentEmailLogRaw || [],
+          recentEmailLog: [],
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )

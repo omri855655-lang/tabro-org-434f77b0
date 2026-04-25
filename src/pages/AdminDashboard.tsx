@@ -13,8 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Users, LogIn, ClipboardList, ShieldCheck, ArrowRight,
-  UserPlus, Trash2, RefreshCw, Crown, Mail, Loader2, Sparkles, FileText, Save,
-  Search, Send, Filter
+  UserPlus, Trash2, RefreshCw, Crown, Mail, Loader2, FileText, Save,
+  Search, Send
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -27,9 +27,12 @@ interface Stats {
   totalUsers: number;
   recentSignups: number;
   recentLogins: number;
+  activeUsers30d?: number;
+  loginEvents30d?: number;
   totalTasks: number;
   totalLoginLogs: number;
   loginLogs: { user_email: string; logged_in_at: string }[];
+  loginByUser?: { user_email: string; count: number; last_login_at: string }[];
   adminEmails: { email: string; user_id: string; created_at: string }[];
   userList: { email: string; created_at: string; last_sign_in_at: string | null }[];
   mailboxAddress: string;
@@ -51,6 +54,13 @@ interface Stats {
   }[];
 }
 
+interface MailboxData {
+  mailboxAddress: string;
+  recentEmailLog: Stats["recentEmailLog"];
+  inboxCount: number;
+  outboxCount: number;
+}
+
 const ADMIN_PASS_KEY = "tabro_admin_unlocked";
 const ADMIN_PASS_VALUE_KEY = "tabro_admin_password";
 const ADMIN_MAIL_UI_VERSION = "admin-mail-ui-2026-04-18-v1";
@@ -60,6 +70,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const { t, dir } = useLanguage();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [mailbox, setMailbox] = useState<MailboxData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
@@ -106,6 +117,19 @@ const AdminDashboard = () => {
     const data = await res.json().catch(() => null);
     return { data, ok: res.ok };
   }, [passInput]);
+
+  const fetchMailbox = useCallback(async () => {
+    const { data: mailboxData, ok: mailOk } = await callAdminAnalytics({ action: "mailbox" });
+    if (!mailOk || mailboxData?.error) {
+      return;
+    }
+    setMailbox({
+      mailboxAddress: mailboxData?.mailboxAddress || "info@tabro.org",
+      recentEmailLog: mailboxData?.recentEmailLog || [],
+      inboxCount: mailboxData?.inboxCount || 0,
+      outboxCount: mailboxData?.outboxCount || 0,
+    });
+  }, [callAdminAnalytics]);
   const isHe = dir === "rtl";
   const copy = isHe
     ? {
@@ -141,9 +165,9 @@ const AdminDashboard = () => {
     if (!user) return;
     setLoading(true);
 
-    const [{ data: appData, ok: appOk, error: appError }, { data: mailData, ok: mailOk }] = await Promise.all([
+    const [{ data: appData, ok: appOk, error: appError }, { data: mailboxData, ok: mailOk }] = await Promise.all([
       callAppAdminAnalytics({ action: "stats" }),
-      callAdminAnalytics({ action: "stats" }),
+      callAdminAnalytics({ action: "mailbox" }),
     ]);
 
     if (!appOk) {
@@ -156,8 +180,8 @@ const AdminDashboard = () => {
       return;
     }
 
-    if (!mailOk || mailData?.error) {
-      if (mailData?.error === "Unauthorized") {
+    if (!mailOk || mailboxData?.error) {
+      if (mailboxData?.error === "Unauthorized") {
         setPassUnlocked(false);
         sessionStorage.removeItem(ADMIN_PASS_KEY);
         sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
@@ -173,12 +197,18 @@ const AdminDashboard = () => {
 
     const data: Stats = {
       ...appData,
-      mailboxAddress: mailData?.mailboxAddress || "info@tabro.org",
-      recentEmailLog: mailData?.recentEmailLog || [],
+      mailboxAddress: mailboxData?.mailboxAddress || "info@tabro.org",
+      recentEmailLog: mailboxData?.recentEmailLog || [],
     };
 
     setIsAdmin(true);
     setStats(data);
+    setMailbox({
+      mailboxAddress: mailboxData?.mailboxAddress || "info@tabro.org",
+      recentEmailLog: mailboxData?.recentEmailLog || [],
+      inboxCount: mailboxData?.inboxCount || 0,
+      outboxCount: mailboxData?.outboxCount || 0,
+    });
     // Fetch landing content
     const { data: lc } = await supabase.from("landing_content").select("key, value_he, value_en");
     if (lc) {
@@ -196,6 +226,14 @@ const AdminDashboard = () => {
     if (!user) { navigate("/auth"); return; }
     fetchStats();
   }, [user, authLoading, navigate, fetchStats]);
+
+  useEffect(() => {
+    if (!passUnlocked || !user) return;
+    const interval = window.setInterval(() => {
+      fetchMailbox();
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [passUnlocked, user, fetchMailbox]);
 
   const handleAddAdmin = async () => {
     if (!newAdminEmail.trim()) return;
@@ -316,6 +354,8 @@ const AdminDashboard = () => {
           </div>
         </div>
 
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
@@ -331,8 +371,8 @@ const AdminDashboard = () => {
             <CardContent className="p-4 flex items-center gap-3">
               <UserPlus className="h-8 w-8 text-green-500" />
               <div>
-                <p className="text-2xl font-bold">{stats?.recentSignups ?? 0}</p>
-                <p className="text-xs text-muted-foreground">{isHe ? "הרשמות (30 יום)" : "Signups (30d)"}</p>
+                <p className="text-2xl font-bold">{stats?.activeUsers30d ?? stats?.recentSignups ?? 0}</p>
+                <p className="text-xs text-muted-foreground">{isHe ? "משתמשים פעילים (30 יום)" : "Active Users (30d)"}</p>
               </div>
             </CardContent>
           </Card>
@@ -340,8 +380,8 @@ const AdminDashboard = () => {
             <CardContent className="p-4 flex items-center gap-3">
               <LogIn className="h-8 w-8 text-orange-500" />
               <div>
-                <p className="text-2xl font-bold">{stats?.recentLogins ?? 0}</p>
-                <p className="text-xs text-muted-foreground">{isHe ? "כניסות (30 יום)" : "Logins (30d)"}</p>
+                <p className="text-2xl font-bold">{stats?.loginEvents30d ?? stats?.recentLogins ?? 0}</p>
+                <p className="text-xs text-muted-foreground">{isHe ? "אירועי כניסה (30 יום)" : "Login Events (30d)"}</p>
               </div>
             </CardContent>
           </Card>
@@ -356,7 +396,177 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LogIn className="h-5 w-5" /> {isHe ? "פעילות משתמשים" : "User Activity"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!stats?.loginByUser?.length ? (
+              <p className="text-sm text-muted-foreground">{isHe ? "אין נתוני כניסה זמינים כרגע." : "No login activity available yet."}</p>
+            ) : (
+              <div className="overflow-auto max-h-72">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{isHe ? "משתמש" : "User"}</TableHead>
+                      <TableHead>{isHe ? "כניסות (30 יום)" : "Logins (30d)"}</TableHead>
+                      <TableHead>{isHe ? "כניסה אחרונה" : "Last login"}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stats.loginByUser.map((entry, i) => (
+                      <TableRow key={`${entry.user_email}-${i}`}>
+                        <TableCell dir="ltr">{entry.user_email}</TableCell>
+                        <TableCell>{entry.count}</TableCell>
+                        <TableCell>{formatDate(entry.last_login_at)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Admin Management */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" /> {isHe ? "ניהול מנהלים" : "Admin Management"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder={isHe ? "אימייל של מנהל חדש..." : "New admin email..."}
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                dir="ltr"
+                className="max-w-sm"
+              />
+              <Button onClick={handleAddAdmin} disabled={addingAdmin || !newAdminEmail.trim()}>
+                {addingAdmin ? <Loader2 className="h-4 w-4 animate-spin" /> : (isHe ? "הוסף מנהל" : "Add Admin")}
+              </Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{isHe ? "אימייל" : "Email"}</TableHead>
+                  <TableHead>{isHe ? "נוסף בתאריך" : "Added"}</TableHead>
+                  <TableHead>{isHe ? "פעולות" : "Actions"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats?.adminEmails?.map((admin) => (
+                  <TableRow key={admin.user_id}>
+                    <TableCell dir="ltr">{admin.email}</TableCell>
+                    <TableCell>{formatDate(admin.created_at)}</TableCell>
+                    <TableCell>
+                      {admin.email !== user?.email ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveAdmin(admin.user_id)} className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{isHe ? "את/ה" : "You"}</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Users List */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" /> {isHe ? "רשימת משתמשים" : "User List"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-auto max-h-96">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{isHe ? "אימייל" : "Email"}</TableHead>
+                    <TableHead>{isHe ? "תאריך הרשמה" : "Registered"}</TableHead>
+                    <TableHead>{isHe ? "כניסה אחרונה" : "Last Login"}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stats?.userList?.map((u, i) => (
+                    <TableRow key={i}>
+                      <TableCell dir="ltr">{u.email}</TableCell>
+                      <TableCell>{formatDate(u.created_at)}</TableCell>
+                      <TableCell>{formatDate(u.last_sign_in_at)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+        {/* Landing Page Content Editor */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" /> {isHe ? "עריכת דף נחיתה" : "Landing Page Editor"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {Object.keys(landingEditing).length === 0 ? (
+              <p className="text-sm text-muted-foreground">{isHe ? "טוען תוכן..." : "Loading content..."}</p>
+            ) : (
+              <>
+                {Object.entries(landingEditing).map(([key, val]) => (
+                  <div key={key} className="space-y-2 p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-mono text-muted-foreground">{key}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">עברית</label>
+                        <Input
+                          value={val.he}
+                          onChange={(e) => setLandingEditing(prev => ({ ...prev, [key]: { ...prev[key], he: e.target.value } }))}
+                          dir="rtl"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">English</label>
+                        <Input
+                          value={val.en}
+                          onChange={(e) => setLandingEditing(prev => ({ ...prev, [key]: { ...prev[key], en: e.target.value } }))}
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  onClick={async () => {
+                    setSavingLanding(true);
+                    for (const [key, val] of Object.entries(landingEditing)) {
+                      await supabase.from("landing_content").upsert({ key, value_he: val.he, value_en: val.en }, { onConflict: "key" });
+                    }
+                    setSavingLanding(false);
+                    toast.success(isHe ? "דף נחיתה עודכן!" : "Landing page updated!");
+                  }}
+                  disabled={savingLanding}
+                  className="gap-2"
+                >
+                  {savingLanding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {isHe ? "שמור שינויים" : "Save Changes"}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+          </div>
+
         {/* Company Mailbox */}
+        <div className="xl:sticky xl:top-6 h-fit">
         <Card className="card-surface" dir={dir}>
           <CardHeader>
             <CardTitle className={`flex items-center gap-2 ${isHe ? "text-right" : "text-left"}`}>
@@ -366,7 +576,7 @@ const AdminDashboard = () => {
           <CardContent className="space-y-4">
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
               <p className="font-medium text-foreground">
-                {isHe ? `כתובת התיבה: ${stats?.mailboxAddress || "info@tabro.org"}` : `Mailbox address: ${stats?.mailboxAddress || "info@tabro.org"}`}
+                {isHe ? `כתובת התיבה: ${mailbox?.mailboxAddress || stats?.mailboxAddress || "info@tabro.org"}` : `Mailbox address: ${mailbox?.mailboxAddress || stats?.mailboxAddress || "info@tabro.org"}`}
               </p>
               <p className="mt-1 text-muted-foreground">
                 {isHe
@@ -377,10 +587,10 @@ const AdminDashboard = () => {
             {/* Inbox / Outbox tabs */}
             <div className="flex gap-2 mb-3">
               <button onClick={() => setEmailTab("inbox")} className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${emailTab === "inbox" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                {isHe ? "📥 דואר נכנס" : "📥 Inbox"}
+                {isHe ? `📥 דואר נכנס (${mailbox?.inboxCount ?? 0})` : `📥 Inbox (${mailbox?.inboxCount ?? 0})`}
               </button>
               <button onClick={() => setEmailTab("outbox")} className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${emailTab === "outbox" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                {isHe ? "📤 דואר יוצא" : "📤 Outbox"}
+                {isHe ? `📤 דואר יוצא (${mailbox?.outboxCount ?? 0})` : `📤 Outbox (${mailbox?.outboxCount ?? 0})`}
               </button>
             </div>
 
@@ -404,7 +614,7 @@ const AdminDashboard = () => {
             {emailTab === "inbox" ? (
               /* Inbox — contact form submissions */
               (() => {
-                const inboxEmails = (stats?.recentEmailLog || []).filter(e => e.template_name === "contact-form" || e.template_name === "contact_form");
+                const inboxEmails = (mailbox?.recentEmailLog || []).filter(e => e.template_name === "contact-form" || e.template_name === "contact_form");
                 const filteredInbox = inboxEmails.filter(e => {
                   const subject = e.metadata?.subject || "";
                   const from = e.metadata?.userEmail || e.metadata?.from || "";
@@ -470,7 +680,7 @@ const AdminDashboard = () => {
             ) : (
               /* Outbox — all sent emails */
               <>
-                {!(stats?.recentEmailLog?.length) ? (
+                {!(mailbox?.recentEmailLog?.length) ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Mail className="h-10 w-10 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">{isHe ? "עדיין אין אירועי מייל שנשמרו במערכת." : "No email events have been logged yet."}</p>
@@ -487,7 +697,7 @@ const AdminDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {stats.recentEmailLog
+                        {(mailbox?.recentEmailLog || [])
                           .filter(e => {
                             const matchSearch = !emailSearch || e.recipient_email.toLowerCase().includes(emailSearch.toLowerCase()) || e.template_name.toLowerCase().includes(emailSearch.toLowerCase());
                             const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;
@@ -627,140 +837,8 @@ const AdminDashboard = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Admin Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" /> {isHe ? "ניהול מנהלים" : "Admin Management"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder={isHe ? "אימייל של מנהל חדש..." : "New admin email..."}
-                value={newAdminEmail}
-                onChange={(e) => setNewAdminEmail(e.target.value)}
-                dir="ltr"
-                className="max-w-sm"
-              />
-              <Button onClick={handleAddAdmin} disabled={addingAdmin || !newAdminEmail.trim()}>
-                {addingAdmin ? <Loader2 className="h-4 w-4 animate-spin" /> : (isHe ? "הוסף מנהל" : "Add Admin")}
-              </Button>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{isHe ? "אימייל" : "Email"}</TableHead>
-                  <TableHead>{isHe ? "נוסף בתאריך" : "Added"}</TableHead>
-                  <TableHead>{isHe ? "פעולות" : "Actions"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats?.adminEmails?.map((admin) => (
-                  <TableRow key={admin.user_id}>
-                    <TableCell dir="ltr">{admin.email}</TableCell>
-                    <TableCell>{formatDate(admin.created_at)}</TableCell>
-                    <TableCell>
-                      {admin.email !== user?.email ? (
-                        <Button variant="ghost" size="sm" onClick={() => handleRemoveAdmin(admin.user_id)} className="text-destructive hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{isHe ? "את/ה" : "You"}</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Users List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" /> {isHe ? "רשימת משתמשים" : "User List"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-auto max-h-96">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{isHe ? "אימייל" : "Email"}</TableHead>
-                    <TableHead>{isHe ? "תאריך הרשמה" : "Registered"}</TableHead>
-                    <TableHead>{isHe ? "כניסה אחרונה" : "Last Login"}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stats?.userList?.map((u, i) => (
-                    <TableRow key={i}>
-                      <TableCell dir="ltr">{u.email}</TableCell>
-                      <TableCell>{formatDate(u.created_at)}</TableCell>
-                      <TableCell>{formatDate(u.last_sign_in_at)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-        {/* Landing Page Content Editor */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" /> {isHe ? "עריכת דף נחיתה" : "Landing Page Editor"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {Object.keys(landingEditing).length === 0 ? (
-              <p className="text-sm text-muted-foreground">{isHe ? "טוען תוכן..." : "Loading content..."}</p>
-            ) : (
-              <>
-                {Object.entries(landingEditing).map(([key, val]) => (
-                  <div key={key} className="space-y-2 p-3 rounded-lg border bg-muted/30">
-                    <p className="text-xs font-mono text-muted-foreground">{key}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground">עברית</label>
-                        <Input
-                          value={val.he}
-                          onChange={(e) => setLandingEditing(prev => ({ ...prev, [key]: { ...prev[key], he: e.target.value } }))}
-                          dir="rtl"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">English</label>
-                        <Input
-                          value={val.en}
-                          onChange={(e) => setLandingEditing(prev => ({ ...prev, [key]: { ...prev[key], en: e.target.value } }))}
-                          dir="ltr"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <Button
-                  onClick={async () => {
-                    setSavingLanding(true);
-                    for (const [key, val] of Object.entries(landingEditing)) {
-                      await supabase.from("landing_content").upsert({ key, value_he: val.he, value_en: val.en }, { onConflict: "key" });
-                    }
-                    setSavingLanding(false);
-                    toast.success(isHe ? "דף נחיתה עודכן!" : "Landing page updated!");
-                  }}
-                  disabled={savingLanding}
-                  className="gap-2"
-                >
-                  {savingLanding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {isHe ? "שמור שינויים" : "Save Changes"}
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        </div>
+        </div>
       </div>
     </div>
   );
