@@ -36,6 +36,7 @@ const ContactForm = () => {
         headers: {
           "Content-Type": "application/json",
           apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           subject: subject.trim() || (isHe ? "פנייה ללא נושא" : "Support request without subject"),
