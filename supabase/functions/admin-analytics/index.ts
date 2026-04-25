@@ -276,10 +276,17 @@ Deno.serve(async (req) => {
         email: entry.profiles?.email || '',
       }))
 
+      const safeUserList = userListRaw || []
+      const derivedTotalUsers = Math.max(totalUsers || 0, safeUserList.length)
+      const derivedRecentSignups = Math.max(
+        recentSignups || 0,
+        safeUserList.filter((user: any) => user.created_at && new Date(user.created_at).getTime() >= new Date(sinceIso).getTime()).length,
+      )
+
       return new Response(
         JSON.stringify({
-          totalUsers: totalUsers || 0,
-          recentSignups: recentSignups || 0,
+          totalUsers: derivedTotalUsers,
+          recentSignups: derivedRecentSignups,
           recentLogins: recentLoginLogs.length,
           activeUsers30d: activeUserKeys.size,
           loginEvents30d: recentLoginLogs.length,
@@ -288,7 +295,7 @@ Deno.serve(async (req) => {
           loginLogs: loginLogsRaw || [],
           loginByUser,
           adminEmails,
-          userList: userListRaw || [],
+          userList: safeUserList,
           mailboxAddress: 'info@tabro.org',
           recentEmailLog: [],
         }),
