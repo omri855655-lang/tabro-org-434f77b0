@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
+  ADMIN_MAIL_SUPABASE_URL,
+} from "@/integrations/supabase/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,15 +31,24 @@ const ContactForm = () => {
     }
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-contact-form", {
-        body: {
+      const res = await fetch(`${ADMIN_MAIL_SUPABASE_URL}/functions/v1/send-contact-form`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({
           subject: subject.trim() || (isHe ? "פנייה ללא נושא" : "Support request without subject"),
           message: message.trim(),
           category,
           userEmail: user?.email || (isHe ? "אנונימי" : "Anonymous"),
-        },
+        }),
       });
-      if (error) throw error;
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || (isHe ? "שגיאה בשליחת הפנייה" : "Failed to send contact request"));
+      }
       if (data?.error) throw new Error(data.error);
       toast.success(isHe ? "הפנייה נשלחה בהצלחה ל-info@tabro.org" : "Your message was sent successfully to info@tabro.org");
       setSubject("");
