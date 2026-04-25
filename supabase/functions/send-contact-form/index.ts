@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    await serviceClient.from('email_send_log').insert({
+    const { error: logError } = await serviceClient.from('email_send_log').insert({
       message_id: messageId,
       template_name: 'contact-form',
       recipient_email: ADMIN_EMAILS.join(', '),
@@ -190,10 +190,10 @@ Deno.serve(async (req) => {
 
     if (succeeded === 0) {
       const errMsg = failed.length > 0 ? (failed[0] as any).reason?.message || 'Unknown error' : 'Failed to send'
-      return new Response(JSON.stringify({ error: errMsg }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: errMsg, log_error: logError?.message || null }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    return new Response(JSON.stringify({ success: true, sent: succeeded, notifiedAdmins: (adminUsers || []).length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ success: true, sent: succeeded, notifiedAdmins: (adminUsers || []).length, log_error: logError?.message || null }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return new Response(JSON.stringify({ error: message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })

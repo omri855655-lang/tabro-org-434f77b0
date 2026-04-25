@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       const messageId = crypto.randomUUID()
 
       if (!resendKey) {
-        await adminClient.from('email_send_log').insert({
+        const { error: logError } = await adminClient.from('email_send_log').insert({
           message_id: messageId,
           template_name: 'admin-compose',
           recipient_email: to,
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
       if (!deliveredVia) {
         const errorDetail = failureMessages.join(' | ').slice(0, 1000) || 'Unknown email delivery error'
-        await adminClient.from('email_send_log').insert({
+        const { error: logError } = await adminClient.from('email_send_log').insert({
           message_id: messageId,
           template_name: 'admin-compose',
           recipient_email: to,
@@ -125,20 +125,20 @@ Deno.serve(async (req) => {
           error_message: errorDetail,
           metadata: { subject, sent_by: 'admin-password', reply_to: replyTo },
         })
-        return new Response(JSON.stringify({ error: errorDetail, code: 'EMAIL_DELIVERY_FAILED' }), {
+        return new Response(JSON.stringify({ error: errorDetail, code: 'EMAIL_DELIVERY_FAILED', log_error: logError?.message || null }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      await adminClient.from('email_send_log').insert({
+      const { error: sentLogError } = await adminClient.from('email_send_log').insert({
         message_id: messageId,
         template_name: 'admin-compose',
         recipient_email: to,
         status: 'sent',
         metadata: { subject, sent_by: 'admin-password', reply_to: replyTo, delivered_via: deliveredVia },
       })
-      return new Response(JSON.stringify({ success: true, delivered_via: deliveredVia }), {
+      return new Response(JSON.stringify({ success: true, delivered_via: deliveredVia, log_error: sentLogError?.message || null }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -186,11 +186,18 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'mailbox') {
-      const { data: recentEmailLogRaw } = await adminClient
+      const { data: recentEmailLogRaw, error: mailboxError } = await adminClient
         .from('email_send_log')
         .select('message_id, template_name, recipient_email, status, error_message, created_at, metadata')
         .order('created_at', { ascending: false })
         .limit(50)
+
+      if (mailboxError) {
+        return new Response(
+          JSON.stringify({ error: `mailbox query failed: ${mailboxError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
 
       const inbox = (recentEmailLogRaw || []).filter((row) => row.template_name === 'contact-form' || row.template_name === 'contact_form')
       const outbox = (recentEmailLogRaw || []).filter((row) => row.template_name !== 'contact-form' && row.template_name !== 'contact_form')
