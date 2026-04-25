@@ -87,6 +87,14 @@ serve(async (req) => {
     const dedupedNotifications = Array.from(seen.values()).slice(0, 50);
 
     // Enrich notifications with event and task info
+    const { data: recentContactLogs } = await supabase
+      .from("email_send_log")
+      .select("created_at, metadata, status, template_name")
+      .eq("template_name", "contact-form")
+      .order("created_at", { ascending: false })
+      .limit(25);
+
+    const contactLogs = recentContactLogs || [];
     const enrichedNotifications = [];
     for (const n of dedupedNotifications) {
       const enriched: any = { ...n };
@@ -142,6 +150,23 @@ serve(async (req) => {
               status: isCompleted ? "בוצע" : "טרם החל",
             };
           }
+        }
+      }
+
+      if (n.notification_type === "contact_form") {
+        const closestContactLog = contactLogs.find((log: any) => {
+          const notificationTime = new Date(n.created_at).getTime();
+          const logTime = new Date(log.created_at).getTime();
+          return Math.abs(notificationTime - logTime) <= 10 * 60 * 1000;
+        }) || contactLogs[0];
+
+        if (closestContactLog?.metadata) {
+          enriched.contact_info = {
+            subject: closestContactLog.metadata.subject || "ללא נושא",
+            category: closestContactLog.metadata.category || "other",
+            from: closestContactLog.metadata.userEmail || "אנונימי",
+            status: closestContactLog.status || null,
+          };
         }
       }
       

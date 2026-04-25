@@ -276,7 +276,7 @@ ${taskDescription}
       userPrompt = taskDescription;
 
     } else if (taskCategory === 'dream_roadmap') {
-      const requestedCount = Math.min(100, Math.max(10, Number(milestoneCount) || 15));
+      const requestedCount = Math.min(75, Math.max(10, Number(milestoneCount) || 15));
       systemPrompt = `אתה מאמן אישי ומומחה לתכנון מטרות ארוכות טווח. דבר בעברית בלבד. פרק כל חלום לתוכנית פעולה ברורה, ריאלית ומעשית.
 
 חובה ליצור בדיוק את מספר אבני הדרך שהתבקש.
@@ -368,7 +368,7 @@ ${taskDescription}
     }
 
     if (taskCategory === 'dream_roadmap') {
-      const requestedCount = Math.min(100, Math.max(10, Number(milestoneCount) || 15));
+      const requestedCount = Math.min(75, Math.max(10, Number(milestoneCount) || 15));
       const useStructuredRoadmapTool = requestedCount <= 50;
       requestBody.tools = [
         ...(useStructuredRoadmapTool
@@ -440,7 +440,7 @@ ${taskDescription}
 
         fallbackMessages.push({
           role: "user",
-          content: `אם אינך יכול להחזיר כלי מובנה, החזר רשימת אבני דרך פשוטה בטקסט רגיל, שורה אחת לכל אבן דרך. צור בדיוק ${Math.min(100, Math.max(10, Number(milestoneCount) || 15))} אבני דרך.`,
+          content: `אם אינך יכול להחזיר כלי מובנה, החזר רשימת אבני דרך פשוטה בטקסט רגיל, שורה אחת לכל אבן דרך. צור בדיוק ${Math.min(75, Math.max(10, Number(milestoneCount) || 15))} אבני דרך.`,
         });
 
         const fallbackResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -536,7 +536,7 @@ ${taskDescription}
     }
 
     if (taskCategory === 'dream_roadmap') {
-      const requestedCount = Math.min(100, Math.max(10, Number(milestoneCount) || 15));
+      const requestedCount = Math.min(75, Math.max(10, Number(milestoneCount) || 15));
       const toolCall = choice?.tool_calls?.find((call: any) => call?.function?.name === "generate_milestones");
       const toolArgs = toolCall?.function?.arguments;
 

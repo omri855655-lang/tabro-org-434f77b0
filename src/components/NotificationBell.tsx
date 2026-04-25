@@ -38,6 +38,12 @@ interface Notification {
   task_id: string | null;
   event_info?: EventInfo;
   task_info?: TaskInfo;
+  contact_info?: {
+    subject?: string;
+    category?: string;
+    from?: string;
+    status?: string | null;
+  };
 }
 
 const typeLabels: Record<string, string> = {
@@ -116,6 +122,7 @@ const NotificationBell = () => {
   const getNotificationTitle = (n: Notification): string => {
     if (n.event_info?.title) return n.event_info.title;
     if (n.task_info?.description) return n.task_info.description;
+    if (n.contact_info?.subject) return n.contact_info.subject;
     return "";
   };
 
@@ -183,6 +190,13 @@ const NotificationBell = () => {
                     
                     {title && (
                       <p className="text-xs font-medium mt-1 text-foreground">{title}</p>
+                    )}
+
+                    {n.notification_type === "contact_form" && n.contact_info && (
+                      <div className="mt-1 space-y-1 text-[11px] text-muted-foreground">
+                        <div>מאת: {n.contact_info.from || "אנונימי"}</div>
+                        <div>סוג: {n.contact_info.category || "-"}</div>
+                      </div>
                     )}
 
                     <p className="text-xs text-muted-foreground mt-1">

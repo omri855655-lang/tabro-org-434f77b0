@@ -37,7 +37,7 @@ interface DreamGoal {
   created_at: string;
 }
 
-const MILESTONE_OPTIONS = [10, 15, 20, 30, 40, 50, 75, 100];
+const MILESTONE_OPTIONS = [10, 15, 20, 30, 40, 50, 75];
 
 const parseRoadmapLines = (rawText: string, requestedCount: number, stageLabel: string) => {
   const lines = rawText
@@ -77,7 +77,7 @@ const DreamRoadmapDashboard = () => {
     genericError: "שגיאה",
     dreamAdded: "חלום חדש נוסף! 🌟",
     deleted: "נמחק",
-    chooseMilestones: "בחר מספר בין 10 ל-100",
+    chooseMilestones: "בחר מספר בין 10 ל-75",
     roadmapError: "שגיאה ביצירת מפת דרכים",
     roadmapCreated: "נוצרו",
     roadmapCheck: "אבני דרך - בדוק ואשר ✅",
@@ -110,7 +110,7 @@ const DreamRoadmapDashboard = () => {
     genericError: "Error",
     dreamAdded: "New dream added! 🌟",
     deleted: "Deleted",
-    chooseMilestones: "Choose a number between 10 and 100",
+    chooseMilestones: "Choose a number between 10 and 75",
     roadmapError: "Error creating roadmap",
     roadmapCreated: "Created",
     roadmapCheck: "milestones - review and approve ✅",
@@ -210,7 +210,7 @@ const DreamRoadmapDashboard = () => {
 
   const generateRoadmap = async (goal: DreamGoal) => {
     const requestedCount = parseInt(milestoneCount[goal.id] || "15", 10);
-    if (requestedCount < 10 || requestedCount > 100) { toast.error(copy.chooseMilestones); return; }
+    if (requestedCount < 10 || requestedCount > 75) { toast.error(copy.chooseMilestones); return; }
     setGeneratingRoadmap(goal.id);
     try {
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
