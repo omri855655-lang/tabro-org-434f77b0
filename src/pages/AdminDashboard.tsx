@@ -79,6 +79,27 @@ const AdminDashboard = () => {
   const [composeBody, setComposeBody] = useState("");
   const [composeSending, setComposeSending] = useState(false);
   const [composeStatus, setComposeStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const callAdminAnalytics = useCallback(async (body: Record<string, unknown>, includePassword = true) => {
+    const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY}`,
+    };
+
+    if (includePassword && password) {
+      headers["x-admin-password"] = password;
+    }
+
+    const res = await fetch(`${ADMIN_MAIL_SUPABASE_URL}/functions/v1/admin-analytics`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(includePassword && password ? { ...body, admin_password: password } : body),
+    });
+
+    const data = await res.json().catch(() => null);
+    return { data, ok: res.ok };
+  }, [passInput]);
   const isHe = dir === "rtl";
   const copy = isHe
     ? {
@@ -113,12 +134,17 @@ const AdminDashboard = () => {
   const fetchStats = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const { data, error } = await supabase.functions.invoke("admin-analytics", {
-      body: { action: "stats" },
-    });
-    if (error || data?.error) {
+    const { data, ok } = await callAdminAnalytics({ action: "stats" });
+    if (!ok || data?.error) {
       if (data?.error === "Forbidden") {
         setIsAdmin(false);
+      } else if (data?.error === "Unauthorized") {
+        setPassUnlocked(false);
+        sessionStorage.removeItem(ADMIN_PASS_KEY);
+        sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
+        localStorage.removeItem(ADMIN_PASS_KEY);
+        localStorage.removeItem(ADMIN_PASS_VALUE_KEY);
+        toast.error(isHe ? "סיסמת האדמין התיישנה או שונתה. יש להזין אותה מחדש." : "Admin password expired or changed. Please enter it again.");
       } else {
         toast.error(t("error" as any));
       }
@@ -137,7 +163,7 @@ const AdminDashboard = () => {
       setLandingEditing(editMap);
     }
     setLoading(false);
-  }, [user, t]);
+  }, [user, callAdminAnalytics, isHe, t]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -148,11 +174,9 @@ const AdminDashboard = () => {
   const handleAddAdmin = async () => {
     if (!newAdminEmail.trim()) return;
     setAddingAdmin(true);
-    const { data, error } = await supabase.functions.invoke("admin-analytics", {
-      body: { action: "add_admin", email: newAdminEmail.trim() },
-    });
+    const { data, ok } = await callAdminAnalytics({ action: "add_admin", email: newAdminEmail.trim() });
     setAddingAdmin(false);
-    if (error || data?.error) {
+    if (!ok || data?.error) {
       toast.error(data?.error || t("error" as any));
       return;
     }
@@ -162,10 +186,8 @@ const AdminDashboard = () => {
   };
 
   const handleRemoveAdmin = async (userId: string) => {
-    const { data, error } = await supabase.functions.invoke("admin-analytics", {
-      body: { action: "remove_admin", user_id: userId },
-    });
-    if (error || data?.error) {
+    const { data, ok } = await callAdminAnalytics({ action: "remove_admin", user_id: userId });
+    if (!ok || data?.error) {
       toast.error(data?.error || t("error" as any));
       return;
     }
@@ -175,16 +197,7 @@ const AdminDashboard = () => {
 
   const handlePassSubmit = async () => {
     try {
-      const res = await fetch(`${ADMIN_MAIL_SUPABASE_URL}/functions/v1/admin-analytics`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ action: "verify_password", password: passInput }),
-      });
-
-      const data = await res.json().catch(() => null);
+      const { data } = await callAdminAnalytics({ action: "verify_password", password: passInput }, false);
       if (data?.ok) {
         sessionStorage.setItem(ADMIN_PASS_KEY, "1");
         sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
@@ -529,14 +542,16 @@ const AdminDashboard = () => {
                     };
 
                     try {
+                      const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
                       const res = await fetch(`${ADMIN_MAIL_SUPABASE_URL}/functions/v1/admin-analytics`, {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
                           apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
-                          "x-admin-password": passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
+                          Authorization: `Bearer ${ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY}`,
+                          "x-admin-password": password,
                         },
-                        body: JSON.stringify(payload),
+                        body: JSON.stringify({ ...payload, admin_password: password }),
                         signal: controller.signal,
                       });
 

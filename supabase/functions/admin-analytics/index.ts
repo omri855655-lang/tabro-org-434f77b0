@@ -15,6 +15,7 @@ Deno.serve(async (req) => {
     const action = body.action || 'stats'
     const correctPass = Deno.env.get('ADMIN_DASHBOARD_PASSWORD') || ''
     const adminPasswordHeader = req.headers.get('x-admin-password') || ''
+    const hasAdminPassword = !!correctPass && (body.admin_password === correctPass || adminPasswordHeader === correctPass)
 
     if (action === 'verify_password') {
       const ok = !!correctPass && body.password === correctPass
@@ -27,11 +28,7 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const adminClient = createClient(supabaseUrl, serviceKey)
 
-    if (
-      action === 'send_email' &&
-      correctPass &&
-      (body.admin_password === correctPass || adminPasswordHeader === correctPass)
-    ) {
+    if (action === 'send_email' && hasAdminPassword) {
       const to = body.to?.trim().toLowerCase()
       const subject = body.subject?.trim()
       const plainBody = body.body?.trim()
@@ -146,42 +143,46 @@ Deno.serve(async (req) => {
       })
     }
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: corsHeaders,
+    const allowPasswordBypass = hasAdminPassword && ['stats', 'add_admin', 'remove_admin'].includes(action)
+
+    if (!allowPasswordBypass) {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: corsHeaders,
+        })
+      }
+
+      const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: authHeader } },
       })
-    }
 
-    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } },
-    })
+      const {
+        data: { user },
+        error: userError,
+      } = await userClient.auth.getUser()
 
-    const {
-      data: { user },
-      error: userError,
-    } = await userClient.auth.getUser()
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: corsHeaders,
+        })
+      }
 
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: corsHeaders,
-      })
-    }
+      const { data: roleData } = await adminClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle()
 
-    const { data: roleData } = await adminClient
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle()
-
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: corsHeaders,
-      })
+      if (!roleData) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: corsHeaders,
+        })
+      }
     }
 
     if (action === 'stats') {
