@@ -17,6 +17,8 @@ import ProjectMembersPanel from '@/components/ProjectMembersPanel';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
 import TeamPerformanceDashboard from '@/components/projects/TeamPerformanceDashboard';
 import ProjectTaskDialog from '@/components/projects/ProjectTaskDialog';
+import AiChatPanel from '@/components/AiChatPanel';
+import { useDashboardChatHistory } from '@/hooks/useDashboardChatHistory';
 
 interface Project {
   id: string;
@@ -69,6 +71,15 @@ interface InitialProjectMemberDraft {
   role: string;
   jobTitle: string;
 }
+
+interface ProjectMilestoneDraft {
+  id?: string;
+  title: string;
+  done: boolean;
+  description?: string | null;
+}
+
+const PROJECT_MILESTONE_OPTIONS = [5, 8, 10, 12, 15, 20];
 
 const MEMBER_DOT_COLORS = ["bg-primary", "bg-accent", "bg-foreground/70", "bg-secondary-foreground/70", "bg-muted-foreground", "bg-destructive"];
 const PROJECT_ROLE_LABELS: Record<string, string> = {
@@ -152,6 +163,9 @@ const ProjectsManager = () => {
   const [initialProjectMembers, setInitialProjectMembers] = useState<InitialProjectMemberDraft[]>([
     { email: "", role: "member", jobTitle: "" },
   ]);
+  const [projectMilestoneCount, setProjectMilestoneCount] = useState<Record<string, string>>({});
+  const [activeProjectMilestoneChatId, setActiveProjectMilestoneChatId] = useState<string | null>(null);
+  const projectMilestoneChatHistory = useDashboardChatHistory(`projects-milestones-${activeProjectMilestoneChatId || "none"}`);
 
   useEffect(() => {
     if (user) {
@@ -600,14 +614,55 @@ const ProjectsManager = () => {
     ));
   };
 
+  const normalizeProjectMilestoneDrafts = (rawMilestones: any[], requestedCount: number): ProjectMilestoneDraft[] => {
+    const uniqueTitles = [...new Set(
+      rawMilestones
+        .map((milestone: any) => typeof milestone?.title === 'string' ? milestone.title.trim() : '')
+        .filter((title: string) => title.length > 2)
+    )];
+
+    return uniqueTitles.slice(0, requestedCount).map((title: string, index: number) => ({
+      title,
+      done: false,
+      description: rawMilestones[index]?.description || null,
+    }));
+  };
+
+  const saveProjectMilestoneDrafts = async (project: Project, milestones: ProjectMilestoneDraft[]) => {
+    if (!user) return;
+
+    const inserts = milestones.map((milestone, idx) => ({
+      project_id: project.id,
+      user_id: user.id,
+      title: milestone.title,
+      description: milestone.description || null,
+      sort_order: idx,
+      status: milestone.done ? 'done' : 'pending',
+    }));
+
+    await supabase.from('project_milestones').delete().eq('project_id', project.id).eq('user_id', user.id);
+    const { data: savedMs, error: saveError } = await supabase.from('project_milestones').insert(inserts).select();
+    if (saveError) throw saveError;
+
+    const saved = (savedMs || []).map((m: any) => ({
+      id: m.id,
+      title: m.title,
+      done: m.status === 'done',
+      description: m.description,
+    }));
+    setAiMilestones(prev => ({ ...prev, [project.id]: saved }));
+    return saved;
+  };
+
   const generateAiMilestones = async (project: Project) => {
     setAiMilestonesLoading(project.id);
     try {
+      const requestedCount = Math.min(20, Math.max(5, Number(projectMilestoneCount[project.id]) || 10));
       const { data, error } = await supabase.functions.invoke('task-ai-helper', {
         body: {
           taskDescription: project.title,
           taskCategory: 'project_milestones',
-          customPrompt: `צור רשימת אבני דרך (milestones) לפרויקט "${project.title}". ${project.description ? `תיאור: ${project.description}` : ''} החזר 10 אבני דרך קצרות, פרקטיות ומדורגות, שורה אחת לכל אבן דרך. אם אתה מחזיר JSON, השתמש במערך milestones.`,
+          customPrompt: `צור רשימת אבני דרך (milestones) לפרויקט "${project.title}". ${project.description ? `תיאור: ${project.description}` : ''} החזר ${requestedCount} אבני דרך קצרות, פרקטיות ומדורגות, שורה אחת לכל אבן דרך. אם אתה מחזיר JSON, השתמש במערך milestones.`,
         },
       });
       if (error) throw error;
@@ -635,31 +690,76 @@ const ProjectsManager = () => {
             .map((line: string) => line.replace(/^\s*[-*•\d\.\)\-]+\s*/, '').trim())
             .filter((line: string) => line.length > 2 && !line.startsWith('{') && !line.startsWith('[') && !line.includes('```'));
 
-      const uniqueTitles = [...new Set(parsedTitles)].slice(0, 10);
+      const uniqueTitles = [...new Set(parsedTitles)].slice(0, requestedCount);
       const milestones = uniqueTitles.map((title: string) => ({ title, done: false, description: null }));
 
       if (milestones.length === 0) {
         throw new Error('No milestones generated');
       }
-      
-      // Save to DB
-      const inserts = milestones.map((m: any, idx: number) => ({
-        project_id: project.id,
-        user_id: user?.id!,
-        title: m.title,
-        sort_order: idx,
-        status: 'pending',
-      }));
-      
-      // Delete old milestones first
-      await supabase.from('project_milestones').delete().eq('project_id', project.id).eq('user_id', user?.id!);
-      const { data: savedMs } = await supabase.from('project_milestones').insert(inserts).select();
-      
-      const saved = (savedMs || []).map((m: any) => ({ id: m.id, title: m.title, done: m.status === 'done', description: m.description }));
-      setAiMilestones(prev => ({ ...prev, [project.id]: saved }));
-      toast.success(`נוצרו ${saved.length} אבני דרך ונשמרו`);
-    } catch {
+
+      const saved = await saveProjectMilestoneDrafts(project, milestones);
+      setActiveProjectMilestoneChatId(project.id);
+      projectMilestoneChatHistory.setMessages([]);
+      toast.success(`נוצרו ${saved?.length || milestones.length} אבני דרך ונשמרו`);
+    } catch (generationError) {
+      console.error('Project milestone generation error', generationError);
       toast.error('שגיאה ביצירת אבני דרך');
+    } finally {
+      setAiMilestonesLoading(null);
+    }
+  };
+
+  const sendProjectMilestoneAiMessage = async (project: Project, message: string) => {
+    if (!user) return;
+    setActiveProjectMilestoneChatId(project.id);
+    const currentMilestones = aiMilestones[project.id] || [];
+    const userMessage = { role: 'user', content: message };
+    projectMilestoneChatHistory.setMessages(prev => [...prev, userMessage]);
+    setAiMilestonesLoading(project.id);
+
+    try {
+      const requestedCount = Math.min(20, Math.max(5, Number(projectMilestoneCount[project.id]) || Math.max(currentMilestones.length, 10)));
+      const contextPrompt = `אתה יועץ פרויקטים. עזור לשפר אבני דרך של פרויקט.
+שם הפרויקט: ${project.title}
+תיאור: ${project.description || 'ללא'}
+מספר אבני דרך רצוי: ${requestedCount}
+
+אבני הדרך הנוכחיות:
+${currentMilestones.map((milestone, index) => `${index + 1}. ${milestone.title}${milestone.description ? ` — ${milestone.description}` : ''}`).join('\n') || 'אין עדיין אבני דרך.'}
+
+בקשת המשתמש:
+${message}
+
+אם המשתמש מבקש שינוי באבני הדרך, החזר רשימת אבני דרך מעודכנת בפורמט פשוט, שורה אחת לכל אבן דרך. אחרת תן ייעוץ תמציתי.`;
+
+      const { data, error } = await supabase.functions.invoke('task-ai-helper', {
+        body: {
+          taskDescription: project.title,
+          taskCategory: 'project_milestones',
+          customPrompt: contextPrompt,
+        },
+      });
+      if (error) throw error;
+
+      const reply = data?.suggestion || data?.response || data?.message || 'לא התקבלה תשובה';
+      const parsedTitles = String(reply)
+        .split('\n')
+        .map((line: string) => line.replace(/^\s*[-*•\d\.\)\-]+\s*/, '').trim())
+        .filter((line: string) => line.length > 2 && !line.startsWith('{') && !line.startsWith('[') && !line.includes('```'));
+
+      if (parsedTitles.length >= 3) {
+        const normalized = normalizeProjectMilestoneDrafts(
+          parsedTitles.map((title: string) => ({ title, description: null })),
+          requestedCount
+        );
+        await saveProjectMilestoneDrafts(project, normalized);
+      }
+
+      projectMilestoneChatHistory.setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+    } catch (chatError) {
+      console.error('Project milestone AI chat error', chatError);
+      projectMilestoneChatHistory.setMessages(prev => [...prev, { role: 'assistant', content: 'שגיאה בהתייעצות על אבני הדרך.' }]);
+      toast.error('שגיאה בהתייעצות על אבני הדרך');
     } finally {
       setAiMilestonesLoading(null);
     }
@@ -1175,18 +1275,51 @@ const ProjectsManager = () => {
                         </div>
                       </div>
 
-                      {/* AI Milestones Button */}
-                      <div className="mr-11 mt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1 text-xs"
-                          disabled={aiMilestonesLoading === project.id}
-                          onClick={(e) => { e.stopPropagation(); generateAiMilestones(project); }}
-                        >
-                          {aiMilestonesLoading === project.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          {aiMilestones[project.id] ? 'צור מחדש' : 'אבני דרך AI'}
-                        </Button>
+                      {/* AI Milestones Controls */}
+                      <div className="mr-11 mt-2 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Select
+                            value={projectMilestoneCount[project.id] || '10'}
+                            onValueChange={(value) => setProjectMilestoneCount(prev => ({ ...prev, [project.id]: value }))}
+                          >
+                            <SelectTrigger className="h-8 w-[132px] text-xs">
+                              <SelectValue placeholder="כמה אבני דרך?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PROJECT_MILESTONE_OPTIONS.map((count) => (
+                                <SelectItem key={count} value={String(count)}>
+                                  {count} אבני דרך
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-xs"
+                            disabled={aiMilestonesLoading === project.id}
+                            onClick={(e) => { e.stopPropagation(); generateAiMilestones(project); }}
+                          >
+                            {aiMilestonesLoading === project.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                            {aiMilestones[project.id] ? 'צור מחדש' : 'אבני דרך AI'}
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveProjectMilestoneChatId(prev => prev === project.id ? null : project.id);
+                            }}
+                          >
+                            {activeProjectMilestoneChatId === project.id ? 'סגור שיחה' : 'שוחח עם AI'}
+                          </Button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          בחר כמה אבני דרך תרצה, צור אותן עם AI, ואז אפשר להתייעץ, לשנות, לדייק או לבקש ניסוח מחדש.
+                        </p>
                       </div>
 
                       {/* AI Milestones List */}
@@ -1215,6 +1348,29 @@ const ProjectsManager = () => {
                           <Progress
                             value={(aiMilestones[project.id].filter(m => m.done).length / aiMilestones[project.id].length) * 100}
                             className="h-1.5 mt-1"
+                          />
+                        </div>
+                      )}
+
+                      {activeProjectMilestoneChatId === project.id && (
+                        <div className="mt-3 mr-11">
+                          <AiChatPanel
+                            title="שיחה על אבני הדרך של הפרויקט"
+                            messages={projectMilestoneChatHistory.messages}
+                            loaded={projectMilestoneChatHistory.loaded}
+                            aiLoading={aiMilestonesLoading === project.id}
+                            archive={projectMilestoneChatHistory.archive}
+                            onSend={(message) => sendProjectMilestoneAiMessage(project, message)}
+                            onClearAndArchive={projectMilestoneChatHistory.clearAndArchive}
+                            onLoadConversation={projectMilestoneChatHistory.loadConversation}
+                            placeholder="למשל: קצר את אבן דרך 3, הוסף שלב בדיקות, או חלק את הפרויקט לשני שלבים..."
+                            emptyText="אפשר לדבר עם ה-AI על אבני הדרך, לבקש שינויים, לדייק סדר, או לנסח מחדש."
+                            quickPrompts={[
+                              'קצר את אבני הדרך לניסוח חד וברור יותר',
+                              'הוסף אבני דרך לבדיקות, QA ועלייה לאוויר',
+                              'סדר מחדש את אבני הדרך לפי עדיפות ביצוע',
+                              'זהה חסרים ותציע שיפור לתוכנית',
+                            ]}
                           />
                         </div>
                       )}

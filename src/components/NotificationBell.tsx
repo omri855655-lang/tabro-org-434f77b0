@@ -43,6 +43,8 @@ interface Notification {
     category?: string;
     from?: string;
     status?: string | null;
+    preview?: string;
+    followUpSuggested?: string | null;
   };
 }
 
@@ -196,6 +198,12 @@ const NotificationBell = () => {
                       <div className="mt-1 space-y-1 text-[11px] text-muted-foreground">
                         <div>מאת: {n.contact_info.from || "אנונימי"}</div>
                         <div>סוג: {n.contact_info.category || "-"}</div>
+                        {n.contact_info.preview && (
+                          <div className="line-clamp-2">{n.contact_info.preview}</div>
+                        )}
+                        {n.contact_info.followUpSuggested && (
+                          <div className="text-primary">{n.contact_info.followUpSuggested}</div>
+                        )}
                       </div>
                     )}
 

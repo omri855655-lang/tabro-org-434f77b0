@@ -166,6 +166,8 @@ serve(async (req) => {
             category: closestContactLog.metadata.category || "other",
             from: closestContactLog.metadata.userEmail || "אנונימי",
             status: closestContactLog.status || null,
+            preview: closestContactLog.metadata.messagePreview || "",
+            followUpSuggested: closestContactLog.metadata.followUpSuggested || null,
           };
         }
       }

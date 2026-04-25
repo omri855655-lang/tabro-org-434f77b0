@@ -128,6 +128,26 @@ serve(async (req) => {
       .map((email: any) => `- "${email.email_subject || '(ללא נושא)'}" | מאת: ${email.email_from || '-'} | קטגוריה: ${email.category || '-'} | תאריך: ${email.email_date || '-'}`)
       .join('\n');
 
+    const { data: recentContactMessagesRaw } = await supabase
+      .from("email_send_log")
+      .select("created_at, status, metadata")
+      .eq("template_name", "contact-form")
+      .order("created_at", { ascending: false })
+      .limit(12);
+
+    const recentContactMessages = (recentContactMessagesRaw || []).map((entry: any) => ({
+      created_at: entry.created_at,
+      status: entry.status,
+      subject: entry.metadata?.subject || "ללא נושא",
+      category: entry.metadata?.category || "-",
+      from: entry.metadata?.userEmail || entry.metadata?.from || "-",
+      preview: entry.metadata?.messagePreview || "",
+    }));
+
+    const contactInboxSummary = recentContactMessages
+      .map((item: any) => `- "${item.subject}" | מאת: ${item.from} | סוג: ${item.category} | סטטוס: ${item.status} | תאריך: ${item.created_at}${item.preview ? ` | תקציר: ${item.preview}` : ''}`)
+      .join('\n');
+
     const attachmentSummary = Array.isArray(attachments) && attachments.length > 0
       ? attachments.map((file: any, index: number) => `- קובץ ${index + 1}: ${file.name || "ללא שם"} | סוג: ${file.type || "-"} | גודל: ${file.size || 0}
   תקציר: ${(file.preview || "").slice(0, 400)}
@@ -233,6 +253,9 @@ ${emailTriagePreferences ? `
 
 ### מיילים חשובים במיוחד לפי ההעדפות:
 ${importantEmailSummary || 'אין כרגע מיילים בולטים שתויגו כחשובים לפי ההעדפות.'}
+
+### פניות אחרונות מהאתר / Inbox (${recentContactMessages.length}):
+${contactInboxSummary || 'אין כרגע פניות אחרונות מהאתר.'}
 
 ### תמונת בוקר מהירה:
 - משימות דחופות / באיחור: ${urgentTasks.length}

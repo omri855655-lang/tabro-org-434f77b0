@@ -82,6 +82,7 @@ Deno.serve(async (req) => {
     const emailSubject = `[פנייה] ${categoryLabels[category] || ''} - ${subject || 'ללא נושא'}`
     const replyTo = userEmail !== 'אנונימי' && userEmail !== 'Anonymous' ? userEmail : undefined
     const fromAddress = 'Tabro <noreply@tabro.org>'
+    const messagePreview = String(message || '').replace(/\s+/g, ' ').trim().slice(0, 240)
 
     const results = await Promise.allSettled(
       ADMIN_EMAILS.map(async (toEmail) => {
@@ -125,7 +126,16 @@ Deno.serve(async (req) => {
       recipient_email: ADMIN_EMAILS.join(', '),
       status: succeeded > 0 ? 'sent' : 'failed',
       error_message: failed.length > 0 ? JSON.stringify(failed.map(f => (f as any).reason?.message).slice(0, 500)) : null,
-      metadata: { subject, category, userEmail, recipients: ADMIN_EMAILS, succeeded },
+      metadata: {
+        subject,
+        category,
+        userEmail,
+        from: userEmail,
+        recipients: ADMIN_EMAILS,
+        succeeded,
+        messagePreview,
+        followUpSuggested: category === 'bug' ? 'מומלץ לחזור עם עדכון סטטוס' : 'מומלץ לבדוק אם נדרש follow-up',
+      },
     })
 
     const { data: adminUsers } = await serviceClient

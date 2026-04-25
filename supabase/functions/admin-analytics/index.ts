@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
         adminClient.from('login_logs').select('user_email, logged_in_at').order('logged_in_at', { ascending: false }).limit(10),
         adminClient
           .from('email_send_log')
-          .select('message_id, template_name, recipient_email, status, error_message, created_at')
+          .select('message_id, template_name, recipient_email, status, error_message, created_at, metadata')
           .order('created_at', { ascending: false })
           .limit(30),
         adminClient

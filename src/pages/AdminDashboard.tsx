@@ -40,6 +40,14 @@ interface Stats {
     status: string;
     error_message: string | null;
     created_at: string;
+    metadata?: {
+      subject?: string;
+      category?: string;
+      userEmail?: string;
+      from?: string;
+      messagePreview?: string;
+      followUpSuggested?: string;
+    } | null;
   }[];
 }
 
@@ -359,7 +367,12 @@ const AdminDashboard = () => {
               (() => {
                 const inboxEmails = (stats?.recentEmailLog || []).filter(e => e.template_name === "contact-form" || e.template_name === "contact_form");
                 const filteredInbox = inboxEmails.filter(e => {
-                  const matchSearch = !emailSearch || e.recipient_email.toLowerCase().includes(emailSearch.toLowerCase()) || e.template_name.toLowerCase().includes(emailSearch.toLowerCase());
+                  const subject = e.metadata?.subject || "";
+                  const from = e.metadata?.userEmail || e.metadata?.from || "";
+                  const category = e.metadata?.category || "";
+                  const preview = e.metadata?.messagePreview || "";
+                  const haystack = [e.recipient_email, e.template_name, subject, from, category, preview].join(" ").toLowerCase();
+                  const matchSearch = !emailSearch || haystack.includes(emailSearch.toLowerCase());
                   const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;
                   return matchSearch && matchStatus;
                 });
@@ -373,7 +386,9 @@ const AdminDashboard = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>{isHe ? "נושא" : "Subject"}</TableHead>
                           <TableHead>{isHe ? "שולח" : "From"}</TableHead>
+                          <TableHead>{isHe ? "סוג" : "Category"}</TableHead>
                           <TableHead>{isHe ? "תאריך" : "Date"}</TableHead>
                           <TableHead>{isHe ? "סטטוס" : "Status"}</TableHead>
                         </TableRow>
@@ -381,10 +396,30 @@ const AdminDashboard = () => {
                       <TableBody>
                         {filteredInbox.map((e, index) => (
                           <TableRow key={`${e.message_id || e.created_at}-${index}`}>
-                            <TableCell className="text-sm" dir="ltr">{e.recipient_email}</TableCell>
+                            <TableCell className="max-w-[280px]">
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium">
+                                  {e.metadata?.subject || (isHe ? "ללא נושא" : "No subject")}
+                                </p>
+                                {e.metadata?.messagePreview && (
+                                  <p className="line-clamp-2 text-xs text-muted-foreground">
+                                    {e.metadata.messagePreview}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm" dir="ltr">
+                              {e.metadata?.userEmail || e.metadata?.from || e.recipient_email}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {e.metadata?.category || "-"}
+                            </TableCell>
                             <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</TableCell>
                             <TableCell>
                               <Badge variant={e.status === "sent" ? "default" : e.status === "failed" ? "destructive" : "secondary"} className="text-[10px]">{e.status}</Badge>
+                              {e.metadata?.followUpSuggested && (
+                                <p className="mt-1 text-[10px] text-primary">{e.metadata.followUpSuggested}</p>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
