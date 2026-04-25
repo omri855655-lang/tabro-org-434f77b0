@@ -195,8 +195,40 @@ const AdminDashboard = () => {
       return;
     }
 
+    const normalizedUserList = appData?.userList || [];
+    const normalizedLoginLogs = appData?.loginLogs || [];
+    const derivedTotalUsers = Math.max(appData?.totalUsers || 0, normalizedUserList.length);
+    const derivedRecentSignups = Math.max(
+      appData?.recentSignups || 0,
+      normalizedUserList.filter((user: any) => {
+        const createdAt = user?.created_at ? new Date(user.created_at).getTime() : 0;
+        const sinceTs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        return createdAt >= sinceTs;
+      }).length,
+    );
+    const derivedActiveUsers30d = Math.max(
+      appData?.activeUsers30d || 0,
+      normalizedUserList.filter((user: any) => {
+        const lastSignIn = user?.last_sign_in_at ? new Date(user.last_sign_in_at).getTime() : 0;
+        const sinceTs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        return lastSignIn >= sinceTs;
+      }).length,
+    );
+    const derivedLoginEvents30d = Math.max(
+      appData?.loginEvents30d || 0,
+      normalizedLoginLogs.filter((log: any) => {
+        const when = log?.logged_in_at ? new Date(log.logged_in_at).getTime() : 0;
+        const sinceTs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        return when >= sinceTs;
+      }).length,
+    );
+
     const data: Stats = {
       ...appData,
+      totalUsers: derivedTotalUsers,
+      recentSignups: derivedRecentSignups,
+      activeUsers30d: derivedActiveUsers30d,
+      loginEvents30d: derivedLoginEvents30d,
       mailboxAddress: mailboxData?.mailboxAddress || "info@tabro.org",
       recentEmailLog: mailboxData?.recentEmailLog || [],
     };
