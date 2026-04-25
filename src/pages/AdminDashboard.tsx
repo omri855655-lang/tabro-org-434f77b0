@@ -79,6 +79,12 @@ const AdminDashboard = () => {
   const [composeBody, setComposeBody] = useState("");
   const [composeSending, setComposeSending] = useState(false);
   const [composeStatus, setComposeStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const callAppAdminAnalytics = useCallback(async (body: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke("admin-analytics", { body });
+    return { data, ok: !error && !data?.error, error: error?.message || data?.error || null };
+  }, []);
+
   const callAdminAnalytics = useCallback(async (body: Record<string, unknown>, includePassword = true) => {
     const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
     const headers: Record<string, string> = {
@@ -134,11 +140,24 @@ const AdminDashboard = () => {
   const fetchStats = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const { data, ok } = await callAdminAnalytics({ action: "stats" });
-    if (!ok || data?.error) {
-      if (data?.error === "Forbidden") {
+
+    const [{ data: appData, ok: appOk, error: appError }, { data: mailData, ok: mailOk }] = await Promise.all([
+      callAppAdminAnalytics({ action: "stats" }),
+      callAdminAnalytics({ action: "stats" }),
+    ]);
+
+    if (!appOk) {
+      if (appData?.error === "Forbidden") {
         setIsAdmin(false);
-      } else if (data?.error === "Unauthorized") {
+      } else {
+        toast.error(appError || t("error" as any));
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (!mailOk || mailData?.error) {
+      if (mailData?.error === "Unauthorized") {
         setPassUnlocked(false);
         sessionStorage.removeItem(ADMIN_PASS_KEY);
         sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
@@ -146,11 +165,18 @@ const AdminDashboard = () => {
         localStorage.removeItem(ADMIN_PASS_VALUE_KEY);
         toast.error(isHe ? "סיסמת האדמין התיישנה או שונתה. יש להזין אותה מחדש." : "Admin password expired or changed. Please enter it again.");
       } else {
-        toast.error(t("error" as any));
+        toast.error(isHe ? "נתוני הדואר באדמין לא נטענו כרגע." : "Admin mailbox data failed to load.");
       }
       setLoading(false);
       return;
     }
+
+    const data: Stats = {
+      ...appData,
+      mailboxAddress: mailData?.mailboxAddress || "info@tabro.org",
+      recentEmailLog: mailData?.recentEmailLog || [],
+    };
+
     setIsAdmin(true);
     setStats(data);
     // Fetch landing content
@@ -163,7 +189,7 @@ const AdminDashboard = () => {
       setLandingEditing(editMap);
     }
     setLoading(false);
-  }, [user, callAdminAnalytics, isHe, t]);
+  }, [user, callAdminAnalytics, callAppAdminAnalytics, isHe, t]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -174,7 +200,7 @@ const AdminDashboard = () => {
   const handleAddAdmin = async () => {
     if (!newAdminEmail.trim()) return;
     setAddingAdmin(true);
-    const { data, ok } = await callAdminAnalytics({ action: "add_admin", email: newAdminEmail.trim() });
+    const { data, ok } = await callAppAdminAnalytics({ action: "add_admin", email: newAdminEmail.trim() });
     setAddingAdmin(false);
     if (!ok || data?.error) {
       toast.error(data?.error || t("error" as any));
@@ -186,7 +212,7 @@ const AdminDashboard = () => {
   };
 
   const handleRemoveAdmin = async (userId: string) => {
-    const { data, ok } = await callAdminAnalytics({ action: "remove_admin", user_id: userId });
+    const { data, ok } = await callAppAdminAnalytics({ action: "remove_admin", user_id: userId });
     if (!ok || data?.error) {
       toast.error(data?.error || t("error" as any));
       return;
@@ -344,8 +370,8 @@ const AdminDashboard = () => {
               </p>
               <p className="mt-1 text-muted-foreground">
                 {isHe
-                  ? "שליחה יוצאת בפועל מוגדרת דרך תת-הדומיין notify.tabro.org, וכתובת התשובה היא info@tabro.org. אם האימות בודק רק את tabro.org או תקוע כמה ימים, הבעיה כנראה אצל ספק המייל/DNS ולא במסך האדמין."
-                  : "Outgoing delivery is configured through the notify.tabro.org sender subdomain, while replies go to info@tabro.org. If verification is stuck for days or checks only tabro.org, the issue is likely in your mail provider/DNS setup rather than the admin UI."}
+                  ? "הפניות מטופס האתר והשליחה היוצאת מוצגות כאן יחד. מייל חיצוני רגיל ל-info@tabro.org עדיין דורש חיבור inbox נכנס מלא, והוא לא זהה לפניות האתר."
+                  : "Website contact submissions and outgoing messages are shown here together. Regular external email sent to info@tabro.org still requires a full inbound inbox pipeline and is not the same as website contact submissions."}
               </p>
             </div>
             {/* Inbox / Outbox tabs */}
