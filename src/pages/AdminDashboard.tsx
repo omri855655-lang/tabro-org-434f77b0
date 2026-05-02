@@ -49,6 +49,11 @@ interface Stats {
       userEmail?: string;
       from?: string;
       messagePreview?: string;
+      body_preview?: string;
+      body?: string;
+      messageBody?: string;
+      sent_by?: string;
+      reply_to?: string;
       followUpSuggested?: string;
     } | null;
   }[];
@@ -90,6 +95,7 @@ const AdminDashboard = () => {
   const [composeBody, setComposeBody] = useState("");
   const [composeSending, setComposeSending] = useState(false);
   const [composeStatus, setComposeStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [selectedEmail, setSelectedEmail] = useState<Stats["recentEmailLog"][number] | null>(null);
 
   const callAppAdminAnalytics = useCallback(async (body: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke("admin-analytics", { body });
@@ -131,6 +137,47 @@ const AdminDashboard = () => {
     });
   }, [callAdminAnalytics]);
   const isHe = dir === "rtl";
+  const parseMailRow = useCallback((row: Stats["recentEmailLog"][number]) => {
+    const metadata = row.metadata || {};
+    return {
+      subject: metadata.subject || (isHe ? "ללא נושא" : "No subject"),
+      from: metadata.userEmail || metadata.from || metadata.sent_by || row.recipient_email,
+      body: metadata.messageBody || metadata.body || metadata.messagePreview || metadata.body_preview || "",
+      preview: metadata.messagePreview || metadata.body_preview || metadata.messageBody || metadata.body || "",
+      category: metadata.category || "",
+      followUpSuggested: metadata.followUpSuggested || "",
+      replyTo: metadata.reply_to || metadata.userEmail || metadata.from || "",
+    };
+  }, [isHe]);
+
+  const buildMailboxSearchText = useCallback((row: Stats["recentEmailLog"][number]) => {
+    const parsed = parseMailRow(row);
+    return [
+      row.template_name,
+      row.recipient_email,
+      parsed.subject,
+      parsed.from,
+      parsed.preview,
+      parsed.body,
+      parsed.category,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+  }, [parseMailRow]);
+
+  const openReplyComposer = useCallback((row: Stats["recentEmailLog"][number]) => {
+    const parsed = parseMailRow(row);
+    const replyTarget = String(parsed.replyTo || "").trim();
+    if (!replyTarget || replyTarget === "אנונימי" || replyTarget === "Anonymous") {
+      toast.error(isHe ? "אין כתובת מענה זמינה לפנייה הזו." : "No reply address is available for this message.");
+      return;
+    }
+    setComposeTo(replyTarget);
+    setComposeSubject(`${isHe ? "Re: " : "Re: "}${parsed.subject}`);
+    setComposeBody(parsed.body ? `\n\n---\n${parsed.body}` : "");
+    setEmailTab("outbox");
+  }, [isHe, parseMailRow]);
   const copy = isHe
     ? {
         adminAccess: "גישה לאדמין",
@@ -648,12 +695,7 @@ const AdminDashboard = () => {
               (() => {
                 const inboxEmails = (mailbox?.recentEmailLog || []).filter(e => e.template_name === "contact-form" || e.template_name === "contact_form");
                 const filteredInbox = inboxEmails.filter(e => {
-                  const subject = e.metadata?.subject || "";
-                  const from = e.metadata?.userEmail || e.metadata?.from || "";
-                  const category = e.metadata?.category || "";
-                  const preview = e.metadata?.messagePreview || "";
-                  const haystack = [e.recipient_email, e.template_name, subject, from, category, preview].join(" ").toLowerCase();
-                  const matchSearch = !emailSearch || haystack.includes(emailSearch.toLowerCase());
+                  const matchSearch = !emailSearch || buildMailboxSearchText(e).includes(emailSearch.toLowerCase());
                   const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;
                   return matchSearch && matchStatus;
                 });
@@ -667,6 +709,7 @@ const AdminDashboard = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>{isHe ? "פתח" : "Open"}</TableHead>
                           <TableHead>{isHe ? "נושא" : "Subject"}</TableHead>
                           <TableHead>{isHe ? "שולח" : "From"}</TableHead>
                           <TableHead>{isHe ? "סוג" : "Category"}</TableHead>
@@ -675,35 +718,42 @@ const AdminDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredInbox.map((e, index) => (
+                        {filteredInbox.map((e, index) => {
+                          const parsed = parseMailRow(e);
+                          return (
                           <TableRow key={`${e.message_id || e.created_at}-${index}`}>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedEmail(e)}>
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                             <TableCell className="max-w-[280px]">
                               <div className="space-y-1">
                                 <p className="text-sm font-medium">
-                                  {e.metadata?.subject || (isHe ? "ללא נושא" : "No subject")}
+                                  {parsed.subject}
                                 </p>
-                                {e.metadata?.messagePreview && (
+                                {parsed.preview && (
                                   <p className="line-clamp-2 text-xs text-muted-foreground">
-                                    {e.metadata.messagePreview}
+                                    {parsed.preview}
                                   </p>
                                 )}
                               </div>
                             </TableCell>
                             <TableCell className="text-sm" dir="ltr">
-                              {e.metadata?.userEmail || e.metadata?.from || e.recipient_email}
+                              {parsed.from}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
-                              {e.metadata?.category || "-"}
+                              {parsed.category || "-"}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</TableCell>
                             <TableCell>
                               <Badge variant={e.status === "sent" ? "default" : e.status === "failed" ? "destructive" : "secondary"} className="text-[10px]">{e.status}</Badge>
-                              {e.metadata?.followUpSuggested && (
-                                <p className="mt-1 text-[10px] text-primary">{e.metadata.followUpSuggested}</p>
+                              {parsed.followUpSuggested && (
+                                <p className="mt-1 text-[10px] text-primary">{parsed.followUpSuggested}</p>
                               )}
                             </TableCell>
                           </TableRow>
-                        ))}
+                        )})}
                       </TableBody>
                     </Table>
                   </div>
@@ -720,9 +770,11 @@ const AdminDashboard = () => {
                 ) : (
                   <div className="overflow-auto max-h-96">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
+                        <TableHeader>
+                          <TableRow>
+                          <TableHead>{isHe ? "פתח" : "Open"}</TableHead>
                           <TableHead>{isHe ? "תבנית" : "Template"}</TableHead>
+                          <TableHead>{isHe ? "נושא" : "Subject"}</TableHead>
                           <TableHead>{isHe ? "נמען" : "Recipient"}</TableHead>
                           <TableHead>{isHe ? "תאריך" : "Date"}</TableHead>
                           <TableHead>{isHe ? "סטטוס" : "Status"}</TableHead>
@@ -731,13 +783,24 @@ const AdminDashboard = () => {
                       <TableBody>
                         {(mailbox?.recentEmailLog || [])
                           .filter(e => {
-                            const matchSearch = !emailSearch || e.recipient_email.toLowerCase().includes(emailSearch.toLowerCase()) || e.template_name.toLowerCase().includes(emailSearch.toLowerCase());
+                            const matchSearch = !emailSearch || buildMailboxSearchText(e).includes(emailSearch.toLowerCase());
                             const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;
                             return matchSearch && matchStatus;
                           })
-                          .map((e, index) => (
+                          .map((e, index) => {
+                          const parsed = parseMailRow(e);
+                          return (
                           <TableRow key={`${e.message_id || e.created_at}-${index}`}>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedEmail(e)}>
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                             <TableCell className="text-sm">{e.template_name}</TableCell>
+                            <TableCell className="max-w-[220px]">
+                              <div className="text-sm font-medium">{parsed.subject}</div>
+                              {parsed.preview && <div className="line-clamp-2 text-xs text-muted-foreground">{parsed.preview}</div>}
+                            </TableCell>
                             <TableCell className="text-sm" dir="ltr">{e.recipient_email}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString(isHe ? "he-IL" : "en-US", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</TableCell>
                             <TableCell>
@@ -745,13 +808,48 @@ const AdminDashboard = () => {
                               {e.error_message && <p className="text-[10px] text-destructive mt-1 truncate max-w-[200px]">{e.error_message}</p>}
                             </TableCell>
                           </TableRow>
-                        ))}
+                        )})}
                       </TableBody>
                     </Table>
                   </div>
                 )}
               </>
             )}
+
+            {selectedEmail && (() => {
+              const parsed = parseMailRow(selectedEmail);
+              return (
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="font-semibold">{parsed.subject}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(selectedEmail.created_at).toLocaleString(isHe ? "he-IL" : "en-US")}
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(null)}>
+                      {isHe ? "סגור" : "Close"}
+                    </Button>
+                  </div>
+                  <div className="grid gap-2 text-sm">
+                    <div><span className="font-medium">{isHe ? "מאת:" : "From:"}</span> <span dir="ltr">{parsed.from || "—"}</span></div>
+                    <div><span className="font-medium">{isHe ? "אל:" : "To:"}</span> <span dir="ltr">{selectedEmail.recipient_email || "—"}</span></div>
+                    {parsed.category ? <div><span className="font-medium">{isHe ? "סוג:" : "Category:"}</span> {parsed.category}</div> : null}
+                    {parsed.followUpSuggested ? <div><span className="font-medium">{isHe ? "המשך מומלץ:" : "Suggested follow-up:"}</span> {parsed.followUpSuggested}</div> : null}
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-3 text-sm whitespace-pre-wrap leading-6 min-h-[120px]">
+                    {parsed.body || parsed.preview || (isHe ? "אין תוכן מלא זמין להצגה כרגע." : "No full message body is available yet.")}
+                  </div>
+                  {emailTab === "inbox" && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openReplyComposer(selectedEmail)}>
+                        {isHe ? "השב לפנייה" : "Reply"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Compose email */}
             <div className="border-t pt-4 space-y-3">

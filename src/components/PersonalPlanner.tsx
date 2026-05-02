@@ -1185,6 +1185,24 @@ const PersonalPlanner = () => {
     setShowEventDialog(true);
   };
 
+  const handleOpenSlotCreate = (day: Date, hour: number) => {
+    const start = setMinutes(setHours(new Date(day), hour), 0);
+    const end = addHours(start, 1);
+    setEditingEvent(null);
+    setNewEventData({
+      title: "",
+      description: "",
+      category: "אחר",
+      startTime: toLocalISOString(start),
+      endTime: toLocalISOString(end),
+      color: "",
+      sourceType: "custom",
+      sourceId: null,
+      inviteeEmails: "",
+    });
+    setShowEventDialog(true);
+  };
+
   const handleDeleteEvent = async () => {
     if (!editingEvent) return;
     await deleteEvent(editingEvent.id);
@@ -1330,6 +1348,22 @@ const PersonalPlanner = () => {
   // Render time grid for day/week view
   const renderTimeGrid = () => {
     const days = viewMode === "day" ? [currentDate] : dateRange.days;
+    const expandedHourHeights = HOURS.reduce<Record<number, number>>((acc, hour) => {
+      const maxEventsForHour = Math.max(
+        1,
+        ...days.map((day) =>
+          filteredEvents.filter((event) => {
+            const start = new Date(event.startTime);
+            const end = new Date(event.endTime);
+            const slotStart = setMinutes(setHours(new Date(day), hour), 0);
+            const slotEnd = addHours(slotStart, 1);
+            return isSameDay(start, day) && start < slotEnd && end > slotStart;
+          }).length
+        ),
+      );
+      acc[hour] = Math.max(getHourHeight(hour), maxEventsForHour * 28);
+      return acc;
+    }, {});
 
     return (
       <div className="flex flex-1 min-h-0 overflow-auto" ref={gridRef}>
@@ -1337,7 +1371,7 @@ const PersonalPlanner = () => {
         <div className="w-16 flex-shrink-0 border-l border-border">
           <div className="h-10 border-b border-border" />
           {HOURS.map((h) => {
-            const hHeight = getHourHeight(h);
+            const hHeight = expandedHourHeights[h];
             return (
               <div
                 key={h}
@@ -1419,11 +1453,17 @@ const PersonalPlanner = () => {
                   <div
                     key={h}
                     className="border-b border-border/50 relative group hover:bg-muted/30 transition-colors"
-                    style={{ height: getHourHeight(h) }}
+                    style={{ height: expandedHourHeights[h] }}
                     data-slot-day={day.toISOString()}
                     data-slot-hour={h}
                     onDragOver={(e) => handleSlotDragOver(e, day, h)}
                     onDrop={(e) => handleDrop(day, h, e)}
+                    onClick={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (draggedTask || draggingEvent || dragCreateState) return;
+                      handleOpenSlotCreate(day, h);
+                    }}
+                    onDoubleClick={() => handleOpenSlotCreate(day, h)}
                     onDragLeave={() => {}}
                   >
                     {/* Minute marks */}
@@ -1435,10 +1475,10 @@ const PersonalPlanner = () => {
                       <div
                         className="absolute inset-x-1 rounded-md bg-primary/20 border-2 border-dashed border-primary z-30 pointer-events-none"
                         style={{
-                          top: (dragCreateState.startMinute / 60) * getHourHeight(h),
+                          top: (dragCreateState.startMinute / 60) * expandedHourHeights[h],
                           height: Math.max(
                             ((dragCreateState.currentHour * 60 + dragCreateState.currentMinute) -
-                              (dragCreateState.startHour * 60 + dragCreateState.startMinute)) / 60 * getHourHeight(h),
+                              (dragCreateState.startHour * 60 + dragCreateState.startMinute)) / 60 * expandedHourHeights[h],
                             15
                           ),
                         }}
@@ -1458,7 +1498,7 @@ const PersonalPlanner = () => {
                         new Date(event.endTime),
                         new Date(event.startTime)
                       );
-                      const currentHourHeight = getHourHeight(h);
+                      const currentHourHeight = expandedHourHeights[h];
                       const isResizing = resizingEvent?.eventId === event.id;
                       const height = isResizing && resizePreviewHeight !== null
                         ? resizePreviewHeight

@@ -52,7 +52,14 @@ Deno.serve(async (req) => {
           recipient_email: to,
           status: 'failed',
           error_message: 'No email API key configured',
-          metadata: { subject, sent_by: 'admin-password', reply_to: replyTo },
+          metadata: {
+            subject,
+            body: plainBody,
+            body_preview: plainBody.slice(0, 280),
+            sent_by: 'admin-password',
+            reply_to: replyTo,
+            mailbox_type: 'outbox',
+          },
         })
         return new Response(JSON.stringify({ error: 'No email API key configured' }), {
           status: 200,
@@ -123,7 +130,14 @@ Deno.serve(async (req) => {
           recipient_email: to,
           status: 'failed',
           error_message: errorDetail,
-          metadata: { subject, sent_by: 'admin-password', reply_to: replyTo },
+          metadata: {
+            subject,
+            body: plainBody,
+            body_preview: plainBody.slice(0, 280),
+            sent_by: 'admin-password',
+            reply_to: replyTo,
+            mailbox_type: 'outbox',
+          },
         })
         return new Response(JSON.stringify({ error: errorDetail, code: 'EMAIL_DELIVERY_FAILED', log_error: logError?.message || null }), {
           status: 200,
@@ -136,7 +150,15 @@ Deno.serve(async (req) => {
         template_name: 'admin-compose',
         recipient_email: to,
         status: 'sent',
-        metadata: { subject, sent_by: 'admin-password', reply_to: replyTo, delivered_via: deliveredVia },
+        metadata: {
+          subject,
+          body: plainBody,
+          body_preview: plainBody.slice(0, 280),
+          sent_by: 'admin-password',
+          reply_to: replyTo,
+          delivered_via: deliveredVia,
+          mailbox_type: 'outbox',
+        },
       })
       return new Response(JSON.stringify({ success: true, delivered_via: deliveredVia, log_error: sentLogError?.message || null }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

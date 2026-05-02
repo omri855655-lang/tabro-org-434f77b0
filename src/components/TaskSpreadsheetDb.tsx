@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2 } from "lucide-react";
+import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2, Search } from "lucide-react";
 import { BOARD_THEMES, type BoardTheme } from "@/hooks/useCustomBoards";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDashboardDisplay, type DashboardViewMode } from "@/hooks/useDashboardDisplay";
@@ -157,6 +157,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [selectedTaskForAi, setSelectedTaskForAi] = useState<Task | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("none");
   const [descriptionInput, setDescriptionInput] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [taskToMove, setTaskToMove] = useState<Task | null>(null);
@@ -200,6 +202,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [fitTableToScreen, setFitTableToScreen] = useState(() => {
     return localStorage.getItem(`task-table-fit-${taskType}`) === "true";
   });
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(`task-search-history-${taskType}`);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     if (!pendingScrollTaskId) return;
@@ -229,6 +240,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   useEffect(() => {
     localStorage.setItem(`task-table-fit-${taskType}`, fitTableToScreen ? "true" : "false");
   }, [fitTableToScreen, taskType]);
+
+  useEffect(() => {
+    localStorage.setItem(`task-search-history-${taskType}`, JSON.stringify(searchHistory.slice(0, 8)));
+  }, [searchHistory, taskType]);
 
   useEffect(() => {
     const tableNode = tableScrollRef.current;
@@ -451,6 +466,45 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     ).slice(0, 5);
   }, [descriptionInput, tasks, editingTaskId]);
 
+  const quickAddSuggestionPool = useMemo(() => {
+    const seen = new Set<string>();
+    const values: string[] = [];
+    for (const task of tasks) {
+      const description = task.description.trim();
+      if (!description || seen.has(description)) continue;
+      seen.add(description);
+      values.push(description);
+    }
+    return values;
+  }, [tasks]);
+
+  const quickAddSuggestions = useMemo(() => {
+    const query = descriptionInput.trim().toLowerCase();
+    if (!query) return quickAddSuggestionPool.slice(0, 6);
+    return quickAddSuggestionPool.filter((item) => item.toLowerCase().includes(query)).slice(0, 6);
+  }, [descriptionInput, quickAddSuggestionPool]);
+
+  const filteredTasksBySearch = useMemo(() => {
+    if (!taskSearch.trim()) return tasks;
+    const query = taskSearch.toLowerCase();
+    return tasks.filter((task) =>
+      [
+        task.description,
+        task.category,
+        task.responsible,
+        task.statusNotes,
+        task.progress,
+        task.status,
+        task.creatorName,
+        task.lastEditorName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [taskSearch, tasks]);
+
   // Sorted tasks
   const sortedTasks = useMemo(() => {
     if (sortBy === "none") return tasks;
@@ -531,6 +585,30 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     setSelectedRow(newTask.id);
     setPendingScrollTaskId(newTask.id);
   };
+
+  const pushSearchHistory = useCallback((value: string) => {
+    const normalized = value.trim();
+    if (!normalized) return;
+    setSearchHistory((prev) => [normalized, ...prev.filter((entry) => entry !== normalized)].slice(0, 8));
+  }, []);
+
+  const handleQuickAddTask = useCallback(async () => {
+    const description = descriptionInput.trim();
+    if (!description) return;
+
+    const defaultResponsible = taskType === "work" ? userProfileName : "";
+    const newTask = await addTask(selectedSheet ?? currentYear, {
+      description,
+      responsible: defaultResponsible,
+    });
+
+    if (!newTask) return;
+
+    setDescriptionInput("");
+    setActiveTaskTab("active");
+    setSelectedRow(newTask.id);
+    setPendingScrollTaskId(newTask.id);
+  }, [descriptionInput, taskType, userProfileName, addTask, selectedSheet, currentYear]);
 
   const handleDeleteTask = async () => {
     if (selectedRow) {
@@ -1181,6 +1259,45 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           </div>
         )}
         <div className="mr-auto flex items-center gap-2">
+          <div className="relative min-w-[220px] max-w-[360px] flex-1">
+            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={taskSearch}
+              onChange={(event) => {
+                setTaskSearch(event.target.value);
+                setShowSearchHistory(true);
+              }}
+              onFocus={() => setShowSearchHistory(true)}
+              onBlur={() => window.setTimeout(() => setShowSearchHistory(false), 120)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && taskSearch.trim()) {
+                  pushSearchHistory(taskSearch);
+                  setShowSearchHistory(false);
+                }
+              }}
+              placeholder="חיפוש משימות, סיווג, אחריות או הערות"
+              className="pr-9"
+            />
+            {showSearchHistory && searchHistory.length > 0 && !taskSearch.trim() && (
+              <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg">
+                <div className="border-b px-3 py-2 text-xs text-muted-foreground">היסטוריית חיפוש</div>
+                {searchHistory.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className="block w-full px-3 py-2 text-right text-sm hover:bg-accent"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      setTaskSearch(item);
+                      setShowSearchHistory(false);
+                    }}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
             <SelectTrigger className="w-[160px] h-8">
               <ArrowUpDown className="h-4 w-4 ml-1" />
@@ -1251,6 +1368,50 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           </Popover>
         </div>
         </div>
+        {!readOnly && (
+          <div className="px-3 pb-3">
+            <div className="rounded-xl border border-border bg-background/80 p-3 space-y-2">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <Input
+                  value={descriptionInput}
+                  onChange={(event) => setDescriptionInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void handleQuickAddTask();
+                    }
+                  }}
+                  placeholder="כתוב מהר משימה חדשה, ותקבל הצעות ממה שכבר היה במערכת"
+                />
+                <Button onClick={() => void handleQuickAddTask()} disabled={!descriptionInput.trim()}>
+                  <Plus className="h-4 w-4 ml-1" />
+                  הוסף מהר
+                </Button>
+              </div>
+              {quickAddSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {quickAddSuggestions.map((suggestion) => (
+                    <Button
+                      key={suggestion}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      onClick={() => setDescriptionInput(suggestion)}
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {getSimilarTasks.length > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  משימות דומות שכבר קיימות: {getSimilarTasks.map((task) => task.description).join(" • ")}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <div className="px-3 pb-2 text-[11px] text-muted-foreground">
           אפשר לפתוח משימה עם דאבל־קליק על השורה, עם לחיצה על מספר המשימה, או עם אייקון העין הקטן. זה לא פוגע בעריכה הרגילה של השדות.
         </div>
@@ -1290,8 +1451,12 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         onTabChange={setActiveTaskTab}
       >
         {(filteredTasks, viewMode) => {
+          const visibleTasks = filteredTasks.filter((task) =>
+            filteredTasksBySearch.some((candidate) => candidate.id === task.id)
+          );
+
           // Sort the filtered tasks
-          const displayTasks = [...filteredTasks].sort((a, b) => {
+          const displayTasks = [...visibleTasks].sort((a, b) => {
             if (sortBy === "none") return 0;
             switch (sortBy) {
               case "status":
@@ -1318,13 +1483,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             }
           });
 
-          if (filteredTasks.length === 0) {
+          if (visibleTasks.length === 0) {
             return (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <p className="text-lg">
-                  {viewMode === "archive" ? "אין משימות בארכיון" : 
-                   viewMode === "completed" ? "אין משימות שבוצעו" : 
-                   "אין משימות עדיין"}
+                  {taskSearch.trim()
+                    ? "לא נמצאו משימות שתואמות לחיפוש"
+                    : viewMode === "archive" ? "אין משימות בארכיון" :
+                      viewMode === "completed" ? "אין משימות שבוצעו" :
+                      "אין משימות עדיין"}
                 </p>
                 {!readOnly && viewMode === "active" && (
                   <Button variant="outline" className="mt-4" onClick={handleAddTask}>
