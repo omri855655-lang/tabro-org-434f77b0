@@ -111,6 +111,7 @@ const TASK_TABLE_COLUMNS: Array<{ key: TaskColumnKey; label: string; defaultWidt
 ];
 
 const MIN_COLUMN_WIDTH = 72;
+const FIT_SCREEN_MIN_COLUMN_WIDTH = 44;
 const MAX_COLUMN_WIDTH = 520;
 
 const TASK_HISTORY_LABELS: Record<string, string> = {
@@ -156,10 +157,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedTaskForAi, setSelectedTaskForAi] = useState<Task | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("none");
-  const [descriptionInput, setDescriptionInput] = useState("");
   const [taskSearch, setTaskSearch] = useState("");
   const [showSearchHistory, setShowSearchHistory] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [taskToMove, setTaskToMove] = useState<Task | null>(null);
   const [targetSheet, setTargetSheet] = useState<string>(currentYear);
@@ -455,35 +454,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     }
   };
 
-  // Similar task suggestions
-  const getSimilarTasks = useMemo(() => {
-    if (!descriptionInput.trim() || descriptionInput.length < 2) return [];
-    const input = descriptionInput.toLowerCase();
-    return tasks.filter(
-      (task) => 
-        task.id !== editingTaskId &&
-        task.description.toLowerCase().includes(input)
-    ).slice(0, 5);
-  }, [descriptionInput, tasks, editingTaskId]);
-
-  const quickAddSuggestionPool = useMemo(() => {
-    const seen = new Set<string>();
-    const values: string[] = [];
-    for (const task of tasks) {
-      const description = task.description.trim();
-      if (!description || seen.has(description)) continue;
-      seen.add(description);
-      values.push(description);
-    }
-    return values;
-  }, [tasks]);
-
-  const quickAddSuggestions = useMemo(() => {
-    const query = descriptionInput.trim().toLowerCase();
-    if (!query) return quickAddSuggestionPool.slice(0, 6);
-    return quickAddSuggestionPool.filter((item) => item.toLowerCase().includes(query)).slice(0, 6);
-  }, [descriptionInput, quickAddSuggestionPool]);
-
   const filteredTasksBySearch = useMemo(() => {
     if (!taskSearch.trim()) return tasks;
     const query = taskSearch.toLowerCase();
@@ -583,6 +553,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     const newTask = await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
     if (!newTask) return;
     setSelectedRow(newTask.id);
+    setEditingCell({ row: newTask.id, field: "description" });
     setPendingScrollTaskId(newTask.id);
   };
 
@@ -591,24 +562,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     if (!normalized) return;
     setSearchHistory((prev) => [normalized, ...prev.filter((entry) => entry !== normalized)].slice(0, 8));
   }, []);
-
-  const handleQuickAddTask = useCallback(async () => {
-    const description = descriptionInput.trim();
-    if (!description) return;
-
-    const defaultResponsible = taskType === "work" ? userProfileName : "";
-    const newTask = await addTask(selectedSheet ?? currentYear, {
-      description,
-      responsible: defaultResponsible,
-    });
-
-    if (!newTask) return;
-
-    setDescriptionInput("");
-    setActiveTaskTab("active");
-    setSelectedRow(newTask.id);
-    setPendingScrollTaskId(newTask.id);
-  }, [descriptionInput, taskType, userProfileName, addTask, selectedSheet, currentYear]);
 
   const handleDeleteTask = async () => {
     if (selectedRow) {
@@ -751,7 +704,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const getEffectiveColumnWidth = useCallback((key: TaskColumnKey) => {
     const baseWidth = columnWidths[key];
     if (!fitTableToScreen) return baseWidth;
-    return Math.max(MIN_COLUMN_WIDTH, Math.round(baseWidth * 0.62));
+    return Math.max(FIT_SCREEN_MIN_COLUMN_WIDTH, Math.round(baseWidth * 0.42));
   }, [columnWidths, fitTableToScreen]);
 
   const getColumnStyle = useCallback((key: TaskColumnKey) => ({
@@ -1368,52 +1321,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           </Popover>
         </div>
         </div>
-        {!readOnly && (
-          <div className="px-3 pb-3">
-            <div className="rounded-xl border border-border bg-background/80 p-3 space-y-2">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                <Input
-                  value={descriptionInput}
-                  onChange={(event) => setDescriptionInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void handleQuickAddTask();
-                    }
-                  }}
-                  placeholder="כתוב מהר משימה חדשה, ותקבל הצעות ממה שכבר היה במערכת"
-                />
-                <Button onClick={() => void handleQuickAddTask()} disabled={!descriptionInput.trim()}>
-                  <Plus className="h-4 w-4 ml-1" />
-                  הוסף מהר
-                </Button>
-              </div>
-              {quickAddSuggestions.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {quickAddSuggestions.map((suggestion) => (
-                    <Button
-                      key={suggestion}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7"
-                      onClick={() => setDescriptionInput(suggestion)}
-                    >
-                      {suggestion}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {getSimilarTasks.length > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  משימות דומות שכבר קיימות: {getSimilarTasks.map((task) => task.description).join(" • ")}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
         <div className="px-3 pb-2 text-[11px] text-muted-foreground">
-          אפשר לפתוח משימה עם דאבל־קליק על השורה, עם לחיצה על מספר המשימה, או עם אייקון העין הקטן. זה לא פוגע בעריכה הרגילה של השדות.
+          אפשר לפתוח משימה עם דאבל־קליק על השורה, עם לחיצה על מספר המשימה, או עם אייקון העין הקטן. משימה חדשה נפתחת ישר לעריכת תיאור עם הצעות ממשימות דומות שכבר כתבת בעבר.
         </div>
         {/* Sticky category/column headers bar */}
         <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
@@ -1604,7 +1513,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           
             return (
             <div ref={tableScrollRef} data-task-table className="min-h-0 h-full overflow-auto scroll-smooth">
-              <table className={`w-full border-collapse ${fitTableToScreen ? "min-w-full text-[11px]" : "min-w-[1200px]"}`}>
+              <table className={`w-full border-collapse ${fitTableToScreen ? "min-w-full text-[10px]" : "min-w-[1200px]"}`}>
             <colgroup>
               {TASK_TABLE_COLUMNS.map((column) => (
                 <col key={column.key} style={{ width: getEffectiveColumnWidth(column.key) }} />
@@ -1993,11 +1902,19 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 <div className="space-y-3">
                   <div className="space-y-1">
                     <Label>סיווג</Label>
-                    <Input value={detailTask.category} onChange={(e) => setDetailTask({ ...detailTask, category: e.target.value })} />
+                    <Input
+                      list={`task-category-history-${taskType}`}
+                      value={detailTask.category}
+                      onChange={(e) => setDetailTask({ ...detailTask, category: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>אחריות</Label>
-                    <Input value={detailTask.responsible} onChange={(e) => setDetailTask({ ...detailTask, responsible: e.target.value })} />
+                    <Input
+                      list={`task-responsible-history-${taskType}`}
+                      value={detailTask.responsible}
+                      onChange={(e) => setDetailTask({ ...detailTask, responsible: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>סיום מתוכנן</Label>
@@ -2108,6 +2025,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               </DialogFooter>
             </div>
           )}
+          <datalist id={`task-category-history-${taskType}`}>
+            {existingCategories.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+          <datalist id={`task-responsible-history-${taskType}`}>
+            {existingResponsibles.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
         </DialogContent>
       </Dialog>
       </>
