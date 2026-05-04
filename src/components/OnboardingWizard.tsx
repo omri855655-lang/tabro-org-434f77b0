@@ -162,6 +162,7 @@ const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
               <div className="text-sm text-muted-foreground leading-relaxed space-y-2 text-right bg-muted/30 rounded-xl p-4 border border-border/50">
                 <p className="font-medium text-foreground">{isHe ? "מה זה Tabro?" : "What is Tabro?"}</p>
                 <p>{isHe ? "מערכת ניהול חיים מלאה — משימות, פרויקטים, לוז, קניות, פתקים, תשלומים ועוד." : "A complete life management system — tasks, projects, planner, shopping, notes, payments and more."}</p>
+                <p>{isHe ? "בדשבורד המשימות: דאבל־קליק על שורה פותח עריכה מהירה, ו־3 קליקים פותחים את כל פרטי המשימה." : "In the task dashboard: double-click a row for quick editing, and triple-click to open full task details."}</p>
                 <p>{isHe ? "בעזרת סוכן AI מובנה, אפשר לבצע פעולות בהוראה פשוטה בטקסט." : "With a built-in AI agent, you can perform actions with simple natural-language text."}</p>
                 <p>{isHe ? "בשלבים הבאים תבחר עיצוב ותפעיל את הדשבורדים שמתאימים לך." : "In the next steps you'll choose a design and enable the dashboards that fit you best."}</p>
               </div>

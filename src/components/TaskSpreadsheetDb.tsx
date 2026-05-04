@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2, Search } from "lucide-react";
 import { BOARD_THEMES, type BoardTheme } from "@/hooks/useCustomBoards";
@@ -170,6 +170,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const stickyHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef<"table" | "header" | null>(null);
+  const rowClickTimerRef = useRef<number | null>(null);
   const [pendingScrollTaskId, setPendingScrollTaskId] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<TaskColumnKey, number>>(() => {
     const defaults = TASK_TABLE_COLUMNS.reduce((acc, column) => {
@@ -243,6 +244,14 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   useEffect(() => {
     localStorage.setItem(`task-search-history-${taskType}`, JSON.stringify(searchHistory.slice(0, 8)));
   }, [searchHistory, taskType]);
+
+  useEffect(() => {
+    return () => {
+      if (rowClickTimerRef.current) {
+        window.clearTimeout(rowClickTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const tableNode = tableScrollRef.current;
@@ -712,6 +721,37 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     minWidth: getEffectiveColumnWidth(key),
   }), [getEffectiveColumnWidth]);
 
+  const handleRowClick = useCallback((task: Task, event: ReactMouseEvent<HTMLTableRowElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, input, textarea, select, [role='combobox'], [data-no-row-click='true']")) {
+      return;
+    }
+
+    if (rowClickTimerRef.current) {
+      window.clearTimeout(rowClickTimerRef.current);
+      rowClickTimerRef.current = null;
+    }
+
+    if (event.detail >= 3) {
+      setSelectedRow(task.id);
+      setDetailTask(task);
+      return;
+    }
+
+    if (event.detail === 2) {
+      if (!readOnly) {
+        setSelectedRow(task.id);
+        setEditingCell({ row: task.id, field: "description" });
+      }
+      return;
+    }
+
+    rowClickTimerRef.current = window.setTimeout(() => {
+      setSelectedRow(task.id);
+      rowClickTimerRef.current = null;
+    }, 180);
+  }, [readOnly]);
+
   // Editable cell with suggestions for description
   const EditableCellWithSuggestions = ({
     value,
@@ -1041,7 +1081,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     return (
       <span
         className={cn(readOnly ? "cursor-default" : "cursor-text", className)}
-        onDoubleClick={() => {
+        onDoubleClick={(event) => {
+          event.stopPropagation();
           if (readOnly) return;
           setEditingCell({ row: taskId, field });
         }}
@@ -1322,7 +1363,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         </div>
         </div>
         <div className="px-3 pb-2 text-[11px] text-muted-foreground">
-          אפשר לפתוח משימה עם דאבל־קליק על השורה, עם לחיצה על מספר המשימה, או עם אייקון העין הקטן. משימה חדשה נפתחת ישר לעריכת תיאור עם הצעות ממשימות דומות שכבר כתבת בעבר.
+          קליק אחד מסמן משימה, דאבל־קליק על שורה פותח עריכה מהירה, ו־3 קליקים פותחים את כל פרטי המשימה. עדיין אפשר ללחוץ על מספר המשימה או על אייקון העין כדי לפתוח פרטים מלאים מיד.
         </div>
         {/* Sticky category/column headers bar */}
         <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
@@ -1545,8 +1586,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                       task.urgent && "bg-red-50 dark:bg-red-900/20 border-l-4 border-l-red-500",
                       task.overdue && task.status !== "בוצע" && !task.urgent && "bg-destructive/5"
                     )}
-                    onClick={() => setSelectedRow(task.id)}
-                    onDoubleClick={() => setDetailTask(task)}
+                    onClick={(event) => handleRowClick(task, event)}
                   >
                     <td className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-1" style={getColumnStyle("index")}>
                       {task.urgent && <Flame className="h-4 w-4 text-red-500" />}
