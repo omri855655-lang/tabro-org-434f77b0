@@ -59,6 +59,18 @@ interface TaskEditHistoryEntry {
   edited_by_username: string | null;
 }
 
+interface TaskDetailDialogProps {
+  task: Task | null;
+  taskType: "personal" | "work";
+  open: boolean;
+  categories: string[];
+  responsibles: string[];
+  history: TaskEditHistoryEntry[];
+  historyLoading: boolean;
+  onClose: () => void;
+  onSave: (updates: Partial<Task>) => Promise<void>;
+}
+
 const statusColors: Record<string, string> = {
   "בוצע": "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   "טרם החל": "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400",
@@ -135,6 +147,309 @@ const TASK_ACTION_LABELS: Record<string, string> = {
   restored: "שחזור",
   deleted: "מחיקה",
 };
+
+const getTaskThemeClasses = (theme: BoardTheme) => {
+  switch (theme) {
+    case "colorful":
+      return {
+        shell: "rounded-xl border border-blue-200/70 bg-gradient-to-b from-blue-50/40 to-purple-50/20 dark:border-blue-800/40 dark:from-blue-950/20 dark:to-purple-950/10",
+        toolbar: "bg-gradient-to-l from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/20",
+        stickyHeader: "bg-gradient-to-l from-blue-50/90 to-purple-50/90 dark:from-blue-950/60 dark:to-purple-950/50",
+      };
+    case "minimal":
+      return {
+        shell: "rounded-xl border border-border bg-background",
+        toolbar: "bg-background",
+        stickyHeader: "bg-background/95",
+      };
+    case "gradient":
+      return {
+        shell: "rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-background to-accent/10",
+        toolbar: "bg-gradient-to-l from-primary/5 to-accent/10",
+        stickyHeader: "bg-gradient-to-l from-primary/10 to-accent/10",
+      };
+    case "dark":
+      return {
+        shell: "rounded-xl border border-slate-700 bg-slate-950/90 text-slate-100",
+        toolbar: "bg-slate-900/95",
+        stickyHeader: "bg-slate-900",
+      };
+    case "pastel":
+      return {
+        shell: "rounded-xl border border-pink-200/70 bg-gradient-to-br from-pink-50/50 to-amber-50/40 dark:border-pink-800/40 dark:from-pink-950/20 dark:to-amber-950/10",
+        toolbar: "bg-gradient-to-l from-pink-50 to-amber-50 dark:from-pink-950/30 dark:to-amber-950/20",
+        stickyHeader: "bg-gradient-to-l from-pink-50/90 to-amber-50/90 dark:from-pink-950/60 dark:to-amber-950/50",
+      };
+    case "ocean":
+      return {
+        shell: "rounded-xl border border-cyan-200/70 bg-gradient-to-br from-cyan-50/40 to-sky-50/30 dark:border-cyan-800/40 dark:from-cyan-950/20 dark:to-sky-950/10",
+        toolbar: "bg-gradient-to-l from-cyan-50 to-sky-50 dark:from-cyan-950/30 dark:to-sky-950/20",
+        stickyHeader: "bg-gradient-to-l from-cyan-50/90 to-sky-50/90 dark:from-cyan-950/60 dark:to-sky-950/50",
+      };
+    case "forest":
+      return {
+        shell: "rounded-xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/40 to-green-50/30 dark:border-emerald-800/40 dark:from-emerald-950/20 dark:to-green-950/10",
+        toolbar: "bg-gradient-to-l from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/20",
+        stickyHeader: "bg-gradient-to-l from-emerald-50/90 to-green-50/90 dark:from-emerald-950/60 dark:to-green-950/50",
+      };
+    case "sunset":
+      return {
+        shell: "rounded-xl border border-orange-200/70 bg-gradient-to-br from-orange-50/40 to-rose-50/30 dark:border-orange-800/40 dark:from-orange-950/20 dark:to-rose-950/10",
+        toolbar: "bg-gradient-to-l from-orange-50 to-rose-50 dark:from-orange-950/30 dark:to-rose-950/20",
+        stickyHeader: "bg-gradient-to-l from-orange-50/90 to-rose-50/90 dark:from-orange-950/60 dark:to-rose-950/50",
+      };
+    case "notion":
+      return {
+        shell: "rounded-xl border border-border bg-stone-50/70 dark:bg-stone-950/40",
+        toolbar: "bg-stone-50/80 dark:bg-stone-950/60",
+        stickyHeader: "bg-stone-100/90 dark:bg-stone-900/90",
+      };
+    case "trello":
+      return {
+        shell: "rounded-xl border border-blue-300/30 bg-gradient-to-br from-blue-600/5 to-blue-700/10",
+        toolbar: "bg-blue-600/5",
+        stickyHeader: "bg-blue-600 text-white",
+      };
+    case "glass":
+      return {
+        shell: "rounded-xl border border-white/20 bg-white/10 backdrop-blur-md dark:border-white/10 dark:bg-white/5",
+        toolbar: "bg-white/10 backdrop-blur-sm dark:bg-white/5",
+        stickyHeader: "bg-white/20 backdrop-blur-sm dark:bg-white/10",
+      };
+    case "status":
+      return {
+        shell: "rounded-xl border border-emerald-200/60 bg-background",
+        toolbar: "bg-background",
+        stickyHeader: "bg-background/95",
+      };
+    default:
+      return {
+        shell: "rounded-xl border border-border bg-background",
+        toolbar: "bg-muted/30",
+        stickyHeader: "bg-muted/50",
+      };
+  }
+};
+
+const getTaskRowThemeClasses = (theme: BoardTheme, task: Task) => {
+  if (theme === "status") {
+    if (task.status === "בוצע") {
+      return "bg-emerald-50/90 dark:bg-emerald-950/20 hover:bg-emerald-100/80 dark:hover:bg-emerald-950/30";
+    }
+    if (task.status === "בטיפול") {
+      return "bg-amber-50/90 dark:bg-amber-950/20 hover:bg-amber-100/80 dark:hover:bg-amber-950/30";
+    }
+    return "bg-rose-50/80 dark:bg-rose-950/15 hover:bg-rose-100/70 dark:hover:bg-rose-950/25";
+  }
+
+  switch (theme) {
+    case "dark":
+      return "hover:bg-slate-800/80";
+    case "glass":
+      return "hover:bg-white/20 dark:hover:bg-white/10";
+    case "gradient":
+      return "hover:bg-primary/5";
+    case "trello":
+      return "hover:bg-blue-50/70 dark:hover:bg-blue-950/20";
+    default:
+      return "hover:bg-accent/30";
+  }
+};
+
+const parseAiTaskSections = (suggestion: string) => {
+  const normalized = suggestion.replace(/\r/g, "");
+  const statusMatch = normalized.match(/(?:היכן זה עומד|סטטוס נוכחי|מצב נוכחי)\s*[:：]\s*([\s\S]*?)(?=\n(?:משימות שבוצעו|בוצע עד עכשיו|התקדמות)\s*[:：]|$)/);
+  const progressMatch = normalized.match(/(?:משימות שבוצעו|בוצע עד עכשיו|התקדמות)\s*[:：]\s*([\s\S]*?)$/);
+
+  return {
+    statusNotes: statusMatch?.[1]?.trim() || "",
+    progress: progressMatch?.[1]?.trim() || "",
+  };
+};
+
+function TaskDetailDialog({
+  task,
+  taskType,
+  open,
+  categories,
+  responsibles,
+  history,
+  historyLoading,
+  onClose,
+  onSave,
+}: TaskDetailDialogProps) {
+  const [draft, setDraft] = useState<Task | null>(task);
+
+  useEffect(() => {
+    setDraft(task);
+  }, [task]);
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <DialogContent className="max-w-3xl" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>פרטי משימה מלאים</DialogTitle>
+        </DialogHeader>
+        {draft && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>תיאור המשימה</Label>
+                <Textarea
+                  value={draft.description}
+                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                  className="min-h-[90px]"
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label>סיווג</Label>
+                    <Input
+                      list={`task-category-history-${taskType}`}
+                      value={draft.category}
+                    onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>אחריות</Label>
+                    <Input
+                      list={`task-responsible-history-${taskType}`}
+                      value={draft.responsible}
+                    onChange={(e) => setDraft({ ...draft, responsible: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>סיום מתוכנן</Label>
+                  <Input type="date" value={draft.plannedEnd || ""} onChange={(e) => setDraft({ ...draft, plannedEnd: e.target.value })} />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label>סטטוס</Label>
+                <Select value={draft.status} onValueChange={(value) => setDraft({ ...draft, status: value as Task["status"] })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="טרם החל">טרם החל</SelectItem>
+                    <SelectItem value="בטיפול">בטיפול</SelectItem>
+                    <SelectItem value="בוצע">בוצע</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>דחוף</Label>
+                <Button variant={draft.urgent ? "default" : "outline"} onClick={() => setDraft({ ...draft, urgent: !draft.urgent })}>
+                  {draft.urgent ? "כן, מסומן כדחוף" : "לא דחוף"}
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <Label>גליון</Label>
+                <Input value={draft.sheetName} disabled />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>היכן זה עומד</Label>
+                <Textarea
+                  value={draft.statusNotes}
+                  onChange={(e) => setDraft({ ...draft, statusNotes: e.target.value })}
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>משימות שבוצעו / התקדמות</Label>
+                <Textarea
+                  value={draft.progress}
+                  onChange={(e) => setDraft({ ...draft, progress: e.target.value })}
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3 text-sm">
+              <div className="font-semibold">מעקב עריכות</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-muted-foreground">
+                <div>
+                  <div className="font-medium text-foreground">נוצר על ידי</div>
+                  <div>{draft.creatorName || draft.creatorEmail || "לא ידוע"}</div>
+                  <div>{draft.createdAt ? new Date(draft.createdAt).toLocaleString("he-IL") : "-"}</div>
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">עודכן לאחרונה על ידי</div>
+                  <div>{draft.lastEditorName || draft.lastEditorEmail || "לא ידוע"}</div>
+                  <div>{draft.updatedAt ? new Date(draft.updatedAt).toLocaleString("he-IL") : "-"}</div>
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-foreground">יומן עריכות מלא</div>
+                  <div className="text-xs text-muted-foreground">
+                    {history.length === 0 ? "אין עדיין עריכות שמורות" : `${history.filter((entry) => entry.action_type !== "created").length} עריכות שמורות`}
+                  </div>
+                </div>
+                {historyLoading ? (
+                  <div className="text-xs text-muted-foreground">טוען היסטוריית עריכות...</div>
+                ) : history.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">עדיין אין יומן עריכות מפורט למשימה הזו.</div>
+                ) : (
+                  <div className="space-y-2 max-h-[220px] overflow-auto">
+                    {history.map((entry) => (
+                      <div key={entry.id} className="rounded-md border border-border/70 bg-background px-3 py-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="font-medium text-foreground">
+                            {TASK_ACTION_LABELS[entry.action_type] || entry.action_type}
+                            {entry.changed_count > 0 ? ` · ${entry.changed_count} שדות` : ""}
+                          </div>
+                          <div className="text-muted-foreground">
+                            {entry.created_at ? new Date(entry.created_at).toLocaleString("he-IL") : "-"}
+                          </div>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          על ידי {entry.edited_by_name || entry.edited_by_email || entry.edited_by_username || "לא ידוע"}
+                        </div>
+                        <div className="mt-1 text-xs text-foreground/80">
+                          {Object.keys(entry.changed_fields || {}).length === 0
+                            ? TASK_ACTION_LABELS[entry.action_type] || entry.action_type
+                            : Object.keys(entry.changed_fields || {}).map((key) => TASK_HISTORY_LABELS[key] || key).join(" ,")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>סגור</Button>
+              <Button onClick={() => void onSave({
+                description: draft.description,
+                category: draft.category,
+                responsible: draft.responsible,
+                status: draft.status,
+                statusNotes: draft.statusNotes,
+                progress: draft.progress,
+                plannedEnd: draft.plannedEnd,
+                urgent: draft.urgent,
+              })}>שמור שינויים</Button>
+            </DialogFooter>
+          </div>
+        )}
+        <datalist id={`task-category-history-${taskType}`}>
+          {categories.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+        <datalist id={`task-responsible-history-${taskType}`}>
+          {responsibles.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
   const isSharedSheet = !!fixedSheetOwnerId;
@@ -610,22 +925,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     }
   };
 
-  const handleSaveTaskDetails = async () => {
-    if (!detailTask) return;
-    await updateTask(detailTask.id, {
-      description: detailTask.description,
-      category: detailTask.category,
-      responsible: detailTask.responsible,
-      status: detailTask.status,
-      statusNotes: detailTask.statusNotes,
-      progress: detailTask.progress,
-      plannedEnd: detailTask.plannedEnd,
-      urgent: detailTask.urgent,
-    });
-    setDetailTask(null);
-    toast.success("פרטי המשימה נשמרו");
-  };
-
   const handleAiHelp = async (task: Task) => {
     if (!task.description.trim()) {
       toast.error("נא להזין תיאור משימה לפני בקשת עזרה מ-AI");
@@ -639,7 +938,20 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
     try {
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
-        body: { taskDescription: task.description, taskCategory: task.category },
+        body: {
+          taskDescription: task.description,
+          taskCategory: task.category,
+          customPrompt: `תיאור המשימה: ${task.description || "ללא"}
+קטגוריה: ${task.category || "ללא"}
+היכן זה עומד כרגע: ${task.statusNotes || "טרם עודכן"}
+משימות שבוצעו כרגע: ${task.progress || "טרם עודכן"}
+
+החזר תשובה קצרה ומעשית בעברית, ובמידת האפשר חלק אותה בדיוק לשני חלקים:
+היכן זה עומד: ...
+משימות שבוצעו: ...
+
+אם חסר מידע, תן ניסוח הצעה ריאלי שאפשר להדביק ישירות לשדות.`,
+        },
       });
 
       if (error) {
@@ -658,16 +970,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     } finally {
       setAiLoading(false);
     }
-  };
-
-  const renderHistoryChangeSummary = (entry: TaskEditHistoryEntry) => {
-    const fieldKeys = Object.keys(entry.changed_fields || {});
-    if (fieldKeys.length === 0) {
-      return TASK_ACTION_LABELS[entry.action_type] || entry.action_type;
-    }
-    return fieldKeys
-      .map((key) => TASK_HISTORY_LABELS[key] || key)
-      .join(" ,");
   };
 
   const exportToCSV = () => {
@@ -733,16 +1035,23 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     }
 
     if (event.detail >= 3) {
+      if (rowClickTimerRef.current) {
+        window.clearTimeout(rowClickTimerRef.current);
+        rowClickTimerRef.current = null;
+      }
       setSelectedRow(task.id);
       setDetailTask(task);
       return;
     }
 
     if (event.detail === 2) {
-      if (!readOnly) {
-        setSelectedRow(task.id);
-        setEditingCell({ row: task.id, field: "description" });
-      }
+      rowClickTimerRef.current = window.setTimeout(() => {
+        if (!readOnly) {
+          setSelectedRow(task.id);
+          setEditingCell({ row: task.id, field: "description" });
+        }
+        rowClickTimerRef.current = null;
+      }, 220);
       return;
     }
 
@@ -891,6 +1200,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
   const existingCategories = allCategories;
   const existingResponsibles = allResponsibles;
+  const taskThemeClasses = getTaskThemeClasses(dashTheme as BoardTheme);
 
   const EditableCellInput = ({
     value,
@@ -1103,7 +1413,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   }
 
   return (
-    <div className="flex flex-col h-full bg-background" dir="rtl">
+    <div className={cn("flex flex-col h-full bg-background", taskThemeClasses.shell)} dir="rtl">
       {/* Shared sheet collapse toggle */}
       {isSharedSheet && (
         <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
@@ -1232,7 +1542,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       </div>
 
       {/* Toolbar - sticky below stats */}
-      <div className="border-b border-border bg-muted/30 sticky top-[52px] z-20">
+      <div className={cn("border-b border-border sticky top-[52px] z-20", taskThemeClasses.toolbar)}>
         <div className="flex items-center gap-2 p-3">
         <h2 className="text-lg font-semibold text-foreground ml-4">{title}</h2>
         {!readOnly && (
@@ -1367,7 +1677,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         </div>
         {/* Sticky category/column headers bar */}
         <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
-          <div className="flex items-stretch bg-muted/50 text-[11px] text-muted-foreground min-w-max">
+          <div className={cn("flex items-stretch text-[11px] text-muted-foreground min-w-max", taskThemeClasses.stickyHeader)}>
             {TASK_TABLE_COLUMNS.map((column) => (
               <div
                 key={column.key}
@@ -1581,7 +1891,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     key={task.id}
                     data-task-row={task.id}
                     className={cn(
-                      "border-b border-border hover:bg-accent/30 transition-colors cursor-pointer",
+                      "border-b border-border transition-colors cursor-pointer",
+                      getTaskRowThemeClasses(dashTheme as BoardTheme, task),
                       selectedRow === task.id && "bg-primary/10",
                       task.urgent && "bg-red-50 dark:bg-red-900/20 border-l-4 border-l-red-500",
                       task.overdue && task.status !== "בוצע" && !task.urgent && "bg-destructive/5"
@@ -1851,8 +2162,38 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 <span className="mr-2 text-muted-foreground">מקבל הצעות...</span>
               </div>
             ) : (
-              <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg whitespace-pre-wrap text-sm">
-                {aiSuggestion}
+              <div className="space-y-3">
+                <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg whitespace-pre-wrap text-sm">
+                  {aiSuggestion}
+                </div>
+                {selectedTaskForAi && !readOnly && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const sections = parseAiTaskSections(aiSuggestion);
+                        const nextValue = sections.statusNotes || aiSuggestion;
+                        void updateTask(selectedTaskForAi.id, { statusNotes: nextValue });
+                        toast.success("עודכן שדה היכן זה עומד");
+                      }}
+                    >
+                      עדכן היכן זה עומד
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const sections = parseAiTaskSections(aiSuggestion);
+                        const nextValue = sections.progress || aiSuggestion;
+                        void updateTask(selectedTaskForAi.id, { progress: nextValue });
+                        toast.success("עודכן שדה משימות שבוצעו");
+                      }}
+                    >
+                      עדכן משימות שבוצעו
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1923,160 +2264,22 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         availableSheets={availableSheets}
       />
 
-      <Dialog open={!!detailTask} onOpenChange={(open) => { if (!open) setDetailTask(null); }}>
-        <DialogContent className="max-w-3xl" dir="rtl">
-          <DialogHeader>
-            <DialogTitle>פרטי משימה מלאים</DialogTitle>
-          </DialogHeader>
-          {detailTask && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>תיאור המשימה</Label>
-                  <Textarea
-                    value={detailTask.description}
-                    onChange={(e) => setDetailTask({ ...detailTask, description: e.target.value })}
-                    className="min-h-[90px]"
-                  />
-                </div>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <Label>סיווג</Label>
-                    <Input
-                      list={`task-category-history-${taskType}`}
-                      value={detailTask.category}
-                      onChange={(e) => setDetailTask({ ...detailTask, category: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>אחריות</Label>
-                    <Input
-                      list={`task-responsible-history-${taskType}`}
-                      value={detailTask.responsible}
-                      onChange={(e) => setDetailTask({ ...detailTask, responsible: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>סיום מתוכנן</Label>
-                    <Input type="date" value={detailTask.plannedEnd || ""} onChange={(e) => setDetailTask({ ...detailTask, plannedEnd: e.target.value })} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label>סטטוס</Label>
-                  <Select value={detailTask.status} onValueChange={(value) => setDetailTask({ ...detailTask, status: value as Task["status"] })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="טרם החל">טרם החל</SelectItem>
-                      <SelectItem value="בטיפול">בטיפול</SelectItem>
-                      <SelectItem value="בוצע">בוצע</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>דחוף</Label>
-                  <Button variant={detailTask.urgent ? "default" : "outline"} onClick={() => setDetailTask({ ...detailTask, urgent: !detailTask.urgent })}>
-                    {detailTask.urgent ? "כן, מסומן כדחוף" : "לא דחוף"}
-                  </Button>
-                </div>
-                <div className="space-y-1">
-                  <Label>גליון</Label>
-                  <Input value={detailTask.sheetName} disabled />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>היכן זה עומד</Label>
-                  <Textarea
-                    value={detailTask.statusNotes}
-                    onChange={(e) => setDetailTask({ ...detailTask, statusNotes: e.target.value })}
-                    className="min-h-[100px]"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>משימות שבוצעו / התקדמות</Label>
-                  <Textarea
-                    value={detailTask.progress}
-                    onChange={(e) => setDetailTask({ ...detailTask, progress: e.target.value })}
-                    className="min-h-[100px]"
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3 text-sm">
-                <div className="font-semibold">מעקב עריכות</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-muted-foreground">
-                  <div>
-                    <div className="font-medium text-foreground">נוצר על ידי</div>
-                    <div>{detailTask.creatorName || detailTask.creatorEmail || "לא ידוע"}</div>
-                    <div>{detailTask.createdAt ? new Date(detailTask.createdAt).toLocaleString('he-IL') : "-"}</div>
-                  </div>
-                  <div>
-                    <div className="font-medium text-foreground">עודכן לאחרונה על ידי</div>
-                    <div>{detailTask.lastEditorName || detailTask.lastEditorEmail || "לא ידוע"}</div>
-                    <div>{detailTask.updatedAt ? new Date(detailTask.updatedAt).toLocaleString('he-IL') : "-"}</div>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-foreground">יומן עריכות מלא</div>
-                    <div className="text-xs text-muted-foreground">
-                      {detailHistory.length === 0
-                        ? "אין עדיין עריכות שמורות"
-                        : `${detailHistory.filter((entry) => entry.action_type !== "created").length} עריכות שמורות`}
-                    </div>
-                  </div>
-                  {detailHistoryLoading ? (
-                    <div className="text-xs text-muted-foreground">טוען היסטוריית עריכות...</div>
-                  ) : detailHistory.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">עדיין אין יומן עריכות מפורט למשימה הזו.</div>
-                  ) : (
-                    <div className="space-y-2 max-h-[220px] overflow-auto">
-                      {detailHistory.map((entry) => (
-                        <div key={entry.id} className="rounded-md border border-border/70 bg-background px-3 py-2">
-                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <div className="font-medium text-foreground">
-                              {TASK_ACTION_LABELS[entry.action_type] || entry.action_type}
-                              {entry.changed_count > 0 ? ` · ${entry.changed_count} שדות` : ""}
-                            </div>
-                            <div className="text-muted-foreground">
-                              {entry.created_at ? new Date(entry.created_at).toLocaleString("he-IL") : "-"}
-                            </div>
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            על ידי {entry.edited_by_name || entry.edited_by_email || entry.edited_by_username || "לא ידוע"}
-                          </div>
-                          <div className="mt-1 text-xs text-foreground/80">
-                            {renderHistoryChangeSummary(entry)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDetailTask(null)}>סגור</Button>
-                <Button onClick={handleSaveTaskDetails}>שמור שינויים</Button>
-              </DialogFooter>
-            </div>
-          )}
-          <datalist id={`task-category-history-${taskType}`}>
-            {existingCategories.map((item) => (
-              <option key={item} value={item} />
-            ))}
-          </datalist>
-          <datalist id={`task-responsible-history-${taskType}`}>
-            {existingResponsibles.map((item) => (
-              <option key={item} value={item} />
-            ))}
-          </datalist>
-        </DialogContent>
-      </Dialog>
+      <TaskDetailDialog
+        task={detailTask}
+        taskType={taskType}
+        open={!!detailTask}
+        categories={existingCategories}
+        responsibles={existingResponsibles}
+        history={detailHistory}
+        historyLoading={detailHistoryLoading}
+        onClose={() => setDetailTask(null)}
+        onSave={async (updates) => {
+          if (!detailTask) return;
+          await updateTask(detailTask.id, updates);
+          setDetailTask(null);
+          toast.success("פרטי המשימה נשמרו");
+        }}
+      />
       </>
       )}
     </div>

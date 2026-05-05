@@ -69,6 +69,8 @@ const getThemeStyles = (theme: BoardTheme) => {
       return { ...base, columnBorder: "border-0 bg-neutral-200/80 dark:bg-neutral-800/80 rounded-xl", columnBorderOver: "bg-neutral-300/80 dark:bg-neutral-700/80", columnHeader: "bg-transparent text-neutral-700 dark:text-neutral-200 font-bold px-2", card: "border-0 bg-white dark:bg-neutral-900 shadow-sm hover:shadow-md transition-shadow rounded-lg", tableHeader: "bg-blue-600 text-white", wrapper: "bg-gradient-to-br from-blue-600/10 to-blue-700/10 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl p-3" };
     case "glass":
       return { ...base, columnBorder: "border border-white/20 dark:border-white/10 bg-white/10 dark:bg-white/5 backdrop-blur-md rounded-xl", columnBorderOver: "border-white/40 bg-white/20", columnHeader: "bg-white/20 dark:bg-white/10 backdrop-blur-sm text-foreground", card: "border-white/20 dark:border-white/10 bg-white/30 dark:bg-white/5 backdrop-blur-sm shadow-lg hover:bg-white/40 dark:hover:bg-white/10 transition-all", tableHeader: "bg-white/10 backdrop-blur-sm", wrapper: "bg-gradient-to-br from-primary/5 via-accent/5 to-secondary/5 backdrop-blur-sm rounded-xl p-3" };
+    case "status":
+      return { ...base, columnBorder: "border-2 border-emerald-200/60 bg-background rounded-xl", columnBorderOver: "border-emerald-400 bg-emerald-50/30", columnHeader: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200", card: "border-emerald-200/40 bg-white dark:bg-card shadow-sm", tableHeader: "bg-emerald-50/80 dark:bg-emerald-950/40", wrapper: "rounded-xl p-3 border border-emerald-200/40 bg-background" };
     default:
       return base;
   }
