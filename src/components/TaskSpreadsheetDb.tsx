@@ -1089,7 +1089,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     }, [editValue, taskId]);
 
     return (
-      <div className="relative">
+      <div className="relative" data-no-row-click="true">
         <textarea
           value={editValue}
           onChange={(e) => {
@@ -1257,7 +1257,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     // For category/responsible fields, show autocomplete
     if (field === "category" || field === "responsible") {
       return (
-        <div className="relative">
+        <div className="relative" data-no-row-click="true">
           <input
             type="text"
             value={editValue}
@@ -1390,8 +1390,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
     return (
       <span
+        data-no-row-click="true"
         className={cn(readOnly ? "cursor-default" : "cursor-text", className)}
+        onClick={(event) => event.stopPropagation()}
         onDoubleClick={(event) => {
+          event.preventDefault();
           event.stopPropagation();
           if (readOnly) return;
           setEditingCell({ row: taskId, field });
@@ -1945,13 +1948,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
                     </td>
-                    <td className="px-3 py-2 text-sm" style={getColumnStyle("description")}>
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("description")} data-no-row-click="true">
                       {renderEditableCell(task.description, task.id, "description")}
                     </td>
-                    <td className="px-3 py-2 text-sm" style={getColumnStyle("category")}>
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("category")} data-no-row-click="true">
                       {renderEditableCell(task.category, task.id, "category", "text-muted-foreground")}
                     </td>
-                    <td className="px-3 py-2 text-sm" style={getColumnStyle("responsible")}>
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("responsible")} data-no-row-click="true">
                       {renderEditableCell(task.responsible, task.id, "responsible")}
                     </td>
                     <td className="px-3 py-2 text-sm" style={getColumnStyle("status")}>
@@ -1991,13 +1994,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="px-3 py-2 text-sm" style={getColumnStyle("statusNotes")}>
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("statusNotes")} data-no-row-click="true">
                       {renderEditableCell(task.statusNotes, task.id, "statusNotes", "text-muted-foreground text-xs")}
                     </td>
-                    <td className="px-3 py-2 text-sm" style={getColumnStyle("progress")}>
+                    <td className="px-3 py-2 text-sm" style={getColumnStyle("progress")} data-no-row-click="true">
                       {renderEditableCell(task.progress, task.id, "progress", "text-muted-foreground text-xs")}
                     </td>
-                    <td className="px-3 py-2 text-sm whitespace-nowrap" style={getColumnStyle("plannedEnd")}>
+                    <td className="px-3 py-2 text-sm whitespace-nowrap" style={getColumnStyle("plannedEnd")} data-no-row-click="true">
                       {renderEditableCell(task.plannedEnd, task.id, "plannedEnd")}
                     </td>
                     <td className="px-3 py-2 text-sm text-center" style={getColumnStyle("overdue")}>
