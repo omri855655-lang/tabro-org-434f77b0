@@ -55,6 +55,8 @@ interface Stats {
       sent_by?: string;
       reply_to?: string;
       followUpSuggested?: string;
+      mailbox_type?: "inbox" | "outbox";
+      message_source?: string;
     } | null;
   }[];
 }
@@ -178,6 +180,14 @@ const AdminDashboard = () => {
     setComposeBody(parsed.body ? `\n\n---\n${parsed.body}` : "");
     setEmailTab("outbox");
   }, [isHe, parseMailRow]);
+
+  const isInboxRow = useCallback((row: Stats["recentEmailLog"][number]) => {
+    return row.metadata?.mailbox_type === "inbox" || row.template_name === "contact-form" || row.template_name === "contact_form";
+  }, []);
+
+  const isOutboxRow = useCallback((row: Stats["recentEmailLog"][number]) => {
+    return row.metadata?.mailbox_type === "outbox" || !isInboxRow(row);
+  }, [isInboxRow]);
   const copy = isHe
     ? {
         adminAccess: "גישה לאדמין",
@@ -693,7 +703,7 @@ const AdminDashboard = () => {
             {emailTab === "inbox" ? (
               /* Inbox — contact form submissions */
               (() => {
-                const inboxEmails = (mailbox?.recentEmailLog || []).filter(e => e.template_name === "contact-form" || e.template_name === "contact_form");
+                const inboxEmails = (mailbox?.recentEmailLog || []).filter(isInboxRow);
                 const filteredInbox = inboxEmails.filter(e => {
                   const matchSearch = !emailSearch || buildMailboxSearchText(e).includes(emailSearch.toLowerCase());
                   const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;
@@ -782,6 +792,7 @@ const AdminDashboard = () => {
                       </TableHeader>
                       <TableBody>
                         {(mailbox?.recentEmailLog || [])
+                          .filter(isOutboxRow)
                           .filter(e => {
                             const matchSearch = !emailSearch || buildMailboxSearchText(e).includes(emailSearch.toLowerCase());
                             const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;

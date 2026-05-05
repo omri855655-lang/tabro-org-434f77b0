@@ -136,6 +136,8 @@ Deno.serve(async (req) => {
         messagePreview,
         messageBody: message,
         followUpSuggested: category === 'bug' ? 'מומלץ לחזור עם עדכון סטטוס' : 'מומלץ לבדוק אם נדרש follow-up',
+        mailbox_type: 'inbox',
+        message_source: 'contact_form',
       },
     })
 

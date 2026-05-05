@@ -5,6 +5,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-password',
 }
 
+type MailLogRow = {
+  message_id: string | null
+  template_name: string
+  recipient_email: string
+  status: string
+  error_message: string | null
+  created_at: string
+  metadata?: Record<string, unknown> | null
+}
+
+function inferMailboxType(row: MailLogRow): 'inbox' | 'outbox' {
+  const mailboxType = typeof row.metadata?.mailbox_type === 'string' ? row.metadata.mailbox_type : null
+  if (mailboxType === 'inbox' || mailboxType === 'outbox') {
+    return mailboxType
+  }
+  if (row.template_name === 'contact-form' || row.template_name === 'contact_form') {
+    return 'inbox'
+  }
+  return 'outbox'
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -221,13 +242,21 @@ Deno.serve(async (req) => {
         )
       }
 
-      const inbox = (recentEmailLogRaw || []).filter((row) => row.template_name === 'contact-form' || row.template_name === 'contact_form')
-      const outbox = (recentEmailLogRaw || []).filter((row) => row.template_name !== 'contact-form' && row.template_name !== 'contact_form')
+      const normalizedEmailLog = (recentEmailLogRaw || []).map((row: MailLogRow) => ({
+        ...row,
+        metadata: {
+          ...(row.metadata || {}),
+          mailbox_type: inferMailboxType(row),
+        },
+      }))
+
+      const inbox = normalizedEmailLog.filter((row) => row.metadata?.mailbox_type === 'inbox')
+      const outbox = normalizedEmailLog.filter((row) => row.metadata?.mailbox_type === 'outbox')
 
       return new Response(
         JSON.stringify({
           mailboxAddress: 'info@tabro.org',
-          recentEmailLog: recentEmailLogRaw || [],
+          recentEmailLog: normalizedEmailLog,
           inboxCount: inbox.length,
           outboxCount: outbox.length,
         }),
@@ -241,16 +270,14 @@ Deno.serve(async (req) => {
       const sinceIso = since.toISOString()
 
       const [
-        { count: totalUsers },
-        { count: recentSignups },
+        authUsersResult,
         { count: totalTasks },
         { count: totalLoginLogs },
         { data: loginLogsRaw },
         { data: adminEmailsRaw },
-        { data: userListRaw },
+        { data: userProfilesRaw },
       ] = await Promise.all([
-        adminClient.from('profiles').select('id', { count: 'exact', head: true }),
-        adminClient.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sinceIso),
+        adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 }),
         adminClient.from('tasks').select('id', { count: 'exact', head: true }),
         adminClient.from('admin_login_log').select('id', { count: 'exact', head: true }),
         adminClient.from('admin_login_log').select('user_email, user_id, logged_in_at').order('logged_in_at', { ascending: false }).limit(200),
@@ -263,21 +290,61 @@ Deno.serve(async (req) => {
           .from('profiles')
           .select('email, created_at, last_sign_in_at')
           .order('created_at', { ascending: false })
-          .limit(50),
+          .limit(1000),
       ])
+
+      const authUsers = authUsersResult.data?.users || []
+      const authUsersByEmail = new Map(
+        authUsers
+          .map((authUser) => [String(authUser.email || '').toLowerCase(), authUser] as const)
+          .filter(([email]) => email),
+      )
+
+      const mergedUsers = new Map<string, { email: string; created_at: string; last_sign_in_at: string | null }>()
+
+      for (const profile of userProfilesRaw || []) {
+        const email = String(profile.email || '').toLowerCase()
+        if (!email) continue
+        const authUser = authUsersByEmail.get(email)
+        mergedUsers.set(email, {
+          email: profile.email,
+          created_at: profile.created_at || authUser?.created_at || new Date(0).toISOString(),
+          last_sign_in_at: profile.last_sign_in_at || authUser?.last_sign_in_at || null,
+        })
+      }
+
+      for (const authUser of authUsers) {
+        const email = String(authUser.email || '').toLowerCase()
+        if (!email || mergedUsers.has(email)) continue
+        mergedUsers.set(email, {
+          email: authUser.email || email,
+          created_at: authUser.created_at || new Date(0).toISOString(),
+          last_sign_in_at: authUser.last_sign_in_at || null,
+        })
+      }
+
+      const mergedUserList = Array.from(mergedUsers.values())
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 100)
 
       const recentLoginLogs = (loginLogsRaw || []).filter((log) => {
         const when = log.logged_in_at ? new Date(log.logged_in_at).getTime() : 0
         return when >= new Date(sinceIso).getTime()
       })
 
-      const activeUserKeys = new Set(
-        recentLoginLogs
-          .map((log: any) => log.user_id || log.user_email)
-          .filter(Boolean),
-      )
+      const activeUserKeys = new Set<string>()
+      for (const log of recentLoginLogs) {
+        const key = String(log.user_id || log.user_email || '').trim().toLowerCase()
+        if (key) activeUserKeys.add(key)
+      }
+      for (const user of mergedUserList) {
+        const when = user.last_sign_in_at ? new Date(user.last_sign_in_at).getTime() : 0
+        if (when >= new Date(sinceIso).getTime()) {
+          activeUserKeys.add(String(user.email || '').trim().toLowerCase())
+        }
+      }
 
-      const loginByUser = Array.from(
+      let loginByUser = Array.from(
         recentLoginLogs.reduce((acc: Map<string, { user_email: string; count: number; last_login_at: string }>, log: any) => {
           const key = log.user_id || log.user_email || 'unknown'
           const current = acc.get(key)
@@ -299,18 +366,27 @@ Deno.serve(async (req) => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 20)
 
+      if (loginByUser.length === 0) {
+        loginByUser = mergedUserList
+          .filter((user) => user.last_sign_in_at && new Date(user.last_sign_in_at).getTime() >= new Date(sinceIso).getTime())
+          .map((user) => ({
+            user_email: user.email,
+            count: 1,
+            last_login_at: user.last_sign_in_at as string,
+          }))
+          .sort((a, b) => new Date(b.last_login_at).getTime() - new Date(a.last_login_at).getTime())
+          .slice(0, 20)
+      }
+
       const adminEmails = (adminEmailsRaw || []).map((entry: any) => ({
         user_id: entry.user_id,
         created_at: entry.created_at,
         email: entry.profiles?.email || '',
       }))
 
-      const safeUserList = userListRaw || []
-      const derivedTotalUsers = Math.max(totalUsers || 0, safeUserList.length)
-      const derivedRecentSignups = Math.max(
-        recentSignups || 0,
-        safeUserList.filter((user: any) => user.created_at && new Date(user.created_at).getTime() >= new Date(sinceIso).getTime()).length,
-      )
+      const safeUserList = mergedUserList
+      const derivedTotalUsers = safeUserList.length
+      const derivedRecentSignups = safeUserList.filter((user: any) => user.created_at && new Date(user.created_at).getTime() >= new Date(sinceIso).getTime()).length
 
       return new Response(
         JSON.stringify({
