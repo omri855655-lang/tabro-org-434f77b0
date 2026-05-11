@@ -45,6 +45,18 @@ interface ParsedBookNotes {
   chapterSummaries: Array<{ title: string; summary: string }>;
 }
 
+const serializeBookNotes = (detail: ParsedBookNotes) =>
+  JSON.stringify({
+    plainNotes: detail.plainNotes.trim(),
+    longSummary: detail.longSummary.trim(),
+    chapterSummaries: detail.chapterSummaries
+      .map((chapter) => ({
+        title: chapter.title.trim(),
+        summary: chapter.summary.trim(),
+      }))
+      .filter((chapter) => chapter.title || chapter.summary),
+  });
+
 const parseBookNotes = (notes: string | null): ParsedBookNotes => {
   if (!notes) return { plainNotes: "", longSummary: "", chapterSummaries: [] };
   try {
@@ -99,16 +111,20 @@ const BooksManager = () => {
   };
 
   const addBook = async () => {
+    if (!user?.id) {
+      toast.error('צריך להתחבר מחדש כדי להוסיף ספר');
+      return;
+    }
+
     if (!newBook.title.trim()) {
       toast.error('נא להזין שם ספר');
       return;
     }
 
     const { error } = await supabase.from('books').insert({
-      user_id: user?.id,
-      title: newBook.title,
-      author: newBook.author || null,
-      long_summary: null,
+      user_id: user.id,
+      title: newBook.title.trim(),
+      author: newBook.author.trim() || null,
       status: 'לקרוא',
     });
 
@@ -165,6 +181,7 @@ const BooksManager = () => {
 
     const plainNotes = bookDetail.plainNotes.trim();
     const longSummary = bookDetail.longSummary.trim();
+    const serializedNotes = serializeBookNotes(bookDetail);
     const chapterRows = bookDetail.chapterSummaries
       .map((chapter, index) => ({
         user_id: user.id,
@@ -175,15 +192,27 @@ const BooksManager = () => {
       }))
       .filter((chapter) => chapter.chapter_title || chapter.summary);
 
-    const { error: bookError } = await supabase
+    let { error: bookError } = await supabase
       .from('books')
       .update({
         title: selectedBook.title,
         author: selectedBook.author || null,
-        notes: plainNotes || null,
+        notes: serializedNotes,
         long_summary: longSummary || null,
       })
       .eq('id', selectedBook.id);
+
+    if (bookError && /long_summary/i.test(bookError.message)) {
+      const fallback = await supabase
+        .from('books')
+        .update({
+          title: selectedBook.title,
+          author: selectedBook.author || null,
+          notes: serializedNotes,
+        })
+        .eq('id', selectedBook.id);
+      bookError = fallback.error;
+    }
 
     if (bookError) {
       toast.error('שגיאה בשמירת פרטי הספר');
@@ -195,12 +224,14 @@ const BooksManager = () => {
       .delete()
       .eq('book_id', selectedBook.id);
 
-    if (deleteError) {
+    const chapterTableMissing = !!deleteError && /book_chapter_summaries|relation .* does not exist/i.test(deleteError.message);
+
+    if (deleteError && !chapterTableMissing) {
       toast.error('שגיאה בעדכון פרקי הספר');
       return;
     }
 
-    if (chapterRows.length > 0) {
+    if (chapterRows.length > 0 && !chapterTableMissing) {
       const { error: chapterError } = await supabase
         .from('book_chapter_summaries')
         .insert(chapterRows);
@@ -217,7 +248,7 @@ const BooksManager = () => {
             ...book,
             title: selectedBook.title,
             author: selectedBook.author || null,
-            notes: plainNotes || null,
+            notes: serializedNotes,
             long_summary: longSummary || null,
           }
         : book
