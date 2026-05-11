@@ -336,7 +336,7 @@ const BooksManager = () => {
       <div className="grid grid-cols-3 gap-4 mb-4 flex-shrink-0">
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-green-600">{readCount}</div>
-          <div className="text-sm text-muted-foreground">נקראו</div>
+          <div className="text-sm text-muted-foreground">נקרא</div>
         </div>
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-blue-600">{readingCount}</div>

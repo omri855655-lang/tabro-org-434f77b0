@@ -486,6 +486,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const stickyHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef<"table" | "header" | null>(null);
   const rowClickTimerRef = useRef<number | null>(null);
+  const rowClickStateRef = useRef<{ taskId: string; count: number } | null>(null);
   const [pendingScrollTaskId, setPendingScrollTaskId] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<TaskColumnKey, number>>(() => {
     const defaults = TASK_TABLE_COLUMNS.reduce((acc, column) => {
@@ -1034,31 +1035,36 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       rowClickTimerRef.current = null;
     }
 
-    if (event.detail >= 3) {
-      if (rowClickTimerRef.current) {
-        window.clearTimeout(rowClickTimerRef.current);
-        rowClickTimerRef.current = null;
-      }
-      setSelectedRow(task.id);
-      setDetailTask(task);
-      return;
-    }
+    const nextCount = rowClickStateRef.current?.taskId === task.id
+      ? rowClickStateRef.current.count + 1
+      : 1;
 
-    if (event.detail === 2) {
-      rowClickTimerRef.current = window.setTimeout(() => {
+    rowClickStateRef.current = { taskId: task.id, count: nextCount };
+
+    rowClickTimerRef.current = window.setTimeout(() => {
+      const finalCount = rowClickStateRef.current?.taskId === task.id
+        ? rowClickStateRef.current.count
+        : nextCount;
+
+      rowClickStateRef.current = null;
+      rowClickTimerRef.current = null;
+
+      if (finalCount >= 3) {
+        setSelectedRow(task.id);
+        setDetailTask(task);
+        return;
+      }
+
+      if (finalCount === 2) {
         if (!readOnly) {
           setSelectedRow(task.id);
           setEditingCell({ row: task.id, field: "description" });
         }
-        rowClickTimerRef.current = null;
-      }, 220);
-      return;
-    }
+        return;
+      }
 
-    rowClickTimerRef.current = window.setTimeout(() => {
       setSelectedRow(task.id);
-      rowClickTimerRef.current = null;
-    }, 180);
+    }, 260);
   }, [readOnly]);
 
   // Editable cell with suggestions for description
