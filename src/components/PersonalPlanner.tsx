@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTasks } from "@/hooks/useTasks";
+import { useTasks, type Task } from "@/hooks/useTasks";
 import { useCalendarEvents, CalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCustomCategories, COLOR_PALETTE } from "@/hooks/useCustomCategories";
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles, EyeOff } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles, EyeOff, Brain, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getHolidaysForDate } from "@/data/holidays";
+import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 
 interface AggregatedTask {
   id: string;
@@ -79,6 +80,30 @@ const getSourceLabel = (source: string) => {
     default: return source;
   }
 };
+
+const buildSyntheticTask = (id: string, title: string, category: string, createdAt: string, userId: string): Task => ({
+  id,
+  userId,
+  description: title,
+  category,
+  responsible: "",
+  status: "טרם החל",
+  statusNotes: "",
+  progress: "",
+  plannedEnd: "",
+  overdue: false,
+  urgent: false,
+  sheetName: String(new Date().getFullYear()),
+  archived: false,
+  creatorEmail: "",
+  creatorName: "",
+  creatorUsername: "",
+  lastEditorEmail: "",
+  lastEditorName: "",
+  lastEditorUsername: "",
+  createdAt,
+  updatedAt: createdAt,
+});
 
 const PersonalPlanner = () => {
   const { user } = useAuth();
@@ -140,6 +165,12 @@ const PersonalPlanner = () => {
   });
 
   const [sendingInvites, setSendingInvites] = useState(false);
+  const [selectedTaskForAi, setSelectedTaskForAi] = useState<{ title: string; description: string; category: string } | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState("");
+  const [mentalTask, setMentalTask] = useState<Task | null>(null);
+  const [mentalDialogOpen, setMentalDialogOpen] = useState(false);
 
   // Resize state
   const [resizingEvent, setResizingEvent] = useState<{ eventId: string; startY: number; originalEndTime: string; edge: "top" | "bottom"; originalStartTime: string } | null>(null);
@@ -395,6 +426,30 @@ const PersonalPlanner = () => {
     });
   }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds, courseLessons, showCoursesInPlanner, podcasts, showPodcastsInPlanner, books, showBooksInPlanner]);
 
+  const resolveTaskBySource = useCallback((sourceType?: string | null, sourceId?: string | null): Task | null => {
+    if (!sourceType || !sourceId) return null;
+    if (sourceType === "personal_task") {
+      return personalTasks.find((task) => task.id === sourceId) || null;
+    }
+    if (sourceType === "work_task") {
+      return workTasks.find((task) => task.id === sourceId) || null;
+    }
+    return null;
+  }, [personalTasks, workTasks]);
+
+  const resolvePlannerTask = useCallback((task: AggregatedTask): Task | null => {
+    if (task.source === "personal") {
+      return personalTasks.find((item) => item.id === task.id) || null;
+    }
+    if (task.source === "work") {
+      return workTasks.find((item) => item.id === task.id) || null;
+    }
+    if (task.source === "recurring" && user?.id) {
+      return buildSyntheticTask(task.id, task.title, task.category, task.createdAt, user.id);
+    }
+    return null;
+  }, [personalTasks, user?.id, workTasks]);
+
   // Filtered tasks based on active filters
   const filteredTasks = useMemo(() => {
     if (activeFilters.has("all") && activeFilters.size === 1) return allTasks;
@@ -565,6 +620,11 @@ const PersonalPlanner = () => {
     [filteredEvents, currentDate]
   );
 
+  const linkedDialogTask = useMemo(() => {
+    if (!editingEvent) return null;
+    return resolveTaskBySource(editingEvent.sourceType, editingEvent.sourceId);
+  }, [editingEvent, resolveTaskBySource]);
+
   const navigate = (dir: number) => {
     if (viewMode === "day") setCurrentDate((d) => addDays(d, dir));
     else if (viewMode === "week") setCurrentDate((d) => addWeeks(d, dir));
@@ -653,7 +713,7 @@ const PersonalPlanner = () => {
     updateDragCreateFromPoint(day, e.clientY, e.currentTarget);
   };
 
-  const handleDrop = (day: Date, hour?: number, e?: React.DragEvent) => {
+  const handleDrop = async (day: Date, hour?: number, e?: React.DragEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
 
@@ -671,7 +731,7 @@ const PersonalPlanner = () => {
       }
 
       const newEnd = addMinutes(newStart, duration);
-      updateEvent(draggingEvent.id, {
+      await updateEvent(draggingEvent.id, {
         startTime: toLocalISOString(newStart),
         endTime: toLocalISOString(newEnd),
       });
@@ -713,7 +773,7 @@ const PersonalPlanner = () => {
           ? "recurring_task"
           : "project_task";
 
-    setNewEventData({
+    const savedEvent = await addEvent({
       title: draggedTask.title,
       description: "",
       category: draggedTask.source === "work" ? "עבודה" : draggedTask.source === "project" ? "פרויקט" : draggedTask.source === "recurring" ? "לוז יומי" : "אישי",
@@ -722,10 +782,12 @@ const PersonalPlanner = () => {
       color: "",
       sourceType,
       sourceId: draggedTask.id,
-      inviteeEmails: "",
     });
-    setEditingEvent(null);
-    setShowEventDialog(true);
+
+    if (savedEvent) {
+      toast.success(`המשימה שובצה ל-${format(start, "HH:mm")} - ${format(end, "HH:mm")}`);
+    }
+
     setDraggedTask(null);
     setDragCreateState(null);
   };
@@ -1126,6 +1188,36 @@ const PersonalPlanner = () => {
     });
     setShowEventDialog(true);
   };
+
+  const handleAiHelp = useCallback(async (title: string, description: string, category: string) => {
+    const taskDescription = description.trim() || title.trim();
+    if (!taskDescription) {
+      toast.error("אין מספיק מידע כדי לשלוח את המשימה ל-AI");
+      return;
+    }
+
+    setSelectedTaskForAi({ title: title || taskDescription, description: taskDescription, category });
+    setAiDialogOpen(true);
+    setAiLoading(true);
+    setAiSuggestion("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("task-ai-helper", {
+        body: { taskDescription, taskCategory: category || "משימה" },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setAiSuggestion(data.suggestion || "לא התקבלה תגובה מה-AI");
+    } catch (error: any) {
+      console.error("Planner AI error:", error);
+      toast.error(error.message || "שגיאה בקבלת עזרה מ-AI");
+      setAiDialogOpen(false);
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
 
   const handleAddCustomEvent = () => {
     createQuickEventAt(new Date(), 9, 0);
@@ -1992,6 +2084,8 @@ const PersonalPlanner = () => {
           <div className="p-2 space-y-1.5">
             {visibleTasks.map((task) => {
               const srcColor = getSourceColor(task.source);
+              const plannerTask = resolvePlannerTask(task);
+              const canUseMentalAi = task.source === "personal" || task.source === "work";
               return (
               <div
                 key={`${task.source}-${task.id}`}
@@ -2040,6 +2134,41 @@ const PersonalPlanner = () => {
                     {format(new Date(task.plannedEnd), "dd/MM/yyyy")}
                   </div>
                 )}
+                {(plannerTask || task.title) && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 gap-1 px-2 text-[10px]"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void handleAiHelp(task.title, plannerTask?.description || task.title, plannerTask?.category || task.category);
+                      }}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      AI למשימה
+                    </Button>
+                    {canUseMentalAi && plannerTask && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 gap-1 px-2 text-[10px]"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMentalTask(plannerTask);
+                          setMentalDialogOpen(true);
+                        }}
+                      >
+                        <Brain className="h-3 w-3" />
+                        AI מוטיבציה
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
               );
             })}
@@ -2081,6 +2210,8 @@ const PersonalPlanner = () => {
               <div className="p-3 space-y-2">
                 {visibleTasks.map((task) => {
                   const srcColor = getSourceColor(task.source);
+                  const plannerTask = resolvePlannerTask(task);
+                  const canUseMentalAi = task.source === "personal" || task.source === "work";
                   return (
                     <div
                       key={`mobile-${task.source}-${task.id}`}
@@ -2118,6 +2249,41 @@ const PersonalPlanner = () => {
                         )}
                       </div>
                       <div className="text-xs font-medium line-clamp-2 pr-4">{task.title || "(ללא כותרת)"}</div>
+                      {(plannerTask || task.title) && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 gap-1 px-2 text-[10px]"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void handleAiHelp(task.title, plannerTask?.description || task.title, plannerTask?.category || task.category);
+                            }}
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            AI למשימה
+                          </Button>
+                          {canUseMentalAi && plannerTask && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 gap-1 px-2 text-[10px]"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setMentalTask(plannerTask);
+                                setMentalDialogOpen(true);
+                              }}
+                            >
+                              <Brain className="h-3 w-3" />
+                              AI מוטיבציה
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2453,6 +2619,47 @@ const PersonalPlanner = () => {
               />
             </div>
 
+            {(linkedDialogTask || editingEvent?.sourceType === "recurring_task") && (
+              <div className="rounded-xl border border-primary/15 bg-primary/5 p-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() =>
+                      void handleAiHelp(
+                        newEventData.title,
+                        linkedDialogTask?.description || newEventData.description || newEventData.title,
+                        linkedDialogTask?.category || newEventData.category
+                      )
+                    }
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    AI למשימה
+                  </Button>
+                  {linkedDialogTask && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        setMentalTask(linkedDialogTask);
+                        setMentalDialogOpen(true);
+                      }}
+                    >
+                      <Brain className="h-3.5 w-3.5" />
+                      AI מוטיבציה
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  אפשר לקבל פירוק משימה מהיר מתוך המתכנן, ובמשימות אישיות/עבודה גם עזרה מנטלית כשיש תקיעות.
+                </p>
+              </div>
+            )}
+
             {/* Invitee emails - below time fields, full width */}
             <div>
               <label className="text-sm font-medium">📧 הזמן משתתפים (מיילים, מופרדים בפסיק)</label>
@@ -2481,6 +2688,49 @@ const PersonalPlanner = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI למשימה
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              פירוק משימה והצעות פעולה מתוך המתכנן.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedTaskForAi && (
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-sm font-medium">{selectedTaskForAi.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{selectedTaskForAi.description}</p>
+              </div>
+            )}
+            {aiLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span className="mr-2 text-muted-foreground">ה-AI חושב על הצעד הבא...</span>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm whitespace-pre-wrap">
+                {aiSuggestion}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {mentalTask && (
+        <MentalDifficultyHelper
+          task={mentalTask}
+          open={mentalDialogOpen}
+          onOpenChange={(open) => {
+            setMentalDialogOpen(open);
+            if (!open) setMentalTask(null);
+          }}
+        />
+      )}
 
       {/* Link to Dashboard Dialog */}
       <Dialog open={showLinkToDashboard} onOpenChange={(open) => {

@@ -404,6 +404,23 @@ const ZoneFlowDashboard = () => {
   const filteredPresets = AUDIO_PRESETS.filter(p => p.category === activeCategory);
   const activeCat = CATEGORIES.find(c => c.id === activeCategory);
   const wellnessPresets = AUDIO_PRESETS.filter((preset) => preset.category === "wellness").slice(0, 3);
+  const wellnessRoutines = [
+    {
+      title: "Meditation",
+      subtitle: "2 דקות איפוס שקט",
+      presetId: "wellness-meditation-reset",
+    },
+    {
+      title: "Breathwork",
+      subtitle: "נשימות 4-6 להרגעה",
+      presetId: "wellness-breathwork",
+    },
+    {
+      title: "Reset",
+      subtitle: "מעבר מהצפה לבהירות",
+      presetId: "wellness-reset-window",
+    },
+  ] as const;
 
   // Find upcoming task (next one that hasn't passed)
   const now = new Date();
@@ -612,6 +629,35 @@ const ZoneFlowDashboard = () => {
                       }`}
                     >
                       {preset.nameHe}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {wellnessRoutines.map((routine) => {
+                  const preset = AUDIO_PRESETS.find((item) => item.id === routine.presetId);
+                  if (!preset) return null;
+                  const isActive = activePresetId === preset.id && isPlaying;
+                  return (
+                    <button
+                      key={routine.presetId}
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory("wellness");
+                        toggle(preset);
+                      }}
+                      className={`rounded-xl border p-3 text-right transition-all ${
+                        isActive
+                          ? isLight
+                            ? "border-emerald-300 bg-emerald-100"
+                            : "border-emerald-400/40 bg-emerald-500/15"
+                          : isLight
+                            ? "border-emerald-100 bg-white hover:bg-emerald-50"
+                            : "border-white/10 bg-black/10 hover:bg-emerald-500/10"
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{routine.title}</div>
+                      <div className={`mt-1 text-[11px] ${themeMuted}`}>{routine.subtitle}</div>
                     </button>
                   );
                 })}
