@@ -324,7 +324,7 @@ const ZoneFlowDashboard = () => {
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
-  const handleYouTubeToggle = (videoId: string, title = "YouTube") => {
+  const handleYouTubeToggle = (videoId: string, title = "YouTube", viewerOpen = false) => {
     // Keep iOS media session alive before opening YouTube iframe
     unlockAudioContext();
     startSilentAudio();
@@ -338,6 +338,7 @@ const ZoneFlowDashboard = () => {
     setZoneFlowYoutubePlayerState({
       videoId: nextVideoId,
       title: nextVideoId ? title : "",
+      viewerOpen: nextVideoId ? viewerOpen : false,
     });
 
     if (nextVideoId) {
@@ -863,6 +864,37 @@ const ZoneFlowDashboard = () => {
 
             <div>
               <div className="mb-2 text-sm font-medium">סרטונים והכוונות</div>
+              <div
+                id="zoneflow-youtube-viewer-anchor"
+                className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} mb-3 min-h-[220px] rounded-2xl border border-dashed p-3`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium">תיבת צפייה</div>
+                    <div className={`mt-1 text-xs ${themeSubtle}`}>
+                      לחץ על `פתח לצפייה` כדי לנגן את סרטון המדיטציה כאן בתוך ZoneFlow.
+                    </div>
+                  </div>
+                  {activeYouTube && (
+                    <button
+                      type="button"
+                      onClick={() => setZoneFlowYoutubePlayerState({ videoId: activeYouTube, title: getZoneFlowYoutubePlayerState().title, viewerOpen: false })}
+                      className={`rounded-full px-3 py-1 text-xs transition-all ${
+                        isLight
+                          ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                          : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
+                      }`}
+                    >
+                      הסתר תיבה
+                    </button>
+                  )}
+                </div>
+                {!activeYouTube && (
+                  <div className={`mt-6 text-center text-xs ${themeMuted}`}>
+                    התיבה תתמלא אוטומטית ברגע שתפתח סרטון לצפייה.
+                  </div>
+                )}
+              </div>
               <div className="grid gap-3 lg:grid-cols-2">
                 {meditationVideos.map((video) => (
                   <div
@@ -877,7 +909,7 @@ const ZoneFlowDashboard = () => {
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => handleYouTubeToggle(video.id, video.title)}
+                          onClick={() => handleYouTubeToggle(video.id, video.title, true)}
                           className={`rounded-full px-3 py-1 text-xs transition-all ${
                             activeYouTube === video.id
                               ? isLight
@@ -888,7 +920,22 @@ const ZoneFlowDashboard = () => {
                                 : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
                           }`}
                         >
-                          {activeYouTube === video.id ? "עוצר" : "נגן כאן"}
+                          {activeYouTube === video.id ? "סגור צפייה" : "פתח לצפייה"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleYouTubeToggle(video.id, video.title, false)}
+                          className={`rounded-full px-3 py-1 text-xs transition-all ${
+                            activeYouTube === video.id
+                              ? isLight
+                                ? "bg-emerald-200 text-emerald-900"
+                                : "bg-emerald-500/20 text-emerald-100 border border-emerald-400/30"
+                              : isLight
+                                ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                                : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
+                          }`}
+                        >
+                          {activeYouTube === video.id ? "עוצר רקע" : "נגן ברקע"}
                         </button>
                         {video.isCustom ? (
                           <button
