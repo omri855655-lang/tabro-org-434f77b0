@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Save } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import type { ReactNode } from "react";
 
 export interface ItemDetailData {
   id: string;
@@ -25,9 +26,10 @@ interface ItemDetailDialogProps {
   onClose: () => void;
   onSave?: (id: string, updates: { title?: string; status?: string; notes?: string }) => void;
   onDelete?: (id: string) => void;
+  extraActions?: ReactNode;
 }
 
-const ItemDetailDialog = ({ item, open, onClose, onSave, onDelete }: ItemDetailDialogProps) => {
+const ItemDetailDialog = ({ item, open, onClose, onSave, onDelete, extraActions }: ItemDetailDialogProps) => {
   const { t } = useLanguage();
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState("");
@@ -91,6 +93,7 @@ const ItemDetailDialog = ({ item, open, onClose, onSave, onDelete }: ItemDetailD
           </div>
         </div>
         <DialogFooter className="flex gap-2">
+          {extraActions}
           {onDelete && (
             <Button
               variant="destructive"

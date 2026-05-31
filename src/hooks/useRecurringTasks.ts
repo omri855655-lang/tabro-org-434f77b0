@@ -21,6 +21,13 @@ export interface RecurringTaskCompletion {
   completedAt: string;
 }
 
+export interface RecurringTaskSkip {
+  id: string;
+  recurringTaskId: string;
+  skippedDate: string;
+  skippedAt: string;
+}
+
 interface DbRecurringTask {
   id: string;
   user_id: string;
@@ -42,6 +49,14 @@ interface DbCompletion {
   completed_at: string;
 }
 
+interface DbSkip {
+  id: string;
+  recurring_task_id: string;
+  user_id: string;
+  skipped_date: string;
+  skipped_at: string;
+}
+
 const mapDbToRecurringTask = (db: DbRecurringTask): RecurringTask => ({
   id: db.id,
   title: db.title,
@@ -60,16 +75,25 @@ const mapDbToCompletion = (db: DbCompletion): RecurringTaskCompletion => ({
   completedAt: db.completed_at,
 });
 
+const mapDbToSkip = (db: DbSkip): RecurringTaskSkip => ({
+  id: db.id,
+  recurringTaskId: db.recurring_task_id,
+  skippedDate: db.skipped_date,
+  skippedAt: db.skipped_at,
+});
+
 export function useRecurringTasks() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<RecurringTask[]>([]);
   const [completions, setCompletions] = useState<RecurringTaskCompletion[]>([]);
+  const [skips, setSkips] = useState<RecurringTaskSkip[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     if (!user) {
       setTasks([]);
       setCompletions([]);
+      setSkips([]);
       setLoading(false);
       return;
     }
@@ -96,8 +120,16 @@ export function useRecurringTasks() {
 
       if (completionsError) throw completionsError;
 
+      const { data: skipsData, error: skipsError } = await supabase
+        .from("recurring_task_skips")
+        .select("*")
+        .gte("skipped_date", thirtyDaysAgo.toISOString().split("T")[0]);
+
+      if (skipsError) throw skipsError;
+
       setTasks((tasksData as DbRecurringTask[]).map(mapDbToRecurringTask));
       setCompletions((completionsData as DbCompletion[]).map(mapDbToCompletion));
+      setSkips((skipsData as DbSkip[]).map(mapDbToSkip));
     } catch (error: any) {
       console.error("Error fetching recurring tasks:", error);
       toast.error("שגיאה בטעינת משימות קבועות");
@@ -224,6 +256,19 @@ export function useRecurringTasks() {
 
           setCompletions((prev) => prev.filter((c) => c.id !== existingCompletion.id));
         } else {
+          const existingSkip = skips.find(
+            (s) => s.recurringTaskId === taskId && s.skippedDate === date
+          );
+          if (existingSkip) {
+            const { error: skipDeleteError } = await supabase
+              .from("recurring_task_skips")
+              .delete()
+              .eq("id", existingSkip.id);
+
+            if (skipDeleteError) throw skipDeleteError;
+            setSkips((prev) => prev.filter((s) => s.id !== existingSkip.id));
+          }
+
           // Add completion
           const { data, error } = await supabase
             .from("recurring_task_completions")
@@ -245,11 +290,75 @@ export function useRecurringTasks() {
         toast.error("שגיאה בעדכון השלמה");
       }
     },
-    [user, completions]
+    [user, completions, skips]
+  );
+
+  const toggleSkipForDate = useCallback(
+    async (taskId: string, date: string) => {
+      if (!user) return;
+
+      const existingSkip = skips.find(
+        (s) => s.recurringTaskId === taskId && s.skippedDate === date
+      );
+
+      try {
+        if (existingSkip) {
+          const { error } = await supabase
+            .from("recurring_task_skips")
+            .delete()
+            .eq("id", existingSkip.id);
+
+          if (error) throw error;
+          setSkips((prev) => prev.filter((s) => s.id !== existingSkip.id));
+          toast.success("המשימה תחזור להופיע להיום");
+          return;
+        }
+
+        const existingCompletion = completions.find(
+          (c) => c.recurringTaskId === taskId && c.completedDate === date
+        );
+        if (existingCompletion) {
+          const { error: completionDeleteError } = await supabase
+            .from("recurring_task_completions")
+            .delete()
+            .eq("id", existingCompletion.id);
+
+          if (completionDeleteError) throw completionDeleteError;
+          setCompletions((prev) => prev.filter((c) => c.id !== existingCompletion.id));
+        }
+
+        const { data, error } = await supabase
+          .from("recurring_task_skips")
+          .insert({
+            recurring_task_id: taskId,
+            user_id: user.id,
+            skipped_date: date,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setSkips((prev) => [...prev, mapDbToSkip(data as DbSkip)]);
+        toast.success("המשימה הוסרה רק להיום");
+      } catch (error: any) {
+        console.error("Error toggling recurring task skip:", error);
+        toast.error("שגיאה בדילוג על המשימה");
+      }
+    },
+    [user, skips, completions]
+  );
+
+  const isTaskSkippedOnDate = useCallback(
+    (taskId: string, date: string): boolean =>
+      skips.some((s) => s.recurringTaskId === taskId && s.skippedDate === date),
+    [skips]
   );
 
   const isTaskDueToday = useCallback((task: RecurringTask): boolean => {
     const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    if (isTaskSkippedOnDate(task.id, todayStr)) return false;
     const dayOfWeek = today.getDay();
     const dayOfMonth = today.getDate();
     const month = today.getMonth();
@@ -274,7 +383,7 @@ export function useRecurringTasks() {
       default:
         return false;
     }
-  }, []);
+  }, [isTaskSkippedOnDate]);
 
   const isTaskCompletedToday = useCallback(
     (taskId: string): boolean => {
@@ -286,6 +395,7 @@ export function useRecurringTasks() {
         (c) => c.recurringTaskId === taskId && c.completedDate === todayStr
       );
       if (completedToday) return true;
+      if (isTaskSkippedOnDate(taskId, todayStr)) return true;
 
       const task = tasks.find(t => t.id === taskId);
       if (!task) return false;
@@ -320,7 +430,7 @@ export function useRecurringTasks() {
 
       return false;
     },
-    [completions, tasks]
+    [completions, tasks, isTaskSkippedOnDate]
   );
 
   const getCompletionHistory = useCallback(
@@ -337,13 +447,13 @@ export function useRecurringTasks() {
           date: dateStr,
           completed: completions.some(
             (c) => c.recurringTaskId === taskId && c.completedDate === dateStr
-          ),
+          ) || isTaskSkippedOnDate(taskId, dateStr),
         });
       }
 
       return history.reverse();
     },
-    [completions]
+    [completions, isTaskSkippedOnDate]
   );
 
   // Calculate task statistics for tracking
@@ -407,6 +517,10 @@ export function useRecurringTasks() {
             break;
         }
 
+        if (isTaskSkippedOnDate(task.id, dateStr)) {
+          isDue = false;
+        }
+
         if (isDue) {
           expectedCount++;
           const wasCompleted = completions.some(
@@ -462,7 +576,7 @@ export function useRecurringTasks() {
         longestStreak,
       };
     },
-    [completions]
+    [completions, isTaskSkippedOnDate]
   );
 
   return {
@@ -473,6 +587,8 @@ export function useRecurringTasks() {
     updateTask,
     deleteTask,
     toggleCompletion,
+    toggleSkipForDate,
+    isTaskSkippedOnDate,
     isTaskDueToday,
     isTaskCompletedToday,
     getCompletionHistory,

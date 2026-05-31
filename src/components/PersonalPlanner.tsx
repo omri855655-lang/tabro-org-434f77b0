@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles, EyeOff } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -84,7 +84,7 @@ const PersonalPlanner = () => {
   const { user } = useAuth();
   const { tasks: personalTasks } = useTasks("personal");
   const { tasks: workTasks } = useTasks("work");
-  const { tasks: recurringTasks, isTaskDueToday, isTaskCompletedToday } = useRecurringTasks();
+  const { tasks: recurringTasks, isTaskDueToday, isTaskCompletedToday, toggleSkipForDate } = useRecurringTasks();
   const { events, addEvent, updateEvent, deleteEvent, respondToInvitation } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
@@ -1210,6 +1210,11 @@ const PersonalPlanner = () => {
     }));
   };
 
+  const handleSkipRecurringTaskToday = async (taskId: string) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    await toggleSkipForDate(taskId, todayStr);
+  };
+
   // Render time grid for day/week view
   const renderTimeGrid = () => {
     const days = viewMode === "day" ? [currentDate] : dateRange.days;
@@ -1252,6 +1257,42 @@ const PersonalPlanner = () => {
           {days.map((day, dayIndex) => {
             const isExpanded = expandedDayIndex === dayIndex;
             const dayEventCount = filteredEvents.filter(e => isSameDay(new Date(e.startTime), day)).length;
+            const dayHourOffsets = HOURS.reduce<Record<number, number>>((acc, hour) => {
+              acc[hour] = hour === 0 ? 0 : acc[hour - 1] + getHourHeight(hour - 1);
+              return acc;
+            }, {});
+            const dragPreviewMetrics = draggedTask && dragCreateState && isSameDay(dragCreateState.day, day)
+              ? (() => {
+                  const startHour = dragCreateState.startHour;
+                  const endHour = dragCreateState.currentHour;
+                  const startMinute = dragCreateState.startMinute;
+                  const endMinute = dragCreateState.currentMinute;
+                  const startTop = dayHourOffsets[startHour] + (startMinute / 60) * getHourHeight(startHour);
+                  let height = 0;
+
+                  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
+                    height = Math.max(getHourHeight(startHour) / 2, 30);
+                  } else {
+                    for (let hour = startHour; hour <= endHour; hour++) {
+                      if (hour === startHour && hour === endHour) {
+                        height += ((endMinute - startMinute) / 60) * getHourHeight(hour);
+                      } else if (hour === startHour) {
+                        height += ((60 - startMinute) / 60) * getHourHeight(hour);
+                      } else if (hour === endHour) {
+                        height += (endMinute / 60) * getHourHeight(hour);
+                      } else {
+                        height += getHourHeight(hour);
+                      }
+                    }
+                  }
+
+                  return {
+                    top: startTop,
+                    height: Math.max(height, 20),
+                    label: `${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")} - ${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`,
+                  };
+                })()
+              : null;
             return (
             <div
               key={day.toISOString()}
@@ -1273,6 +1314,17 @@ const PersonalPlanner = () => {
                 ))}
               </div>
 
+              {dragPreviewMetrics && (
+                <div
+                  className="pointer-events-none absolute inset-x-1 z-30 rounded-md border-2 border-dashed border-primary bg-primary/15 shadow-sm"
+                  style={{ top: 40 + dragPreviewMetrics.top, height: dragPreviewMetrics.height }}
+                >
+                  <div className="px-2 py-1 text-[10px] font-medium text-primary">
+                    {dragPreviewMetrics.label}
+                  </div>
+                </div>
+              )}
+
               {/* Hour slots */}
               {HOURS.map((h) => {
                 const slotEvents = filteredEvents.filter((e) => {
@@ -1288,16 +1340,6 @@ const PersonalPlanner = () => {
                   const slotEnd = addHours(slotStart, 1);
                   return isSameDay(eStart, day) && eStart < slotEnd && eEnd > slotStart;
                 });
-
-                // Drag preview for this slot
-                const showDragPreview = draggedTask && dragCreateState && isSameDay(dragCreateState.day, day) && (() => {
-                  const startTotal = dragCreateState.startHour * 60 + dragCreateState.startMinute;
-                  const endTotal = dragCreateState.currentHour * 60 + dragCreateState.currentMinute;
-                  const slotStart = h * 60;
-                  const slotEnd = (h + 1) * 60;
-                  return startTotal < slotEnd && endTotal >= slotStart && endTotal > startTotal;
-                })();
-
                 return (
                   <div
                     key={h}
@@ -1314,26 +1356,6 @@ const PersonalPlanner = () => {
                     {getHourHeight(h) >= 80 && [15, 30, 45].map(m => (
                       <div key={m} className="absolute w-full border-t border-dashed border-border/20 pointer-events-none" style={{ top: `${(m / 60) * 100}%` }} />
                     ))}
-                    {/* Drag stretch preview */}
-                    {showDragPreview && dragCreateState && h === dragCreateState.startHour && (
-                      <div
-                        className="absolute inset-x-1 rounded-md bg-primary/20 border-2 border-dashed border-primary z-30 pointer-events-none"
-                        style={{
-                          top: (dragCreateState.startMinute / 60) * getHourHeight(h),
-                          height: Math.max(
-                            ((dragCreateState.currentHour * 60 + dragCreateState.currentMinute) -
-                              (dragCreateState.startHour * 60 + dragCreateState.startMinute)) / 60 * getHourHeight(h),
-                            15
-                          ),
-                        }}
-                      >
-                        <div className="text-[10px] text-primary font-medium px-1 pt-0.5">
-                          {String(dragCreateState.startHour).padStart(2, "0")}:{String(dragCreateState.startMinute).padStart(2, "0")}
-                          {" - "}
-                          {String(dragCreateState.currentHour).padStart(2, "0")}:{String(dragCreateState.currentMinute).padStart(2, "0")}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Events - side by side when overlapping */}
                     {slotEvents.map((event) => {
@@ -1930,6 +1952,22 @@ const PersonalPlanner = () => {
                   {task.source === "show" && (task.showType === "סרט" ? <Film className="h-3 w-3" style={{ color: srcColor }} /> : <Tv className="h-3 w-3" style={{ color: srcColor }} />)}
                   {task.urgent && <Flame className="h-3 w-3 text-destructive" />}
                   {task.overdue && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                  {task.source === "recurring" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="mr-auto h-5 w-5"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSkipRecurringTaskToday(task.id);
+                      }}
+                      title="הסר רק להיום"
+                    >
+                      <EyeOff className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
                 <div className="text-xs font-medium line-clamp-2 pr-4">{task.title || "(ללא כותרת)"}</div>
                 {task.plannedEnd && (
@@ -1998,6 +2036,22 @@ const PersonalPlanner = () => {
                         </span>
                         {task.urgent && <Flame className="h-3 w-3 text-destructive" />}
                         {task.overdue && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                        {task.source === "recurring" && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="mr-auto h-5 w-5"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleSkipRecurringTaskToday(task.id);
+                            }}
+                            title="הסר רק להיום"
+                          >
+                            <EyeOff className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                       <div className="text-xs font-medium line-clamp-2 pr-4">{task.title || "(ללא כותרת)"}</div>
                     </div>
