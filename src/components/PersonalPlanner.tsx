@@ -1,27 +1,28 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTasks, Task } from "@/hooks/useTasks";
-import { useCalendarEvents, CalendarEvent, getCategoryColor } from "@/hooks/useCalendarEvents";
-import { Check, X as XIcon } from "lucide-react";
-import { useCustomCategories, COLOR_PALETTE, CustomCategory } from "@/hooks/useCustomCategories";
+import { useTasks } from "@/hooks/useTasks";
+import { useCalendarEvents, CalendarEvent } from "@/hooks/useCalendarEvents";
+import { useCustomCategories, COLOR_PALETTE } from "@/hooks/useCustomCategories";
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval, getDay } from "date-fns";
-import { enUS, he } from "date-fns/locale";
+import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, addWeeks, isWithinInterval, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval } from "date-fns";
+import { he } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { getHolidaysForDate } from "@/data/holidays";
-import { useLanguage } from "@/hooks/useLanguage";
 
 interface AggregatedTask {
   id: string;
@@ -46,6 +47,12 @@ const DEFAULT_HOUR_HEIGHT = 60;
 const SNAP_MINUTES = 5;
 const MIN_HOUR_HEIGHT = 30;
 const MAX_HOUR_HEIGHT = 120;
+const QUICK_EVENT_PRESETS = [
+  { label: "פגישה", title: "פגישה חדשה", category: "פגישה", durationMinutes: 30 },
+  { label: "פוקוס", title: "זמן פוקוס", category: "עבודה", durationMinutes: 60 },
+  { label: "אישי", title: "סידור אישי", category: "אישי", durationMinutes: 30 },
+  { label: "הפסקה", title: "הפסקה", category: "אישי", durationMinutes: 15 },
+] as const;
 
 // Build a local ISO string WITH timezone offset so Postgres timestamptz stores correctly
 const toLocalISOString = (d: Date): string => {
@@ -58,8 +65,22 @@ const toLocalISOString = (d: Date): string => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${offsetH}:${offsetM}`;
 };
 
+const getSourceLabel = (source: string) => {
+  switch (source) {
+    case "work": return "עבודה";
+    case "personal": return "אישי";
+    case "project": return "פרויקט";
+    case "recurring": return "יומי";
+    case "show": return "צפייה";
+    case "course": return "קורס";
+    case "podcast": return "פודקאסט";
+    case "book": return "ספר";
+    case "board": return "רשימה";
+    default: return source;
+  }
+};
+
 const PersonalPlanner = () => {
-  const { lang, dir } = useLanguage();
   const { user } = useAuth();
   const { tasks: personalTasks } = useTasks("personal");
   const { tasks: workTasks } = useTasks("work");
@@ -67,6 +88,7 @@ const PersonalPlanner = () => {
   const { events, addEvent, updateEvent, deleteEvent, respondToInvitation } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
+  const isMobile = useIsMobile();
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCatName, setNewCatName] = useState("");
@@ -84,6 +106,8 @@ const PersonalPlanner = () => {
   const [showPodcastsInPlanner, setShowPodcastsInPlanner] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
   const [showBooksInPlanner, setShowBooksInPlanner] = useState(false);
+  const [taskSearch, setTaskSearch] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
@@ -107,158 +131,7 @@ const PersonalPlanner = () => {
     sourceId: null as string | null,
     inviteeEmails: "" as string,
   });
-  const isHebrew = lang === "he";
-  const calendarLocale = isHebrew ? he : enUS;
-  const copy = isHebrew ? {
-    tasks: "משימות",
-    dragHint: "גרור משימה ללוח ומתח לפי השעות",
-    filter: "סינון",
-    source: "לפי מקור:",
-    all: "הכל",
-    personal: "אישי",
-    work: "עבודה",
-    project: "פרויקט",
-    recurring: "יומי",
-    status: "לפי סטטוס:",
-    overdue: "חריגה בתאריך",
-    today: "היום",
-    upcomingWeek: "השבוע הקרוב",
-    urgent: "דחוף",
-    dashboards: "דשבורדים:",
-    showsToggle: "הצג סדרות/סרטים",
-    series: "סדרות",
-    movies: "סרטים",
-    coursesToggle: "📚 הצג קורסים (שיעור הבא)",
-    coursesOnly: "🎓 רק קורסים",
-    podcastsToggle: "🎧 הצג פודקאסטים",
-    podcastsOnly: "🎧 רק פודקאסטים",
-    booksToggle: "📖 הצג ספרים",
-    booksOnly: "📖 רק ספרים",
-    categoryColors: "🎨 צבעי קטגוריות",
-    sourceColors: "🎨 צבעי מקורות",
-    fullManage: "⚙️ ניהול מלא",
-    untitled: "(ללא כותרת)",
-    noOpenTasks: "אין משימות פתוחות",
-    noFilteredTasks: "אין משימות לפי הסינון",
-    day: "יומי",
-    week: "שבועי",
-    month: "חודשי",
-    year: "שנתי",
-    event: "אירוע",
-    editEvent: "עריכת אירוע",
-    newEvent: "אירוע חדש",
-    title: "כותרת",
-    eventTitle: "כותרת האירוע",
-    category: "קטגוריה",
-    manage: "⚙️ ניהול",
-    startDate: "תאריך התחלה",
-    startTime: "שעת התחלה",
-    endDate: "תאריך סיום",
-    endTime: "שעת סיום",
-    notes: "הערות",
-    extraNotes: "הערות נוספות...",
-    invite: "📧 הזמן משתתפים (מיילים, מופרדים בפסיק)",
-    inviteHelp: "המוזמנים יקבלו מייל הזמנה ויראו את האירוע בלוח שלהם",
-    delete: "מחק",
-    update: "עדכן",
-    add: "הוסף",
-    addToTasks: "הוספה לדשבורד משימות",
-    addToTasksDesc: "רוצה לצרף את",
-    addToTasksDescEnd: "לדשבורד משימות? כך תקבל מעקב מלא והתראות סיום.",
-    personalTasks: "📋 משימות אישיות",
-    workTasks: "💼 משימות עבודה",
-    noThanks: "לא, תודה",
-    manageCategories: "ניהול קטגוריות",
-    existingCategories: "קטגוריות קיימות — לחץ על העיגול לשינוי צבע",
-    addCategory: "הוסף קטגוריה חדשה",
-    categoryName: "שם הקטגוריה...",
-    chooseColor: "בחר צבע",
-    customColor: "או בחר צבע מותאם:",
-    addCategoryBtn: "הוסף קטגוריה",
-    events: "אירועים",
-    noEvents: "ללא אירועים",
-    sourceBoard: "רשימה",
-    sourceShow: "צפייה",
-    sourceCourse: "קורס",
-    sourcePodcast: "פודקאסט",
-    sourceBook: "ספר",
-  } : {
-    tasks: "Tasks",
-    dragHint: "Drag a task onto the planner and stretch it by hours",
-    filter: "Filter",
-    source: "By source:",
-    all: "All",
-    personal: "Personal",
-    work: "Work",
-    project: "Project",
-    recurring: "Daily",
-    status: "By status:",
-    overdue: "Overdue",
-    today: "Today",
-    upcomingWeek: "Coming week",
-    urgent: "Urgent",
-    dashboards: "Dashboards:",
-    showsToggle: "Show series/movies",
-    series: "Series",
-    movies: "Movies",
-    coursesToggle: "📚 Show courses (next lesson)",
-    coursesOnly: "🎓 Courses only",
-    podcastsToggle: "🎧 Show podcasts",
-    podcastsOnly: "🎧 Podcasts only",
-    booksToggle: "📖 Show books",
-    booksOnly: "📖 Books only",
-    categoryColors: "🎨 Category colors",
-    sourceColors: "🎨 Source colors",
-    fullManage: "⚙️ Full manage",
-    untitled: "(Untitled)",
-    noOpenTasks: "No open tasks",
-    noFilteredTasks: "No tasks match this filter",
-    day: "Day",
-    week: "Week",
-    month: "Month",
-    year: "Year",
-    event: "Event",
-    editEvent: "Edit event",
-    newEvent: "New event",
-    title: "Title",
-    eventTitle: "Event title",
-    category: "Category",
-    manage: "⚙️ Manage",
-    startDate: "Start date",
-    startTime: "Start time",
-    endDate: "End date",
-    endTime: "End time",
-    notes: "Notes",
-    extraNotes: "Additional notes...",
-    invite: "📧 Invite participants (emails, comma-separated)",
-    inviteHelp: "Invitees will receive an email and see the event on their board",
-    delete: "Delete",
-    update: "Update",
-    add: "Add",
-    addToTasks: "Add to task dashboard",
-    addToTasksDesc: "Do you want to add",
-    addToTasksDescEnd: "to the task dashboard for full tracking and completion alerts?",
-    personalTasks: "📋 Personal tasks",
-    workTasks: "💼 Work tasks",
-    noThanks: "No thanks",
-    manageCategories: "Manage categories",
-    existingCategories: "Existing categories — click the color dot to change it",
-    addCategory: "Add new category",
-    categoryName: "Category name...",
-    chooseColor: "Choose color",
-    customColor: "Or choose a custom color:",
-    addCategoryBtn: "Add category",
-    events: "events",
-    noEvents: "No events",
-    sourceBoard: "Board",
-    sourceShow: "Watching",
-    sourceCourse: "Course",
-    sourcePodcast: "Podcast",
-    sourceBook: "Book",
-  };
 
-  // Invitations state
-  const [eventInvitations, setEventInvitations] = useState<any[]>([]);
   const [sendingInvites, setSendingInvites] = useState(false);
 
   // Resize state
@@ -562,6 +435,17 @@ const PersonalPlanner = () => {
     });
   }, [allTasks, activeFilters]);
 
+  const visibleTasks = useMemo(() => {
+    const query = taskSearch.trim().toLowerCase();
+    if (!query) return filteredTasks;
+
+    return filteredTasks.filter((task) =>
+      task.title.toLowerCase().includes(query) ||
+      task.category.toLowerCase().includes(query) ||
+      getSourceLabel(task.source).toLowerCase().includes(query)
+    );
+  }, [filteredTasks, taskSearch]);
+
   const toggleFilter = (filter: TaskFilter) => {
     setActiveFilters(prev => {
       const next = new Set(prev);
@@ -607,61 +491,9 @@ const PersonalPlanner = () => {
     return { start, end, days };
   }, [currentDate, viewMode]);
 
-  // Project recurring tasks with reminderTime onto the calendar as virtual events
-  const recurringEvents = useMemo((): CalendarEvent[] => {
-    if (!recurringTasks?.length) return [];
-    const virtualEvents: CalendarEvent[] = [];
-    const days = dateRange.days;
-    
-    for (const task of recurringTasks) {
-      if (!task.reminderTime) continue;
-      
-      for (const day of days) {
-        const dayOfWeek = getDay(day);
-        let isDue = false;
-        
-        if (task.frequency === "daily") {
-          isDue = true;
-        } else if (task.frequency === "thrice_weekly" && task.dayOfWeek !== null) {
-          isDue = (task.dayOfWeek & (1 << dayOfWeek)) !== 0;
-        } else if (task.frequency === "weekly") {
-          isDue = task.dayOfWeek === null || task.dayOfWeek === dayOfWeek;
-        } else if (task.frequency === "monthly") {
-          isDue = task.dayOfMonth === null || task.dayOfMonth === day.getDate();
-        } else if (task.frequency === "yearly") {
-          isDue = (task.dayOfWeek === null || task.dayOfWeek === day.getMonth()) && 
-                  (task.dayOfMonth === null || task.dayOfMonth === day.getDate());
-        }
-        
-        if (!isDue) continue;
-        
-        const [h, m] = task.reminderTime.split(":").map(Number);
-        const start = new Date(day);
-        start.setHours(h, m, 0, 0);
-        const end = new Date(start);
-        end.setMinutes(end.getMinutes() + 30);
-        
-        const completed = isTaskCompletedToday?.(task.id) && isSameDay(day, new Date());
-        
-        virtualEvents.push({
-          id: `recurring-${task.id}-${format(day, "yyyy-MM-dd")}`,
-          title: `${completed ? "✅ " : "🔁 "}${task.title}`,
-          startTime: start.toISOString(),
-          endTime: end.toISOString(),
-          category: "משימה קבועה",
-          color: completed ? "#22c55e" : "#6366f1",
-          description: task.description || undefined,
-          userId: "",
-          allDay: false,
-          sourceType: "recurring",
-          sourceId: task.id,
-          createdAt: task.createdAt,
-          updatedAt: task.createdAt,
-        } as CalendarEvent);
-      }
-    }
-    return virtualEvents;
-  }, [recurringTasks, dateRange.days, isTaskCompletedToday]);
+  // Recurring tasks are managed in the Daily Routine editor (DailyRoutine component),
+  // not projected as virtual events on the calendar. Users can manually drag them from the sidebar.
+  const recurringEvents = useMemo((): CalendarEvent[] => [], []);
 
   const filteredEvents = useMemo(() => {
     const calendarEvents = events.filter((e) => {
@@ -674,6 +506,26 @@ const PersonalPlanner = () => {
     });
     return [...calendarEvents, ...recurringEvents];
   }, [events, dateRange, recurringEvents]);
+
+  const taskCounts = useMemo(() => ({
+    urgent: allTasks.filter((task) => task.urgent).length,
+    overdue: allTasks.filter((task) => task.overdue).length,
+    planned: filteredEvents.length,
+  }), [allTasks, filteredEvents]);
+
+  const todayEventsCount = useMemo(
+    () => filteredEvents.filter((event) => isSameDay(new Date(event.startTime), currentDate)).length,
+    [filteredEvents, currentDate]
+  );
+
+  const upcomingEvents = useMemo(
+    () =>
+      filteredEvents
+        .filter((event) => new Date(event.startTime) >= startOfDay(currentDate))
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .slice(0, 3),
+    [filteredEvents, currentDate]
+  );
 
   const navigate = (dir: number) => {
     if (viewMode === "day") setCurrentDate((d) => addDays(d, dir));
@@ -820,6 +672,61 @@ const PersonalPlanner = () => {
     setDraggedTask(null);
     setDragCreateState(null);
     setDraggingEvent(null);
+  };
+
+  const openNewEventDialog = ({
+    start,
+    end,
+    title = "",
+    category = "אחר",
+    description = "",
+  }: {
+    start: Date;
+    end: Date;
+    title?: string;
+    category?: string;
+    description?: string;
+  }) => {
+    setEditingEvent(null);
+    setNewEventData({
+      title,
+      description,
+      category,
+      startTime: toLocalISOString(start),
+      endTime: toLocalISOString(end),
+      color: getDynCategoryColor(category),
+      sourceType: "custom",
+      sourceId: null,
+      inviteeEmails: "",
+    });
+    setShowEventDialog(true);
+  };
+
+  const createQuickEventAt = (
+    day: Date,
+    hour = 9,
+    minute = 0,
+    preset?: { title?: string; category?: string; durationMinutes?: number; description?: string }
+  ) => {
+    const start = setMinutes(setHours(day, hour), minute);
+    const end = addMinutes(start, preset?.durationMinutes ?? 30);
+    openNewEventDialog({
+      start,
+      end,
+      title: preset?.title,
+      category: preset?.category ?? "אחר",
+      description: preset?.description,
+    });
+  };
+
+  const handleSlotClick = (day: Date, hour: number, event: React.MouseEvent<HTMLDivElement>) => {
+    if (draggedTask || draggingEvent || resizingEvent) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("[data-event-card='true'], button, input, textarea, [role='button']")) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const minute = Math.min(45, snapMinutes(((event.clientY - rect.top) / getHourHeight(hour)) * 60));
+    createQuickEventAt(day, hour, minute);
   };
 
   // --- Touch drag handlers for mobile (iOS) ---
@@ -1168,39 +1075,7 @@ const PersonalPlanner = () => {
   };
 
   const handleAddCustomEvent = () => {
-    const start = setMinutes(setHours(new Date(), 9), 0);
-    const end = addHours(start, 1);
-    setEditingEvent(null);
-    setNewEventData({
-      title: "",
-      description: "",
-      category: "אחר",
-      startTime: toLocalISOString(start),
-      endTime: toLocalISOString(end),
-      color: "",
-      sourceType: "custom",
-      sourceId: null,
-      inviteeEmails: "",
-    });
-    setShowEventDialog(true);
-  };
-
-  const handleOpenSlotCreate = (day: Date, hour: number) => {
-    const start = setMinutes(setHours(new Date(day), hour), 0);
-    const end = addHours(start, 1);
-    setEditingEvent(null);
-    setNewEventData({
-      title: "",
-      description: "",
-      category: "אחר",
-      startTime: toLocalISOString(start),
-      endTime: toLocalISOString(end),
-      color: "",
-      sourceType: "custom",
-      sourceId: null,
-      inviteeEmails: "",
-    });
-    setShowEventDialog(true);
+    createQuickEventAt(new Date(), 9, 0);
   };
 
   const handleDeleteEvent = async () => {
@@ -1216,22 +1091,22 @@ const PersonalPlanner = () => {
       ? format(currentDate, "dd/MM/yyyy")
       : viewMode === "week"
         ? `${format(dateRange.start, "dd/MM")} - ${format(dateRange.end, "dd/MM/yyyy")}`
-        : format(currentDate, "MMMM yyyy", { locale: calendarLocale });
+        : format(currentDate, "MMMM yyyy", { locale: he });
 
     const eventsInRange = filteredEvents.sort(
       (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     );
 
-    let html = `<html dir="${dir}"><head><meta charset="utf-8"><style>
-      body { font-family: Arial; direction: ${dir}; }
+    let html = `<html dir="rtl"><head><meta charset="utf-8"><style>
+      body { font-family: Arial; direction: rtl; }
       table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-      th, td { border: 1px solid #ccc; padding: 8px; text-align: ${dir === "rtl" ? "right" : "left"}; }
+      th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
       th { background: #f0f0f0; }
       h1 { color: #333; }
     </style></head><body>
-    <h1>${isHebrew ? "לוח זמנים" : "Schedule"} - ${title}</h1>
+    <h1>לוח זמנים - ${title}</h1>
     <table>
-      <tr><th>${isHebrew ? "שעה" : "Time"}</th><th>${copy.title}</th><th>${copy.category}</th><th>${copy.notes}</th></tr>`;
+      <tr><th>שעה</th><th>כותרת</th><th>קטגוריה</th><th>הערות</th></tr>`;
 
     eventsInRange.forEach((e) => {
       const start = format(new Date(e.startTime), "HH:mm");
@@ -1245,10 +1120,10 @@ const PersonalPlanner = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${isHebrew ? "לוח-זמנים" : "schedule"}-${title}.doc`;
+    a.download = `לוח-זמנים-${title}.doc`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(isHebrew ? "הקובץ הורד בהצלחה" : "File downloaded successfully");
+    toast.success("הקובץ הורד בהצלחה");
   };
 
   // Export to ICS (calendar file)
@@ -1291,22 +1166,7 @@ const PersonalPlanner = () => {
     a.download = `schedule-${title}.ics`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(isHebrew ? "קובץ לוח שנה הורד - ניתן לשלוח במייל ולייבא ליומן העבודה" : "Calendar file downloaded. You can email it or import it into your work calendar.");
-  };
-
-  const getSourceLabel = (source: string) => {
-    switch (source) {
-      case "work": return copy.work;
-      case "personal": return copy.personal;
-      case "project": return copy.project;
-      case "recurring": return copy.recurring;
-      case "show": return copy.sourceShow;
-      case "course": return copy.sourceCourse;
-      case "podcast": return copy.sourcePodcast;
-      case "book": return copy.sourceBook;
-      case "board": return copy.sourceBoard;
-      default: return source;
-    }
+    toast.success("קובץ לוח שנה הורד - ניתן לשלוח במייל ולייבא ליומן העבודה");
   };
 
   // Source-to-color mapping - customizable and persisted
@@ -1341,29 +1201,18 @@ const PersonalPlanner = () => {
     return sourceColors[source] || "#6b7280";
   };
 
-  const getSourceBg = (source: string) => {
-    return `border-l-4`;
+  const setEventDuration = (minutes: number) => {
+    if (!newEventData.startTime) return;
+    const start = new Date(newEventData.startTime);
+    setNewEventData((prev) => ({
+      ...prev,
+      endTime: toLocalISOString(addMinutes(start, minutes)),
+    }));
   };
 
   // Render time grid for day/week view
   const renderTimeGrid = () => {
     const days = viewMode === "day" ? [currentDate] : dateRange.days;
-    const expandedHourHeights = HOURS.reduce<Record<number, number>>((acc, hour) => {
-      const maxEventsForHour = Math.max(
-        1,
-        ...days.map((day) =>
-          filteredEvents.filter((event) => {
-            const start = new Date(event.startTime);
-            const end = new Date(event.endTime);
-            const slotStart = setMinutes(setHours(new Date(day), hour), 0);
-            const slotEnd = addHours(slotStart, 1);
-            return isSameDay(start, day) && start < slotEnd && end > slotStart;
-          }).length
-        ),
-      );
-      acc[hour] = Math.max(getHourHeight(hour), maxEventsForHour * 28);
-      return acc;
-    }, {});
 
     return (
       <div className="flex flex-1 min-h-0 overflow-auto" ref={gridRef}>
@@ -1371,7 +1220,7 @@ const PersonalPlanner = () => {
         <div className="w-16 flex-shrink-0 border-l border-border">
           <div className="h-10 border-b border-border" />
           {HOURS.map((h) => {
-            const hHeight = expandedHourHeights[h];
+            const hHeight = getHourHeight(h);
             return (
               <div
                 key={h}
@@ -1388,7 +1237,7 @@ const PersonalPlanner = () => {
                   <div
                     className="absolute bottom-0 left-0 right-0 h-2.5 cursor-ns-resize hover:bg-primary/30 active:bg-primary/40 transition-colors rounded-b"
                     onMouseDown={(e) => handleHourResizeStart(e, h)}
-                    title={isHebrew ? "גרור כדי לשנות גובה השעה" : "Drag to resize this hour"}
+                    title="גרור כדי לשנות גובה השעה"
                   >
                     <div className="w-6 h-0.5 rounded-full bg-muted-foreground/30 mx-auto mt-1" />
                   </div>
@@ -1413,9 +1262,9 @@ const PersonalPlanner = () => {
               <div
                 className={`min-h-[40px] border-b border-border flex flex-col items-center justify-center text-sm sticky top-0 bg-card z-10 cursor-pointer hover:bg-muted/50 transition-colors ${isSameDay(day, new Date()) ? "bg-primary/10 font-bold" : ""}`}
                 onClick={() => viewMode === "week" && setExpandedDayIndex(isExpanded ? null : dayIndex)}
-                title={viewMode === "week" ? (isExpanded ? (isHebrew ? "לחץ לכווץ" : "Click to collapse") : `${isHebrew ? "לחץ להרחיב" : "Click to expand"} (${dayEventCount} ${copy.events})`) : undefined}
+                title={viewMode === "week" ? (isExpanded ? "לחץ לכווץ" : `לחץ להרחיב (${dayEventCount} אירועים)`) : undefined}
               >
-                <span>{format(day, "EEEE", { locale: calendarLocale })}</span>
+                <span>{format(day, "EEEE", { locale: he })}</span>
                 <span className="text-xs text-muted-foreground">{format(day, "dd/MM")}</span>
                 {getHolidaysForDate(format(day, "yyyy-MM-dd")).map((h, i) => (
                   <span key={i} className="text-[9px] px-1.5 rounded-full font-medium mt-0.5" style={{ backgroundColor: h.color + "22", color: h.color }}>
@@ -1453,17 +1302,12 @@ const PersonalPlanner = () => {
                   <div
                     key={h}
                     className="border-b border-border/50 relative group hover:bg-muted/30 transition-colors"
-                    style={{ height: expandedHourHeights[h] }}
+                    style={{ height: getHourHeight(h) }}
                     data-slot-day={day.toISOString()}
                     data-slot-hour={h}
                     onDragOver={(e) => handleSlotDragOver(e, day, h)}
                     onDrop={(e) => handleDrop(day, h, e)}
-                    onClick={(event) => {
-                      if (event.target !== event.currentTarget) return;
-                      if (draggedTask || draggingEvent || dragCreateState) return;
-                      handleOpenSlotCreate(day, h);
-                    }}
-                    onDoubleClick={() => handleOpenSlotCreate(day, h)}
+                    onClick={(e) => handleSlotClick(day, h, e)}
                     onDragLeave={() => {}}
                   >
                     {/* Minute marks */}
@@ -1475,10 +1319,10 @@ const PersonalPlanner = () => {
                       <div
                         className="absolute inset-x-1 rounded-md bg-primary/20 border-2 border-dashed border-primary z-30 pointer-events-none"
                         style={{
-                          top: (dragCreateState.startMinute / 60) * expandedHourHeights[h],
+                          top: (dragCreateState.startMinute / 60) * getHourHeight(h),
                           height: Math.max(
                             ((dragCreateState.currentHour * 60 + dragCreateState.currentMinute) -
-                              (dragCreateState.startHour * 60 + dragCreateState.startMinute)) / 60 * expandedHourHeights[h],
+                              (dragCreateState.startHour * 60 + dragCreateState.startMinute)) / 60 * getHourHeight(h),
                             15
                           ),
                         }}
@@ -1498,7 +1342,7 @@ const PersonalPlanner = () => {
                         new Date(event.endTime),
                         new Date(event.startTime)
                       );
-                      const currentHourHeight = expandedHourHeights[h];
+                      const currentHourHeight = getHourHeight(h);
                       const isResizing = resizingEvent?.eventId === event.id;
                       const height = isResizing && resizePreviewHeight !== null
                         ? resizePreviewHeight
@@ -1528,6 +1372,7 @@ const PersonalPlanner = () => {
                         <div
                           key={event.id}
                           draggable
+                          data-event-card="true"
                           onDragStart={(e) => {
                             e.stopPropagation();
                             setDraggingEvent(event);
@@ -1604,7 +1449,7 @@ const PersonalPlanner = () => {
     return (
       <div className="flex-1 overflow-auto">
         <div className="grid grid-cols-7 border-b border-border sticky top-0 bg-card z-10">
-          {(isHebrew ? ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]).map((d) => (
+          {["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"].map((d) => (
             <div key={d} className="p-2 text-center text-sm font-medium text-muted-foreground border-l border-border">
               {d}
             </div>
@@ -1625,8 +1470,23 @@ const PersonalPlanner = () => {
                   className={`border-l border-b border-border p-1 ${!isCurrentMonth ? "bg-muted/30" : ""} ${isSameDay(day, new Date()) ? "bg-primary/10" : ""}`}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleDrop(day)}
+                  onDoubleClick={() => createQuickEventAt(day, 9, 0)}
                 >
-                  <div className="text-xs font-medium mb-1">{format(day, "d")}</div>
+                  <div className="mb-1 flex items-center justify-between gap-1">
+                    <div className="text-xs font-medium">{format(day, "d")}</div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        createQuickEventAt(day, 9, 0);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
                   {getHolidaysForDate(format(day, "yyyy-MM-dd")).map((h, i) => (
                     <div key={`h-${i}`} className="text-[9px] truncate rounded px-1 mb-0.5" style={{ backgroundColor: h.color + "22", color: h.color }}>
                       {h.name}
@@ -1636,6 +1496,7 @@ const PersonalPlanner = () => {
                     <div
                       key={event.id}
                       draggable
+                      data-event-card="true"
                       onDragStart={(e) => {
                         e.stopPropagation();
                         setDraggingEvent(event);
@@ -1650,7 +1511,7 @@ const PersonalPlanner = () => {
                     </div>
                   ))}
                   {dayEvents.length > 3 && (
-                    <div className="text-xs text-muted-foreground">+{dayEvents.length - 3} {isHebrew ? "נוספים" : "more"}</div>
+                    <div className="text-xs text-muted-foreground">+{dayEvents.length - 3} נוספים</div>
                   )}
                 </div>
               );
@@ -1695,12 +1556,12 @@ const PersonalPlanner = () => {
                 }}
               >
                 <h3 className="text-sm font-bold text-center mb-2">
-                  {format(monthDate, "MMMM", { locale: calendarLocale })}
+                  {format(monthDate, "MMMM", { locale: he })}
                 </h3>
 
                 {/* Mini day headers */}
                 <div className="grid grid-cols-7 gap-px mb-1">
-                  {(isHebrew ? ["א", "ב", "ג", "ד", "ה", "ו", "ש"] : ["S", "M", "T", "W", "T", "F", "S"]).map((d) => (
+                  {["א", "ב", "ג", "ד", "ה", "ו", "ש"].map((d) => (
                     <div key={d} className="text-[9px] text-muted-foreground text-center">{d}</div>
                   ))}
                 </div>
@@ -1730,7 +1591,7 @@ const PersonalPlanner = () => {
 
                 {/* Event count */}
                 <div className="text-[10px] text-muted-foreground text-center mt-1.5 border-t border-border pt-1">
-                  {monthEvents.length > 0 ? `${monthEvents.length} ${copy.events}` : copy.noEvents}
+                  {monthEvents.length > 0 ? `${monthEvents.length} אירועים` : "ללא אירועים"}
                 </div>
               </div>
             );
@@ -1741,12 +1602,40 @@ const PersonalPlanner = () => {
   };
 
   return (
-    <div className="flex h-full" dir={dir}>
+    <div className="flex h-full flex-col md:flex-row" dir="rtl">
       {/* Right sidebar - Task list */}
-      <div className="w-80 border-l border-border flex flex-col bg-card flex-shrink-0">
+      <div className={`${isMobile ? "hidden" : "flex"} w-80 border-l border-border flex-col bg-card flex-shrink-0`}>
         <div className="p-3 border-b border-border">
-          <h3 className="font-bold text-sm mb-1">{copy.tasks} ({filteredTasks.length}/{allTasks.length})</h3>
-          <p className="text-[10px] text-muted-foreground">{copy.dragHint}</p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="font-bold text-sm mb-1">משימות ללוז</h3>
+              <p className="text-[10px] text-muted-foreground">גרור משימה ללוח, או חפש ותזמן במהירות</p>
+            </div>
+            <Badge variant="secondary" className="text-[10px]">{visibleTasks.length}/{allTasks.length}</Badge>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-border bg-background/70 px-2 py-1.5">
+              <div className="text-[10px] text-muted-foreground">דחוף</div>
+              <div className="text-sm font-semibold">{taskCounts.urgent}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-background/70 px-2 py-1.5">
+              <div className="text-[10px] text-muted-foreground">באיחור</div>
+              <div className="text-sm font-semibold">{taskCounts.overdue}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-background/70 px-2 py-1.5">
+              <div className="text-[10px] text-muted-foreground">אירועים</div>
+              <div className="text-sm font-semibold">{taskCounts.planned}</div>
+            </div>
+          </div>
+          <div className="relative mt-3">
+            <Search className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={taskSearch}
+              onChange={(e) => setTaskSearch(e.target.value)}
+              placeholder="חפש משימה, קטגוריה או מקור"
+              className="h-9 pr-9 text-sm"
+            />
+          </div>
         </div>
 
         {/* Filters */}
@@ -1754,20 +1643,20 @@ const PersonalPlanner = () => {
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="w-full justify-start gap-1.5 text-xs h-8 rounded-none border-b border-border">
               <Filter className="h-3.5 w-3.5" />
-              {copy.filter} {activeFilters.has("all") ? "" : `(${activeFilters.size})`}
+              סינון {activeFilters.has("all") ? "" : `(${activeFilters.size})`}
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="border-b border-border p-2 space-y-2">
             {/* Source filters */}
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground">{copy.source}</p>
+              <p className="text-[10px] font-bold text-muted-foreground">לפי מקור:</p>
               <div className="flex flex-wrap gap-1">
                 {([
-                  { key: "all" as TaskFilter, label: copy.all },
-                  { key: "personal" as TaskFilter, label: copy.personal },
-                  { key: "work" as TaskFilter, label: copy.work },
-                  { key: "project" as TaskFilter, label: copy.project },
-                  { key: "recurring" as TaskFilter, label: copy.recurring },
+                  { key: "all" as TaskFilter, label: "הכל" },
+                  { key: "personal" as TaskFilter, label: "אישי" },
+                  { key: "work" as TaskFilter, label: "עבודה" },
+                  { key: "project" as TaskFilter, label: "פרויקט" },
+                  { key: "recurring" as TaskFilter, label: "יומי" },
                 ]).map(({ key, label }) => (
                   <Button
                     key={key}
@@ -1784,13 +1673,13 @@ const PersonalPlanner = () => {
 
             {/* Status filters */}
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-muted-foreground">{copy.status}</p>
+              <p className="text-[10px] font-bold text-muted-foreground">לפי סטטוס:</p>
               <div className="flex flex-wrap gap-1">
                 {([
-                  { key: "overdue" as TaskFilter, label: copy.overdue, icon: <AlertTriangle className="h-3 w-3" /> },
-                  { key: "today" as TaskFilter, label: copy.today },
-                  { key: "week" as TaskFilter, label: copy.upcomingWeek },
-                  { key: "urgent" as TaskFilter, label: copy.urgent, icon: <Flame className="h-3 w-3" /> },
+                  { key: "overdue" as TaskFilter, label: "חריגה בתאריך", icon: <AlertTriangle className="h-3 w-3" /> },
+                  { key: "today" as TaskFilter, label: "היום" },
+                  { key: "week" as TaskFilter, label: "השבוע הקרוב" },
+                  { key: "urgent" as TaskFilter, label: "דחוף", icon: <Flame className="h-3 w-3" /> },
                 ]).map(({ key, label, icon }) => (
                   <Button
                     key={key}
@@ -1809,7 +1698,7 @@ const PersonalPlanner = () => {
             {/* Custom boards */}
             {customBoards.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-muted-foreground">{copy.dashboards}</p>
+                <p className="text-[10px] font-bold text-muted-foreground">דשבורדים:</p>
                 <div className="flex flex-wrap gap-1">
                   {customBoards.map(board => (
                     <Button
@@ -1839,7 +1728,7 @@ const PersonalPlanner = () => {
                   onCheckedChange={(c) => setShowShowsInPlanner(!!c)}
                 />
                 <label htmlFor="showShows" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
-                  {copy.showsToggle}
+                  הצג סדרות/סרטים
                 </label>
               </div>
               {showShowsInPlanner && (
@@ -1851,7 +1740,7 @@ const PersonalPlanner = () => {
                     onClick={() => toggleFilter("shows_series")}
                   >
                     <Tv className="h-3 w-3" />
-                    {copy.series}
+                    סדרות
                   </Button>
                   <Button
                     variant={activeFilters.has("shows_movies") ? "default" : "outline"}
@@ -1860,7 +1749,7 @@ const PersonalPlanner = () => {
                     onClick={() => toggleFilter("shows_movies")}
                   >
                     <Film className="h-3 w-3" />
-                    {copy.movies}
+                    סרטים
                   </Button>
                 </div>
               )}
@@ -1875,7 +1764,7 @@ const PersonalPlanner = () => {
                   onCheckedChange={(c) => setShowCoursesInPlanner(!!c)}
                 />
                 <label htmlFor="showCourses" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
-                  {copy.coursesToggle}
+                  📚 הצג קורסים (שיעור הבא)
                 </label>
               </div>
               {showCoursesInPlanner && (
@@ -1886,7 +1775,7 @@ const PersonalPlanner = () => {
                     className="h-6 text-[10px] px-2 gap-0.5"
                     onClick={() => toggleFilter("courses")}
                   >
-                    {copy.coursesOnly}
+                    🎓 רק קורסים
                   </Button>
                 </div>
               )}
@@ -1901,7 +1790,7 @@ const PersonalPlanner = () => {
                   onCheckedChange={(c) => setShowPodcastsInPlanner(!!c)}
                 />
                 <label htmlFor="showPodcasts" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
-                  {copy.podcastsToggle}
+                  🎧 הצג פודקאסטים
                 </label>
               </div>
               {showPodcastsInPlanner && (
@@ -1912,7 +1801,7 @@ const PersonalPlanner = () => {
                     className="h-6 text-[10px] px-2 gap-0.5"
                     onClick={() => toggleFilter("podcasts")}
                   >
-                    {copy.podcastsOnly}
+                    🎧 רק פודקאסטים
                   </Button>
                 </div>
               )}
@@ -1927,7 +1816,7 @@ const PersonalPlanner = () => {
                   onCheckedChange={(c) => setShowBooksInPlanner(!!c)}
                 />
                 <label htmlFor="showBooks" className="text-[10px] font-bold text-muted-foreground cursor-pointer">
-                  {copy.booksToggle}
+                  📖 הצג ספרים
                 </label>
               </div>
               {showBooksInPlanner && (
@@ -1938,7 +1827,7 @@ const PersonalPlanner = () => {
                     className="h-6 text-[10px] px-2 gap-0.5"
                     onClick={() => toggleFilter("books")}
                   >
-                    {copy.booksOnly}
+                    📖 רק ספרים
                   </Button>
                 </div>
               )}
@@ -1950,7 +1839,7 @@ const PersonalPlanner = () => {
         <Collapsible>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="w-full justify-between text-[10px] h-7 px-2 border-b border-border rounded-none">
-              {copy.categoryColors}
+              🎨 צבעי קטגוריות
               <Filter className="h-3 w-3" />
             </Button>
           </CollapsibleTrigger>
@@ -1978,7 +1867,7 @@ const PersonalPlanner = () => {
               className="w-full text-[10px] h-6 mt-1"
               onClick={() => setShowCategoryManager(true)}
             >
-              {copy.fullManage}
+              ⚙️ ניהול מלא
             </Button>
            </CollapsibleContent>
         </Collapsible>
@@ -1987,7 +1876,7 @@ const PersonalPlanner = () => {
         <Collapsible>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="w-full justify-between text-[10px] h-7 px-2 border-b border-border rounded-none">
-              {copy.sourceColors}
+              🎨 צבעי מקורות
               <Filter className="h-3 w-3" />
             </Button>
           </CollapsibleTrigger>
@@ -2015,7 +1904,7 @@ const PersonalPlanner = () => {
 
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1.5">
-            {filteredTasks.map((task) => {
+            {visibleTasks.map((task) => {
               const srcColor = getSourceColor(task.source);
               return (
               <div
@@ -2042,7 +1931,7 @@ const PersonalPlanner = () => {
                   {task.urgent && <Flame className="h-3 w-3 text-destructive" />}
                   {task.overdue && <AlertTriangle className="h-3 w-3 text-amber-500" />}
                 </div>
-                <div className="text-xs font-medium line-clamp-2 pr-4">{task.title || copy.untitled}</div>
+                <div className="text-xs font-medium line-clamp-2 pr-4">{task.title || "(ללא כותרת)"}</div>
                 {task.plannedEnd && (
                   <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Clock className="h-2.5 w-2.5" />
@@ -2052,25 +1941,90 @@ const PersonalPlanner = () => {
               </div>
               );
             })}
-            {filteredTasks.length === 0 && (
+            {visibleTasks.length === 0 && (
               <div className="text-center text-muted-foreground text-sm py-8">
-                {activeFilters.has("all") ? copy.noOpenTasks : copy.noFilteredTasks}
+                {taskSearch.trim() ? "לא נמצאו משימות לפי החיפוש" : activeFilters.has("all") ? "אין משימות פתוחות" : "אין משימות לפי הסינון"}
               </div>
             )}
           </div>
         </ScrollArea>
       </div>
 
+      {isMobile && (
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="right" className="w-[92vw] max-w-none p-0" dir="rtl">
+            <SheetHeader className="border-b border-border p-4 text-right">
+              <SheetTitle>משימות ללוז</SheetTitle>
+              <SheetDescription className="sr-only">
+                רשימת משימות לחיפוש, גרירה ושיבוץ מהיר ללוח הזמנים.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="border-b border-border p-3">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-[10px]">{visibleTasks.length}/{allTasks.length}</Badge>
+                <Badge variant="outline" className="text-[10px]">דחוף {taskCounts.urgent}</Badge>
+                <Badge variant="outline" className="text-[10px]">באיחור {taskCounts.overdue}</Badge>
+              </div>
+              <div className="relative mt-3">
+                <Search className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  placeholder="חפש משימה"
+                  className="h-9 pr-9 text-sm"
+                />
+              </div>
+            </div>
+            <ScrollArea className="h-[calc(100vh-140px)]">
+              <div className="p-3 space-y-2">
+                {visibleTasks.map((task) => {
+                  const srcColor = getSourceColor(task.source);
+                  return (
+                    <div
+                      key={`mobile-${task.source}-${task.id}`}
+                      draggable
+                      onDragStart={() => handleDragStart(task)}
+                      onDragEnd={handleDragEnd}
+                      onTouchStart={(e) => handleTouchStart(e, task)}
+                      onTouchMove={(e) => handleTouchMove(e)}
+                      onTouchEnd={(e) => handleTouchEnd(e)}
+                      className={`rounded-xl border p-2 text-sm border-l-4 ${task.overdue ? "ring-1 ring-red-400" : ""}`}
+                      style={{ borderLeftColor: srcColor, backgroundColor: srcColor + "12" }}
+                    >
+                      <div className="mb-1 flex items-center gap-1">
+                        <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        <span className="text-[10px] px-1.5 rounded-full font-medium" style={{ backgroundColor: srcColor + "33", color: srcColor }}>
+                          {getSourceLabel(task.source)}
+                        </span>
+                        {task.urgent && <Flame className="h-3 w-3 text-destructive" />}
+                        {task.overdue && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                      </div>
+                      <div className="text-xs font-medium line-clamp-2 pr-4">{task.title || "(ללא כותרת)"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+      )}
+
       {/* Left side - Calendar */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Calendar header */}
         <div className="flex items-center gap-2 p-3 border-b border-border bg-card flex-shrink-0 flex-wrap">
+          {isMobile && (
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setSidebarOpen(true)}>
+              <PanelRightOpen className="h-4 w-4" />
+            </Button>
+          )}
+
           <div className="flex items-center gap-1">
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" className="h-8" onClick={() => setCurrentDate(new Date())}>
-              {copy.today}
+              היום
             </Button>
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigate(1)}>
               <ChevronLeft className="h-4 w-4" />
@@ -2078,9 +2032,9 @@ const PersonalPlanner = () => {
           </div>
 
           <h2 className="font-bold text-lg min-w-[150px]">
-            {viewMode === "day" && format(currentDate, "EEEE, dd MMMM yyyy", { locale: calendarLocale })}
+            {viewMode === "day" && format(currentDate, "EEEE, dd MMMM yyyy", { locale: he })}
             {viewMode === "week" && `${format(dateRange.start, "dd/MM")} - ${format(dateRange.end, "dd/MM/yyyy")}`}
-            {viewMode === "month" && format(currentDate, "MMMM yyyy", { locale: calendarLocale })}
+            {viewMode === "month" && format(currentDate, "MMMM yyyy", { locale: he })}
             {viewMode === "year" && format(currentDate, "yyyy")}
           </h2>
 
@@ -2092,7 +2046,7 @@ const PersonalPlanner = () => {
                   onClick={() => setViewMode(mode)}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === mode ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
                 >
-                  {mode === "day" ? copy.day : mode === "week" ? copy.week : mode === "month" ? copy.month : copy.year}
+                  {mode === "day" ? "יומי" : mode === "week" ? "שבועי" : mode === "month" ? "חודשי" : "שנתי"}
                 </button>
               ))}
             </div>
@@ -2119,7 +2073,17 @@ const PersonalPlanner = () => {
 
             <Button variant="outline" size="sm" className="gap-1 h-8" onClick={handleAddCustomEvent}>
               <Plus className="h-3.5 w-3.5" />
-              {copy.event}
+              אירוע
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 h-8"
+              onClick={() => createQuickEventAt(currentDate, 9, 0, QUICK_EVENT_PRESETS[0])}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              פגישה מהירה
             </Button>
 
             <Button variant="outline" size="sm" className="gap-1 h-8" onClick={exportToWord}>
@@ -2134,29 +2098,93 @@ const PersonalPlanner = () => {
           </div>
         </div>
 
+        <div className="border-b border-border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+          לחץ על משבצת ריקה כדי לפתוח אירוע חדש, גרור משימה מהצד כדי לשבץ אותה, ולחץ פעמיים בחודש כדי להוסיף אירוע ליום שבחרת.
+        </div>
+
+        <div className="border-b border-border bg-background px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">היום {todayEventsCount} אירועים</Badge>
+            <Badge variant="outline">לא שובצו {visibleTasks.length}</Badge>
+            {QUICK_EVENT_PRESETS.map((preset) => (
+              <Button
+                key={preset.label}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => createQuickEventAt(currentDate, 9, 0, preset)}
+              >
+                <Plus className="h-3 w-3" />
+                {preset.label}
+              </Button>
+            ))}
+          </div>
+          {upcomingEvents.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {upcomingEvents.map((event) => (
+                <button
+                  key={`upcoming-${event.id}`}
+                  type="button"
+                  className="rounded-full border border-border px-2 py-1 hover:bg-muted"
+                  onClick={() => handleClickEvent(event)}
+                >
+                  {format(new Date(event.startTime), "HH:mm")} · {event.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Calendar grid */}
         {viewMode === "year" ? renderYearGrid() : viewMode === "month" ? renderMonthGrid() : renderTimeGrid()}
       </div>
 
       {/* Event Dialog */}
       <Dialog open={showEventDialog} onOpenChange={setShowEventDialog}>
-        <DialogContent className="max-w-md" dir={dir}>
+        <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{editingEvent ? copy.editEvent : copy.newEvent}</DialogTitle>
+            <DialogTitle>{editingEvent ? "עריכת אירוע" : "אירוע חדש"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              טופס ליצירה או עריכה של אירוע בלוח הזמנים.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
+            <div className="rounded-xl border border-border bg-muted/30 p-2">
+              <div className="text-xs font-medium">יצירה מהירה</div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {QUICK_EVENT_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setNewEventData((prev) => ({
+                      ...prev,
+                      title: preset.title,
+                      category: preset.category,
+                      color: getDynCategoryColor(preset.category),
+                    }))}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
             <div>
-              <label className="text-sm font-medium">{copy.title}</label>
+              <label className="text-sm font-medium">כותרת</label>
               <Input
                 value={newEventData.title}
                 onChange={(e) => setNewEventData((p) => ({ ...p, title: e.target.value }))}
-                placeholder={copy.eventTitle}
+                placeholder="כותרת האירוע"
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium">{copy.category}</label>
+              <label className="text-sm font-medium">קטגוריה</label>
               <div className="flex gap-2 items-center">
                 <Select value={newEventData.category} onValueChange={(v) => setNewEventData((p) => ({ ...p, category: v, color: getDynCategoryColor(v) }))}>
                   <SelectTrigger className="flex-1">
@@ -2174,14 +2202,14 @@ const PersonalPlanner = () => {
                   </SelectContent>
                 </Select>
                 <Button type="button" variant="outline" size="sm" className="text-xs shrink-0" onClick={() => setShowCategoryManager(true)}>
-                  {copy.manage}
+                  ⚙️ ניהול
                 </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium">{copy.startDate}</label>
+                <label className="text-sm font-medium">תאריך התחלה</label>
                 <Input
                   type="date"
                   value={newEventData.startTime ? format(new Date(newEventData.startTime), "yyyy-MM-dd") : ""}
@@ -2195,7 +2223,7 @@ const PersonalPlanner = () => {
                     setNewEventData((p) => ({ ...p, startTime: toLocalISOString(d), endTime: toLocalISOString(endD) }));
                   }}
                 />
-                <label className="text-sm font-medium mt-2 block">{copy.startTime}</label>
+                <label className="text-sm font-medium mt-2 block">שעת התחלה</label>
                 <div className="flex gap-1 items-center" dir="ltr">
                   <Select
                     value={newEventData.startTime ? String(new Date(newEventData.startTime).getHours()) : "9"}
@@ -2227,7 +2255,7 @@ const PersonalPlanner = () => {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium">{copy.endDate}</label>
+                <label className="text-sm font-medium">תאריך סיום</label>
                 <Input
                   type="date"
                   value={newEventData.endTime ? format(new Date(newEventData.endTime), "yyyy-MM-dd") : ""}
@@ -2238,7 +2266,7 @@ const PersonalPlanner = () => {
                     setNewEventData((p) => ({ ...p, endTime: toLocalISOString(d) }));
                   }}
                 />
-                <label className="text-sm font-medium mt-2 block">{copy.endTime}</label>
+                <label className="text-sm font-medium mt-2 block">שעת סיום</label>
                 <div className="flex gap-1 items-center" dir="ltr">
                   <Select
                     value={newEventData.endTime ? String(new Date(newEventData.endTime).getHours()) : "10"}
@@ -2268,18 +2296,36 @@ const PersonalPlanner = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium">{copy.notes}</label>
+              <label className="text-sm font-medium">משך מהיר</label>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {[15, 30, 45, 60, 90].map((minutes) => (
+                  <Button
+                    key={minutes}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setEventDuration(minutes)}
+                  >
+                    {minutes} דק'
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">הערות</label>
               <Textarea
                 value={newEventData.description}
                 onChange={(e) => setNewEventData((p) => ({ ...p, description: e.target.value }))}
-                placeholder={copy.extraNotes}
+                placeholder="הערות נוספות..."
                 rows={2}
               />
             </div>
 
             {/* Invitee emails - below time fields, full width */}
             <div>
-              <label className="text-sm font-medium">{copy.invite}</label>
+              <label className="text-sm font-medium">📧 הזמן משתתפים (מיילים, מופרדים בפסיק)</label>
               <Textarea
                 value={newEventData.inviteeEmails}
                 onChange={(e) => setNewEventData((p) => ({ ...p, inviteeEmails: e.target.value }))}
@@ -2288,7 +2334,7 @@ const PersonalPlanner = () => {
                 rows={2}
                 className="mt-1"
               />
-              <p className="text-xs text-muted-foreground mt-1">{copy.inviteHelp}</p>
+              <p className="text-xs text-muted-foreground mt-1">המוזמנים יקבלו מייל הזמנה ויראו את האירוע בלוח שלהם</p>
             </div>
           </div>
 
@@ -2296,10 +2342,12 @@ const PersonalPlanner = () => {
             {editingEvent && (
               <Button variant="destructive" size="sm" onClick={handleDeleteEvent} className="gap-1">
                 <Trash2 className="h-3.5 w-3.5" />
-                {copy.delete}
+                מחק
               </Button>
             )}
-            <Button onClick={handleSaveEvent}>{editingEvent ? copy.update : copy.add}</Button>
+            <Button onClick={handleSaveEvent} disabled={sendingInvites}>
+              {sendingInvites ? "שולח הזמנות..." : editingEvent ? "עדכן" : "הוסף"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2311,22 +2359,25 @@ const PersonalPlanner = () => {
           setPendingLinkEvent(null);
         }
       }}>
-        <DialogContent dir={dir} className="max-w-sm">
+        <DialogContent dir="rtl" className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>{copy.addToTasks}</DialogTitle>
+            <DialogTitle>הוספה לדשבורד משימות</DialogTitle>
+            <DialogDescription className="sr-only">
+              בחירה אם להוסיף את האירוע שנוצר גם לדשבורד המשימות.
+            </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {copy.addToTasksDesc} <strong>"{pendingLinkEvent?.title}"</strong> {copy.addToTasksDescEnd}
+            רוצה לצרף את <strong>"{pendingLinkEvent?.title}"</strong> לדשבורד משימות? כך תקבל מעקב מלא והתראות סיום.
           </p>
           <div className="flex flex-col gap-2 mt-2">
             <Button onClick={() => handleLinkToDashboard("personal")} className="gap-2">
-              {copy.personalTasks}
+              📋 משימות אישיות
             </Button>
             <Button onClick={() => handleLinkToDashboard("work")} variant="outline" className="gap-2">
-              {copy.workTasks}
+              💼 משימות עבודה
             </Button>
             <Button variant="ghost" onClick={() => { setShowLinkToDashboard(false); setPendingLinkEvent(null); }}>
-              {copy.noThanks}
+              לא, תודה
             </Button>
           </div>
         </DialogContent>
@@ -2334,15 +2385,18 @@ const PersonalPlanner = () => {
 
       {/* Category Manager Dialog */}
       <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-auto" dir={dir}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{copy.manageCategories}</DialogTitle>
+            <DialogTitle>ניהול קטגוריות</DialogTitle>
+            <DialogDescription className="sr-only">
+              ניהול שמות וצבעים של קטגוריות עבור אירועים בלוח.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {/* Existing categories */}
           <div className="space-y-2">
-              <label className="text-sm font-medium">{copy.existingCategories}</label>
+              <label className="text-sm font-medium">קטגוריות קיימות — לחץ על העיגול לשינוי צבע</label>
               <div className="space-y-1.5 max-h-[200px] overflow-auto">
                 {categories.map((cat) => (
                   <div key={cat.name} className="flex items-center gap-2 p-2 rounded-lg border border-border">
@@ -2374,13 +2428,13 @@ const PersonalPlanner = () => {
 
             {/* Add new category */}
             <div className="space-y-2 border-t border-border pt-3">
-              <label className="text-sm font-medium">{copy.addCategory}</label>
+              <label className="text-sm font-medium">הוסף קטגוריה חדשה</label>
               <Input
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
-                placeholder={copy.categoryName}
+                placeholder="שם הקטגוריה..."
               />
-              <label className="text-sm font-medium">{copy.chooseColor}</label>
+              <label className="text-sm font-medium">בחר צבע</label>
               <div className="flex gap-1.5 flex-wrap">
                 {COLOR_PALETTE.map((c) => (
                   <button
@@ -2393,7 +2447,7 @@ const PersonalPlanner = () => {
                 ))}
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <label className="text-xs text-muted-foreground">{copy.customColor}</label>
+                <label className="text-xs text-muted-foreground">או בחר צבע מותאם:</label>
                 <input
                   type="color"
                   value={newCatColor}
@@ -2415,7 +2469,7 @@ const PersonalPlanner = () => {
                 disabled={!newCatName.trim()}
               >
                 <Plus className="h-3.5 w-3.5" />
-                {copy.addCategoryBtn}
+                הוסף קטגוריה
               </Button>
             </div>
           </div>
