@@ -150,6 +150,10 @@ const ZoneFlowDashboard = () => {
   // Guides & Motivation
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedMotivation, setExpandedMotivation] = useState<string | null>(null);
+  const [showMeditationHub, setShowMeditationHub] = useState(() => {
+    const saved = localStorage.getItem("zoneflow-show-meditation-hub");
+    return saved ? saved === "true" : true;
+  });
   const [activeYouTube, setActiveYouTube] = useState<string | null>(() => getZoneFlowYoutubePlayerState().videoId);
   const [activeYtCat, setActiveYtCat] = useState("yt-classical");
   
@@ -219,6 +223,7 @@ const ZoneFlowDashboard = () => {
   useEffect(() => { localStorage.setItem("zoneflow-bg-theme", bgTheme); }, [bgTheme]);
   useEffect(() => { localStorage.setItem("zoneflow-custom-yt", JSON.stringify(customYtVideos)); }, [customYtVideos]);
   useEffect(() => { localStorage.setItem("zoneflow-hidden-yt", JSON.stringify(hiddenYtVideos)); }, [hiddenYtVideos]);
+  useEffect(() => { localStorage.setItem("zoneflow-show-meditation-hub", String(showMeditationHub)); }, [showMeditationHub]);
   useEffect(() => {
     setActiveYouTube(getZoneFlowYoutubePlayerState().videoId);
     return subscribeToZoneFlowYoutubePlayerState(() => {
@@ -425,6 +430,24 @@ const ZoneFlowDashboard = () => {
     "המדיטציה לא דורשת 'לרוקן את הראש'. המטרה היא לשים לב למה שקורה ולחזור בעדינות לעוגן.",
     "גם 2-5 דקות טובות באמת יכולות לעזור יותר ממאמץ ארוך ולא יציב.",
     "סוגי מדיטציה שונים עובדים אחרת: יש כאלה שמורידים סטרס, יש כאלה שמחזירים פוקוס, ויש כאלה שמרככים עומס רגשי.",
+  ];
+  const meditationVideoCategoryId = "meditation-videos";
+  const customMeditationVideos = customYtVideos[meditationVideoCategoryId] || [];
+  const meditationVideos = [
+    ...MEDITATION_VIDEO_TOPICS.filter((video) => !hiddenVideoIds.has(video.id)).map((video) => ({
+      id: video.id,
+      title: video.title,
+      desc: video.desc,
+      bestFor: video.bestFor,
+      isCustom: false,
+    })),
+    ...customMeditationVideos.map((video) => ({
+      id: video.id,
+      title: video.title,
+      desc: "סרטון מדיטציה מותאם אישית",
+      bestFor: "נבחר על ידך",
+      isCustom: true,
+    })),
   ];
 
   // Find upcoming task (next one that hasn't passed)
@@ -733,11 +756,31 @@ const ZoneFlowDashboard = () => {
 
         <Card className="bg-white/5 border-white/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
-              🧘 אזור מדיטציה
-            </CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
+                🧘 אזור מדיטציה
+              </CardTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowMeditationHub((prev) => !prev)}
+                className="text-xs text-[#e8e8ed]/60 hover:text-[#e8e8ed]"
+              >
+                {showMeditationHub ? "הסתר" : "הצג"}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!showMeditationHub ? (
+              <div className={`rounded-2xl border p-4 ${isLight ? "bg-emerald-50 border-emerald-200" : "bg-emerald-500/10 border-emerald-500/20"}`}>
+                <div className="text-sm font-medium">המרחב מכווץ כרגע</div>
+                <p className={`mt-2 text-xs ${themeSubtle}`}>
+                  אפשר לפתוח אותו שוב כדי לראות סוגי מדיטציה, סשנים, וסרטוני תרגול בתוך האפליקציה.
+                </p>
+              </div>
+            ) : (
+              <>
             <div className={`rounded-2xl border p-4 ${isLight ? "bg-emerald-50 border-emerald-200" : "bg-emerald-500/10 border-emerald-500/20"}`}>
               <div className="text-sm font-medium">איך ניגשים לזה</div>
               <div className="mt-2 space-y-2 text-sm">
@@ -821,7 +864,7 @@ const ZoneFlowDashboard = () => {
             <div>
               <div className="mb-2 text-sm font-medium">סרטונים והכוונות</div>
               <div className="grid gap-3 lg:grid-cols-2">
-                {MEDITATION_VIDEO_TOPICS.map((video) => (
+                {meditationVideos.map((video) => (
                   <div
                     key={video.id}
                     className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}
@@ -831,24 +874,85 @@ const ZoneFlowDashboard = () => {
                         <div className="text-sm font-medium">{video.title}</div>
                         <div className={`mt-1 text-xs ${themeSubtle}`}>{video.desc}</div>
                       </div>
-                      <a
-                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(video.query)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`rounded-full px-3 py-1 text-xs transition-all ${
-                          isLight
-                            ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
-                            : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
-                        }`}
-                      >
-                        פתח ב-YouTube
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleYouTubeToggle(video.id, video.title)}
+                          className={`rounded-full px-3 py-1 text-xs transition-all ${
+                            activeYouTube === video.id
+                              ? isLight
+                                ? "bg-emerald-200 text-emerald-900"
+                                : "bg-emerald-500/20 text-emerald-100 border border-emerald-400/30"
+                              : isLight
+                                ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                                : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
+                          }`}
+                        >
+                          {activeYouTube === video.id ? "עוצר" : "נגן כאן"}
+                        </button>
+                        {video.isCustom ? (
+                          <button
+                            type="button"
+                            onClick={() => removeCustomYtVideo(meditationVideoCategoryId, video.id)}
+                            className="text-red-400/60 hover:text-red-400 transition-colors"
+                            title="הסר סרטון"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => hideVideo({ id: video.id, title: video.title, desc: video.desc })}
+                            className="text-red-400/30 hover:text-red-400 transition-colors"
+                            title="הסתר סרטון"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className={`mt-3 text-xs ${themeMuted}`}>מתי זה טוב: {video.bestFor}</p>
                   </div>
                 ))}
               </div>
+              {addYtTarget === meditationVideoCategoryId ? (
+                <div className="mt-3 flex gap-2 items-end flex-wrap">
+                  <input
+                    type="text"
+                    placeholder={t("youtubeLink" as any)}
+                    value={addYtUrl}
+                    onChange={(e) => setAddYtUrl(e.target.value)}
+                    className="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30"
+                    dir="ltr"
+                  />
+                  <input
+                    type="text"
+                    placeholder="שם הסרטון"
+                    value={addYtTitle}
+                    onChange={(e) => setAddYtTitle(e.target.value)}
+                    className="w-[170px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30"
+                    dir="rtl"
+                  />
+                  <Button size="sm" onClick={() => addCustomYtVideo(meditationVideoCategoryId)} className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]" variant="ghost">
+                    <Plus className="h-4 w-4 ml-1" />
+                    הוסף
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setAddYtTarget(null)} className="text-[#e8e8ed]/50 hover:text-[#e8e8ed]">
+                    ביטול
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAddYtTarget(meditationVideoCategoryId)}
+                  className="mt-3 flex items-center gap-2 text-xs text-[#e8e8ed]/40 hover:text-[#e8e8ed]/70 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  הוסף סרטון מדיטציה משלך
+                </button>
+              )}
             </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
