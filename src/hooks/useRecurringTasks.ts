@@ -82,6 +82,12 @@ const mapDbToSkip = (db: DbSkip): RecurringTaskSkip => ({
   skippedAt: db.skipped_at,
 });
 
+const isMissingSchemaPiece = (error: any, identifier: string) => {
+  const message = String(error?.message || error?.details || error?.hint || "").toLowerCase();
+  const code = String(error?.code || "").toLowerCase();
+  return code === "42p01" || code === "42703" || message.includes(identifier.toLowerCase());
+};
+
 export function useRecurringTasks() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<RecurringTask[]>([]);
@@ -125,11 +131,17 @@ export function useRecurringTasks() {
         .select("*")
         .gte("skipped_date", thirtyDaysAgo.toISOString().split("T")[0]);
 
-      if (skipsError) throw skipsError;
+      if (skipsError && !isMissingSchemaPiece(skipsError, "recurring_task_skips")) {
+        throw skipsError;
+      }
 
       setTasks((tasksData as DbRecurringTask[]).map(mapDbToRecurringTask));
       setCompletions((completionsData as DbCompletion[]).map(mapDbToCompletion));
-      setSkips((skipsData as DbSkip[]).map(mapDbToSkip));
+      setSkips(skipsError ? [] : (skipsData as DbSkip[]).map(mapDbToSkip));
+
+      if (skipsError) {
+        console.warn("recurring_task_skips table is unavailable yet; continuing without one-off skips", skipsError);
+      }
     } catch (error: any) {
       console.error("Error fetching recurring tasks:", error);
       toast.error("שגיאה בטעינת משימות קבועות");
@@ -154,19 +166,42 @@ export function useRecurringTasks() {
       if (!user) return null;
 
       try {
-        const { data, error } = await supabase
+        const insertPayload = {
+          user_id: user.id,
+          title: task.title,
+          description: task.description || null,
+          frequency: task.frequency,
+          day_of_week: task.dayOfWeek ?? null,
+          day_of_month: task.dayOfMonth ?? null,
+          reminder_time: task.reminderTime || null,
+        } as any;
+
+        let { data, error } = await supabase
           .from("recurring_tasks")
-          .insert({
-            user_id: user.id,
-            title: task.title,
-            description: task.description || null,
-            frequency: task.frequency,
-            day_of_week: task.dayOfWeek ?? null,
-            day_of_month: task.dayOfMonth ?? null,
-            reminder_time: task.reminderTime || null,
-          } as any)
+          .insert(insertPayload)
           .select()
           .single();
+
+        if (error && task.reminderTime && isMissingSchemaPiece(error, "reminder_time")) {
+          console.warn("reminder_time column is unavailable yet; retrying recurring task creation without it", error);
+          const retry = await supabase
+            .from("recurring_tasks")
+            .insert({
+              user_id: user.id,
+              title: task.title,
+              description: task.description || null,
+              frequency: task.frequency,
+              day_of_week: task.dayOfWeek ?? null,
+              day_of_month: task.dayOfMonth ?? null,
+            } as any)
+            .select()
+            .single();
+          data = retry.data;
+          error = retry.error;
+          if (!retry.error) {
+            toast.warning("המשימה נשמרה, אבל שעת התזכורת עדיין לא זמינה עד לעדכון הדאטה");
+          }
+        }
 
         if (error) throw error;
 
@@ -196,10 +231,22 @@ export function useRecurringTasks() {
       if (updates.reminderTime !== undefined) dbUpdates.reminder_time = updates.reminderTime;
 
       try {
-        const { error } = await supabase
+        let { error } = await supabase
           .from("recurring_tasks")
           .update(dbUpdates)
           .eq("id", taskId);
+
+        if (error && updates.reminderTime !== undefined && isMissingSchemaPiece(error, "reminder_time")) {
+          const { reminder_time: _ignoredReminderTime, ...fallbackUpdates } = dbUpdates;
+          const retry = await supabase
+            .from("recurring_tasks")
+            .update(fallbackUpdates)
+            .eq("id", taskId);
+          error = retry.error;
+          if (!retry.error) {
+            toast.warning("שעת התזכורת לא נשמרה עדיין כי עדכון הדאטה חסר");
+          }
+        }
 
         if (error) throw error;
 
@@ -355,13 +402,12 @@ export function useRecurringTasks() {
     [skips]
   );
 
-  const isTaskDueToday = useCallback((task: RecurringTask): boolean => {
-    const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
-    if (isTaskSkippedOnDate(task.id, todayStr)) return false;
-    const dayOfWeek = today.getDay();
-    const dayOfMonth = today.getDate();
-    const month = today.getMonth();
+  const isTaskDueOnDate = useCallback((task: RecurringTask, date: Date): boolean => {
+    const dateStr = date.toISOString().split("T")[0];
+    if (isTaskSkippedOnDate(task.id, dateStr)) return false;
+    const dayOfWeek = date.getDay();
+    const dayOfMonth = date.getDate();
+    const month = date.getMonth();
 
     switch (task.frequency) {
       case "daily":
@@ -385,52 +431,59 @@ export function useRecurringTasks() {
     }
   }, [isTaskSkippedOnDate]);
 
-  const isTaskCompletedToday = useCallback(
-    (taskId: string): boolean => {
-      const today = new Date();
-      const todayStr = today.toISOString().split("T")[0];
-      
-      // Check if completed today
-      const completedToday = completions.some(
-        (c) => c.recurringTaskId === taskId && c.completedDate === todayStr
-      );
-      if (completedToday) return true;
-      if (isTaskSkippedOnDate(taskId, todayStr)) return true;
+  const isTaskDueToday = useCallback((task: RecurringTask): boolean => {
+    return isTaskDueOnDate(task, new Date());
+  }, [isTaskDueOnDate]);
 
-      const task = tasks.find(t => t.id === taskId);
+  const isTaskCompletedOnDate = useCallback(
+    (taskId: string, date: string): boolean => {
+      const completedOnDate = completions.some(
+        (c) => c.recurringTaskId === taskId && c.completedDate === date
+      );
+      if (completedOnDate) return true;
+      if (isTaskSkippedOnDate(taskId, date)) return true;
+
+      const task = tasks.find((item) => item.id === taskId);
       if (!task) return false;
 
-      // For flexible weekly tasks, check if completed this week
+      const currentDate = new Date(date);
+
       if (task.frequency === "weekly" && task.dayOfWeek === null) {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
+        const weekStart = new Date(currentDate);
+        weekStart.setDate(currentDate.getDate() - currentDate.getDay());
         const weekStartStr = weekStart.toISOString().split("T")[0];
         return completions.some(
-          (c) => c.recurringTaskId === taskId && c.completedDate >= weekStartStr && c.completedDate <= todayStr
+          (c) => c.recurringTaskId === taskId && c.completedDate >= weekStartStr && c.completedDate <= date
         );
       }
 
-      // For flexible monthly tasks, check if completed this month
       if (task.frequency === "monthly" && task.dayOfMonth === null) {
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         const monthStartStr = monthStart.toISOString().split("T")[0];
         return completions.some(
-          (c) => c.recurringTaskId === taskId && c.completedDate >= monthStartStr && c.completedDate <= todayStr
+          (c) => c.recurringTaskId === taskId && c.completedDate >= monthStartStr && c.completedDate <= date
         );
       }
 
-      // For flexible yearly tasks, check if completed this year
       if (task.frequency === "yearly" && task.dayOfMonth === null && task.dayOfWeek === null) {
-        const yearStart = new Date(today.getFullYear(), 0, 1);
+        const yearStart = new Date(currentDate.getFullYear(), 0, 1);
         const yearStartStr = yearStart.toISOString().split("T")[0];
         return completions.some(
-          (c) => c.recurringTaskId === taskId && c.completedDate >= yearStartStr && c.completedDate <= todayStr
+          (c) => c.recurringTaskId === taskId && c.completedDate >= yearStartStr && c.completedDate <= date
         );
       }
 
       return false;
     },
     [completions, tasks, isTaskSkippedOnDate]
+  );
+
+  const isTaskCompletedToday = useCallback(
+    (taskId: string): boolean => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      return isTaskCompletedOnDate(taskId, todayStr);
+    },
+    [isTaskCompletedOnDate]
   );
 
   const getCompletionHistory = useCallback(
@@ -589,7 +642,9 @@ export function useRecurringTasks() {
     toggleCompletion,
     toggleSkipForDate,
     isTaskSkippedOnDate,
+    isTaskDueOnDate,
     isTaskDueToday,
+    isTaskCompletedOnDate,
     isTaskCompletedToday,
     getCompletionHistory,
     getTaskStats,

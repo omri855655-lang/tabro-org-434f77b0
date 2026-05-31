@@ -84,7 +84,14 @@ const PersonalPlanner = () => {
   const { user } = useAuth();
   const { tasks: personalTasks } = useTasks("personal");
   const { tasks: workTasks } = useTasks("work");
-  const { tasks: recurringTasks, isTaskDueToday, isTaskCompletedToday, toggleSkipForDate } = useRecurringTasks();
+  const {
+    tasks: recurringTasks,
+    isTaskDueToday,
+    isTaskDueOnDate,
+    isTaskCompletedToday,
+    isTaskCompletedOnDate,
+    toggleSkipForDate,
+  } = useRecurringTasks();
   const { events, addEvent, updateEvent, deleteEvent, respondToInvitation } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
@@ -491,9 +498,40 @@ const PersonalPlanner = () => {
     return { start, end, days };
   }, [currentDate, viewMode]);
 
-  // Recurring tasks are managed in the Daily Routine editor (DailyRoutine component),
-  // not projected as virtual events on the calendar. Users can manually drag them from the sidebar.
-  const recurringEvents = useMemo((): CalendarEvent[] => [], []);
+  const recurringEvents = useMemo((): CalendarEvent[] => {
+    const projectedDays = viewMode === "day" || viewMode === "week"
+      ? dateRange.days
+      : dateRange.days.filter((day) => isSameMonth(day, currentDate));
+
+    return projectedDays.flatMap((day) => {
+      const dayStr = format(day, "yyyy-MM-dd");
+
+      return recurringTasks
+        .filter((task) => task.reminderTime && isTaskDueOnDate(task, day) && !isTaskCompletedOnDate(task.id, dayStr))
+        .map((task) => {
+          const [hours, minutes] = (task.reminderTime || "09:00").split(":").map(Number);
+          const start = new Date(day);
+          start.setHours(Number.isFinite(hours) ? hours : 9, Number.isFinite(minutes) ? minutes : 0, 0, 0);
+          const end = addMinutes(start, 30);
+
+          return {
+            id: `recurring-${task.id}-${dayStr}`,
+            userId: user?.id || "",
+            title: task.title,
+            description: task.description || "",
+            category: "לוז יומי",
+            startTime: toLocalISOString(start),
+            endTime: toLocalISOString(end),
+            allDay: false,
+            color: "#22c55e",
+            sourceType: "recurring_task",
+            sourceId: task.id,
+            createdAt: task.createdAt,
+            updatedAt: task.createdAt,
+          } satisfies CalendarEvent;
+        });
+    });
+  }, [currentDate, dateRange.days, isTaskCompletedOnDate, isTaskDueOnDate, recurringTasks, user?.id, viewMode]);
 
   const filteredEvents = useMemo(() => {
     const calendarEvents = events.filter((e) => {
@@ -930,6 +968,11 @@ const PersonalPlanner = () => {
       return;
     }
 
+    if (editingEvent?.id.startsWith("recurring-")) {
+      toast.info("כדי לערוך משימה קבועה, עדכן אותה במסך הלוז היומי");
+      return;
+    }
+
     if (editingEvent) {
       await updateEvent(editingEvent.id, {
         title: newEventData.title,
@@ -1080,6 +1123,14 @@ const PersonalPlanner = () => {
 
   const handleDeleteEvent = async () => {
     if (!editingEvent) return;
+
+    if (editingEvent.id.startsWith("recurring-") && editingEvent.sourceId) {
+      await toggleSkipForDate(editingEvent.sourceId, format(new Date(editingEvent.startTime), "yyyy-MM-dd"));
+      setShowEventDialog(false);
+      setEditingEvent(null);
+      return;
+    }
+
     await deleteEvent(editingEvent.id);
     setShowEventDialog(false);
     setEditingEvent(null);
@@ -2198,7 +2249,13 @@ const PersonalPlanner = () => {
       <Dialog open={showEventDialog} onOpenChange={setShowEventDialog}>
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{editingEvent ? "עריכת אירוע" : "אירוע חדש"}</DialogTitle>
+            <DialogTitle>
+              {editingEvent
+                ? editingEvent.id.startsWith("recurring-")
+                  ? "משימה קבועה מתוזמנת"
+                  : "עריכת אירוע"
+                : "אירוע חדש"}
+            </DialogTitle>
             <DialogDescription className="sr-only">
               טופס ליצירה או עריכה של אירוע בלוח הזמנים.
             </DialogDescription>
@@ -2227,6 +2284,12 @@ const PersonalPlanner = () => {
                 ))}
               </div>
             </div>
+
+            {editingEvent?.id.startsWith("recurring-") && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
+                זו הקרנה אוטומטית של משימה קבועה עם שעה. אפשר להסיר אותה רק מהיום הנוכחי, ואת הפרטים הקבועים לערוך בלוז היומי.
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium">כותרת</label>
@@ -2396,10 +2459,10 @@ const PersonalPlanner = () => {
             {editingEvent && (
               <Button variant="destructive" size="sm" onClick={handleDeleteEvent} className="gap-1">
                 <Trash2 className="h-3.5 w-3.5" />
-                מחק
+                {editingEvent.id.startsWith("recurring-") ? "הסר רק ליום הזה" : "מחק"}
               </Button>
             )}
-            <Button onClick={handleSaveEvent} disabled={sendingInvites}>
+            <Button onClick={handleSaveEvent} disabled={sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
               {sendingInvites ? "שולח הזמנות..." : editingEvent ? "עדכן" : "הוסף"}
             </Button>
           </DialogFooter>

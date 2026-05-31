@@ -27,10 +27,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, CalendarCheck, History, Loader2, Flame, Calendar, RefreshCw, TrendingUp, Award, Pencil } from "lucide-react";
+import { Plus, Trash2, CalendarCheck, History, Loader2, Flame, Calendar, RefreshCw, TrendingUp, Award, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useLanguage } from "@/hooks/useLanguage";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "ראשון" },
@@ -66,77 +65,13 @@ const MONTHS = [
 ];
 
 const DailyRoutine = () => {
-  const { dir, lang } = useLanguage();
-  const isHebrew = lang === "he";
-  const locale = isHebrew ? "he-IL" : "en-US";
-  const copy = isHebrew
-    ? {
-        loading: "טוען לוז יומי...",
-        title: "לוז משימות קבוע",
-        dueToday: "משימות להיום",
-        addTask: "הוסף משימה קבועה",
-        today: "להיום",
-        allTasks: "כל המשימות",
-        history: "מעקב",
-        addDialogTitle: "הוסף משימה קבועה",
-        editDialogTitle: "עריכת משימה קבועה",
-        taskName: "שם המשימה",
-        taskNamePlaceholder: "לדוגמה: ספורט בוקר",
-        description: "תיאור (אופציונלי)",
-        descriptionPlaceholder: "פרטים נוספים...",
-        frequency: "תדירות",
-        daysThree: "באילו ימים? (בחר 3)",
-        weeklyDay: "באיזה יום?",
-        monthlyDay: "באיזה יום בחודש?",
-        yearlyMode: "גמיש או תאריך קבוע?",
-        yearlyMonth: "באיזה חודש?",
-        reminderTime: "שעת תזכורת (אופציונלי)",
-        reminderHelp: "אם תוגדר שעה, המשימה תופיע במתכנן הלוז ותישלח תזכורת",
-        cancel: "ביטול",
-        save: "שמור שינויים",
-        add: "הוסף משימה",
-        flexible: "גמיש - בכל יום עד שמושלם",
-        fixedDate: "תאריך קבוע",
-      }
-    : {
-        loading: "Loading daily routine...",
-        title: "Recurring Routine",
-        dueToday: "tasks due today",
-        addTask: "Add recurring task",
-        today: "Today",
-        allTasks: "All tasks",
-        history: "History",
-        addDialogTitle: "Add recurring task",
-        editDialogTitle: "Edit recurring task",
-        taskName: "Task name",
-        taskNamePlaceholder: "For example: Morning workout",
-        description: "Description (optional)",
-        descriptionPlaceholder: "More details...",
-        frequency: "Frequency",
-        daysThree: "Which days? (pick 3)",
-        weeklyDay: "Which day?",
-        monthlyDay: "Which day of the month?",
-        yearlyMode: "Flexible or fixed date?",
-        yearlyMonth: "Which month?",
-        reminderTime: "Reminder time (optional)",
-        reminderHelp: "If set, the task will appear in the planner and send a reminder",
-        cancel: "Cancel",
-        save: "Save changes",
-        add: "Add task",
-        flexible: "Flexible - any day until completed",
-        fixedDate: "Fixed date",
-      };
-  const dayLabels = isHebrew ? ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const monthLabels = isHebrew
-    ? ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"]
-    : ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const {
     tasks,
     loading,
     addTask,
-    updateTask,
     deleteTask,
     toggleCompletion,
+    toggleSkipForDate,
     isTaskDueToday,
     isTaskCompletedToday,
     getCompletionHistory,
@@ -145,7 +80,6 @@ const DailyRoutine = () => {
 
   const [activeTab, setActiveTab] = useState<"today" | "all" | "history">("today");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<RecurringTask | null>(null);
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
@@ -165,7 +99,7 @@ const DailyRoutine = () => {
       return;
     }
 
-    await addTask({
+    const createdTask = await addTask({
       title: newTask.title,
       description: newTask.description || undefined,
       frequency: newTask.frequency,
@@ -184,6 +118,10 @@ const DailyRoutine = () => {
       reminderTime: newTask.reminderTime || undefined,
     });
 
+    if (!createdTask) {
+      return;
+    }
+
     setNewTask({
       title: "",
       description: "",
@@ -196,69 +134,32 @@ const DailyRoutine = () => {
     setAddDialogOpen(false);
   };
 
-  const handleEditTask = async () => {
-    if (!editingTask) return;
-    await updateTask(editingTask.id, {
-      title: newTask.title,
-      description: newTask.description || null,
-      frequency: newTask.frequency,
-      dayOfWeek: newTask.frequency === "thrice_weekly"
-        ? (newTask.dayOfWeek > 0 ? newTask.dayOfWeek : null)
-        : newTask.frequency === "weekly"
-        ? (newTask.dayOfWeek === -1 ? null : newTask.dayOfWeek)
-        : newTask.frequency === "yearly" && newTask.dayOfMonth !== -1
-        ? newTask.yearMonth
-        : null,
-      dayOfMonth: newTask.frequency === "monthly"
-        ? (newTask.dayOfMonth === -1 ? null : newTask.dayOfMonth)
-        : newTask.frequency === "yearly"
-        ? (newTask.dayOfMonth === -1 ? null : newTask.dayOfMonth)
-        : null,
-      reminderTime: newTask.reminderTime || null,
-    });
-    setEditingTask(null);
-    setNewTask({ title: "", description: "", frequency: "daily", dayOfWeek: -1, dayOfMonth: -1, yearMonth: 0, reminderTime: "" });
-  };
-
-  const openEditDialog = (task: RecurringTask) => {
-    setEditingTask(task);
-    setNewTask({
-      title: task.title,
-      description: task.description || "",
-      frequency: task.frequency,
-      dayOfWeek: task.dayOfWeek ?? -1,
-      dayOfMonth: task.dayOfMonth ?? -1,
-      yearMonth: task.frequency === "yearly" && task.dayOfWeek !== null ? task.dayOfWeek : 0,
-      reminderTime: task.reminderTime || "",
-    });
-  };
-
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "numeric" });
+    return date.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full" dir={dir}>
+      <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className={`${dir === "rtl" ? "mr-2" : "ml-2"} text-muted-foreground`}>{copy.loading}</span>
+        <span className="mr-2 text-muted-foreground">טוען לוז יומי...</span>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
+    <div className="h-full flex flex-col p-4 overflow-hidden" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">
         <CalendarCheck className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-bold">{copy.title}</h2>
+        <h2 className="text-xl font-bold">לוז משימות קבוע</h2>
         <span className="text-sm text-muted-foreground">
-          ({todayTasks.length} {copy.dueToday})
+          ({todayTasks.length} משימות להיום)
         </span>
-        <Button onClick={() => setAddDialogOpen(true)} className={dir === "rtl" ? "mr-auto" : "ml-auto"}>
-          <Plus className={`h-4 w-4 ${dir === "rtl" ? "ml-1" : "mr-1"}`} />
-          {copy.addTask}
+        <Button onClick={() => setAddDialogOpen(true)} className="mr-auto">
+          <Plus className="h-4 w-4 ml-1" />
+          הוסף משימה קבועה
         </Button>
       </div>
 
@@ -267,15 +168,15 @@ const DailyRoutine = () => {
         <TabsList className="mb-4 flex-shrink-0">
           <TabsTrigger value="today" className="gap-2">
             <Flame className="h-4 w-4" />
-            {copy.today} ({todayTasks.filter((t) => !isTaskCompletedToday(t.id)).length})
+            להיום ({todayTasks.filter((t) => !isTaskCompletedToday(t.id)).length})
           </TabsTrigger>
           <TabsTrigger value="all" className="gap-2">
             <Calendar className="h-4 w-4" />
-            {copy.allTasks} ({tasks.length})
+            כל המשימות ({tasks.length})
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
-            {copy.history}
+            מעקב
           </TabsTrigger>
         </TabsList>
 
@@ -286,7 +187,7 @@ const DailyRoutine = () => {
               <CalendarCheck className="h-12 w-12 mb-4 opacity-50" />
               <p className="text-lg">אין משימות קבועות להיום</p>
               <Button variant="outline" className="mt-4" onClick={() => setAddDialogOpen(true)}>
-                <Plus className={`h-4 w-4 ${dir === "rtl" ? "ml-1" : "mr-1"}`} />
+                <Plus className="h-4 w-4 ml-1" />
                 הוסף משימה ראשונה
               </Button>
             </div>
@@ -343,6 +244,18 @@ const DailyRoutine = () => {
                         🔔 {task.reminderTime}
                       </span>
                     )}
+                    {!completed && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 text-muted-foreground"
+                        onClick={() => toggleSkipForDate(task.id, todayDate)}
+                      >
+                        <EyeOff className="h-3.5 w-3.5" />
+                        דלג רק להיום
+                      </Button>
+                    )}
                   </div>
                 );
               })}
@@ -360,7 +273,7 @@ const DailyRoutine = () => {
                   <TableHead className="text-right">תדירות</TableHead>
                   <TableHead className="text-right">יום</TableHead>
                   <TableHead className="text-right">תזכורת</TableHead>
-                  <TableHead className="w-[90px]"></TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -424,24 +337,14 @@ const DailyRoutine = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(task)}
-                            className="h-7 w-7"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteTask(task.id)}
-                            className="text-destructive hover:text-destructive h-7 w-7"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteTask(task.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -606,34 +509,34 @@ const DailyRoutine = () => {
 
       {/* Add Task Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent dir={dir}>
+        <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-primary" />
-              {copy.addDialogTitle}
+              הוסף משימה קבועה
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">{copy.taskName}</label>
+              <label className="text-sm font-medium">שם המשימה</label>
               <Input
                 value={newTask.title}
                 onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                placeholder={copy.taskNamePlaceholder}
-                dir={dir}
+                placeholder="לדוגמה: ספורט בוקר"
+                dir="rtl"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">{copy.description}</label>
+              <label className="text-sm font-medium">תיאור (אופציונלי)</label>
               <Input
                 value={newTask.description}
                 onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                placeholder={copy.descriptionPlaceholder}
-                dir={dir}
+                placeholder="פרטים נוספים..."
+                dir="rtl"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">{copy.frequency}</label>
+              <label className="text-sm font-medium">תדירות</label>
               <Select
                 value={newTask.frequency}
                 onValueChange={(v) =>
@@ -644,17 +547,17 @@ const DailyRoutine = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="daily">{isHebrew ? "יומי - כל יום" : "Daily - every day"}</SelectItem>
-                  <SelectItem value="thrice_weekly">{isHebrew ? "3 פעמים בשבוע" : "3 times a week"}</SelectItem>
-                  <SelectItem value="weekly">{isHebrew ? "שבועי - פעם בשבוע" : "Weekly - once a week"}</SelectItem>
-                  <SelectItem value="monthly">{isHebrew ? "חודשי - פעם בחודש" : "Monthly - once a month"}</SelectItem>
-                  <SelectItem value="yearly">{isHebrew ? "שנתי - פעם בשנה" : "Yearly - once a year"}</SelectItem>
+                  <SelectItem value="daily">יומי - כל יום</SelectItem>
+                  <SelectItem value="thrice_weekly">3 פעמים בשבוע</SelectItem>
+                  <SelectItem value="weekly">שבועי - פעם בשבוע</SelectItem>
+                  <SelectItem value="monthly">חודשי - פעם בחודש</SelectItem>
+                  <SelectItem value="yearly">שנתי - פעם בשנה</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {newTask.frequency === "thrice_weekly" && (
               <div>
-                <label className="text-sm font-medium">{copy.daysThree}</label>
+                <label className="text-sm font-medium">באילו ימים? (בחר 3)</label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {DAYS_OF_WEEK.map((day) => {
                     const isSelected = (newTask.dayOfWeek & (1 << day.value)) !== 0;
@@ -677,7 +580,7 @@ const DailyRoutine = () => {
                             : "bg-muted border-border hover:bg-accent"
                         )}
                       >
-                        {dayLabels[day.value]}
+                        {day.label}
                       </button>
                     );
                   })}
@@ -686,7 +589,7 @@ const DailyRoutine = () => {
             )}
             {newTask.frequency === "weekly" && (
               <div>
-                <label className="text-sm font-medium">{copy.weeklyDay}</label>
+                <label className="text-sm font-medium">באיזה יום?</label>
                 <Select
                   value={String(newTask.dayOfWeek)}
                   onValueChange={(v) => setNewTask({ ...newTask, dayOfWeek: Number(v) })}
@@ -695,10 +598,10 @@ const DailyRoutine = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="-1">{copy.flexible}</SelectItem>
+                    <SelectItem value="-1">גמיש - בכל יום עד שמושלם</SelectItem>
                     {DAYS_OF_WEEK.map((day) => (
                       <SelectItem key={day.value} value={String(day.value)}>
-                        {dayLabels[day.value]}
+                        {day.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -707,7 +610,7 @@ const DailyRoutine = () => {
             )}
             {newTask.frequency === "monthly" && (
               <div>
-                <label className="text-sm font-medium">{copy.monthlyDay}</label>
+                <label className="text-sm font-medium">באיזה יום בחודש?</label>
                 <Select
                   value={String(newTask.dayOfMonth)}
                   onValueChange={(v) => setNewTask({ ...newTask, dayOfMonth: Number(v) })}
@@ -716,7 +619,7 @@ const DailyRoutine = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="-1">{copy.flexible}</SelectItem>
+                    <SelectItem value="-1">גמיש - בכל יום עד שמושלם</SelectItem>
                     {Array.from({ length: 28 }, (_, i) => (
                       <SelectItem key={i + 1} value={String(i + 1)}>
                         {i + 1}
@@ -729,7 +632,7 @@ const DailyRoutine = () => {
             {newTask.frequency === "yearly" && (
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium">{copy.yearlyMode}</label>
+                  <label className="text-sm font-medium">גמיש או תאריך קבוע?</label>
                   <Select
                     value={newTask.dayOfMonth === -1 ? "flexible" : "fixed"}
                     onValueChange={(v) => {
@@ -744,15 +647,15 @@ const DailyRoutine = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="flexible">{copy.flexible}</SelectItem>
-                      <SelectItem value="fixed">{copy.fixedDate}</SelectItem>
+                      <SelectItem value="flexible">גמיש - בכל יום עד שמושלם</SelectItem>
+                      <SelectItem value="fixed">תאריך קבוע</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 {newTask.dayOfMonth !== -1 && (
                   <>
                     <div>
-                      <label className="text-sm font-medium">{copy.yearlyMonth}</label>
+                      <label className="text-sm font-medium">באיזה חודש?</label>
                       <Select
                         value={String(newTask.yearMonth)}
                         onValueChange={(v) => setNewTask({ ...newTask, yearMonth: Number(v) })}
@@ -763,14 +666,14 @@ const DailyRoutine = () => {
                         <SelectContent>
                           {MONTHS.map((m) => (
                             <SelectItem key={m.value} value={String(m.value)}>
-                              {monthLabels[m.value]}
+                              {m.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <label className="text-sm font-medium">{copy.weeklyDay}</label>
+                      <label className="text-sm font-medium">באיזה יום?</label>
                       <Select
                         value={String(newTask.dayOfMonth)}
                         onValueChange={(v) => setNewTask({ ...newTask, dayOfMonth: Number(v) })}
@@ -792,7 +695,7 @@ const DailyRoutine = () => {
               </div>
             )}
             <div>
-              <label className="text-sm font-medium">{copy.reminderTime}</label>
+              <label className="text-sm font-medium">שעת תזכורת (אופציונלי)</label>
               <Input
                 type="time"
                 value={newTask.reminderTime}
@@ -800,101 +703,14 @@ const DailyRoutine = () => {
                 placeholder="08:00"
                 dir="ltr"
               />
-              <p className="text-xs text-muted-foreground mt-1">{copy.reminderHelp}</p>
+              <p className="text-xs text-muted-foreground mt-1">אם תוגדר שעה, המשימה תופיע במתכנן הלוז ותישלח תזכורת</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-              {copy.cancel}
+              ביטול
             </Button>
-            <Button onClick={handleAddTask}>{copy.add}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Task Dialog */}
-      <Dialog open={!!editingTask} onOpenChange={(open) => { if (!open) { setEditingTask(null); setNewTask({ title: "", description: "", frequency: "daily", dayOfWeek: -1, dayOfMonth: -1, yearMonth: 0, reminderTime: "" }); } }}>
-        <DialogContent dir={dir}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pencil className="h-5 w-5 text-primary" />
-              {copy.editDialogTitle}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">{copy.taskName}</label>
-              <Input value={newTask.title} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} dir={dir} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">{copy.description}</label>
-              <Input value={newTask.description} onChange={(e) => setNewTask({ ...newTask, description: e.target.value })} dir={dir} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">{copy.frequency}</label>
-              <Select value={newTask.frequency} onValueChange={(v) => setNewTask({ ...newTask, frequency: v as any, dayOfWeek: v === "thrice_weekly" ? 0 : -1, dayOfMonth: -1 })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">{isHebrew ? "יומי - כל יום" : "Daily - every day"}</SelectItem>
-                  <SelectItem value="thrice_weekly">{isHebrew ? "3 פעמים בשבוע" : "3 times a week"}</SelectItem>
-                  <SelectItem value="weekly">{isHebrew ? "שבועי - פעם בשבוע" : "Weekly - once a week"}</SelectItem>
-                  <SelectItem value="monthly">{isHebrew ? "חודשי - פעם בחודש" : "Monthly - once a month"}</SelectItem>
-                  <SelectItem value="yearly">{isHebrew ? "שנתי - פעם בשנה" : "Yearly - once a year"}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {newTask.frequency === "thrice_weekly" && (
-              <div>
-                <label className="text-sm font-medium">{copy.daysThree}</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {DAYS_OF_WEEK.map((day) => {
-                    const isSelected = (newTask.dayOfWeek & (1 << day.value)) !== 0;
-                    const selectedCount = DAYS_OF_WEEK.filter(d => (newTask.dayOfWeek & (1 << d.value)) !== 0).length;
-                    return (
-                      <button key={day.value} type="button" onClick={() => {
-                        if (isSelected) setNewTask({ ...newTask, dayOfWeek: newTask.dayOfWeek & ~(1 << day.value) });
-                        else if (selectedCount < 3) setNewTask({ ...newTask, dayOfWeek: newTask.dayOfWeek | (1 << day.value) });
-                      }} className={cn("px-3 py-2 rounded-lg text-sm border transition-colors", isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-muted border-border hover:bg-accent")}>
-                        {dayLabels[day.value]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {newTask.frequency === "weekly" && (
-              <div>
-                <label className="text-sm font-medium">{copy.weeklyDay}</label>
-                <Select value={String(newTask.dayOfWeek)} onValueChange={(v) => setNewTask({ ...newTask, dayOfWeek: Number(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="-1">{copy.flexible}</SelectItem>
-                    {DAYS_OF_WEEK.map((day) => <SelectItem key={day.value} value={String(day.value)}>{dayLabels[day.value]}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {newTask.frequency === "monthly" && (
-              <div>
-                <label className="text-sm font-medium">{copy.monthlyDay}</label>
-                <Select value={String(newTask.dayOfMonth)} onValueChange={(v) => setNewTask({ ...newTask, dayOfMonth: Number(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="-1">{copy.flexible}</SelectItem>
-                    {Array.from({ length: 28 }, (_, i) => <SelectItem key={i + 1} value={String(i + 1)}>{i + 1}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div>
-              <label className="text-sm font-medium">{copy.reminderTime}</label>
-              <Input type="time" value={newTask.reminderTime} onChange={(e) => setNewTask({ ...newTask, reminderTime: e.target.value })} dir="ltr" />
-              <p className="text-xs text-muted-foreground mt-1">{copy.reminderHelp}</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setEditingTask(null); setNewTask({ title: "", description: "", frequency: "daily", dayOfWeek: -1, dayOfMonth: -1, yearMonth: 0, reminderTime: "" }); }}>{copy.cancel}</Button>
-            <Button onClick={handleEditTask}>{copy.save}</Button>
+            <Button onClick={handleAddTask}>הוסף משימה</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
