@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
-import { AUDIO_PRESETS, CATEGORIES, GUIDES, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
+import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_SESSIONS, MEDITATION_TYPES, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
 import { startSilentAudio } from "./zoneflowIosSilentAudio";
@@ -421,6 +421,11 @@ const ZoneFlowDashboard = () => {
       presetId: "wellness-reset-window",
     },
   ] as const;
+  const meditationIntro = [
+    "המדיטציה לא דורשת 'לרוקן את הראש'. המטרה היא לשים לב למה שקורה ולחזור בעדינות לעוגן.",
+    "גם 2-5 דקות טובות באמת יכולות לעזור יותר ממאמץ ארוך ולא יציב.",
+    "סוגי מדיטציה שונים עובדים אחרת: יש כאלה שמורידים סטרס, יש כאלה שמחזירים פוקוס, ויש כאלה שמרככים עומס רגשי.",
+  ];
 
   // Find upcoming task (next one that hasn't passed)
   const now = new Date();
@@ -723,6 +728,95 @@ const ZoneFlowDashboard = () => {
                 <span>{AUDIO_PRESETS.find(p => p.id === activePresetId)?.desc}</span>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/5 border-white/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
+              🧘 אזור מדיטציה
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className={`rounded-2xl border p-4 ${isLight ? "bg-emerald-50 border-emerald-200" : "bg-emerald-500/10 border-emerald-500/20"}`}>
+              <div className="text-sm font-medium">איך ניגשים לזה</div>
+              <div className="mt-2 space-y-2 text-sm">
+                {meditationIntro.map((line) => (
+                  <p key={line} className={themeSubtle}>{line}</p>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              {MEDITATION_TYPES.map((type) => (
+                <div
+                  key={type.id}
+                  className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{type.icon}</span>
+                    <div className="text-sm font-medium">{type.title}</div>
+                  </div>
+                  <div className={`mt-3 text-xs leading-6 ${themeSubtle}`}>
+                    <p><span className="font-medium text-foreground">איך עושים:</span> {type.howTo}</p>
+                    <p className="mt-2"><span className="font-medium text-foreground">למה זה תורם:</span> {type.benefits}</p>
+                    <p className="mt-2"><span className="font-medium text-foreground">מתי לבחור בזה:</span> {type.bestFor}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <div className="mb-2 text-sm font-medium">סשנים מוכנים</div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {MEDITATION_SESSIONS.map((session) => {
+                  const preset = AUDIO_PRESETS.find((item) => item.id === session.presetId);
+                  const isActive = activePresetId === session.presetId && isPlaying;
+                  return (
+                    <div
+                      key={session.id}
+                      className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium">{session.title}</div>
+                          <div className={`mt-1 text-xs ${themeMuted}`}>{session.duration}</div>
+                        </div>
+                        {preset && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveCategory("wellness");
+                              toggle(preset);
+                            }}
+                            className={`rounded-full px-3 py-1 text-xs transition-all ${
+                              isActive
+                                ? isLight
+                                  ? "bg-emerald-200 text-emerald-900"
+                                  : "bg-emerald-500/20 text-emerald-100 border border-emerald-400/30"
+                                : isLight
+                                  ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
+                            }`}
+                          >
+                            {isActive ? "מנגן עכשיו" : "הפעל סשן"}
+                          </button>
+                        )}
+                      </div>
+                      <p className={`mt-3 text-sm ${themeSubtle}`}>{session.goal}</p>
+                      <div className="mt-3 space-y-2">
+                        {session.steps.map((step, idx) => (
+                          <div key={`${session.id}-${idx}`} className="flex gap-2 text-xs">
+                            <span className={`${themeMuted} mt-0.5`}>{idx + 1}.</span>
+                            <span className={themeSubtle}>{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
