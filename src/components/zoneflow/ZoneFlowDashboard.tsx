@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
-import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_SESSIONS, MEDITATION_TYPES, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
+import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_SESSIONS, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
 import { startSilentAudio } from "./zoneflowIosSilentAudio";
@@ -815,6 +815,38 @@ const ZoneFlowDashboard = () => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-sm font-medium">סרטונים והכוונות</div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {MEDITATION_VIDEO_TOPICS.map((video) => (
+                  <div
+                    key={video.id}
+                    className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium">{video.title}</div>
+                        <div className={`mt-1 text-xs ${themeSubtle}`}>{video.desc}</div>
+                      </div>
+                      <a
+                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(video.query)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`rounded-full px-3 py-1 text-xs transition-all ${
+                          isLight
+                            ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                            : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
+                        }`}
+                      >
+                        פתח ב-YouTube
+                      </a>
+                    </div>
+                    <p className={`mt-3 text-xs ${themeMuted}`}>מתי זה טוב: {video.bestFor}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </CardContent>
