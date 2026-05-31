@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff } from "lucide-react";
+import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
@@ -101,9 +101,8 @@ const ACTIVE_COLOR_MAP: Record<string, string> = {
 const ZoneFlowDashboard = () => {
   const { activePresetId, isPlaying, isRendering, toggle } = useZoneFlowAudioEngine();
   const { user } = useAuth();
-  const { t, dir } = useLanguage();
+  const { t } = useLanguage();
   const { stopwatchTime, isStopwatchRunning, toggleStopwatch, resetStopwatch } = useDailyStopwatch();
-  const isRtl = dir === "rtl";
 
   // Sound category
   const [activeCategory, setActiveCategory] = useState<string>("focus");
@@ -151,7 +150,6 @@ const ZoneFlowDashboard = () => {
   // Guides & Motivation
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedMotivation, setExpandedMotivation] = useState<string | null>(null);
-  const [youtubePlayer, setYoutubePlayer] = useState(() => getZoneFlowYoutubePlayerState());
   const [activeYouTube, setActiveYouTube] = useState<string | null>(() => getZoneFlowYoutubePlayerState().videoId);
   const [activeYtCat, setActiveYtCat] = useState("yt-classical");
   
@@ -222,13 +220,9 @@ const ZoneFlowDashboard = () => {
   useEffect(() => { localStorage.setItem("zoneflow-custom-yt", JSON.stringify(customYtVideos)); }, [customYtVideos]);
   useEffect(() => { localStorage.setItem("zoneflow-hidden-yt", JSON.stringify(hiddenYtVideos)); }, [hiddenYtVideos]);
   useEffect(() => {
-    const currentPlayer = getZoneFlowYoutubePlayerState();
-    setYoutubePlayer(currentPlayer);
-    setActiveYouTube(currentPlayer.videoId);
+    setActiveYouTube(getZoneFlowYoutubePlayerState().videoId);
     return subscribeToZoneFlowYoutubePlayerState(() => {
-      const nextPlayer = getZoneFlowYoutubePlayerState();
-      setYoutubePlayer(nextPlayer);
-      setActiveYouTube(nextPlayer.videoId);
+      setActiveYouTube(getZoneFlowYoutubePlayerState().videoId);
     });
   }, []);
 
@@ -339,7 +333,6 @@ const ZoneFlowDashboard = () => {
     setZoneFlowYoutubePlayerState({
       videoId: nextVideoId,
       title: nextVideoId ? title : "",
-      viewerOpen: false,
     });
 
     if (nextVideoId) {
@@ -410,6 +403,7 @@ const ZoneFlowDashboard = () => {
 
   const filteredPresets = AUDIO_PRESETS.filter(p => p.category === activeCategory);
   const activeCat = CATEGORIES.find(c => c.id === activeCategory);
+  const wellnessPresets = AUDIO_PRESETS.filter((preset) => preset.category === "wellness").slice(0, 3);
 
   // Find upcoming task (next one that hasn't passed)
   const now = new Date();
@@ -420,17 +414,16 @@ const ZoneFlowDashboard = () => {
   const themeMuted = currentTheme.mutedText;
   const themeSubtle = currentTheme.subtleText;
   const themeInput = currentTheme.inputBg + " " + currentTheme.inputBorder;
-  const activeYoutubeLabel = youtubePlayer.title || "YouTube";
 
   return (
-    <div className={`h-full ${currentTheme.bg} ${currentTheme.text} overflow-auto ${isLight ? "zoneflow-light" : ""}`} dir={dir}>
+    <div className={`h-full ${currentTheme.bg} ${currentTheme.text} overflow-auto ${isLight ? "zoneflow-light" : ""}`} dir="rtl">
       <div className="max-w-7xl mx-auto p-4 space-y-4">
 
         {/* Background selector + AI Chat button */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs ${themeMuted}`}>רקע:</span>
           <div className="flex gap-1 flex-wrap">
-            <span className={`text-[10px] ${themeMuted} self-center ${isRtl ? "ml-1" : "mr-1"}`}>🌙</span>
+            <span className={`text-[10px] ${themeMuted} self-center ml-1`}>🌙</span>
             {BG_THEMES.filter(t => !t.isLight).map(theme => (
               <button
                 key={theme.id}
@@ -440,7 +433,7 @@ const ZoneFlowDashboard = () => {
                 {theme.name}
               </button>
             ))}
-            <span className={`text-[10px] ${themeMuted} self-center ${isRtl ? "ml-2 mr-1" : "mr-2 ml-1"}`}>☀️</span>
+            <span className={`text-[10px] ${themeMuted} self-center ml-2 mr-1`}>☀️</span>
             {BG_THEMES.filter(t => t.isLight).map(theme => (
               <button
                 key={theme.id}
@@ -453,7 +446,7 @@ const ZoneFlowDashboard = () => {
           </div>
           <button
             onClick={() => setShowAiChat(!showAiChat)}
-            className={`${isRtl ? "mr-auto" : "ml-auto"} px-3 py-1.5 rounded-full text-xs ${isLight ? "bg-violet-100 text-violet-700 hover:bg-violet-200" : "bg-violet-500/20 text-violet-300 hover:bg-violet-500/30"} flex items-center gap-1.5 transition-all`}
+            className={`mr-auto px-3 py-1.5 rounded-full text-xs ${isLight ? "bg-violet-100 text-violet-700 hover:bg-violet-200" : "bg-violet-500/20 text-violet-300 hover:bg-violet-500/30"} flex items-center gap-1.5 transition-all`}
           >
             <MessageCircle className="h-3.5 w-3.5" />
             AI מאמן
@@ -506,7 +499,7 @@ const ZoneFlowDashboard = () => {
                 className="bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border border-violet-500/30 flex-shrink-0"
                 variant="ghost"
               >
-                <Play className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} />
+                <Play className="h-4 w-4 ml-1" />
                 התחל פומודורו
               </Button>
             </CardContent>
@@ -518,7 +511,7 @@ const ZoneFlowDashboard = () => {
           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-center gap-3">
             <span className="text-emerald-400 text-sm">🎯 עובד על:</span>
             <span className="text-sm font-medium text-[#e8e8ed]">{selectedCalendarTask.title}</span>
-            <button onClick={() => setSelectedCalendarTask(null)} className={`${isRtl ? "mr-auto" : "ml-auto"} text-xs text-[#e8e8ed]/30 hover:text-[#e8e8ed]/60`}>✕</button>
+            <button onClick={() => setSelectedCalendarTask(null)} className="mr-auto text-xs text-[#e8e8ed]/30 hover:text-[#e8e8ed]/60">✕</button>
           </div>
         )}
 
@@ -562,7 +555,7 @@ const ZoneFlowDashboard = () => {
                     <button
                       key={task.id}
                       onClick={() => startPomodoroForTask(task)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                         isActive ? "bg-violet-500/15 border border-violet-500/30" 
                         : isPast ? "bg-white/3 opacity-50" 
                         : "bg-white/5 hover:bg-white/10"
@@ -587,11 +580,44 @@ const ZoneFlowDashboard = () => {
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               🎧 נגן תדרים וצלילים
               {activePresetId && isPlaying && (
-                <span className={`text-xs text-violet-400 animate-pulse ${isRtl ? "mr-auto" : "ml-auto"}`}>● מנגן</span>
+                <span className="text-xs text-violet-400 animate-pulse mr-auto">● מנגן</span>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className={`rounded-2xl border p-3 ${isLight ? "bg-emerald-50 border-emerald-200" : "bg-emerald-500/10 border-emerald-500/20"}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Wellness</span>
+                <span className={`text-[11px] ${themeMuted}`}>אזור שקט לריסט, נשימה ומדיטציה</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {wellnessPresets.map((preset) => {
+                  const isActive = activePresetId === preset.id && isPlaying;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory("wellness");
+                        toggle(preset);
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-xs transition-all ${
+                        isActive
+                          ? isLight
+                            ? "bg-emerald-200 text-emerald-900"
+                            : "bg-emerald-500/20 text-emerald-100 border border-emerald-400/30"
+                          : isLight
+                            ? "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                            : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
+                      }`}
+                    >
+                      {preset.nameHe}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Category tabs */}
             <div className="flex gap-1.5 flex-wrap">
               {CATEGORIES.map(cat => (
@@ -620,7 +646,7 @@ const ZoneFlowDashboard = () => {
                     key={preset.id}
                     onClick={() => toggle(preset)}
                     disabled={isRendering}
-                    className={`flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                       isActive
                         ? `${ACTIVE_COLOR_MAP[catColor]} border`
                         : isLoading
@@ -663,38 +689,6 @@ const ZoneFlowDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {youtubePlayer.videoId && (
-              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-[#e8e8ed] truncate">מנגן עכשיו: {activeYoutubeLabel}</p>
-                    <p className="text-xs text-[#e8e8ed]/40">
-                      הווידאו ממשיך ברקע. תיבת הצפייה מוסתרת עד שלוחצים לפתיחה.
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setZoneFlowYoutubePlayerState({
-                      ...youtubePlayer,
-                      viewerOpen: !youtubePlayer.viewerOpen,
-                    })}
-                    className="bg-white/10 text-[#e8e8ed] hover:bg-white/20"
-                  >
-                    {youtubePlayer.viewerOpen ? <EyeOff className={`${isRtl ? "ml-1" : "mr-1"} h-4 w-4`} /> : <Eye className={`${isRtl ? "ml-1" : "mr-1"} h-4 w-4`} />}
-                    {youtubePlayer.viewerOpen ? "הסתר צפייה" : "פתח לצפייה"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setZoneFlowYoutubePlayerState({ videoId: null, title: "", viewerOpen: false })}
-                    className="text-rose-200 hover:bg-rose-500/20 hover:text-white"
-                  >
-                    עצור
-                  </Button>
-                </div>
-              </div>
-            )}
             {(() => {
               const ytCategories = [
                 {
@@ -833,7 +827,7 @@ const ZoneFlowDashboard = () => {
                         {allVideos.map(v => {
                           const isCustom = customVideosForCat.some(cv => cv.id === v.id);
                           return (
-                            <div key={v.id} className={`group flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                            <div key={v.id} className={`group flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                                 activeYouTube === v.id
                                   ? `${catColorMap[activeCatData.color]} border`
                                   : "bg-white/5 border border-transparent hover:bg-white/10"
@@ -849,16 +843,6 @@ const ZoneFlowDashboard = () => {
                                 <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                               </div>
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setZoneFlowYoutubePlayerState({ videoId: v.id, title: v.title, viewerOpen: true });
-                                  }}
-                                  className="text-cyan-300/80 hover:text-cyan-200 transition-colors"
-                                  title="פתח לצפייה"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                </button>
                                 {isCustom ? (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); removeCustomYtVideo(activeYtCat, v.id); }}
@@ -908,7 +892,7 @@ const ZoneFlowDashboard = () => {
                             value={addYtTitle}
                             onChange={(e) => setAddYtTitle(e.target.value)}
                             className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30"
-                            dir={dir}
+                            dir="rtl"
                           />
                           <Button
                             size="sm"
@@ -916,7 +900,7 @@ const ZoneFlowDashboard = () => {
                             className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]"
                             variant="ghost"
                           >
-                             <Plus className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} />
+                             <Plus className="h-4 w-4 ml-1" />
                             {t("add" as any)}
                           </Button>
                           <Button
@@ -967,13 +951,6 @@ const ZoneFlowDashboard = () => {
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
-                          onClick={() => setZoneFlowYoutubePlayerState({ videoId: video.id, title: video.title, viewerOpen: true })}
-                          className="text-cyan-300/80 hover:text-cyan-200 transition-colors"
-                          title="פתח לצפייה"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                        <button
                           onClick={() => restoreHiddenVideo(video.id)}
                           className="text-emerald-300 hover:text-emerald-200 transition-colors"
                           title="שחזר"
@@ -993,53 +970,6 @@ const ZoneFlowDashboard = () => {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-            {youtubePlayer.videoId && (
-              <div className="rounded-xl border border-cyan-500/20 bg-black/20 p-3 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#e8e8ed] truncate">תיבת צפייה</p>
-                    <p className="text-xs text-[#e8e8ed]/40 truncate">{activeYoutubeLabel}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setZoneFlowYoutubePlayerState({
-                        ...youtubePlayer,
-                        viewerOpen: !youtubePlayer.viewerOpen,
-                      })}
-                      className="bg-white/10 text-[#e8e8ed] hover:bg-white/20"
-                    >
-                      {youtubePlayer.viewerOpen ? <EyeOff className={`${isRtl ? "ml-1" : "mr-1"} h-4 w-4`} /> : <Eye className={`${isRtl ? "ml-1" : "mr-1"} h-4 w-4`} />}
-                      {youtubePlayer.viewerOpen ? "הסתר צפייה" : "פתח לצפייה"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setZoneFlowYoutubePlayerState({ videoId: null, title: "", viewerOpen: false })}
-                      className="text-rose-200 hover:bg-rose-500/20 hover:text-white"
-                    >
-                      עצור
-                    </Button>
-                  </div>
-                </div>
-                {youtubePlayer.viewerOpen ? (
-                  <div className="overflow-hidden rounded-xl border border-cyan-400/30 bg-black shadow-2xl">
-                    <div
-                      id="zoneflow-youtube-viewer-anchor"
-                      className="aspect-video w-full bg-black"
-                    />
-                    <div className="border-t border-cyan-400/20 bg-cyan-500/5 px-3 py-2 text-center text-xs text-[#e8e8ed]/70">
-                      זה אותו נגן רציף של ZoneFlow. אם תעבור לדשבורד אחר הוא ימשיך מהנקודה המדויקת בלי להיפתח מחדש.
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-white/10 bg-white/5 px-3 py-4 text-center text-xs text-[#e8e8ed]/50">
-                    הווידאו ממשיך להתנגן ברקע. לחץ על "פתח לצפייה" כדי להציג אותו כאן.
-                  </div>
-                )}
               </div>
             )}
           </CardContent>
@@ -1071,7 +1001,7 @@ const ZoneFlowDashboard = () => {
                     {allStudy.map(v => {
                       const isCustom = customStudy.some(cv => cv.id === v.id);
                       return (
-                        <div key={v.id} className={`group flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                        <div key={v.id} className={`group flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                             activeYouTube === v.id
                               ? "bg-amber-500/20 border border-amber-500/30"
                               : "bg-white/5 border border-transparent hover:bg-white/10"
@@ -1084,9 +1014,6 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); setZoneFlowYoutubePlayerState({ videoId: v.id, title: v.title, viewerOpen: true }); }} className="text-cyan-300/80 hover:text-cyan-200 transition-colors" title="פתח לצפייה">
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("study-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1107,8 +1034,8 @@ const ZoneFlowDashboard = () => {
                   {addYtTarget === "study-with-me" ? (
                     <div className="flex gap-2 items-end flex-wrap">
                       <input type="text" placeholder="קישור YouTube..." value={addYtUrl} onChange={(e) => setAddYtUrl(e.target.value)} className="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="ltr" />
-                      <input type="text" placeholder="שם (אופציונלי)" value={addYtTitle} onChange={(e) => setAddYtTitle(e.target.value)} className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir={dir} />
-                      <Button size="sm" onClick={() => addCustomYtVideo("study-with-me")} className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]" variant="ghost"><Plus className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} />הוסף</Button>
+                      <input type="text" placeholder="שם (אופציונלי)" value={addYtTitle} onChange={(e) => setAddYtTitle(e.target.value)} className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="rtl" />
+                      <Button size="sm" onClick={() => addCustomYtVideo("study-with-me")} className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]" variant="ghost"><Plus className="h-4 w-4 ml-1" />הוסף</Button>
                       <Button size="sm" variant="ghost" onClick={() => setAddYtTarget(null)} className="text-[#e8e8ed]/50 hover:text-[#e8e8ed]">ביטול</Button>
                     </div>
                   ) : (
@@ -1148,7 +1075,7 @@ const ZoneFlowDashboard = () => {
                     {allRead.map(v => {
                       const isCustom = customRead.some(cv => cv.id === v.id);
                       return (
-                        <div key={v.id} className={`group flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                        <div key={v.id} className={`group flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                             activeYouTube === v.id
                               ? "bg-emerald-500/20 border border-emerald-500/30"
                               : "bg-white/5 border border-transparent hover:bg-white/10"
@@ -1161,9 +1088,6 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); setZoneFlowYoutubePlayerState({ videoId: v.id, title: v.title, viewerOpen: true }); }} className="text-cyan-300/80 hover:text-cyan-200 transition-colors" title="פתח לצפייה">
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("read-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1184,8 +1108,8 @@ const ZoneFlowDashboard = () => {
                   {addYtTarget === "read-with-me" ? (
                     <div className="flex gap-2 items-end flex-wrap">
                       <input type="text" placeholder="קישור YouTube..." value={addYtUrl} onChange={(e) => setAddYtUrl(e.target.value)} className="flex-1 min-w-[200px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="ltr" />
-                      <input type="text" placeholder="שם (אופציונלי)" value={addYtTitle} onChange={(e) => setAddYtTitle(e.target.value)} className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir={dir} />
-                      <Button size="sm" onClick={() => addCustomYtVideo("read-with-me")} className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]" variant="ghost"><Plus className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} />הוסף</Button>
+                      <input type="text" placeholder="שם (אופציונלי)" value={addYtTitle} onChange={(e) => setAddYtTitle(e.target.value)} className="w-[150px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-[#e8e8ed] placeholder:text-[#e8e8ed]/30 outline-none focus:border-white/30" dir="rtl" />
+                      <Button size="sm" onClick={() => addCustomYtVideo("read-with-me")} className="bg-white/10 hover:bg-white/20 text-[#e8e8ed]" variant="ghost"><Plus className="h-4 w-4 ml-1" />הוסף</Button>
                       <Button size="sm" variant="ghost" onClick={() => setAddYtTarget(null)} className="text-[#e8e8ed]/50 hover:text-[#e8e8ed]">ביטול</Button>
                     </div>
                   ) : (
@@ -1244,7 +1168,7 @@ const ZoneFlowDashboard = () => {
                     className={`rounded-full px-6 ${isTimerRunning ? "bg-red-500/20 text-red-300 hover:bg-red-500/30" : "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"}`}
                     variant="ghost"
                   >
-                    {isTimerRunning ? <><Pause className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} /> עצור</> : <><Play className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} /> התחל</>}
+                    {isTimerRunning ? <><Pause className="h-4 w-4 ml-1" /> עצור</> : <><Play className="h-4 w-4 ml-1" /> התחל</>}
                   </Button>
                   <Button
                     variant="ghost"
@@ -1281,7 +1205,7 @@ const ZoneFlowDashboard = () => {
                     className={`rounded-full px-6 ${isStopwatchRunning ? "bg-red-500/20 text-red-300 hover:bg-red-500/30" : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"}`}
                     variant="ghost"
                   >
-                    {isStopwatchRunning ? <><Pause className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} /> עצור</> : <><Play className={`h-4 w-4 ${isRtl ? "ml-1" : "mr-1"}`} /> התחל</>}
+                    {isStopwatchRunning ? <><Pause className="h-4 w-4 ml-1" /> עצור</> : <><Play className="h-4 w-4 ml-1" /> התחל</>}
                   </Button>
                    <Button
                     variant="ghost"
@@ -1368,7 +1292,7 @@ const ZoneFlowDashboard = () => {
                 <div key={step.id}>
                   <button
                     onClick={() => setActiveRoadmapStep(activeRoadmapStep === step.id ? null : step.id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                       activeRoadmapStep === step.id ? "bg-amber-500/10 border border-amber-500/20" : "bg-white/5 hover:bg-white/10"
                     }`}
                   >
@@ -1376,7 +1300,7 @@ const ZoneFlowDashboard = () => {
                       {step.id}
                     </div>
                     <span className="text-sm font-medium text-[#e8e8ed]">{step.title}</span>
-                    <span className={`${isRtl ? "mr-auto" : "ml-auto"} text-xs text-[#e8e8ed]/30`}>
+                    <span className="mr-auto text-xs text-[#e8e8ed]/30">
                       {step.items.filter((_, i) => roadmapChecks[`${step.id}-${i}`]).length}/{step.items.length}
                     </span>
                   </button>
@@ -1419,7 +1343,7 @@ const ZoneFlowDashboard = () => {
                 <div key={tip.id}>
                   <button
                     onClick={() => setExpandedMotivation(expandedMotivation === tip.id ? null : tip.id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                       expandedMotivation === tip.id ? "bg-orange-500/10 border border-orange-500/20" : "bg-white/5 hover:bg-white/10"
                     }`}
                   >
@@ -1451,13 +1375,13 @@ const ZoneFlowDashboard = () => {
               <div key={idx}>
                 <button
                   onClick={() => setExpandedGuide(expandedGuide === `morning-${idx}` ? null : `morning-${idx}`)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                     expandedGuide === `morning-${idx}` ? "bg-amber-500/10 border border-amber-500/20" : "bg-white/5 hover:bg-white/10"
                   }`}
                 >
                   <span className="text-lg">{step.icon}</span>
                   <span className="text-sm font-medium text-[#e8e8ed] flex-1">
-                    <span className={`text-amber-400 ${isRtl ? "ml-1" : "mr-1"}`}>{idx + 1}.</span> {step.title}
+                    <span className="text-amber-400 ml-1">{idx + 1}.</span> {step.title}
                   </span>
                   {expandedGuide === `morning-${idx}` ? <ChevronUp className="h-3 w-3 text-[#e8e8ed]/30" /> : <ChevronDown className="h-3 w-3 text-[#e8e8ed]/30" />}
                 </button>
@@ -1484,7 +1408,7 @@ const ZoneFlowDashboard = () => {
               <div key={idx}>
                 <button
                   onClick={() => setExpandedGuide(expandedGuide === `dsw-${idx}` ? null : `dsw-${idx}`)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                     expandedGuide === `dsw-${idx}` ? "bg-violet-500/10 border border-violet-500/20" : "bg-white/5 hover:bg-white/10"
                   }`}
                 >
@@ -1515,7 +1439,7 @@ const ZoneFlowDashboard = () => {
               <div key={idx}>
                 <button
                   onClick={() => setExpandedGuide(expandedGuide === `sleep-${idx}` ? null : `sleep-${idx}`)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                     expandedGuide === `sleep-${idx}` ? "bg-indigo-500/10 border border-indigo-500/20" : "bg-white/5 hover:bg-white/10"
                   }`}
                 >
@@ -1546,7 +1470,7 @@ const ZoneFlowDashboard = () => {
               <div key={idx}>
                 <button
                   onClick={() => setExpandedGuide(expandedGuide === `nutrition-${idx}` ? null : `nutrition-${idx}`)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isRtl ? "text-right" : "text-left"} ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${
                     expandedGuide === `nutrition-${idx}` ? "bg-green-500/10 border border-green-500/20" : "bg-white/5 hover:bg-white/10"
                   }`}
                 >
@@ -1586,7 +1510,7 @@ const ZoneFlowDashboard = () => {
               <div key={guide.id}>
                 <button
                   onClick={() => setExpandedGuide(expandedGuide === guide.id ? null : guide.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all ${isRtl ? "text-right" : "text-left"}`}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all text-right"
                 >
                   <span className="text-lg">{guide.icon}</span>
                   <span className="text-sm font-medium text-[#e8e8ed] flex-1">{guide.title}</span>

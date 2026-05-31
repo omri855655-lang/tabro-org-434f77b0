@@ -5,7 +5,7 @@ export interface AudioPreset {
   name: string;
   nameHe: string;
   desc: string;
-  category: "focus" | "creative" | "calm" | "study" | "classical" | "deep-focus" | "night-work" | "deep-work" | "flow" | "morning" | "battle" | "noise" | "lofi" | "electric";
+  category: "focus" | "creative" | "calm" | "wellness" | "study" | "classical" | "deep-focus" | "night-work" | "deep-work" | "flow" | "morning" | "battle" | "noise" | "lofi" | "electric";
   // Core synthesis
   baseFreq: number;
   binauralOffset: number;
@@ -35,6 +35,7 @@ export const CATEGORIES = [
   { id: "creative", name: "יצירתיות", icon: "🎨", color: "cyan" },
   { id: "flow", name: "זרימה (Flow)", icon: "🌊", color: "cyan" },
   { id: "calm", name: "רוגע ומדיטציה", icon: "🧘", color: "emerald" },
+  { id: "wellness", name: "Wellness", icon: "🌿", color: "emerald" },
   { id: "study", name: "לימודים וקריאה", icon: "📚", color: "amber" },
   { id: "morning", name: "התחלת יום", icon: "🌅", color: "amber" },
   { id: "night-work", name: "עבודה לילית", icon: "🌙", color: "cyan" },
@@ -377,6 +378,57 @@ export const AUDIO_PRESETS: AudioPreset[] = [
     lfoRate: 0.04,
     lfoDepth: 0.65,
     gainLevel: 0.07,
+  },
+  {
+    id: "wellness-meditation-reset",
+    name: "Meditation Reset",
+    nameHe: "איפוס מדיטטיבי — 5Hz",
+    desc: "תטא יציב ושקט כדי לנקות רעש, לשבת שתי דקות, ולחזור לעצמך.",
+    category: "wellness",
+    baseFreq: 136,
+    binauralOffset: 5,
+    waveform: "sine",
+    harmonics: [
+      { freq: 68, gain: 0.03, wave: "sine" },
+      { freq: 204, gain: 0.02, wave: "triangle", panL: 0.8, panR: 0.5 },
+    ],
+    lfoRate: 0.025,
+    lfoDepth: 0.45,
+    gainLevel: 0.08,
+  },
+  {
+    id: "wellness-breathwork",
+    name: "Breathwork Pulse",
+    nameHe: "קצב נשימה — 6Hz",
+    desc: "פולס עדין לנשימות 4-6, להרגעה מהירה של המערכת.",
+    category: "wellness",
+    baseFreq: 144,
+    binauralOffset: 6,
+    waveform: "sine",
+    harmonics: [
+      { freq: 72, gain: 0.035, wave: "sine" },
+      { freq: 288, gain: 0.018, wave: "triangle" },
+    ],
+    lfoRate: 0.04,
+    lfoDepth: 0.52,
+    gainLevel: 0.08,
+  },
+  {
+    id: "wellness-reset-window",
+    name: "Reset Window",
+    nameHe: "חלון ריסט — 7Hz",
+    desc: "אלפא-תטא קצר למעבר מעומס נפשי חזרה לשקט ובהירות.",
+    category: "wellness",
+    baseFreq: 180,
+    binauralOffset: 7,
+    waveform: "sine",
+    harmonics: [
+      { freq: 90, gain: 0.03, wave: "sine" },
+      { freq: 270, gain: 0.015, wave: "triangle", panL: 0.4, panR: 0.9 },
+    ],
+    lfoRate: 0.03,
+    lfoDepth: 0.35,
+    gainLevel: 0.085,
   },
 
   // ═══════════════════════════════════════════

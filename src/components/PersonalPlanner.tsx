@@ -577,6 +577,49 @@ const PersonalPlanner = () => {
 
   const getHourHeight = (h: number) => hourHeights[h] || hourHeight;
 
+  const getTimeFromDayColumn = (clientY: number, columnEl: HTMLElement): { hour: number; minute: number } => {
+    const columnRect = columnEl.getBoundingClientRect();
+    const headerHeight = 40;
+    const yWithinBody = Math.max(0, Math.min(clientY - columnRect.top - headerHeight, HOURS.reduce((sum, h) => sum + getHourHeight(h), 0) - 1));
+
+    let remainingY = yWithinBody;
+    for (const hour of HOURS) {
+      const currentHourHeight = getHourHeight(hour);
+      if (remainingY <= currentHourHeight) {
+        const rawMinute = snapMinutes((remainingY / currentHourHeight) * 60);
+        return {
+          hour,
+          minute: Math.min(45, rawMinute),
+        };
+      }
+      remainingY -= currentHourHeight;
+    }
+
+    return { hour: 23, minute: 45 };
+  };
+
+  const updateDragCreateFromPoint = (day: Date, clientY: number, columnEl: HTMLElement) => {
+    const { hour, minute } = getTimeFromDayColumn(clientY, columnEl);
+
+    setDragCreateState((prev) => {
+      if (!prev || !isSameDay(prev.day, day)) {
+        return {
+          day,
+          startHour: hour,
+          startMinute: minute,
+          currentHour: hour,
+          currentMinute: minute,
+        };
+      }
+
+      return {
+        ...prev,
+        currentHour: hour,
+        currentMinute: minute,
+      };
+    });
+  };
+
   const handleHourResizeStart = (e: React.MouseEvent, h: number) => {
     e.preventDefault();
     e.stopPropagation();
@@ -596,34 +639,24 @@ const PersonalPlanner = () => {
   };
 
   // Handle dragover on hour slots to track position for stretch-drag
-  const handleSlotDragOver = (e: React.DragEvent, day: Date, slotHour: number) => {
+  const handleSlotDragOver = (e: React.DragEvent, day: Date) => {
     e.preventDefault();
     if (!draggedTask && !draggingEvent) return;
+    const columnEl = (e.currentTarget as HTMLElement).closest("[data-day-column]") as HTMLElement | null;
+    if (!columnEl) return;
+    updateDragCreateFromPoint(day, e.clientY, columnEl);
+  };
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const yInSlot = e.clientY - rect.top;
-    const minute = snapMinutes((yInSlot / hourHeight) * 60);
-    const currentHour = slotHour;
-    const currentMinute = Math.min(45, minute);
-
-    if (!dragCreateState) {
-      // First entry - set start
-      setDragCreateState({
-        day,
-        startHour: currentHour,
-        startMinute: currentMinute,
-        currentHour,
-        currentMinute,
-      });
-    } else if (isSameDay(dragCreateState.day, day)) {
-      // Update current position
-      setDragCreateState((prev) =>
-        prev ? { ...prev, currentHour, currentMinute } : null
-      );
-    }
+  const handleDayColumnDragOver = (e: React.DragEvent<HTMLDivElement>, day: Date) => {
+    e.preventDefault();
+    if (!draggedTask && !draggingEvent) return;
+    updateDragCreateFromPoint(day, e.clientY, e.currentTarget);
   };
 
   const handleDrop = (day: Date, hour?: number, e?: React.DragEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+
     // Handle moving existing event
     if (draggingEvent) {
       const duration = differenceInMinutes(new Date(draggingEvent.endTime), new Date(draggingEvent.startTime));
@@ -654,25 +687,16 @@ const PersonalPlanner = () => {
     let end: Date;
 
     if (dragCreateState && isSameDay(dragCreateState.day, day)) {
-      const sH = dragCreateState.startHour;
-      const sM = dragCreateState.startMinute;
-      const cH = dragCreateState.currentHour;
-      const cM = dragCreateState.currentMinute;
+      const startTotal = dragCreateState.startHour * 60 + dragCreateState.startMinute;
+      const endTotal = dragCreateState.currentHour * 60 + dragCreateState.currentMinute;
+      const earliest = Math.min(startTotal, endTotal);
+      const latest = Math.max(startTotal, endTotal);
 
-      const startTotal = sH * 60 + sM;
-      const endTotal = cH * 60 + cM;
+      start = setMinutes(setHours(day, Math.floor(earliest / 60)), earliest % 60);
+      end = setMinutes(setHours(day, Math.floor(latest / 60)), latest % 60);
 
-      if (endTotal > startTotal) {
-        start = setMinutes(setHours(day, sH), sM);
-        end = setMinutes(setHours(day, cH), cM);
-        if (differenceInMinutes(end, start) < 15) {
-          end = addMinutes(start, 30);
-        }
-      } else {
-        start = hour !== undefined
-          ? setMinutes(setHours(day, hour), 0)
-          : setMinutes(setHours(day, 9), 0);
-        end = addHours(start, 1);
+      if (differenceInMinutes(end, start) < 15) {
+        end = addMinutes(start, 30);
       }
     } else {
       start = hour !== undefined
@@ -803,29 +827,15 @@ const PersonalPlanner = () => {
       touchDragRef.current.lastSlotEl = slotEl;
 
       const dayStr = slotEl.getAttribute("data-slot-day");
-      const slotHour = parseInt(slotEl.getAttribute("data-slot-hour") || "0");
       if (dayStr) {
         const day = new Date(dayStr);
-        const rect = slotEl.getBoundingClientRect();
-        const yInSlot = touch.clientY - rect.top;
-        const minute = snapMinutes((yInSlot / hourHeight) * 60);
-        const currentMinute = Math.min(45, minute);
-
-        setDragCreateState((prev) => {
-          if (!prev) {
-            return {
-              day,
-              startHour: slotHour,
-              startMinute: currentMinute,
-              currentHour: slotHour,
-              currentMinute,
-            };
-          }
-          return { ...prev, currentHour: slotHour, currentMinute };
-        });
+        const columnEl = slotEl.closest("[data-day-column]") as HTMLElement | null;
+        if (columnEl) {
+          updateDragCreateFromPoint(day, touch.clientY, columnEl);
+        }
       }
     }
-  }, [snapMinutes]);
+  }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (!touchDragRef.current) return;
@@ -1347,8 +1357,11 @@ const PersonalPlanner = () => {
             return (
             <div
               key={day.toISOString()}
+              data-day-column={day.toISOString()}
               className={`border-l border-border min-w-[100px] relative transition-all duration-200 ${isExpanded ? "flex-[3]" : "flex-1"}`}
               style={isExpanded ? { minWidth: 250 } : undefined}
+              onDragOver={(e) => handleDayColumnDragOver(e, day)}
+              onDrop={(e) => handleDrop(day, undefined, e)}
             >
               {/* Day header */}
               <div
@@ -1398,7 +1411,7 @@ const PersonalPlanner = () => {
                     style={{ height: getHourHeight(h) }}
                     data-slot-day={day.toISOString()}
                     data-slot-hour={h}
-                    onDragOver={(e) => handleSlotDragOver(e, day, h)}
+                    onDragOver={(e) => handleSlotDragOver(e, day)}
                     onDrop={(e) => handleDrop(day, h, e)}
                     onClick={(e) => handleSlotClick(day, h, e)}
                     onDragLeave={() => {}}
