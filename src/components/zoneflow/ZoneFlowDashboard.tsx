@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
-import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_SESSIONS, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
+import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
 import { startSilentAudio } from "./zoneflowIosSilentAudio";
@@ -154,7 +154,7 @@ const ZoneFlowDashboard = () => {
     const saved = localStorage.getItem("zoneflow-show-meditation-hub");
     return saved ? saved === "true" : true;
   });
-  const [activeYouTube, setActiveYouTube] = useState<string | null>(() => getZoneFlowYoutubePlayerState().videoId);
+  const [youtubePlayerState, setYoutubePlayerState] = useState(() => getZoneFlowYoutubePlayerState());
   const [activeYtCat, setActiveYtCat] = useState("yt-classical");
   
   // Custom YouTube videos per category
@@ -225,9 +225,9 @@ const ZoneFlowDashboard = () => {
   useEffect(() => { localStorage.setItem("zoneflow-hidden-yt", JSON.stringify(hiddenYtVideos)); }, [hiddenYtVideos]);
   useEffect(() => { localStorage.setItem("zoneflow-show-meditation-hub", String(showMeditationHub)); }, [showMeditationHub]);
   useEffect(() => {
-    setActiveYouTube(getZoneFlowYoutubePlayerState().videoId);
+    setYoutubePlayerState(getZoneFlowYoutubePlayerState());
     return subscribeToZoneFlowYoutubePlayerState(() => {
-      setActiveYouTube(getZoneFlowYoutubePlayerState().videoId);
+      setYoutubePlayerState(getZoneFlowYoutubePlayerState());
     });
   }, []);
 
@@ -324,12 +324,12 @@ const ZoneFlowDashboard = () => {
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
-  const handleYouTubeToggle = (videoId: string, title = "YouTube", viewerOpen = false) => {
+  const handleYouTubeToggle = (videoId: string, title = "YouTube", displayMode: "hidden" | "inline" = "hidden") => {
     // Keep iOS media session alive before opening YouTube iframe
     unlockAudioContext();
     startSilentAudio();
 
-    const nextVideoId = activeYouTube === videoId ? null : videoId;
+    const nextVideoId = youtubePlayerState.videoId === videoId ? null : videoId;
 
     if (nextVideoId) {
       stopOtherZoneFlowAudio("youtube");
@@ -338,12 +338,8 @@ const ZoneFlowDashboard = () => {
     setZoneFlowYoutubePlayerState({
       videoId: nextVideoId,
       title: nextVideoId ? title : "",
-      viewerOpen: nextVideoId ? viewerOpen : false,
+      displayMode: nextVideoId ? displayMode : "hidden",
     });
-
-    if (nextVideoId) {
-      setActiveYouTube(nextVideoId);
-    }
   };
 
   // AI Chat
@@ -450,6 +446,19 @@ const ZoneFlowDashboard = () => {
       isCustom: true,
     })),
   ];
+  const activeYouTube = youtubePlayerState.videoId;
+  const isInlineMeditationVideo = youtubePlayerState.displayMode === "inline";
+  const activeMeditationVideo = meditationVideos.find((video) => video.id === activeYouTube) || null;
+  const activeMeditationIframeSrc = useMemo(() => {
+    if (!activeMeditationVideo || !isInlineMeditationVideo) return "";
+    const params = new URLSearchParams({
+      autoplay: "1",
+      playsinline: "1",
+      enablejsapi: "1",
+      rel: "0",
+    });
+    return `https://www.youtube.com/embed/${activeMeditationVideo.id}?${params.toString()}`;
+  }, [activeMeditationVideo, isInlineMeditationVideo]);
 
   // Find upcoming task (next one that hasn't passed)
   const now = new Date();
@@ -791,6 +800,54 @@ const ZoneFlowDashboard = () => {
               </div>
             </div>
 
+            <div className="grid gap-3 lg:grid-cols-[1.25fr_0.75fr]">
+              <div className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}>
+                <div className="text-sm font-medium">היסטוריה קצרה של מדיטציה</div>
+                <div className="mt-3 space-y-3">
+                  {MEDITATION_HISTORY_TIMELINE.map((item, idx) => (
+                    <div key={item.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className={`h-7 w-7 rounded-full border text-[11px] font-medium flex items-center justify-center ${isLight ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-emerald-400/30 bg-emerald-500/15 text-emerald-100"}`}>
+                          {idx + 1}
+                        </div>
+                        {idx < MEDITATION_HISTORY_TIMELINE.length - 1 && (
+                          <div className={`mt-1 h-full min-h-6 w-px ${isLight ? "bg-emerald-200" : "bg-emerald-400/20"}`} />
+                        )}
+                      </div>
+                      <div className="pb-2">
+                        <div className={`text-[11px] font-medium ${themeMuted}`}>{item.era}</div>
+                        <div className="text-sm font-medium">{item.title}</div>
+                        <p className={`mt-1 text-xs leading-6 ${themeSubtle}`}>{item.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}>
+                <div className="text-sm font-medium">מקורות להעמקה</div>
+                <div className="mt-3 space-y-3">
+                  {MEDITATION_SOURCE_LINKS.map((source) => (
+                    <a
+                      key={source.href}
+                      href={source.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`block rounded-xl border p-3 transition-all ${isLight ? "border-emerald-100 hover:bg-emerald-50" : "border-white/10 hover:bg-white/5"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium">{source.label}</div>
+                          <p className={`mt-1 text-xs leading-6 ${themeSubtle}`}>{source.note}</p>
+                        </div>
+                        <ExternalLink className={`h-3.5 w-3.5 flex-shrink-0 ${themeMuted}`} />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-3 lg:grid-cols-2">
               {MEDITATION_TYPES.map((type) => (
                 <div
@@ -802,6 +859,7 @@ const ZoneFlowDashboard = () => {
                     <div className="text-sm font-medium">{type.title}</div>
                   </div>
                   <div className={`mt-3 text-xs leading-6 ${themeSubtle}`}>
+                    <p><span className="font-medium text-foreground">מאיפה זה בא:</span> {type.origin}</p>
                     <p><span className="font-medium text-foreground">איך עושים:</span> {type.howTo}</p>
                     <p className="mt-2"><span className="font-medium text-foreground">למה זה תורם:</span> {type.benefits}</p>
                     <p className="mt-2"><span className="font-medium text-foreground">מתי לבחור בזה:</span> {type.bestFor}</p>
@@ -864,37 +922,37 @@ const ZoneFlowDashboard = () => {
 
             <div>
               <div className="mb-2 text-sm font-medium">סרטונים והכוונות</div>
-              <div
-                id="zoneflow-youtube-viewer-anchor"
-                className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} mb-3 min-h-[220px] rounded-2xl border border-dashed p-3`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium">תיבת צפייה</div>
-                    <div className={`mt-1 text-xs ${themeSubtle}`}>
-                      לחץ על `פתח לצפייה` כדי לנגן את סרטון המדיטציה כאן בתוך ZoneFlow.
+              {activeMeditationVideo && isInlineMeditationVideo && (
+                <div className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} mb-3 rounded-2xl border p-3`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium">תיבת צפייה</div>
+                      <div className={`mt-1 text-xs ${themeSubtle}`}>{activeMeditationVideo.title}</div>
                     </div>
-                  </div>
-                  {activeYouTube && (
                     <button
                       type="button"
-                      onClick={() => setZoneFlowYoutubePlayerState({ videoId: activeYouTube, title: getZoneFlowYoutubePlayerState().title, viewerOpen: false })}
+                      onClick={() => handleYouTubeToggle(activeMeditationVideo.id, activeMeditationVideo.title, "inline")}
                       className={`rounded-full px-3 py-1 text-xs transition-all ${
                         isLight
                           ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
                           : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
                       }`}
                     >
-                      הסתר תיבה
+                      סגור צפייה
                     </button>
-                  )}
-                </div>
-                {!activeYouTube && (
-                  <div className={`mt-6 text-center text-xs ${themeMuted}`}>
-                    התיבה תתמלא אוטומטית ברגע שתפתח סרטון לצפייה.
                   </div>
-                )}
-              </div>
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                    <iframe
+                      key={activeMeditationVideo.id}
+                      src={activeMeditationIframeSrc}
+                      title={activeMeditationVideo.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="aspect-video w-full border-0"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="grid gap-3 lg:grid-cols-2">
                 {meditationVideos.map((video) => (
                   <div
@@ -909,7 +967,7 @@ const ZoneFlowDashboard = () => {
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => handleYouTubeToggle(video.id, video.title, true)}
+                          onClick={() => handleYouTubeToggle(video.id, video.title, "inline")}
                           className={`rounded-full px-3 py-1 text-xs transition-all ${
                             activeYouTube === video.id
                               ? isLight
@@ -920,13 +978,13 @@ const ZoneFlowDashboard = () => {
                                 : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
                           }`}
                         >
-                          {activeYouTube === video.id ? "סגור צפייה" : "פתח לצפייה"}
+                          {activeYouTube === video.id && isInlineMeditationVideo ? "סגור צפייה" : "פתח לצפייה"}
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleYouTubeToggle(video.id, video.title, false)}
+                          onClick={() => handleYouTubeToggle(video.id, video.title, "hidden")}
                           className={`rounded-full px-3 py-1 text-xs transition-all ${
-                            activeYouTube === video.id
+                            activeYouTube === video.id && !isInlineMeditationVideo
                               ? isLight
                                 ? "bg-emerald-200 text-emerald-900"
                                 : "bg-emerald-500/20 text-emerald-100 border border-emerald-400/30"
@@ -935,7 +993,7 @@ const ZoneFlowDashboard = () => {
                                 : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
                           }`}
                         >
-                          {activeYouTube === video.id ? "עוצר רקע" : "נגן ברקע"}
+                          {activeYouTube === video.id && !isInlineMeditationVideo ? "עוצר רקע" : "נגן ברקע"}
                         </button>
                         {video.isCustom ? (
                           <button
