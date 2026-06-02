@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
-import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
+import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_PATHS, MEDITATION_SESSION_META, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPE_META, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
 import { startSilentAudio } from "./zoneflowIosSilentAudio";
@@ -154,6 +154,7 @@ const ZoneFlowDashboard = () => {
     const saved = localStorage.getItem("zoneflow-show-meditation-hub");
     return saved ? saved === "true" : true;
   });
+  const [activeMeditationFilter, setActiveMeditationFilter] = useState<"all" | "buddhist" | "yogic" | "modern" | "contemplative" | "compassion" | "sleep" | "focus" | "body" | "spiritual" | "calm">("all");
   const [youtubePlayerState, setYoutubePlayerState] = useState(() => getZoneFlowYoutubePlayerState());
   const [activeYtCat, setActiveYtCat] = useState("yt-classical");
   
@@ -446,6 +447,32 @@ const ZoneFlowDashboard = () => {
       isCustom: true,
     })),
   ];
+  const meditationFilters = [
+    { id: "all", label: "הכול" },
+    { id: "buddhist", label: "בודהיסטי" },
+    { id: "yogic", label: "יוגי" },
+    { id: "modern", label: "מודרני" },
+    { id: "contemplative", label: "קונטמפלטיבי" },
+    { id: "compassion", label: "חמלה" },
+    { id: "sleep", label: "שינה" },
+    { id: "focus", label: "פוקוס" },
+    { id: "body", label: "גוף" },
+    { id: "spiritual", label: "עומק" },
+    { id: "calm", label: "רוגע" },
+  ] as const;
+  const filteredMeditationTypes = MEDITATION_TYPES.filter((type) => {
+    if (activeMeditationFilter === "all") return true;
+    const meta = MEDITATION_TYPE_META[type.id];
+    if (!meta) return false;
+    return meta.tradition === activeMeditationFilter || meta.themes.includes(activeMeditationFilter as "compassion" | "sleep" | "focus" | "body" | "spiritual" | "calm");
+  });
+  const filteredMeditationSessions = MEDITATION_SESSIONS.filter((session) => {
+    if (activeMeditationFilter === "all") return true;
+    const meta = MEDITATION_SESSION_META[session.id];
+    if (!meta) return false;
+    if (["buddhist", "yogic", "modern", "contemplative"].includes(activeMeditationFilter)) return meta.tradition === activeMeditationFilter;
+    return meta.themes.includes(activeMeditationFilter as "compassion" | "sleep" | "focus" | "body" | "spiritual" | "calm");
+  });
   const activeYouTube = youtubePlayerState.videoId;
   const isInlineMeditationVideo = youtubePlayerState.displayMode === "inline";
   const activeMeditationVideo = meditationVideos.find((video) => video.id === activeYouTube) || null;
@@ -848,8 +875,76 @@ const ZoneFlowDashboard = () => {
               </div>
             </div>
 
+            <div className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="text-sm font-medium">מסלולים לנפש</div>
+                  <p className={`mt-1 text-xs ${themeSubtle}`}>נקודות כניסה פשוטות לפי מה שאתה צריך עכשיו, לא לפי שם השיטה.</p>
+                </div>
+                <div className={`text-xs ${themeMuted}`}>פילטר פעיל: {meditationFilters.find((item) => item.id === activeMeditationFilter)?.label}</div>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                {MEDITATION_PATHS.map((path) => {
+                  const session = MEDITATION_SESSIONS.find((item) => item.id === path.featuredSessionId);
+                  const preset = session ? AUDIO_PRESETS.find((item) => item.id === session.presetId) : null;
+                  return (
+                    <div key={path.id} className={`${isLight ? "bg-emerald-50 border-emerald-100" : "bg-emerald-500/10 border-emerald-500/15"} rounded-2xl border p-4`}>
+                      <div className="text-sm font-medium">{path.title}</div>
+                      <div className={`mt-1 text-xs ${themeMuted}`}>{path.subtitle}</div>
+                      <p className={`mt-3 text-xs leading-6 ${themeSubtle}`}>{path.description}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveMeditationFilter(path.filter)}
+                          className={`rounded-full px-3 py-1 text-xs transition-all ${isLight ? "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-100" : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"}`}
+                        >
+                          פתח מסלול
+                        </button>
+                        {preset && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveCategory("wellness");
+                              toggle(preset);
+                            }}
+                            className={`rounded-full px-3 py-1 text-xs transition-all ${isLight ? "bg-emerald-100 text-emerald-900 border border-emerald-200 hover:bg-emerald-200" : "bg-emerald-500/20 text-emerald-100 border border-emerald-400/30 hover:bg-emerald-500/25"}`}
+                          >
+                            הפעל סשן
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}>
+              <div className="text-sm font-medium">פילטרים חכמים</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {meditationFilters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setActiveMeditationFilter(filter.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs transition-all ${
+                      activeMeditationFilter === filter.id
+                        ? isLight
+                          ? "bg-emerald-200 text-emerald-900"
+                          : "bg-emerald-500/20 text-emerald-100 border border-emerald-400/30"
+                        : isLight
+                          ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                          : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid gap-3 lg:grid-cols-2">
-              {MEDITATION_TYPES.map((type) => (
+              {filteredMeditationTypes.map((type) => (
                 <div
                   key={type.id}
                   className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}
@@ -866,12 +961,17 @@ const ZoneFlowDashboard = () => {
                   </div>
                 </div>
               ))}
+              {filteredMeditationTypes.length === 0 && (
+                <div className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4 text-sm ${themeSubtle}`}>
+                  אין כרגע שיטות שתואמות לפילטר הזה. אפשר לעבור לפילטר רחב יותר או לפתוח מסלול אחר לנפש.
+                </div>
+              )}
             </div>
 
             <div>
               <div className="mb-2 text-sm font-medium">סשנים מוכנים</div>
               <div className="grid gap-3 lg:grid-cols-2">
-                {MEDITATION_SESSIONS.map((session) => {
+                {filteredMeditationSessions.map((session) => {
                   const preset = AUDIO_PRESETS.find((item) => item.id === session.presetId);
                   const isActive = activePresetId === session.presetId && isPlaying;
                   return (
@@ -917,6 +1017,11 @@ const ZoneFlowDashboard = () => {
                     </div>
                   );
                 })}
+                {filteredMeditationSessions.length === 0 && (
+                  <div className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4 text-sm ${themeSubtle}`}>
+                    אין כרגע סשנים מוכנים בפילטר הזה, אבל כרטיסי השיטות מעל עדיין יכולים לעזור לך לבחור כיוון.
+                  </div>
+                )}
               </div>
             </div>
 

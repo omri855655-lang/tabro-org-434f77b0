@@ -1392,6 +1392,98 @@ export const MEDITATION_SOURCE_LINKS = [
   },
 ] as const;
 
+export const MEDITATION_TYPE_META: Record<string, { tradition: "buddhist" | "yogic" | "modern" | "contemplative"; themes: Array<"compassion" | "sleep" | "focus" | "body" | "spiritual" | "calm"> }> = {
+  "breath-awareness": { tradition: "buddhist", themes: ["calm", "focus"] },
+  "body-scan": { tradition: "modern", themes: ["body", "sleep", "calm"] },
+  "open-monitoring": { tradition: "buddhist", themes: ["calm", "spiritual"] },
+  "loving-kindness": { tradition: "buddhist", themes: ["compassion", "calm", "spiritual"] },
+  "walking": { tradition: "buddhist", themes: ["body", "calm"] },
+  "mantra": { tradition: "yogic", themes: ["focus", "spiritual", "calm"] },
+  "visualization": { tradition: "modern", themes: ["calm", "spiritual"] },
+  "vipassana": { tradition: "buddhist", themes: ["focus", "spiritual"] },
+  "zen-counting": { tradition: "buddhist", themes: ["focus", "calm"] },
+  "yoga-nidra": { tradition: "yogic", themes: ["sleep", "body", "calm"] },
+  "gratitude": { tradition: "modern", themes: ["compassion", "calm", "spiritual"] },
+  "chakra": { tradition: "yogic", themes: ["spiritual", "body", "calm"] },
+  "sound-bath": { tradition: "modern", themes: ["calm", "body", "sleep"] },
+  "box-breathing": { tradition: "modern", themes: ["focus", "calm"] },
+  "nsdr": { tradition: "modern", themes: ["sleep", "body", "calm"] },
+  "self-inquiry": { tradition: "contemplative", themes: ["spiritual", "calm"] },
+  "affirmation": { tradition: "modern", themes: ["focus", "compassion"] },
+  "stoic-pause": { tradition: "contemplative", themes: ["focus", "calm"] },
+  "compassion-body": { tradition: "modern", themes: ["compassion", "body", "calm"] },
+  "micro-meditation": { tradition: "modern", themes: ["focus", "calm"] },
+  "tonglen": { tradition: "buddhist", themes: ["compassion", "spiritual"] },
+  "trataka": { tradition: "yogic", themes: ["focus", "spiritual"] },
+  "centering-prayer": { tradition: "contemplative", themes: ["spiritual", "calm", "compassion"] },
+  "noting": { tradition: "buddhist", themes: ["focus", "calm"] },
+  "progressive-relaxation": { tradition: "modern", themes: ["body", "sleep", "calm"] },
+};
+
+export const MEDITATION_SESSION_META: Record<string, { tradition: "buddhist" | "yogic" | "modern" | "contemplative"; themes: Array<"compassion" | "sleep" | "focus" | "body" | "spiritual" | "calm"> }> = {
+  "reset-2": { tradition: "modern", themes: ["calm", "focus"] },
+  "breath-5": { tradition: "modern", themes: ["calm", "body"] },
+  "focus-8": { tradition: "modern", themes: ["focus", "calm"] },
+  "deep-12": { tradition: "buddhist", themes: ["spiritual", "calm"] },
+  "sleep-prep-10": { tradition: "modern", themes: ["sleep", "body", "calm"] },
+  "walking-6": { tradition: "buddhist", themes: ["body", "calm"] },
+  "stress-4": { tradition: "modern", themes: ["calm", "focus"] },
+  "metta-7": { tradition: "buddhist", themes: ["compassion", "calm"] },
+  "nsdr-15": { tradition: "modern", themes: ["sleep", "body", "calm"] },
+  "candle-5": { tradition: "yogic", themes: ["focus", "spiritual"] },
+};
+
+export const MEDITATION_PATHS = [
+  {
+    id: "calm-reset",
+    title: "רוגע ושחרור",
+    subtitle: "להוריד עומס ולהתייצב",
+    description: "לבחירה כשיש הצפה, קצב מהיר או צורך בריסט עדין למערכת.",
+    filter: "calm",
+    featuredSessionId: "reset-2",
+  },
+  {
+    id: "sleep-rest",
+    title: "שינה ומנוחה",
+    subtitle: "להאט את הגוף לקראת לילה",
+    description: "מתאים לערב, לשחיקה, או כשיש קושי להירגע רק דרך הראש.",
+    filter: "sleep",
+    featuredSessionId: "sleep-prep-10",
+  },
+  {
+    id: "compassion-heart",
+    title: "חמלה ורכות",
+    subtitle: "לרכך ביקורת עצמית",
+    description: "כשהלב קשה, יש עומס רגשי, או שפשוט צריך יותר רכות פנימית.",
+    filter: "compassion",
+    featuredSessionId: "metta-7",
+  },
+  {
+    id: "focus-clarity",
+    title: "פוקוס שקט",
+    subtitle: "להחזיר חדות בלי לחץ",
+    description: "מסלול שמתאים לאיסוף קשב ולהיכנסות לעבודה בלי אגרסיביות.",
+    filter: "focus",
+    featuredSessionId: "focus-8",
+  },
+  {
+    id: "body-grounding",
+    title: "גוף וקרקוע",
+    subtitle: "להיכנס דרך הגוף",
+    description: "כשיש מתח פיזי, restlessness, או צורך להרגיש את עצמך שוב.",
+    filter: "body",
+    featuredSessionId: "walking-6",
+  },
+  {
+    id: "inner-depth",
+    title: "עומק ורוח",
+    subtitle: "לתרגול פנימי עמוק יותר",
+    description: "לרגעים שבהם בא לך חיבור, משמעות או תרגול עם שכבת עומק.",
+    filter: "spiritual",
+    featuredSessionId: "deep-12",
+  },
+] as const;
+
 export const MEDITATION_TYPES = [
   {
     id: "breath-awareness",
