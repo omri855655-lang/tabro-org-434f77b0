@@ -41,12 +41,42 @@ async function sendEmailUnified(
   return true;
 }
 
+function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Require authenticated caller
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const jwt = authHeader.slice("Bearer ".length).trim();
+    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(jwt);
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const callerUserId = claimsData.claims.sub as string;
+
     const { ownerUserId, taskDescription, creatorName, sheetName, projectId, notifyAllMembers } = await req.json();
     const normalizedTaskDescription = typeof taskDescription === "string" ? taskDescription.trim() : "";
     const taskPreview = normalizedTaskDescription ? `: ${normalizedTaskDescription.slice(0, 80)}` : "";
@@ -58,9 +88,33 @@ serve(async (req) => {
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
+
+    // Authorization: caller must be the owner OR a member of the project (when notifying members)
+    if (projectId) {
+      const { data: membership } = await supabase
+        .from("project_members")
+        .select("id")
+        .eq("project_id", projectId)
+        .or(`user_id.eq.${callerUserId},invited_email.eq.${(claimsData.claims as any).email || ""}`)
+        .maybeSingle();
+      const { data: ownedProject } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("id", projectId)
+        .eq("user_id", callerUserId)
+        .maybeSingle();
+      if (!membership && !ownedProject) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (ownerUserId !== callerUserId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Determine who to notify
     const targetUserIds: string[] = [];
@@ -114,8 +168,8 @@ serve(async (req) => {
             `
               <div dir="rtl" style="font-family: Arial, sans-serif; padding: 20px;">
                 <h2>נוספה משימה חדשה</h2>
-                <p><strong>${creatorName}</strong> צירף/ה משימה חדשה ${sheetName ? `ל<strong>${sheetName}</strong>` : ""}.</p>
-                ${normalizedTaskDescription ? `<p>המשימה: <strong>${normalizedTaskDescription}</strong></p>` : ""}
+                <p><strong>${escapeHtml(creatorName)}</strong> צירף/ה משימה חדשה ${sheetName ? `ל<strong>${escapeHtml(sheetName)}</strong>` : ""}.</p>
+                ${normalizedTaskDescription ? `<p>המשימה: <strong>${escapeHtml(normalizedTaskDescription)}</strong></p>` : ""}
                 <hr style="margin: 20px 0;" />
                 <a href="https://excel-life-sync.lovable.app/personal" style="display: inline-block; background: #6366f1; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
                   פתח את האפליקציה
