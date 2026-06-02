@@ -16,7 +16,7 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const url = new URL(req.url);
     const tokenId = url.searchParams.get("token");
-    const status = url.searchParams.get("status") || "בוצע";
+    const statusRaw = url.searchParams.get("status") || "בוצע";
     const skip = url.searchParams.get("skip") === "true";
 
     if (!tokenId) {
@@ -74,7 +74,7 @@ serve(async (req: Request): Promise<Response> => {
       // For recurring tasks, "סיימתי" means insert a completion for today
       const todayStr = new Date().toISOString().split("T")[0];
       
-      if (status === "בוצע" || status === "complete" || !status || status === "בוצע") {
+      if (statusRaw === "בוצע" || statusRaw === "complete" || !statusRaw) {
         const { error: completionError } = await supabase
           .from("recurring_task_completions")
           .insert({
@@ -104,12 +104,12 @@ serve(async (req: Request): Promise<Response> => {
 
       const taskName = recurringTask?.title || "המשימה";
       return new Response(
-        htmlPage("✅ סומן כבוצע!", `"${taskName}" סומנה כבוצעת להיום. כל הכבוד!`),
+        htmlPage("✅ סומן כבוצע!", `"${escapeHtml(taskName)}" סומנה כבוצעת להיום. כל הכבוד!`),
         { status: 200, headers: htmlHeaders },
       );
     }
 
-    // Regular task flow
+    // Regular task flow - strict allowlist for status
     const statusMap: Record<string, string> = {
       "בוצע": "בוצע",
       "complete": "בוצע",
@@ -118,7 +118,13 @@ serve(async (req: Request): Promise<Response> => {
       "בטיפול": "בטיפול",
       "in_progress": "בטיפול",
     };
-    const finalStatus = statusMap[status] || status;
+    const finalStatus = statusMap[statusRaw];
+    if (!finalStatus) {
+      return new Response(htmlPage("❌ קישור לא תקין", "סטטוס לא חוקי"), {
+        status: 400,
+        headers: htmlHeaders,
+      });
+    }
 
     const { error: updateError } = await supabase
       .from("tasks")
@@ -151,17 +157,26 @@ serve(async (req: Request): Promise<Response> => {
     const emoji = statusEmoji[finalStatus] || "✅";
 
     return new Response(
-      htmlPage(`${emoji} המשימה עודכנה!`, `"${taskName}" עודכנה לסטטוס: ${finalStatus}. הדשבורד עודכן.`),
+      htmlPage(`${emoji} המשימה עודכנה!`, `"${escapeHtml(taskName)}" עודכנה לסטטוס: ${escapeHtml(finalStatus)}. הדשבורד עודכן.`),
       { status: 200, headers: htmlHeaders },
     );
   } catch (error: any) {
     console.error("Action error:", error);
-    return new Response(htmlPage("❌ שגיאה", error.message), {
+    return new Response(htmlPage("❌ שגיאה", "אירעה שגיאה. נסה שוב מאוחר יותר."), {
       status: 500,
       headers: htmlHeaders,
     });
   }
 });
+
+function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function htmlPage(title: string, message: string): string {
   return `<!DOCTYPE html>
