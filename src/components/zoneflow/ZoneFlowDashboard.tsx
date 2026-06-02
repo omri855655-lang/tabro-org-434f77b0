@@ -150,6 +150,7 @@ const ZoneFlowDashboard = () => {
   // Guides & Motivation
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [expandedMotivation, setExpandedMotivation] = useState<string | null>(null);
+  const [expandedMeditationType, setExpandedMeditationType] = useState<string | null>("gratitude");
   const [showMeditationHub, setShowMeditationHub] = useState(() => {
     const saved = localStorage.getItem("zoneflow-show-meditation-hub");
     return saved ? saved === "true" : true;
@@ -949,9 +950,18 @@ const ZoneFlowDashboard = () => {
                   key={type.id}
                   className={`${isLight ? "bg-white border-emerald-100" : "bg-white/5 border-white/10"} rounded-2xl border p-4`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{type.icon}</span>
-                    <div className="text-sm font-medium">{type.title}</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{type.icon}</span>
+                      <div className="text-sm font-medium">{type.title}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedMeditationType((prev) => prev === type.id ? null : type.id)}
+                      className={`rounded-full px-3 py-1 text-xs transition-all ${isLight ? "bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100" : "bg-black/10 text-emerald-100 border border-emerald-500/15 hover:bg-emerald-500/10"}`}
+                    >
+                      {expandedMeditationType === type.id ? "פחות" : "עוד עומק"}
+                    </button>
                   </div>
                   <div className={`mt-3 text-xs leading-6 ${themeSubtle}`}>
                     <p><span className="font-medium text-foreground">מאיפה זה בא:</span> {type.origin}</p>
@@ -959,6 +969,27 @@ const ZoneFlowDashboard = () => {
                     <p className="mt-2"><span className="font-medium text-foreground">למה זה תורם:</span> {type.benefits}</p>
                     <p className="mt-2"><span className="font-medium text-foreground">מתי לבחור בזה:</span> {type.bestFor}</p>
                   </div>
+                  {expandedMeditationType === type.id && (
+                    <div className={`${isLight ? "bg-emerald-50 border-emerald-100" : "bg-emerald-500/10 border-emerald-500/15"} mt-4 rounded-2xl border p-4`}>
+                      <div className="text-sm font-medium">היסטוריה של המדיטציה הזו</div>
+                      <p className={`mt-2 text-xs leading-6 ${themeSubtle}`}>{type.history}</p>
+                      <div className="mt-4 text-sm font-medium">מקורות להעמקה</div>
+                      <div className="mt-2 space-y-2">
+                        {type.sources.map((source) => (
+                          <a
+                            key={source.href}
+                            href={source.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition-all ${isLight ? "border-emerald-100 bg-white hover:bg-emerald-100/40" : "border-white/10 bg-black/10 hover:bg-white/5"}`}
+                          >
+                            <span className="text-xs leading-6">{source.label}</span>
+                            <ExternalLink className={`h-3.5 w-3.5 flex-shrink-0 ${themeMuted}`} />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {filteredMeditationTypes.length === 0 && (
