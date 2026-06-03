@@ -149,6 +149,7 @@ const PersonalPlanner = () => {
   const [draggedTask, setDraggedTask] = useState<AggregatedTask | null>(null);
   const [draggingEvent, setDraggingEvent] = useState<CalendarEvent | null>(null);
   const [showEventDialog, setShowEventDialog] = useState(false);
+  const [showQuickEventDialog, setShowQuickEventDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [showLinkToDashboard, setShowLinkToDashboard] = useState(false);
   const [pendingLinkEvent, setPendingLinkEvent] = useState<CalendarEvent | null>(null);
@@ -773,21 +774,16 @@ const PersonalPlanner = () => {
           ? "recurring_task"
           : "project_task";
 
-    const savedEvent = await addEvent({
+    openNewEventDialog({
+      start,
+      end,
       title: draggedTask.title,
       description: "",
       category: draggedTask.source === "work" ? "עבודה" : draggedTask.source === "project" ? "פרויקט" : draggedTask.source === "recurring" ? "לוז יומי" : "אישי",
-      startTime: toLocalISOString(start),
-      endTime: toLocalISOString(end),
-      color: "",
+      mode: "quick",
       sourceType,
       sourceId: draggedTask.id,
     });
-
-    if (savedEvent) {
-      toast.success(`המשימה שובצה ל-${format(start, "HH:mm")} - ${format(end, "HH:mm")}`);
-    }
-
     setDraggedTask(null);
     setDragCreateState(null);
   };
@@ -804,12 +800,18 @@ const PersonalPlanner = () => {
     title = "",
     category = "אחר",
     description = "",
+    mode = "quick",
+    sourceType = "custom",
+    sourceId = null,
   }: {
     start: Date;
     end: Date;
     title?: string;
     category?: string;
     description?: string;
+    mode?: "quick" | "full";
+    sourceType?: string;
+    sourceId?: string | null;
   }) => {
     setEditingEvent(null);
     setNewEventData({
@@ -819,11 +821,12 @@ const PersonalPlanner = () => {
       startTime: toLocalISOString(start),
       endTime: toLocalISOString(end),
       color: getDynCategoryColor(category),
-      sourceType: "custom",
-      sourceId: null,
+      sourceType,
+      sourceId,
       inviteeEmails: "",
     });
-    setShowEventDialog(true);
+    setShowQuickEventDialog(mode === "quick");
+    setShowEventDialog(mode === "full");
   };
 
   const createQuickEventAt = (
@@ -840,6 +843,7 @@ const PersonalPlanner = () => {
       title: preset?.title,
       category: preset?.category ?? "אחר",
       description: preset?.description,
+      mode: "quick",
     });
   };
 
@@ -1106,6 +1110,7 @@ const PersonalPlanner = () => {
       }
     }
 
+    setShowQuickEventDialog(false);
     setShowEventDialog(false);
     setEditingEvent(null);
   };
@@ -1155,8 +1160,8 @@ const PersonalPlanner = () => {
     }
   };
 
-  const handleClickEvent = async (event: CalendarEvent) => {
-    if (resizingEvent) return; // Don't open dialog while resizing
+  const prepareEventForEditing = async (event: CalendarEvent, mode: "quick" | "full" = "full") => {
+    if (resizingEvent) return;
     setEditingEvent(event);
     
     // Load existing invitees for this event
@@ -1186,6 +1191,24 @@ const PersonalPlanner = () => {
       sourceId: event.sourceId,
       inviteeEmails: existingEmails,
     });
+
+    setShowQuickEventDialog(mode === "quick");
+    setShowEventDialog(mode === "full");
+  };
+
+  const handleEventCardDoubleClick = (event: CalendarEvent) => {
+    void prepareEventForEditing(event, "quick");
+  };
+
+  const handleEventCardClick = (event: CalendarEvent) => {
+    if (showQuickEventDialog && editingEvent?.id === event.id) {
+      setShowQuickEventDialog(false);
+      void prepareEventForEditing(event, "full");
+    }
+  };
+
+  const openFullEventEditor = () => {
+    setShowQuickEventDialog(false);
     setShowEventDialog(true);
   };
 
@@ -1228,12 +1251,14 @@ const PersonalPlanner = () => {
 
     if (editingEvent.id.startsWith("recurring-") && editingEvent.sourceId) {
       await toggleSkipForDate(editingEvent.sourceId, format(new Date(editingEvent.startTime), "yyyy-MM-dd"));
+      setShowQuickEventDialog(false);
       setShowEventDialog(false);
       setEditingEvent(null);
       return;
     }
 
     await deleteEvent(editingEvent.id);
+    setShowQuickEventDialog(false);
     setShowEventDialog(false);
     setEditingEvent(null);
   };
@@ -1567,7 +1592,8 @@ const PersonalPlanner = () => {
                             left: `${leftPercent}%`,
                             width: `${widthPercent - 1}%`,
                           }}
-                          onClick={() => handleClickEvent(event)}
+                          onClick={() => handleEventCardClick(event)}
+                          onDoubleClick={() => handleEventCardDoubleClick(event)}
                         >
                           <div className="font-medium truncate" style={{ color: event.color }}>
                             {event.isInvited ? "📨 " : ""}{event.title}
@@ -1683,7 +1709,8 @@ const PersonalPlanner = () => {
                       onDragEnd={() => setDraggingEvent(null)}
                       className={`text-xs truncate rounded px-1 mb-0.5 cursor-grab active:cursor-grabbing hover:opacity-80 ${draggingEvent?.id === event.id ? "opacity-50" : ""}`}
                       style={{ backgroundColor: event.color + "33", color: event.color }}
-                      onClick={() => handleClickEvent(event)}
+                      onClick={() => handleEventCardClick(event)}
+                      onDoubleClick={() => handleEventCardDoubleClick(event)}
                     >
                       {format(new Date(event.startTime), "HH:mm")} {event.title}
                     </div>
@@ -2411,7 +2438,7 @@ const PersonalPlanner = () => {
                   key={`upcoming-${event.id}`}
                   type="button"
                   className="rounded-full border border-border px-2 py-1 hover:bg-muted"
-                  onClick={() => handleClickEvent(event)}
+                  onClick={() => void prepareEventForEditing(event, "full")}
                 >
                   {format(new Date(event.startTime), "HH:mm")} · {event.title}
                 </button>
@@ -2424,8 +2451,130 @@ const PersonalPlanner = () => {
         {viewMode === "year" ? renderYearGrid() : viewMode === "month" ? renderMonthGrid() : renderTimeGrid()}
       </div>
 
+      <Dialog
+        open={showQuickEventDialog}
+        onOpenChange={(open) => {
+          setShowQuickEventDialog(open);
+          if (!open && !showEventDialog) {
+            setEditingEvent(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingEvent?.id.startsWith("recurring-") ? "עריכה מהירה למשימה קבועה" : "עריכה מהירה"}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              תיבת כתיבה מהירה לעדכון אירוע קיים בלוח הזמנים.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">כותרת</label>
+              <Input
+                value={newEventData.title}
+                onChange={(e) => setNewEventData((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="כותרת האירוע"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">התחלה</label>
+                <Input
+                  type="time"
+                  value={newEventData.startTime ? format(new Date(newEventData.startTime), "HH:mm") : ""}
+                  onChange={(e) => {
+                    const [hours, minutes] = e.target.value.split(":").map(Number);
+                    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return;
+                    const start = new Date(newEventData.startTime || new Date());
+                    start.setHours(hours, minutes, 0, 0);
+                    const previousStart = new Date(newEventData.startTime || start);
+                    const previousEnd = new Date(newEventData.endTime || addMinutes(start, 30));
+                    const duration = Math.max(15, differenceInMinutes(previousEnd, previousStart));
+                    const nextEnd = addMinutes(start, duration);
+                    setNewEventData((prev) => ({
+                      ...prev,
+                      startTime: toLocalISOString(start),
+                      endTime: toLocalISOString(nextEnd),
+                    }));
+                  }}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">סיום</label>
+                <Input
+                  type="time"
+                  value={newEventData.endTime ? format(new Date(newEventData.endTime), "HH:mm") : ""}
+                  onChange={(e) => {
+                    const [hours, minutes] = e.target.value.split(":").map(Number);
+                    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return;
+                    const end = new Date(newEventData.endTime || new Date());
+                    end.setHours(hours, minutes, 0, 0);
+                    setNewEventData((prev) => ({ ...prev, endTime: toLocalISOString(end) }));
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">הערות מהירות</label>
+              <Textarea
+                value={newEventData.description}
+                onChange={(e) => setNewEventData((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="מה תרצה לכתוב כאן?"
+                rows={4}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">משך מהיר</label>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {[15, 30, 45, 60, 90].map((minutes) => (
+                  <Button
+                    key={`quick-duration-${minutes}`}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setEventDuration(minutes)}
+                  >
+                    {minutes} דק'
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            {editingEvent && (
+              <Button variant="destructive" size="sm" onClick={handleDeleteEvent} className="gap-1">
+                <Trash2 className="h-3.5 w-3.5" />
+                {editingEvent.id.startsWith("recurring-") ? "הסר רק ליום הזה" : "מחק"}
+              </Button>
+            )}
+            <Button type="button" variant="outline" onClick={openFullEventEditor}>
+              עריכה מלאה
+            </Button>
+            <Button onClick={handleSaveEvent} disabled={sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
+              שמור מהיר
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Event Dialog */}
-      <Dialog open={showEventDialog} onOpenChange={setShowEventDialog}>
+      <Dialog
+        open={showEventDialog}
+        onOpenChange={(open) => {
+          setShowEventDialog(open);
+          if (!open && !showQuickEventDialog) {
+            setEditingEvent(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>
             <DialogTitle>
