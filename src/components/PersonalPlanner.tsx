@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getHolidaysForDate } from "@/data/holidays";
@@ -105,6 +106,14 @@ const buildSyntheticTask = (id: string, title: string, category: string, created
   updatedAt: createdAt,
 });
 
+const clampQuickEditorAnchor = (anchor?: { top: number; left: number } | null) => {
+  if (!anchor || typeof window === "undefined") return null;
+  return {
+    top: Math.max(84, Math.min(anchor.top, window.innerHeight - 120)),
+    left: Math.max(260, Math.min(anchor.left, window.innerWidth - 40)),
+  };
+};
+
 const PersonalPlanner = () => {
   const { user } = useAuth();
   const { tasks: personalTasks } = useTasks("personal");
@@ -151,6 +160,7 @@ const PersonalPlanner = () => {
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [showQuickEventDialog, setShowQuickEventDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [quickEditorAnchor, setQuickEditorAnchor] = useState<{ top: number; left: number } | null>(null);
   const [showLinkToDashboard, setShowLinkToDashboard] = useState(false);
   const [pendingLinkEvent, setPendingLinkEvent] = useState<CalendarEvent | null>(null);
   const [newEventData, setNewEventData] = useState({
@@ -189,6 +199,7 @@ const PersonalPlanner = () => {
   } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const quickEditorAnchorRef = useRef<HTMLButtonElement | null>(null);
 
   // Touch drag state for mobile
   const touchDragRef = useRef<{
@@ -783,6 +794,11 @@ const PersonalPlanner = () => {
       mode: "quick",
       sourceType,
       sourceId: draggedTask.id,
+      anchor: clampQuickEditorAnchor(
+        e
+          ? { top: e.clientY + 12, left: e.clientX - 12 }
+          : { top: window.innerHeight / 2, left: window.innerWidth / 2 }
+      ),
     });
     setDraggedTask(null);
     setDragCreateState(null);
@@ -803,6 +819,7 @@ const PersonalPlanner = () => {
     mode = "quick",
     sourceType = "custom",
     sourceId = null,
+    anchor = null,
   }: {
     start: Date;
     end: Date;
@@ -812,6 +829,7 @@ const PersonalPlanner = () => {
     mode?: "quick" | "full";
     sourceType?: string;
     sourceId?: string | null;
+    anchor?: { top: number; left: number } | null;
   }) => {
     setEditingEvent(null);
     setNewEventData({
@@ -825,6 +843,7 @@ const PersonalPlanner = () => {
       sourceId,
       inviteeEmails: "",
     });
+    setQuickEditorAnchor(mode === "quick" ? clampQuickEditorAnchor(anchor) : null);
     setShowQuickEventDialog(mode === "quick");
     setShowEventDialog(mode === "full");
   };
@@ -844,6 +863,7 @@ const PersonalPlanner = () => {
       category: preset?.category ?? "אחר",
       description: preset?.description,
       mode: "quick",
+      anchor: null,
     });
   };
 
@@ -854,7 +874,18 @@ const PersonalPlanner = () => {
 
     const rect = event.currentTarget.getBoundingClientRect();
     const minute = Math.min(45, snapMinutes(((event.clientY - rect.top) / getHourHeight(hour)) * 60));
-    createQuickEventAt(day, hour, minute);
+    const anchor = clampQuickEditorAnchor({
+      top: event.clientY + 12,
+      left: event.clientX - 12,
+    });
+
+    openNewEventDialog({
+      start: setMinutes(setHours(day, hour), minute),
+      end: addMinutes(setMinutes(setHours(day, hour), minute), 30),
+      category: "אחר",
+      mode: "quick",
+      anchor,
+    });
   };
 
   // --- Touch drag handlers for mobile (iOS) ---
@@ -1111,6 +1142,7 @@ const PersonalPlanner = () => {
     }
 
     setShowQuickEventDialog(false);
+    setQuickEditorAnchor(null);
     setShowEventDialog(false);
     setEditingEvent(null);
   };
@@ -1160,7 +1192,11 @@ const PersonalPlanner = () => {
     }
   };
 
-  const prepareEventForEditing = async (event: CalendarEvent, mode: "quick" | "full" = "full") => {
+  const prepareEventForEditing = async (
+    event: CalendarEvent,
+    mode: "quick" | "full" = "full",
+    anchor?: { top: number; left: number } | null
+  ) => {
     if (resizingEvent) return;
     setEditingEvent(event);
     
@@ -1192,23 +1228,30 @@ const PersonalPlanner = () => {
       inviteeEmails: existingEmails,
     });
 
+    setQuickEditorAnchor(mode === "quick" ? clampQuickEditorAnchor(anchor) : null);
     setShowQuickEventDialog(mode === "quick");
     setShowEventDialog(mode === "full");
   };
 
-  const handleEventCardDoubleClick = (event: CalendarEvent) => {
-    void prepareEventForEditing(event, "quick");
+  const handleEventCardDoubleClick = (mouseEvent: React.MouseEvent<HTMLElement>, event: CalendarEvent) => {
+    const rect = mouseEvent.currentTarget.getBoundingClientRect();
+    void prepareEventForEditing(event, "quick", {
+      top: rect.bottom + 10,
+      left: rect.right - 12,
+    });
   };
 
   const handleEventCardClick = (event: CalendarEvent) => {
     if (showQuickEventDialog && editingEvent?.id === event.id) {
       setShowQuickEventDialog(false);
+      setQuickEditorAnchor(null);
       void prepareEventForEditing(event, "full");
     }
   };
 
   const openFullEventEditor = () => {
     setShowQuickEventDialog(false);
+    setQuickEditorAnchor(null);
     setShowEventDialog(true);
   };
 
@@ -1252,6 +1295,7 @@ const PersonalPlanner = () => {
     if (editingEvent.id.startsWith("recurring-") && editingEvent.sourceId) {
       await toggleSkipForDate(editingEvent.sourceId, format(new Date(editingEvent.startTime), "yyyy-MM-dd"));
       setShowQuickEventDialog(false);
+      setQuickEditorAnchor(null);
       setShowEventDialog(false);
       setEditingEvent(null);
       return;
@@ -1259,6 +1303,7 @@ const PersonalPlanner = () => {
 
     await deleteEvent(editingEvent.id);
     setShowQuickEventDialog(false);
+    setQuickEditorAnchor(null);
     setShowEventDialog(false);
     setEditingEvent(null);
   };
@@ -1593,7 +1638,7 @@ const PersonalPlanner = () => {
                             width: `${widthPercent - 1}%`,
                           }}
                           onClick={() => handleEventCardClick(event)}
-                          onDoubleClick={() => handleEventCardDoubleClick(event)}
+                          onDoubleClick={(e) => handleEventCardDoubleClick(e, event)}
                         >
                           <div className="font-medium truncate" style={{ color: event.color }}>
                             {event.isInvited ? "📨 " : ""}{event.title}
@@ -1710,7 +1755,7 @@ const PersonalPlanner = () => {
                       className={`text-xs truncate rounded px-1 mb-0.5 cursor-grab active:cursor-grabbing hover:opacity-80 ${draggingEvent?.id === event.id ? "opacity-50" : ""}`}
                       style={{ backgroundColor: event.color + "33", color: event.color }}
                       onClick={() => handleEventCardClick(event)}
-                      onDoubleClick={() => handleEventCardDoubleClick(event)}
+                      onDoubleClick={(e) => handleEventCardDoubleClick(e, event)}
                     >
                       {format(new Date(event.startTime), "HH:mm")} {event.title}
                     </div>
@@ -2451,26 +2496,62 @@ const PersonalPlanner = () => {
         {viewMode === "year" ? renderYearGrid() : viewMode === "month" ? renderMonthGrid() : renderTimeGrid()}
       </div>
 
-      <Dialog
+      <Popover
         open={showQuickEventDialog}
         onOpenChange={(open) => {
           setShowQuickEventDialog(open);
-          if (!open && !showEventDialog) {
-            setEditingEvent(null);
+          if (!open) {
+            setQuickEditorAnchor(null);
+            if (!showEventDialog) {
+              setEditingEvent(null);
+            }
           }
         }}
       >
-        <DialogContent className="max-w-sm" dir="rtl">
-          <DialogHeader>
-            <DialogTitle>
-              {editingEvent?.id.startsWith("recurring-") ? "עריכה מהירה למשימה קבועה" : "עריכה מהירה"}
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              תיבת כתיבה מהירה לעדכון אירוע קיים בלוח הזמנים.
-            </DialogDescription>
-          </DialogHeader>
-
+        <PopoverTrigger asChild>
+          <button
+            ref={quickEditorAnchorRef}
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="pointer-events-none fixed h-px w-px opacity-0"
+            style={{
+              top: quickEditorAnchor?.top ?? -9999,
+              left: quickEditorAnchor?.left ?? -9999,
+            }}
+          />
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[320px] p-3"
+          dir="rtl"
+          align="end"
+          sideOffset={10}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">
+                  {editingEvent?.id ? "עריכה מהירה" : "אירוע מהיר"}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  כתיבה מהירה בלי לפתוח את חלון הפרטים המלא
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setShowQuickEventDialog(false);
+                  setQuickEditorAnchor(null);
+                }}
+              >
+                סגור
+              </Button>
+            </div>
+
             <div>
               <label className="text-sm font-medium">כותרת</label>
               <Input
@@ -2520,12 +2601,12 @@ const PersonalPlanner = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium">הערות מהירות</label>
+              <label className="text-sm font-medium">טקסט מהיר</label>
               <Textarea
                 value={newEventData.description}
                 onChange={(e) => setNewEventData((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="מה תרצה לכתוב כאן?"
-                rows={4}
+                placeholder="כתוב מהר מה צריך לזכור"
+                rows={3}
               />
             </div>
 
@@ -2546,24 +2627,24 @@ const PersonalPlanner = () => {
                 ))}
               </div>
             </div>
-          </div>
 
-          <DialogFooter className="flex gap-2">
-            {editingEvent && (
-              <Button variant="destructive" size="sm" onClick={handleDeleteEvent} className="gap-1">
-                <Trash2 className="h-3.5 w-3.5" />
-                {editingEvent.id.startsWith("recurring-") ? "הסר רק ליום הזה" : "מחק"}
+            <div className="flex flex-wrap gap-2">
+              {editingEvent && (
+                <Button variant="destructive" size="sm" onClick={handleDeleteEvent} className="gap-1">
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {editingEvent.id.startsWith("recurring-") ? "הסר רק ליום הזה" : "מחק"}
+                </Button>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={openFullEventEditor}>
+                עריכה מלאה
               </Button>
-            )}
-            <Button type="button" variant="outline" onClick={openFullEventEditor}>
-              עריכה מלאה
-            </Button>
-            <Button onClick={handleSaveEvent} disabled={sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
-              שמור מהיר
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Button size="sm" onClick={handleSaveEvent} disabled={sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
+                שמור
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       {/* Event Dialog */}
       <Dialog
