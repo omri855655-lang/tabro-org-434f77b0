@@ -200,6 +200,7 @@ const PersonalPlanner = () => {
 
   const gridRef = useRef<HTMLDivElement>(null);
   const quickEditorAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const quickDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Touch drag state for mobile
   const touchDragRef = useRef<{
@@ -1241,13 +1242,7 @@ const PersonalPlanner = () => {
     });
   };
 
-  const handleEventCardClick = (event: CalendarEvent) => {
-    if (showQuickEventDialog && editingEvent?.id === event.id) {
-      setShowQuickEventDialog(false);
-      setQuickEditorAnchor(null);
-      void prepareEventForEditing(event, "full");
-    }
-  };
+  const handleEventCardClick = (_event: CalendarEvent) => {};
 
   const openFullEventEditor = () => {
     setShowQuickEventDialog(false);
@@ -1255,6 +1250,18 @@ const PersonalPlanner = () => {
     setShowEventDialog(true);
   };
 
+  useEffect(() => {
+    if (!showQuickEventDialog) return;
+    const timer = window.setTimeout(() => {
+      quickDescriptionRef.current?.focus();
+      quickDescriptionRef.current?.setSelectionRange(
+        quickDescriptionRef.current.value.length,
+        quickDescriptionRef.current.value.length
+      );
+    }, 20);
+
+    return () => window.clearTimeout(timer);
+  }, [showQuickEventDialog, editingEvent?.id]);
   const handleAiHelp = useCallback(async (title: string, description: string, category: string) => {
     const taskDescription = description.trim() || title.trim();
     if (!taskDescription) {
@@ -2603,6 +2610,7 @@ const PersonalPlanner = () => {
             <div>
               <label className="text-sm font-medium">טקסט מהיר</label>
               <Textarea
+                ref={quickDescriptionRef}
                 value={newEventData.description}
                 onChange={(e) => setNewEventData((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="כתוב מהר מה צריך לזכור"
