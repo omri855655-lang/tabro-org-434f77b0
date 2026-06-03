@@ -105,7 +105,7 @@ const AdminDashboard = () => {
   }, []);
 
   const callAdminAnalytics = useCallback(async (body: Record<string, unknown>, includePassword = true) => {
-    const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
+    const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
@@ -354,8 +354,6 @@ const AdminDashboard = () => {
       if (data?.ok) {
         sessionStorage.setItem(ADMIN_PASS_KEY, "1");
         sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
-        localStorage.setItem(ADMIN_PASS_KEY, "1");
-        localStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
         setPassUnlocked(true);
         setPassError(false);
         return;
