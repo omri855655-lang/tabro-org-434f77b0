@@ -22,6 +22,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -515,6 +516,9 @@ const DailyRoutine = () => {
               <RefreshCw className="h-5 w-5 text-primary" />
               הוסף משימה קבועה
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              יצירת משימה קבועה חדשה ללוז היומי עם תדירות, שעה ותיאור.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>

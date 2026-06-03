@@ -23,6 +23,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -197,6 +198,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   });
   const [detailHistory, setDetailHistory] = useState<TaskEditHistoryEntry[]>([]);
   const [detailHistoryLoading, setDetailHistoryLoading] = useState(false);
+  const taskHistoryAvailableRef = useRef<boolean | null>(null);
   const [fitTableToScreen, setFitTableToScreen] = useState(() => {
     return localStorage.getItem(`task-table-fit-${taskType}`) === "true";
   });
@@ -291,6 +293,12 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
     const fetchTaskHistory = async () => {
       setDetailHistoryLoading(true);
+      if (taskHistoryAvailableRef.current === false) {
+        setDetailHistory([]);
+        setDetailHistoryLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("task_edit_history")
         .select("id, action_type, changed_count, changed_fields, created_at, edited_by_email, edited_by_name, edited_by_username")
@@ -301,9 +309,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       if (cancelled) return;
 
       if (error) {
-        console.error("Error fetching task edit history:", error);
+        const isMissingTable = String(error?.code || "").toLowerCase() === "pgrst205"
+          || String(error?.message || "").toLowerCase().includes("task_edit_history");
+        if (isMissingTable) {
+          taskHistoryAvailableRef.current = false;
+        } else {
+          console.error("Error fetching task edit history:", error);
+        }
         setDetailHistory([]);
       } else {
+        taskHistoryAvailableRef.current = true;
         setDetailHistory((data || []) as TaskEditHistoryEntry[]);
       }
       setDetailHistoryLoading(false);
@@ -1746,6 +1761,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               <Sparkles className="h-5 w-5 text-primary" />
               עזרה מ-AI
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              חלון להצגת הצעות AI עבור המשימה שנבחרה.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {selectedTaskForAi && (
@@ -1787,6 +1805,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               <MoveRight className="h-5 w-5 text-primary" />
               העבר משימה לגליון אחר
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              בחירת גליון יעד להעברת המשימה שנבחרה.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {taskToMove && (
@@ -1836,6 +1857,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         <DialogContent className="max-w-3xl" dir="rtl">
           <DialogHeader>
             <DialogTitle>פרטי משימה מלאים</DialogTitle>
+            <DialogDescription className="sr-only">
+              צפייה ועריכה מלאה של כל פרטי המשימה, כולל היסטוריית עריכות.
+            </DialogDescription>
           </DialogHeader>
           {detailTask && (
             <div className="space-y-4">

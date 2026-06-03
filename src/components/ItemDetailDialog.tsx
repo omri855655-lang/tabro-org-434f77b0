@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,9 @@ const ItemDetailDialog = ({ item, open, onClose, onSave, onDelete, extraActions 
       <DialogContent className="max-w-md" dir="auto">
         <DialogHeader>
           <DialogTitle>{t("edit" as any) || "עריכה"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            חלון לעריכת פרטי הפריט, כולל כותרת, סטטוס והערות.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1">

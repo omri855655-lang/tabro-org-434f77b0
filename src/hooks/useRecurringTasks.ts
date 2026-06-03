@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -94,6 +95,8 @@ export function useRecurringTasks() {
   const [completions, setCompletions] = useState<RecurringTaskCompletion[]>([]);
   const [skips, setSkips] = useState<RecurringTaskSkip[]>([]);
   const [loading, setLoading] = useState(true);
+  const skipsTableAvailableRef = useRef<boolean | null>(null);
+  const skipsTableWarnedRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     if (!user) {
@@ -126,20 +129,35 @@ export function useRecurringTasks() {
 
       if (completionsError) throw completionsError;
 
-      const { data: skipsData, error: skipsError } = await supabase
-        .from("recurring_task_skips")
-        .select("*")
-        .gte("skipped_date", thirtyDaysAgo.toISOString().split("T")[0]);
+      let skipsData: DbSkip[] | null = [];
+      let skipsError: any = null;
 
-      if (skipsError && !isMissingSchemaPiece(skipsError, "recurring_task_skips")) {
-        throw skipsError;
+      if (skipsTableAvailableRef.current !== false) {
+        const skipsResponse = await supabase
+          .from("recurring_task_skips")
+          .select("*")
+          .gte("skipped_date", thirtyDaysAgo.toISOString().split("T")[0]);
+
+        skipsData = skipsResponse.data as DbSkip[] | null;
+        skipsError = skipsResponse.error;
+
+        if (skipsError && !isMissingSchemaPiece(skipsError, "recurring_task_skips")) {
+          throw skipsError;
+        }
+
+        if (skipsError) {
+          skipsTableAvailableRef.current = false;
+        } else {
+          skipsTableAvailableRef.current = true;
+        }
       }
 
       setTasks((tasksData as DbRecurringTask[]).map(mapDbToRecurringTask));
       setCompletions((completionsData as DbCompletion[]).map(mapDbToCompletion));
       setSkips(skipsError ? [] : (skipsData as DbSkip[]).map(mapDbToSkip));
 
-      if (skipsError) {
+      if (skipsError && !skipsTableWarnedRef.current) {
+        skipsTableWarnedRef.current = true;
         console.warn("recurring_task_skips table is unavailable yet; continuing without one-off skips", skipsError);
       }
     } catch (error: any) {
