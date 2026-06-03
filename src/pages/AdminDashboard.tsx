@@ -82,8 +82,8 @@ const AdminDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
-  const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1" || localStorage.getItem(ADMIN_PASS_KEY) === "1");
-  const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
+  const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1");
+  const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
   const [passError, setPassError] = useState(false);
   const [landingContent, setLandingContent] = useState<Record<string, { he: string; en: string }>>({});
   const [landingEditing, setLandingEditing] = useState<Record<string, { he: string; en: string }>>({});
