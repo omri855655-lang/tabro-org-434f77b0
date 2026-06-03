@@ -29,19 +29,18 @@ export function usePinGate() {
     const fetchProfile = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("pin_code, pin_enabled")
+        .select("pin_enabled")
         .eq("user_id", user.id)
         .single();
 
       if (data) {
         setPinEnabled(data.pin_enabled);
-        setHasPin(!!data.pin_code);
-        // If PIN is disabled, auto-verify
+        // PIN value is never sent to the client; existence is implied by pin_enabled
+        setHasPin(data.pin_enabled);
         if (!data.pin_enabled) {
           setVerified(true);
         }
       } else {
-        // No profile yet — PIN disabled by default
         setPinEnabled(false);
         setHasPin(false);
         setVerified(true);
@@ -125,10 +124,7 @@ export function PinSetup({ onSuccess }: { onSuccess: () => void }) {
 
   const savePin = async (pinCode: string) => {
     if (!user) return;
-    const { error } = await supabase
-      .from("profiles")
-      .update({ pin_code: pinCode, pin_enabled: true })
-      .eq("user_id", user.id);
+    const { error } = await (supabase.rpc as any)("set_pin", { input_pin: pinCode });
 
     if (error) {
       toast.error("שגיאה בשמירת הקוד");
@@ -234,13 +230,9 @@ export default function PinGate({ onSuccess }: { onSuccess: () => void }) {
   const verifyPin = async (fullPin: string) => {
     if (!user) return;
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("pin_code")
-      .eq("user_id", user.id)
-      .single();
+    const { data, error } = await (supabase.rpc as any)("verify_pin", { input_pin: fullPin });
 
-    if (data && data.pin_code === fullPin) {
+    if (!error && data === true) {
       toast.success("קוד נכון!");
       onSuccess();
     } else {

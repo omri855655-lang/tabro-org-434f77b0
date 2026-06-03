@@ -2258,6 +2258,8 @@ export type Database = {
           read_ct: number
         }[]
       }
+      set_pin: { Args: { input_pin: string }; Returns: undefined }
+      verify_pin: { Args: { input_pin: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

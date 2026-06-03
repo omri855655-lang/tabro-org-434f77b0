@@ -82,8 +82,8 @@ const AdminDashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
-  const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1" || localStorage.getItem(ADMIN_PASS_KEY) === "1");
-  const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
+  const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1");
+  const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
   const [passError, setPassError] = useState(false);
   const [landingContent, setLandingContent] = useState<Record<string, { he: string; en: string }>>({});
   const [landingEditing, setLandingEditing] = useState<Record<string, { he: string; en: string }>>({});
@@ -105,7 +105,7 @@ const AdminDashboard = () => {
   }, []);
 
   const callAdminAnalytics = useCallback(async (body: Record<string, unknown>, includePassword = true) => {
-    const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
+    const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       apikey: ADMIN_MAIL_SUPABASE_PUBLISHABLE_KEY,
@@ -242,8 +242,6 @@ const AdminDashboard = () => {
         setPassUnlocked(false);
         sessionStorage.removeItem(ADMIN_PASS_KEY);
         sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
-        localStorage.removeItem(ADMIN_PASS_KEY);
-        localStorage.removeItem(ADMIN_PASS_VALUE_KEY);
         toast.error(isHe ? "סיסמת האדמין התיישנה או שונתה. יש להזין אותה מחדש." : "Admin password expired or changed. Please enter it again.");
       } else {
         toast.error(isHe ? "נתוני הדואר באדמין לא נטענו כרגע." : "Admin mailbox data failed to load.");
@@ -354,8 +352,6 @@ const AdminDashboard = () => {
       if (data?.ok) {
         sessionStorage.setItem(ADMIN_PASS_KEY, "1");
         sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
-        localStorage.setItem(ADMIN_PASS_KEY, "1");
-        localStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
         setPassUnlocked(true);
         setPassError(false);
         return;
@@ -886,7 +882,7 @@ const AdminDashboard = () => {
                       to: composeTo.trim(),
                       subject: composeSubject.trim(),
                       body: composeBody.trim(),
-                      admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
+                      admin_password: passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "",
                     };
 
                     const finishSuccess = async () => {
@@ -903,8 +899,6 @@ const AdminDashboard = () => {
                       if (errMsg === "Unauthorized") {
                         sessionStorage.removeItem(ADMIN_PASS_KEY);
                         sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
-                        localStorage.removeItem(ADMIN_PASS_KEY);
-                        localStorage.removeItem(ADMIN_PASS_VALUE_KEY);
                         setPassUnlocked(false);
                         setPassInput("");
                         setPassError(true);
@@ -919,7 +913,7 @@ const AdminDashboard = () => {
                     };
 
                     try {
-                      const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || localStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
+                      const password = passInput || sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "";
                       const res = await fetch(`${ADMIN_MAIL_SUPABASE_URL}/functions/v1/admin-analytics`, {
                         method: "POST",
                         headers: {
