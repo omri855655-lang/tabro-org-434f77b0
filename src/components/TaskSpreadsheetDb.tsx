@@ -1267,7 +1267,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         </div>
         </div>
         <div className="px-3 pb-2 text-[11px] text-muted-foreground">
-          אפשר לפתוח משימה עם דאבל־קליק על השורה, עם לחיצה על מספר המשימה, או עם אייקון העין הקטן. זה לא פוגע בעריכה הרגילה של השדות.
+          עריכת טקסט בתוך הטבלה נעשית בדאבל־קליק על השדה עצמו. לפתיחת פרטי משימה מלאים השתמשו במספר המשימה או באייקון העין.
         </div>
         {/* Sticky category/column headers bar */}
         <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
@@ -1485,7 +1485,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                       task.overdue && task.status !== "בוצע" && !task.urgent && "bg-destructive/5"
                     )}
                     onClick={() => setSelectedRow(task.id)}
-                    onDoubleClick={() => setDetailTask(task)}
                   >
                     <td className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-1" style={getColumnStyle("index")}>
                       {task.urgent && <Flame className="h-4 w-4 text-red-500" />}
