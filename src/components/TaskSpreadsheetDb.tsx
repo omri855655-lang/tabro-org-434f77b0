@@ -171,6 +171,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const stickyHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef<"table" | "header" | null>(null);
   const [pendingScrollTaskId, setPendingScrollTaskId] = useState<string | null>(null);
+  const [pendingEditTaskId, setPendingEditTaskId] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<TaskColumnKey, number>>(() => {
     const defaults = TASK_TABLE_COLUMNS.reduce((acc, column) => {
       acc[column.key] = column.defaultWidth;
@@ -223,6 +224,20 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
     return () => window.clearTimeout(timeoutId);
   }, [pendingScrollTaskId, tasks, activeTaskTab]);
+
+  useEffect(() => {
+    if (!pendingEditTaskId) return;
+
+    const taskExists = tasks.some((task) => task.id === pendingEditTaskId);
+    if (!taskExists) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setEditingCell({ row: pendingEditTaskId, field: "description" });
+      setPendingEditTaskId(null);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingEditTaskId, tasks]);
 
   useEffect(() => {
     localStorage.setItem(`task-table-widths-${taskType}`, JSON.stringify(columnWidths));
@@ -545,6 +560,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     if (!newTask) return;
     setSelectedRow(newTask.id);
     setPendingScrollTaskId(newTask.id);
+    setPendingEditTaskId(newTask.id);
   };
 
   const handleDeleteTask = async () => {
@@ -1458,7 +1474,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 <col key={column.key} style={{ width: getEffectiveColumnWidth(column.key) }} />
               ))}
             </colgroup>
-            <thead className="sticky top-0 z-10">
+            <thead className="sr-only">
               <tr className="bg-muted">
                 {TASK_TABLE_COLUMNS.map((column) => (
                   <th
