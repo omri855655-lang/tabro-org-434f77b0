@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bot, X, Send, Loader2, Trash2, History, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useTabroAiHistory } from "@/hooks/useTabroAiHistory";
-import { useLanguage } from "@/hooks/useLanguage";
+import type { Json } from "@/integrations/supabase/types";
 
 interface Message {
   role: "user" | "assistant";
@@ -24,15 +25,13 @@ interface AiAgentPreferences {
   newsTopics: string;
 }
 
-interface AgentModeShortcut {
-  key: string;
-  titleHe: string;
-  titleEn: string;
-  descHe: string;
-  descEn: string;
-  promptHe: string;
-  promptEn: string;
+type AssistantMode = "general" | "planning_agent";
+
+interface NotificationSettings {
+  ai?: Partial<AiAgentPreferences>;
 }
+
+type PendingAction = Json;
 
 const ACTION_LABELS: Record<string, string> = {
   add_task: "המשימה נוספה בהצלחה",
@@ -58,19 +57,19 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const TabroAiAgent = () => {
-  const { lang, dir } = useLanguage();
-  const isHebrew = lang === "he";
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [input, setInput] = useState("");
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>("general");
+  const historyKey = assistantMode === "planning_agent" ? "tabro-ai-planning-agent" : "tabro-ai";
   const {
     messages,
     setMessages,
     conversationHistory,
     clearAndArchive,
     loadConversation,
-  } = useTabroAiHistory();
+  } = useTabroAiHistory(historyKey);
   const [aiPrefs, setAiPrefs] = useState<AiAgentPreferences>({
     enabled: true,
     dailyBriefingEnabled: true,
@@ -81,50 +80,8 @@ const TabroAiAgent = () => {
     newsTopics: "",
   });
   const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const copy = isHebrew ? {
-    chatCleared: "השיחה נוקתה ונשמרה בהיסטוריה",
-    noAnswer: "לא הצלחתי לענות",
-    actionDone: "✅ הפעולה בוצעה!",
-    commError: "שגיאה בתקשורת. נסה שוב.",
-    title: "Tabro AI",
-    history: "היסטוריית שיחות",
-    clearChat: "נקה שיחה",
-    previousChats: "שיחות קודמות",
-    noHistory: "אין היסטוריה",
-    hello: "שלום! אני Tabro AI 👋",
-    intro: "אני יכול לנהל את כל הנתונים שלך - משימות, לוח זמנים, ספרים, קניות, פרויקטים ועוד.",
-    prompt: "מה תרצה לעשות?",
-    suggestions: [
-      "סיימתי את המשימה הראשונה",
-      "תוסיף משימה בעבודה",
-      "מה הסטטוס של הפרויקטים?",
-      "תשים אירוע מחר ב-10:00",
-      "תסמן קניתי חלב",
-      "מה יש לי היום בלוז?",
-    ],
-  } : {
-    chatCleared: "Chat cleared and saved to history",
-    noAnswer: "I couldn't answer that",
-    actionDone: "✅ Action completed!",
-    commError: "Communication error. Please try again.",
-    title: "Tabro AI",
-    history: "Conversation history",
-    clearChat: "Clear chat",
-    previousChats: "Previous chats",
-    noHistory: "No history yet",
-    hello: "Hi! I'm Tabro AI 👋",
-    intro: "I can help manage your data — tasks, schedule, books, shopping, projects and more.",
-    prompt: "What would you like to do?",
-    suggestions: [
-      "I finished the first task",
-      "Add a task at work",
-      "What's the status of my projects?",
-      "Add an event tomorrow at 10:00",
-      "Mark milk as bought",
-      "What do I have today?",
-    ],
-  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -142,19 +99,19 @@ const TabroAiAgent = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const nextPrefs = (data?.notification_settings as any)?.ai;
+      const nextPrefs = (data?.notification_settings as Json as NotificationSettings | null)?.ai;
       if (nextPrefs) {
         setAiPrefs((prev) => ({ ...prev, ...nextPrefs }));
       }
     };
 
-    void loadAiPrefs();
+    loadAiPrefs();
   }, [user]);
 
   const clearChat = () => {
     if (messages.length === 0) return;
     clearAndArchive();
-    toast.success(copy.chatCleared);
+    toast.success("השיחה נוקתה ונשמרה בהיסטוריה");
   };
 
   const handleLoadConversation = (entry: { id: string; date: string; preview: string; messages: Message[] }) => {
@@ -169,6 +126,7 @@ const TabroAiAgent = () => {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
+    setPendingAction(null);
     setLoading(true);
 
     try {
@@ -179,20 +137,57 @@ const TabroAiAgent = () => {
           userId: user.id,
           userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           aiPreferences: aiPrefs,
+          assistantMode,
+          dryRunActions: assistantMode === "planning_agent",
         },
       });
 
       if (error) throw error;
 
-      const responseText = data?.response || copy.noAnswer;
+      const responseText = data?.response || "לא הצלחתי לענות";
       setMessages(prev => [...prev, { role: "assistant", content: responseText }]);
 
-      if (data?.action?.success) {
-        toast.success((isHebrew ? ACTION_LABELS[data.action.type] : null) || copy.actionDone);
+      if (data?.pendingAction) {
+        setPendingAction(data.pendingAction as PendingAction);
+        toast.success("התוכנית מוכנה. אפשר לאשר ביצוע.");
       }
-    } catch (e: any) {
-      console.error("Tabro AI error:", e);
-      setMessages(prev => [...prev, { role: "assistant", content: copy.commError }]);
+
+      if (data?.action?.success) {
+        toast.success(ACTION_LABELS[data.action.type] || "✅ הפעולה בוצעה!");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Tabro AI error:", errorMessage);
+      setMessages(prev => [...prev, { role: "assistant", content: "שגיאה בתקשורת. נסה שוב." }]);
+    }
+    setLoading(false);
+  };
+
+  const confirmPendingAction = async () => {
+    if (!user || !pendingAction || loading) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("tabro-ai-agent", {
+        body: {
+          userId: user.id,
+          prebuiltAction: pendingAction,
+          assistantMode,
+        },
+      });
+
+      if (error) throw error;
+
+      setMessages(prev => [...prev, { role: "assistant", content: data?.response || "אישרתי וביצעתי את הפעולה." }]);
+      setPendingAction(null);
+
+      if (data?.action?.success) {
+        toast.success(ACTION_LABELS[data.action.type] || "הפעולה בוצעה");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Tabro AI confirmation error:", errorMessage);
+      setMessages(prev => [...prev, { role: "assistant", content: "לא הצלחתי לאשר את הפעולה כרגע." }]);
     }
     setLoading(false);
   };
@@ -207,94 +202,27 @@ const TabroAiAgent = () => {
     await sendMessage(prompt);
   };
 
-  const quickPrompts = [
-    aiPrefs.dailyBriefingEnabled
-      ? (isHebrew
-          ? "תן לי תדריך בוקר מלא וקבוע על היום שלי: פוקוס עיקרי, משימות דחופות, אירועים, מיילים חשובים ודברים שדורשים החלטה."
-          : "Give me a structured morning briefing for today: main focus, urgent tasks, events, important emails, and decisions needed.")
-      : null,
-    aiPrefs.emailDigestEnabled
-      ? (isHebrew
-          ? "סכם לי את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, ומה הכי חשוב לטפל בו קודם."
-          : "Summarize the latest synced emails by category, what needs a reply, and what matters most first.")
-      : null,
-    aiPrefs.newsBriefingEnabled
-      ? (isHebrew
+  const quickPrompts = assistantMode === "planning_agent"
+    ? [
+        "תכנן לי את היום לפי דחיפות, משך משימה סביר, ואילוצים. אם חסר מידע - תשאל אותי שאלות קצרות.",
+        "תכנן לי את מחר. תשאל אותי אם אני עובד, מאיזה שעה עד איזה שעה, ומה האילוצים הקבועים.",
+        "תכנן לי שבוע קדימה לפי משימות פתוחות, אירועים קיימים, ומה שדחוף קודם.",
+        "בדוק אילו מיילים הכי דורשים מענה, ואיך לשבץ אותם בלוז שלי.",
+      ]
+    : ([
+        aiPrefs.dailyBriefingEnabled
+          ? `תן לי תדריך בוקר מלא וקבוע על היום שלי: פוקוס עיקרי, משימות דחופות, אירועים, מיילים חשובים ודברים שדורשים החלטה.`
+          : null,
+        aiPrefs.emailDigestEnabled
+          ? `סכם לי את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, ומה הכי חשוב לטפל בו קודם.`
+          : null,
+        aiPrefs.newsBriefingEnabled
           ? `בנה לי תדריך חדשות בוקר לפי תחומי העניין שלי: ${aiPrefs.newsTopics || "חדשות כלליות"}. אם אין לך פיד חדשות חי, תגיד לי בדיוק מה חסר כדי להשלים את זה.`
-          : `Build me a morning news briefing for my interests: ${aiPrefs.newsTopics || "general news"}. If no live news source is available, tell me exactly what's missing.`)
-      : null,
-    aiPrefs.reminderEnabled
-      ? (isHebrew
+          : null,
+        aiPrefs.reminderEnabled
           ? `תזכיר לי מה חשוב לי היום סביב ${aiPrefs.reminderTime}, ותן לי תדריך מסודר לקראת השעה הזו.`
-          : `Remind me what matters today around ${aiPrefs.reminderTime} and give me a structured prep briefing.`)
-      : null,
-  ].filter(Boolean) as string[];
-
-  const agentModes: AgentModeShortcut[] = [
-    {
-      key: "project-review",
-      titleHe: "סקירת פרויקטים",
-      titleEn: "Project review",
-      descHe: "מה תקוע, מה דחוף, ומה דורש החלטה",
-      descEn: "What's blocked, urgent, and needs a decision",
-      promptHe: "תן לי סקירת פרויקטים ניהולית: מה תקוע, מה באיחור, מה דחוף, ואיזה פרויקט דורש החלטה שלי היום.",
-      promptEn: "Give me a managerial projects review: what's blocked, overdue, urgent, and which project needs my decision today.",
-    },
-    {
-      key: "inbox-triage",
-      titleHe: "טריאז׳ מיילים",
-      titleEn: "Inbox triage",
-      descHe: "מה דורש תשובה מיידית ומה אפשר לדחות",
-      descEn: "What needs a response now and what can wait",
-      promptHe: "עשה לי טריאז׳ מלא למיילים: מה דורש תגובה מיידית, מה אפשר לדחות, ומה אפשר לארכב בלי לפגוע בכלום.",
-      promptEn: "Triage my inbox: what needs an immediate response, what can wait, and what can be archived safely.",
-    },
-    {
-      key: "meeting-prep",
-      titleHe: "הכנה לפגישה",
-      titleEn: "Meeting prep",
-      descHe: "תדריך קצר לפני שיחה או ישיבה",
-      descEn: "Quick prep before a conversation or meeting",
-      promptHe: "תכין לי תדריך קצר לפגישה: מה הרקע, מה המטרות, מה כדאי לשאול, ומה לא לשכוח להגיד.",
-      promptEn: "Prepare a short meeting brief: background, goals, questions to ask, and what not to forget to say.",
-    },
-    {
-      key: "reply-draft",
-      titleHe: "טיוטת תשובה",
-      titleEn: "Reply draft",
-      descHe: "ניסוח מייל או הודעת המשך מהירה",
-      descEn: "Draft a quick email or follow-up message",
-      promptHe: "נסח לי טיוטת תשובה מקצועית, קצרה וברורה למייל/הודעה, כולל נושא מתאים וקריאה לפעולה אם צריך.",
-      promptEn: "Draft me a professional, concise reply to an email/message, including a suitable subject and call to action if needed.",
-    },
-    {
-      key: "focus-coach",
-      titleHe: "מאמן פוקוס",
-      titleEn: "Focus coach",
-      descHe: "מה הכי חשוב לי עכשיו ואיך להיכנס לפעולה",
-      descEn: "What matters most right now and how to start",
-      promptHe: "פעל כמאמן פוקוס: קח את כל מה שיש לי היום ותגיד לי מה הכי חשוב, מה להוריד מהרעש, ואיך להתחיל ב-20 הדקות הקרובות.",
-      promptEn: "Act as a focus coach: use everything on my plate today and tell me what matters most, what to ignore, and how to start in the next 20 minutes.",
-    },
-    {
-      key: "executive-summary",
-      titleHe: "סיכום מנהלים",
-      titleEn: "Executive summary",
-      descHe: "מצב מהיר של היום, השבוע, והסיכונים",
-      descEn: "Fast status on today, this week, and risks",
-      promptHe: "תן לי סיכום מנהלים קצר: מצב היום, השבוע, דחופים, סיכונים, ומה דורש תשומת לב מיוחדת.",
-      promptEn: "Give me a short executive summary: today, this week, urgent items, risks, and what needs special attention.",
-    },
-    {
-      key: "day-plan",
-      titleHe: "תוכנית ליום",
-      titleEn: "Day plan",
-      descHe: "לפרק את היום לביצוע מעשי",
-      descEn: "Turn the day into an execution plan",
-      promptHe: "בנה לי תוכנית ביצוע ברורה להיום: מה קודם, כמה זמן לכל בלוק, מה אפשר לדחות, ואיפה אני עלול להיתקע.",
-      promptEn: "Build me a clear execution plan for today: what goes first, time blocks, what can be deferred, and where I may get stuck.",
-    },
-  ];
+          : null,
+      ].filter(Boolean) as string[]);
 
   if (!user) return null;
 
@@ -311,15 +239,24 @@ const TabroAiAgent = () => {
       )}
 
       {open && (
-        <div className="fixed left-4 bottom-20 z-50 w-[360px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-6rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir={dir}>
+        <div className="fixed left-4 bottom-20 z-50 w-[360px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-6rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
             <Bot className="h-5 w-5 text-primary" />
-            <span className="font-bold text-sm flex-1">{copy.title}</span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowHistory(!showHistory)} title={copy.history}>
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-sm block">
+                {assistantMode === "planning_agent" ? "סוכן תכנון AI" : "Tabro AI"}
+              </span>
+              <span className="text-[10px] text-muted-foreground block">
+                {assistantMode === "planning_agent"
+                  ? "מתכנן יום ושבוע, מזהה דחיפות ומשכי משימות"
+                  : "עוזר כללי למשימות, לוז, מיילים ונתוני המערכת"}
+              </span>
+            </div>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowHistory(!showHistory)} title="היסטוריית שיחות">
               <History className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearChat} title={copy.clearChat} disabled={messages.length === 0}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearChat} title="נקה שיחה" disabled={messages.length === 0}>
               <Trash2 className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)}>
@@ -327,13 +264,25 @@ const TabroAiAgent = () => {
             </Button>
           </div>
 
+          <div className="px-3 py-2 border-b border-border bg-background/70">
+            <Select value={assistantMode} onValueChange={(value: AssistantMode) => setAssistantMode(value)}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="בחר מצב AI" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">Tabro AI כללי</SelectItem>
+                <SelectItem value="planning_agent">סוכן תכנון ולוז</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* History sidebar */}
           {showHistory && (
             <div className="border-b border-border bg-muted/30 max-h-[200px] overflow-auto">
               <div className="p-2 space-y-1">
-                <p className="text-[10px] font-bold text-muted-foreground px-1">{copy.previousChats}</p>
+                <p className="text-[10px] font-bold text-muted-foreground px-1">שיחות קודמות</p>
                 {conversationHistory.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-3">{copy.noHistory}</p>
+                  <p className="text-xs text-muted-foreground text-center py-3">אין היסטוריה</p>
                 ) : (
                   conversationHistory.map(entry => (
                     <button
@@ -353,51 +302,79 @@ const TabroAiAgent = () => {
             </div>
           )}
 
+          {/* AI actions */}
           <div className="px-3 py-2 border-b border-border bg-muted/20">
             <div className="grid grid-cols-2 gap-2">
+              {assistantMode === "planning_agent" ? (
+                <>
+                  <button
+                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                    onClick={() => void runQuickPrompt("תכנן לי את היום לפי המשימות הדחופות, אירועים שכבר קיימים, והזמן הסביר של כל משימה. אם חסרים לך אילוצים - תשאל אותי קודם.")}
+                  >
+                    <span className="block text-xs font-semibold">תכנון היום</span>
+                    <span className="block text-[10px] text-muted-foreground">דחיפות, משכים ואילוצים</span>
+                  </button>
+                  <button
+                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                    onClick={() => void runQuickPrompt("תכנן לי שבוע קדימה. תשאל אותי מה ימי העבודה שלי, אילו אילוצים קבועים יש לי, ומה חייב להיכנס קודם.")}
+                  >
+                    <span className="block text-xs font-semibold">תכנון שבועי</span>
+                    <span className="block text-[10px] text-muted-foreground">שבוע עבודה, בית וקבועים</span>
+                  </button>
+                  <button
+                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                    onClick={() => void runQuickPrompt("בדוק לי אילו מיילים צריכים מענה, כמה זמן צפוי לטפל בכל אחד, ואיך כדאי לשבץ אותם בלוז.")}
+                  >
+                    <span className="block text-xs font-semibold">מיילים לטיפול</span>
+                    <span className="block text-[10px] text-muted-foreground">מי דורש תגובה ומתי</span>
+                  </button>
+                  <button
+                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                    onClick={() => void runQuickPrompt("תכנן לי את מחר ותשאל אותי קודם אם אני עובד, מאיזה שעה עד איזה שעה, והאם יש אימון או אילוץ קבוע.")}
+                  >
+                    <span className="block text-xs font-semibold">תכנון למחר</span>
+                    <span className="block text-[10px] text-muted-foreground">שאלות מקדימות ואחר כך שיבוץ</span>
+                  </button>
+                </>
+              ) : (
+                <>
               {aiPrefs.dailyBriefingEnabled && (
                 <button
                   className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt(isHebrew
-                    ? "תן לי עכשיו תדריך בוקר מלא וקבוע: פוקוס עיקרי, משימות דחופות, אירועים להיום, מיילים חשובים לפי קטגוריות, דברים שדורשים החלטה, ומה לעשות ראשון."
-                    : "Give me a structured morning briefing now: main focus, urgent tasks, today's events, important emails by category, decisions needed, and what to do first.")}
+                  onClick={() => void runQuickPrompt("תן לי עכשיו תדריך בוקר מלא וקבוע: פוקוס עיקרי, משימות דחופות, אירועים להיום, מיילים חשובים לפי קטגוריות, דברים שדורשים החלטה, ומה לעשות ראשון.")}
                 >
-                  <span className="block text-xs font-semibold">{isHebrew ? "תדריך היום" : "Today's briefing"}</span>
-                  <span className="block text-[10px] text-muted-foreground">{isHebrew ? "סדר יום, דחופים והמלצה מה קודם" : "Agenda, urgent items, and what to tackle first"}</span>
+                  <span className="block text-xs font-semibold">תדריך היום</span>
+                  <span className="block text-[10px] text-muted-foreground">סדר יום, דחופים והמלצה מה קודם</span>
                 </button>
               )}
               {aiPrefs.emailDigestEnabled && (
                 <button
                   className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt(isHebrew
-                    ? "סכם לי עכשיו את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, מה אפשר לדחות, ומה הכי חשוב לי לטפל בו קודם."
-                    : "Summarize the latest synced emails by category, what needs a reply, what can wait, and what I should handle first.")}
+                  onClick={() => void runQuickPrompt("סכם לי עכשיו את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, מה אפשר לדחות, ומה הכי חשוב לי לטפל בו קודם.")}
                 >
-                  <span className="block text-xs font-semibold">{isHebrew ? "סיכום מיילים" : "Email summary"}</span>
-                  <span className="block text-[10px] text-muted-foreground">{isHebrew ? "מה חשוב, מה דחוף, ומה ממתין" : "What's important, urgent, or waiting"}</span>
+                  <span className="block text-xs font-semibold">סיכום מיילים</span>
+                  <span className="block text-[10px] text-muted-foreground">מה חשוב, מה דחוף, ומה ממתין</span>
                 </button>
               )}
               {aiPrefs.newsBriefingEnabled && (
                 <button
                   className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt(isHebrew
-                    ? `בנה לי תדריך חדשות בוקר לפי תחומי העניין שלי: ${aiPrefs.newsTopics || "חדשות כלליות"}. אם אין מקור חדשות חי, תגיד לי בקצרה מה חסר.`
-                    : `Build me a morning news briefing for my interests: ${aiPrefs.newsTopics || "general news"}. If no live source exists, briefly tell me what's missing.`)}
+                  onClick={() => void runQuickPrompt(`בנה לי תדריך חדשות בוקר לפי תחומי העניין שלי: ${aiPrefs.newsTopics || "חדשות כלליות"}. אם אין מקור חדשות חי, תגיד לי בקצרה מה חסר.`)}
                 >
-                  <span className="block text-xs font-semibold">{isHebrew ? "תדריך חדשות" : "News briefing"}</span>
-                  <span className="block text-[10px] text-muted-foreground">{aiPrefs.newsTopics || (isHebrew ? "לא הוגדרו תחומים" : "No topics set")}</span>
+                  <span className="block text-xs font-semibold">תדריך חדשות</span>
+                  <span className="block text-[10px] text-muted-foreground">{aiPrefs.newsTopics || "לא הוגדרו תחומים"}</span>
                 </button>
               )}
               {aiPrefs.reminderEnabled && (
                 <button
                   className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt(isHebrew
-                    ? `תן לי תזכורת מסודרת סביב ${aiPrefs.reminderTime}, כולל מה חשוב לי לא לפספס היום.`
-                    : `Give me a structured reminder around ${aiPrefs.reminderTime}, including what I shouldn't miss today.`)}
+                  onClick={() => void runQuickPrompt(`תן לי תזכורת מסודרת סביב ${aiPrefs.reminderTime}, כולל מה חשוב לי לא לפספס היום.`)}
                 >
-                  <span className="block text-xs font-semibold">{isHebrew ? "תזכורת AI" : "AI reminder"}</span>
-                  <span className="block text-[10px] text-muted-foreground">{isHebrew ? `שמורה לשעה ${aiPrefs.reminderTime}` : `Saved for ${aiPrefs.reminderTime}`}</span>
+                  <span className="block text-xs font-semibold">תזכורת AI</span>
+                  <span className="block text-[10px] text-muted-foreground">שמורה לשעה {aiPrefs.reminderTime}</span>
                 </button>
+              )}
+                </>
               )}
             </div>
           </div>
@@ -408,15 +385,37 @@ const TabroAiAgent = () => {
               {messages.length === 0 && (
                 <div className="text-center text-muted-foreground text-sm py-8 space-y-2">
                   <Bot className="h-10 w-10 mx-auto text-primary/40" />
-                  <p>{copy.hello}</p>
-                  <p className="text-xs">{copy.intro}</p>
+                  <p>{assistantMode === "planning_agent" ? "שלום! אני סוכן התכנון שלך" : "שלום! אני Tabro AI 👋"}</p>
+                  <p className="text-xs">
+                    {assistantMode === "planning_agent"
+                      ? "אני יכול לתכנן לך יום או שבוע, לשאול על אילוצים, להעריך כמה זמן משימות ייקחו, ולבנות סדר עבודה חכם."
+                      : "אני יכול לנהל את כל הנתונים שלך - משימות, לוח זמנים, ספרים, קניות, פרויקטים ועוד."}
+                  </p>
                   <div className="text-[10px] text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 max-w-[270px] mx-auto">
-                    {aiPrefs.reminderEnabled
-                      ? (isHebrew ? `תזכורת ה-AI שלך שמורה לשעה ${aiPrefs.reminderTime}` : `Your AI reminder is saved for ${aiPrefs.reminderTime}`)
-                      : (isHebrew ? "אפשר להפעיל תזכורות ותדריכי AI מתוך ההגדרות" : "You can enable AI reminders and briefings in settings")}
+                    {assistantMode === "planning_agent"
+                      ? "כדי שאשבץ טוב יותר, אפשר לספר לי שעות עבודה, ימי חופש, אימונים, וזמני בית."
+                      : aiPrefs.reminderEnabled
+                      ? `תזכורת ה-AI שלך שמורה לשעה ${aiPrefs.reminderTime}`
+                      : "אפשר להפעיל תזכורות ותדריכי AI מתוך ההגדרות"}
                   </div>
                   <div className="flex flex-wrap gap-1 justify-center mt-3">
-                    {copy.suggestions.map(s => (
+                    {(assistantMode === "planning_agent"
+                      ? [
+                          "תכנן לי את היום",
+                          "תכנן לי את מחר לפי שעות עבודה",
+                          "תכנן לי שבוע קדימה",
+                          "איזה מיילים צריכים מענה?",
+                          "תשבץ לי את המשימות הדחופות",
+                          "אני בחופש מחר, תבנה לי לו\"ז",
+                        ]
+                      : [
+                          "סיימתי את המשימה הראשונה",
+                          "תוסיף משימה בעבודה",
+                          "מה הסטטוס של הפרויקטים?",
+                          "תשים אירוע מחר ב-10:00",
+                          "תסמן קניתי חלב",
+                          "מה יש לי היום בלוז?",
+                        ]).map(s => (
                       <button
                         key={s}
                         className="text-[10px] px-2 py-1 rounded-full border border-border hover:bg-muted transition-colors"
@@ -428,7 +427,7 @@ const TabroAiAgent = () => {
                   </div>
                   {quickPrompts.length > 0 && (
                     <div className="space-y-2 mt-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground">{isHebrew ? "קיצורי דרך לפי ההגדרות שלך" : "Quick actions from your settings"}</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground">קיצורי דרך לפי ההגדרות שלך</p>
                       <div className="flex flex-wrap gap-1 justify-center">
                         {quickPrompts.map((prompt) => (
                           <button
@@ -436,33 +435,26 @@ const TabroAiAgent = () => {
                             className="text-[10px] px-2 py-1 rounded-full border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors"
                             onClick={() => queuePrompt(prompt)}
                           >
-                            {prompt.includes("מיילים") || prompt.includes("emails")
-                              ? (isHebrew ? "סיכום מיילים" : "Email summary")
-                              : prompt.includes("חדשות") || prompt.includes("news")
-                                ? (isHebrew ? "תדריך חדשות" : "News briefing")
-                                : prompt.includes("תזכיר") || prompt.includes("Remind")
-                                  ? (isHebrew ? "תזכורת יומית" : "Daily reminder")
-                                  : (isHebrew ? "תדריך היום" : "Today's briefing")}
+                            {assistantMode === "planning_agent"
+                              ? prompt.includes("שבוע")
+                                ? "תכנון שבועי"
+                                : prompt.includes("מחר")
+                                  ? "תכנון למחר"
+                                  : prompt.includes("מיילים")
+                                    ? "מיילים לטיפול"
+                                    : "תכנון היום"
+                              : prompt.includes("מיילים")
+                              ? "סיכום מיילים"
+                              : prompt.includes("חדשות")
+                                ? "תדריך חדשות"
+                                : prompt.includes("תזכיר")
+                                  ? "תזכורת יומית"
+                                  : "תדריך היום"}
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
-                  <div className="space-y-2 mt-3">
-                    <p className="text-[10px] font-semibold text-muted-foreground">{isHebrew ? "מצבי סוכן חכמים" : "Agent modes"}</p>
-                    <div className="grid gap-2 text-right">
-                      {agentModes.map((mode) => (
-                        <button
-                          key={mode.key}
-                          className="rounded-lg border border-border bg-background/70 px-3 py-2 text-right transition-colors hover:bg-muted"
-                          onClick={() => queuePrompt(isHebrew ? mode.promptHe : mode.promptEn)}
-                        >
-                          <span className="block text-xs font-semibold">{isHebrew ? mode.titleHe : mode.titleEn}</span>
-                          <span className="block text-[10px] text-muted-foreground">{isHebrew ? mode.descHe : mode.descEn}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               )}
               {messages.map((msg, i) => (
@@ -484,12 +476,22 @@ const TabroAiAgent = () => {
 
           {/* Input */}
           <div className="p-3 border-t border-border">
+            {pendingAction && assistantMode === "planning_agent" && (
+              <div className="mb-2 flex gap-2">
+                <Button className="flex-1" size="sm" onClick={confirmPendingAction} disabled={loading}>
+                  אשר ושבץ
+                </Button>
+                <Button className="flex-1" variant="outline" size="sm" onClick={() => setPendingAction(null)} disabled={loading}>
+                  בטל
+                </Button>
+              </div>
+            )}
             <div className="flex gap-2">
               <Input
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && sendMessage()}
-                placeholder={copy.prompt}
+                placeholder={assistantMode === "planning_agent" ? "כתוב מה אתה רוצה לתכנן..." : "מה תרצה לעשות?"}
                 className="flex-1 text-sm"
                 disabled={loading}
               />

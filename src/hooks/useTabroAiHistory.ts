@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import type { Json } from "@/integrations/supabase/types";
 
 interface Message {
   role: "user" | "assistant";
@@ -16,10 +17,10 @@ interface ConversationEntry {
 
 /**
  * Persists Tabro AI chat history in Supabase (dashboard_chat_history table).
- * Current conversation: key "tabro-ai"
- * Archived conversations: key "tabro-ai-archive"
+ * Current conversation: key provided in historyKey
+ * Archived conversations: `${historyKey}-archive`
  */
-export function useTabroAiHistory() {
+export function useTabroAiHistory(historyKey = "tabro-ai") {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationHistory, setConversationHistory] = useState<ConversationEntry[]>([]);
@@ -30,11 +31,13 @@ export function useTabroAiHistory() {
     if (!user) {
       // Fallback to localStorage for unauthenticated
       try {
-        const raw = localStorage.getItem("tabro-ai-history");
+        const raw = localStorage.getItem(`${historyKey}-history`);
         if (raw) setMessages(JSON.parse(raw));
-        const convRaw = localStorage.getItem("tabro-ai-conversations");
+        const convRaw = localStorage.getItem(`${historyKey}-conversations`);
         if (convRaw) setConversationHistory(JSON.parse(convRaw));
-      } catch {}
+      } catch {
+        // Ignore invalid local history payloads.
+      }
       setLoaded(true);
       return;
     }
@@ -45,13 +48,13 @@ export function useTabroAiHistory() {
           .from("dashboard_chat_history")
           .select("messages")
           .eq("user_id", user.id)
-          .eq("dashboard_key", "tabro-ai")
+          .eq("dashboard_key", historyKey)
           .maybeSingle(),
         supabase
           .from("dashboard_chat_history")
           .select("messages")
           .eq("user_id", user.id)
-          .eq("dashboard_key", "tabro-ai-archive")
+          .eq("dashboard_key", `${historyKey}-archive`)
           .maybeSingle(),
       ]);
 
@@ -64,7 +67,7 @@ export function useTabroAiHistory() {
       setLoaded(true);
     };
     load();
-  }, [user]);
+  }, [historyKey, user]);
 
   // Save current messages to DB
   useEffect(() => {
@@ -72,9 +75,9 @@ export function useTabroAiHistory() {
 
     if (!user) {
       if (messages.length > 0) {
-        localStorage.setItem("tabro-ai-history", JSON.stringify(messages.slice(-50)));
+        localStorage.setItem(`${historyKey}-history`, JSON.stringify(messages.slice(-50)));
       } else {
-        localStorage.removeItem("tabro-ai-history");
+        localStorage.removeItem(`${historyKey}-history`);
       }
       return;
     }
@@ -85,7 +88,7 @@ export function useTabroAiHistory() {
         .from("dashboard_chat_history")
         .delete()
         .eq("user_id", user.id)
-        .eq("dashboard_key", "tabro-ai")
+        .eq("dashboard_key", historyKey)
         .then(() => {});
       return;
     }
@@ -93,18 +96,18 @@ export function useTabroAiHistory() {
     supabase
       .from("dashboard_chat_history")
       .upsert(
-        { user_id: user.id, dashboard_key: "tabro-ai", messages: messages.slice(-50) as any },
+        { user_id: user.id, dashboard_key: historyKey, messages: messages.slice(-50) as unknown as Json },
         { onConflict: "user_id,dashboard_key" }
       )
       .then(() => {});
-  }, [messages, loaded, user]);
+  }, [historyKey, messages, loaded, user]);
 
   // Save conversation archive to DB
   useEffect(() => {
     if (!loaded) return;
 
     if (!user) {
-      localStorage.setItem("tabro-ai-conversations", JSON.stringify(conversationHistory.slice(-30)));
+      localStorage.setItem(`${historyKey}-conversations`, JSON.stringify(conversationHistory.slice(-30)));
       return;
     }
 
@@ -113,11 +116,11 @@ export function useTabroAiHistory() {
     supabase
       .from("dashboard_chat_history")
       .upsert(
-        { user_id: user.id, dashboard_key: "tabro-ai-archive", messages: conversationHistory.slice(-30) as any },
+        { user_id: user.id, dashboard_key: `${historyKey}-archive`, messages: conversationHistory.slice(-30) as unknown as Json },
         { onConflict: "user_id,dashboard_key" }
       )
       .then(() => {});
-  }, [conversationHistory, loaded, user]);
+  }, [conversationHistory, historyKey, loaded, user]);
 
   const clearAndArchive = useCallback(() => {
     if (messages.length === 0) return;

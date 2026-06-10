@@ -10,35 +10,26 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Require authenticated caller and derive userId from JWT (do NOT trust body)
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const token = authHeader.slice("Bearer ".length).trim();
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userId = claimsData.claims.sub as string;
-
-    const { message, conversationHistory, userTimezone, aiPreferences, attachments, agentMode } = await req.json();
+    const { message, conversationHistory, userId, userTimezone, aiPreferences, assistantMode, plannerContext, dryRunActions, prebuiltAction } = await req.json();
     const timezone = userTimezone || "Asia/Jerusalem";
-
+    const isPlanningAgent = assistantMode === "planning_agent";
+    
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    if (prebuiltAction) {
+      const actionResult = await executeAction(supabase, userId, prebuiltAction);
+      return new Response(JSON.stringify({
+        response: actionResult?.success ? "אישרתי את השיבוץ והכנסתי אותו למתכנן." : "לא הצלחתי לשבץ את התוכנית למתכנן.",
+        action: actionResult,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Fetch user profile for memory/personalization
     const [profileRes, prefsRes, emailAnalysesRes, taskHistoryRes, showEpisodeNotesRes, bookChapterSummariesRes] = await Promise.all([
@@ -51,9 +42,7 @@ serve(async (req) => {
     ]);
     const profile = profileRes.data;
     const userName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.username || "";
-    const resolvedNotificationSettings = prefsRes.data?.notification_settings || null;
-    const resolvedAiPreferences = aiPreferences || resolvedNotificationSettings?.ai || null;
-    const emailTriagePreferences = resolvedNotificationSettings?.emailTriage || null;
+    const resolvedAiPreferences = aiPreferences || prefsRes.data?.notification_settings?.ai || null;
     const recentEmails = emailAnalysesRes.data || [];
     const recentTaskEdits = taskHistoryRes.data || [];
     const showEpisodeNotes = showEpisodeNotesRes.data || [];
@@ -131,65 +120,12 @@ serve(async (req) => {
       .map(([category, stats]) => `- ${category}: ${stats.total} מיילים (${stats.pending} ממתינים)`)
       .join('\n');
 
-    const importantEmailSummary = recentEmails
-      .filter((email: any) => {
-        const haystack = `${email.email_subject || ""} ${email.email_from || ""}`.toLowerCase();
-        const sender = (email.email_from || "").toLowerCase();
-        const senderDomainMatch = sender.match(/@([a-z0-9.-]+\.[a-z]{2,})/i);
-        const senderDomain = senderDomainMatch?.[1]?.toLowerCase() || "";
-        return Boolean(
-          emailTriagePreferences?.importantCategories?.includes?.(email.category) ||
-          emailTriagePreferences?.vipSenders?.includes?.(sender) ||
-          emailTriagePreferences?.vipSenders?.includes?.(senderDomain) ||
-          emailTriagePreferences?.importantKeywords?.some?.((keyword: string) => haystack.includes(String(keyword).toLowerCase()))
-        );
-      })
-      .slice(0, 12)
-      .map((email: any) => `- "${email.email_subject || '(ללא נושא)'}" | מאת: ${email.email_from || '-'} | קטגוריה: ${email.category || '-'} | תאריך: ${email.email_date || '-'}`)
-      .join('\n');
+    const planningContextBlock = plannerContext
+      ? `### אילוצי תכנון שנמסרו ישירות מהמשתמש:
+${typeof plannerContext === "string" ? plannerContext : JSON.stringify(plannerContext, null, 2)}`
+      : "";
 
-    const { data: recentContactMessagesRaw } = await supabase
-      .from("email_send_log")
-      .select("created_at, status, metadata")
-      .eq("template_name", "contact-form")
-      .order("created_at", { ascending: false })
-      .limit(12);
-
-    const recentContactMessages = (recentContactMessagesRaw || []).map((entry: any) => ({
-      created_at: entry.created_at,
-      status: entry.status,
-      subject: entry.metadata?.subject || "ללא נושא",
-      category: entry.metadata?.category || "-",
-      from: entry.metadata?.userEmail || entry.metadata?.from || "-",
-      preview: entry.metadata?.messagePreview || "",
-    }));
-
-    const contactInboxSummary = recentContactMessages
-      .map((item: any) => `- "${item.subject}" | מאת: ${item.from} | סוג: ${item.category} | סטטוס: ${item.status} | תאריך: ${item.created_at}${item.preview ? ` | תקציר: ${item.preview}` : ''}`)
-      .join('\n');
-
-    const attachmentSummary = Array.isArray(attachments) && attachments.length > 0
-      ? attachments.map((file: any, index: number) => `- קובץ ${index + 1}: ${file.name || "ללא שם"} | סוג: ${file.type || "-"} | גודל: ${file.size || 0}
-  תקציר: ${(file.preview || "").slice(0, 400)}
-  ${(file.extractedText ? `תוכן קריא:\n${String(file.extractedText).slice(0, 4000)}` : "אין תוכן קריא מלא מהלקוח, אז הסתמך על המטא-דאטה והתקציר.")}`).join('\n')
-      : 'לא הועלו קבצים בבקשה הנוכחית.';
-
-    const modeInstruction = agentMode
-      ? `מצב הסוכן שנבחר כרגע: ${agentMode}.
-אם הבקשה פתוחה, תן עדיפות לסגנון עבודה שמתאים למצב הזה:
-- daily: תדריך בוקר ומיקוד יומי
-- email: טריאז׳, סיכום ותגובה למיילים
-- projects: תמונת מצב, חסמים והמלצות על פרויקטים
-- meeting: הכנה לפגישה, שאלות, החלטות ו-follow-up
-- focus: פירוק עבודה, סדר עדיפויות ורעש להורדה
-- files: סיכום קבצים, תובנות ומשימות המשך
-- reply: ניסוח תשובה מקצועית למיילים, follow-up או הודעות
-- executive: סיכום מנהלים קצר עם דחופים, סיכונים והחלטות
-- planner: תכנון עבודה יומי או שבועי לביצוע מעשי
-- general: שיחה פתוחה ורחבה`
-      : "לא נבחר מצב סוכן מפורש. פעל בהתאם לבקשת המשתמש.";
-
-    const systemPrompt = `אתה Tabro AI - עוזר חכם עם שליטה מלאה באפליקציה. אתה מדבר עברית.
+    const systemPrompt = `אתה ${isPlanningAgent ? "סוכן תכנון ולוז חכם של Tabro" : "Tabro AI - עוזר חכם עם שליטה מלאה באפליקציה"}. אתה מדבר עברית.
 ${userName ? `\n## המשתמש שלך: ${userName}\nתמיד זכור את השם הזה ופנה אליו בשמו כשמתאים.\n` : ''}
 ## נתוני המשתמש הנוכחיים:
 
@@ -262,21 +198,6 @@ ${recentEmails.map((email: any) => `- "${email.email_subject || '(ללא נוש�
 ### סיכום מיילים לפי קטגוריות:
 ${emailCategorySummary || 'אין עדיין מספיק מיילים מסונכרנים כדי לבנות קטגוריות.'}
 
-### העדפות חשיבות במייל:
-${emailTriagePreferences ? `
-- שולחים חשובים: ${(emailTriagePreferences.vipSenders || []).join(', ') || 'לא הוגדרו'}
-- שולחים ברעש נמוך: ${(emailTriagePreferences.lowPrioritySenders || []).join(', ') || 'לא הוגדרו'}
-- מילות מפתח חשובות: ${(emailTriagePreferences.importantKeywords || []).join(', ') || 'לא הוגדרו'}
-- מילות מפתח להתעלמות: ${(emailTriagePreferences.ignoredKeywords || []).join(', ') || 'לא הוגדרו'}
-- קטגוריות חשובות: ${(emailTriagePreferences.importantCategories || []).join(', ') || 'לא הוגדרו'}
-` : 'אין עדיין העדפות חשיבות במייל.'}
-
-### מיילים חשובים במיוחד לפי ההעדפות:
-${importantEmailSummary || 'אין כרגע מיילים בולטים שתויגו כחשובים לפי ההעדפות.'}
-
-### פניות אחרונות מהאתר / Inbox (${recentContactMessages.length}):
-${contactInboxSummary || 'אין כרגע פניות אחרונות מהאתר.'}
-
 ### תמונת בוקר מהירה:
 - משימות דחופות / באיחור: ${urgentTasks.length}
 ${urgentTasks.map((task: any) => `  - "${task.description}" | סטטוס: ${task.status}${task.overdue ? ' | באיחור' : ''}${task.urgent ? ' | דחוף' : ''}`).join('\n')}
@@ -303,15 +224,32 @@ ${resolvedAiPreferences ? `
 - תחומי עניין לחדשות: ${resolvedAiPreferences.newsTopics || 'לא הוגדרו'}
 ` : 'אין העדפות AI שמורות.'}
 
-### מצב עבודה נוכחי:
-${modeInstruction}
-
-### קבצים שהמשתמש העלה:
-${attachmentSummary}
-
 התאריך היום: ${today}
 השעה עכשיו (שעון ישראל): ${currentTime}
 אזור הזמן: Asia/Jerusalem (${tzOffset})
+
+${planningContextBlock}
+
+${isPlanningAgent ? `## מצב עבודה: סוכן תכנון ולוז
+התפקיד שלך הוא לנהל שיחת תכנון חכמה, לשאול שאלות חסרות, להעריך משכי משימות, ולעזור לבנות יום או שבוע מסודר.
+
+עקרונות חובה במצב הזה:
+1. קודם להבין אילוצים, אחר כך להציע שיבוץ. אם חסר מידע מהותי, תשאל שאלות קצרות וברורות.
+2. שאלות מפתח אפשריות: האם המשתמש עובד היום/מחר, שעות עבודה, יום חופשי או לא, זמנים בבית, אימון, פגישות קבועות, משימות שחייבות להיכנס, האם מתכננים יום אחד או שבוע שלם.
+3. תעדף לפי: דחוף/באיחור, תאריך יעד, תלות באנשים אחרים, עומק מנטלי, וזמן טיפול משוער.
+4. הערך משך משימה לפי השם שלה גם אם אין זמן מפורש:
+   - שליחה/אישור/זימון/הודעה קצרה: 5-10 דקות
+   - תיאום/קביעת פגישה/שיחת טלפון: 10-20 דקות
+   - מייל שדורש תגובה עניינית: 10-20 דקות
+   - דרישת תשלום/טפסים/בירוקרטיה: 30-60 דקות
+   - כתיבה, לימוד, מחקר או משימה מורכבת: 45-120 דקות
+   - קניות/סידורים/נסיעות: 20-90 דקות כולל באפר אם צריך
+5. אם המשתמש מבקש לעבור על מיילים, זהה אילו מיילים הכי דורשים מענה ומה זמן הטיפול המשוער בכל אחד.
+6. אם המשתמש עוד לא ביקש לשבץ בפועל למתכנן, תן קודם תכנית מסודרת בטקסט ברור בלי ליצור אירועים.
+7. צור פעולות add_event או multi רק כשהמשתמש מבקש מפורשות לשבץ / להכניס למתכנן / ליצור אירועים / להכניס ללוז אוטומטית.
+8. כשאתה יוצר שיבוץ, שמור על ריאליות: הפסקות, באפרים, מעבר בין בית/עבודה, ולא לדחוס יותר מדי.
+9. אם המשתמש מבקש תכנון שבועי, תחשוב קדימה על חלוקת עומס בין ימים, ימי עבודה מול ימי חופש, ומשימות שמוטב לקבץ יחד.
+10. תמיד תסביר בקצרה למה הצעת את הסדר הזה.` : ""}
 
 ## הוראות פעולה - חשוב מאוד!
 כשהמשתמש מבקש פעולה (הוספה, עדכון, מחיקה), אתה חייב להחזיר בלוק JSON של הפעולה.
@@ -447,12 +385,7 @@ ${attachmentSummary}
 18. אל תשתמש באימוג'ים. תענה בטקסט נקי ומקצועי.
 19. כשהמשתמש מבקש תדריך יומי או תדריך בוקר - תן תבנית קבועה ומסודרת: (1) פוקוס עיקרי להיום, (2) משימות דחופות/באיחור, (3) אירועים להיום, (4) מיילים חשובים לפי קטגוריות, (5) דברים שדורשים החלטה, (6) המלצה מה לעשות ראשון.
 20. כשהמשתמש מבקש סיכום מיילים - ענה אך ורק מתוך המיילים המסונכרנים שלמעלה, ועדיף לקבץ לפי קטגוריות, ממתינים לטיפול, ומה אפשר לדחות.
-21. כששואלים מה חשוב במייל - השתמש גם בהעדפות החשיבות של המשתמש: שולחים חשובים, מילות מפתח חשובות וקטגוריות חשובות.
-22. כששואלים מה אפשר להתעלם - השתמש גם בשולחים ברעש נמוך ובמילות המפתח להתעלמות, ולא רק במספר המיילים.
-23. כשהמשתמש מבקש חדשות חיות ואין לך מקור חדשות אמיתי בנתונים - אל תמציא. אמור בצורה ברורה שחסר חיבור לפיד חדשות חי, אבל אפשר כבר להכין פורמט תדריך לפי תחומי העניין השמורים.
-24. אם הועלו קבצים, שלב את התוכן והמטא-דאטה שלהם בתשובה שלך, והצע פעולות המשך מעשיות.
-25. אם המשתמש מבקש סיכום קבצים, תן תשובה מסודרת: (1) מה יש בקבצים, (2) תובנות, (3) משימות/סיכונים, (4) המלצה מה לעשות הלאה.
-26. אם המשתמש מבקש לנסח מייל, follow-up או הודעה, החזר ניסוח מוכן לשליחה עם נושא/פתיח/גוף/סגירה כשזה רלוונטי.`;
+21. כשהמשתמש מבקש חדשות חיות ואין לך מקור חדשות אמיתי בנתונים - אל תמציא. אמור בצורה ברורה שחסר חיבור לפיד חדשות חי, אבל אפשר כבר להכין פורמט תדריך לפי תחומי העניין השמורים.`;
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -550,6 +483,7 @@ ${attachmentSummary}
     const aiContent = aiMessage?.content || "";
 
     let actionResult = null;
+    let pendingAction = null;
 
     // Check for tool calls first (more reliable)
     if (aiMessage?.tool_calls && aiMessage.tool_calls.length > 0) {
@@ -559,8 +493,13 @@ ${attachmentSummary}
             const args = JSON.parse(toolCall.function.arguments);
             const action = args.action;
             console.log("Executing tool call action:", JSON.stringify(action));
-            actionResult = await executeAction(supabase, userId, action);
-            console.log("Action result:", JSON.stringify(actionResult));
+            if (dryRunActions) {
+              pendingAction = action;
+              console.log("Dry-run action prepared:", JSON.stringify(pendingAction));
+            } else {
+              actionResult = await executeAction(supabase, userId, action);
+              console.log("Action result:", JSON.stringify(actionResult));
+            }
           } catch (e) {
             console.error("Tool call parse error:", e);
           }
@@ -575,8 +514,13 @@ ${attachmentSummary}
         try {
           const action = JSON.parse(actionMatch[1].trim());
           console.log("Executing inline action:", JSON.stringify(action));
-          actionResult = await executeAction(supabase, userId, action);
-          console.log("Action result:", JSON.stringify(actionResult));
+          if (dryRunActions) {
+            pendingAction = action;
+            console.log("Dry-run inline action prepared:", JSON.stringify(pendingAction));
+          } else {
+            actionResult = await executeAction(supabase, userId, action);
+            console.log("Action result:", JSON.stringify(actionResult));
+          }
         } catch (e) {
           console.error("Action parse error:", e);
           actionResult = { success: false, error: "שגיאה בפענוח הפעולה" };
@@ -591,6 +535,8 @@ ${attachmentSummary}
     let responseText = cleanContent;
     if (!responseText && actionResult?.success) {
       responseText = "בוצע!";
+    } else if (!responseText && pendingAction) {
+      responseText = "הכנתי שיבוץ מוצע. אפשר לאשר כדי להכניס אותו למתכנן.";
     } else if (!responseText) {
       responseText = "לא הצלחתי לענות";
     }
@@ -598,6 +544,7 @@ ${attachmentSummary}
     return new Response(JSON.stringify({
       response: responseText,
       action: actionResult,
+      pendingAction,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

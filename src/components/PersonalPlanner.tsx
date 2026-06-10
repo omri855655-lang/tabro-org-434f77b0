@@ -801,6 +801,7 @@ const PersonalPlanner = () => {
           : { top: window.innerHeight / 2, left: window.innerWidth / 2 }
       ),
     });
+
     setDraggedTask(null);
     setDragCreateState(null);
   };
@@ -1262,6 +1263,8 @@ const PersonalPlanner = () => {
 
     return () => window.clearTimeout(timer);
   }, [showQuickEventDialog, editingEvent?.id]);
+
+
   const handleAiHelp = useCallback(async (title: string, description: string, category: string) => {
     const taskDescription = description.trim() || title.trim();
     if (!taskDescription) {
@@ -1294,6 +1297,12 @@ const PersonalPlanner = () => {
 
   const handleAddCustomEvent = () => {
     createQuickEventAt(new Date(), 9, 0);
+  };
+
+  const openPlanningAgent = () => {
+    window.dispatchEvent(new CustomEvent("tabro:open-planning-agent", {
+      detail: { mode: "planning_agent" },
+    }));
   };
 
   const handleDeleteEvent = async () => {
@@ -1965,7 +1974,11 @@ const PersonalPlanner = () => {
                       className="h-6 text-[10px] px-2"
                       onClick={() => setSelectedBoardIds(prev => {
                         const next = new Set(prev);
-                        next.has(board.id) ? next.delete(board.id) : next.add(board.id);
+                        if (next.has(board.id)) {
+                          next.delete(board.id);
+                        } else {
+                          next.add(board.id);
+                        }
                         return next;
                       })}
                     >
@@ -2437,6 +2450,11 @@ const PersonalPlanner = () => {
             <Button variant="outline" size="sm" className="gap-1 h-8" onClick={handleAddCustomEvent}>
               <Plus className="h-3.5 w-3.5" />
               אירוע
+            </Button>
+
+            <Button variant="outline" size="sm" className="gap-1 h-8" onClick={openPlanningAgent}>
+              <Brain className="h-3.5 w-3.5" />
+              סוכן תכנון
             </Button>
 
             <Button

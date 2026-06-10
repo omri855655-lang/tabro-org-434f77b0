@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlannerConversations } from '@/hooks/usePlannerConversations';
@@ -11,6 +11,8 @@ import { CalendarClock, Loader2, Sparkles, AlertTriangle, Clock, CheckCircle2, S
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { estimateTaskDuration, formatDurationLabel } from '@/lib/planningDurationHeuristics';
+import type { Json } from '@/integrations/supabase/types';
 
 interface PlannerTask {
   type: 'task' | 'project_task' | 'course_lesson';
@@ -27,6 +29,41 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
+
+interface ProjectTaskRow {
+  id: string;
+  title: string;
+  projects?: { title?: string | null } | null;
+}
+
+interface CourseLessonRow {
+  id: string;
+  title: string;
+  scheduled_date?: string | null;
+  duration_minutes?: number | null;
+  courses?: { title?: string | null } | null;
+}
+
+type PlannerMode = 'daily_plan' | 'planning_agent';
+
+type PlanningRange = 'today' | 'tomorrow' | 'week';
+type PendingAction = Json;
+
+interface PlanningProfile {
+  range: PlanningRange;
+  dayType: 'workday' | 'day_off' | 'unknown';
+  workStart: string;
+  workEnd: string;
+  homeWindow: string;
+  fixedCommitments: string;
+  mustDoTasks: string;
+  schedulingIntent: 'suggest' | 'autoschedule';
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  add_event: 'האירוע נוסף למתכנן',
+  multi: 'התכנון נשמר במתכנן',
+};
 
 const AiDailyPlanner = () => {
   const { user } = useAuth();
@@ -46,6 +83,18 @@ const AiDailyPlanner = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userInput, setUserInput] = useState('');
   const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [plannerMode, setPlannerMode] = useState<PlannerMode>('daily_plan');
+  const [planningProfile, setPlanningProfile] = useState<PlanningProfile>({
+    range: 'today',
+    dayType: 'unknown',
+    workStart: '',
+    workEnd: '',
+    homeWindow: '',
+    fixedCommitments: '',
+    mustDoTasks: '',
+    schedulingIntent: 'suggest',
+  });
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,7 +109,7 @@ const AiDailyPlanner = () => {
     }
   }, [open, currentConversation]);
 
-  const fetchAllOpenTasks = async () => {
+  const fetchAllOpenTasks = useCallback(async () => {
     if (!user) return [];
 
     const tasks: PlannerTask[] = [];
@@ -91,12 +140,12 @@ const AiDailyPlanner = () => {
       .eq('completed', false)
       .eq('user_id', user.id);
 
-    (projectTasks || []).forEach(task => {
+    ((projectTasks as ProjectTaskRow[] | null) || []).forEach(task => {
       tasks.push({
         type: 'project_task',
         id: task.id,
         title: task.title,
-        source: `פרויקט: ${(task as any).projects?.title || 'לא ידוע'}`,
+        source: `פרויקט: ${task.projects?.title || 'לא ידוע'}`,
       });
     });
 
@@ -107,37 +156,68 @@ const AiDailyPlanner = () => {
       .eq('completed', false)
       .eq('user_id', user.id);
 
-    (courseLessons || []).forEach(lesson => {
+    ((courseLessons as CourseLessonRow[] | null) || []).forEach(lesson => {
       tasks.push({
         type: 'course_lesson',
         id: lesson.id,
         title: lesson.title,
-        source: `קורס: ${(lesson as any).courses?.title || 'לא ידוע'}`,
-        scheduled_date: lesson.scheduled_date,
-        duration_minutes: lesson.duration_minutes,
+        source: `קורס: ${lesson.courses?.title || 'לא ידוע'}`,
+        scheduled_date: lesson.scheduled_date || undefined,
+        duration_minutes: lesson.duration_minutes || undefined,
       });
     });
 
     return tasks;
-  };
+  }, [user]);
 
-  const buildTaskSummary = (tasks: PlannerTask[]) => {
+  const buildTaskSummary = useCallback((tasks: PlannerTask[]) => {
     return tasks.map(t => {
       let info = `- ${t.title} (${t.source})`;
       if (t.urgent) info += ' [דחוף!]';
       if (t.overdue) info += ' [באיחור!]';
       if (t.scheduled_date) info += ` [תאריך יעד: ${t.scheduled_date}]`;
-      if (t.duration_minutes) info += ` [${t.duration_minutes} דק']`;
+      const estimatedDuration = t.duration_minutes
+        ? { minutes: t.duration_minutes, reason: 'משך קיים במערכת' }
+        : estimateTaskDuration(t.title, t.source);
+      info += ` [הערכת זמן: ${formatDurationLabel(estimatedDuration.minutes)} - ${estimatedDuration.reason}]`;
       return info;
     }).join('\n');
-  };
+  }, []);
 
-  const getCurrentTime = () => {
+  const getCurrentTime = useCallback(() => {
     const now = new Date();
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  }, []);
+
+  const getRangeLabel = (range: PlanningRange) => {
+    switch (range) {
+      case 'today':
+        return 'היום';
+      case 'tomorrow':
+        return 'מחר';
+      case 'week':
+        return 'השבוע הקרוב';
+      default:
+        return 'היום';
+    }
   };
 
-  const generateDailyPlan = async () => {
+  const buildPlanningContext = (tasks: PlannerTask[]) => {
+    const taskSummary = buildTaskSummary(tasks);
+
+    return `טווח התכנון: ${getRangeLabel(planningProfile.range)}
+סוג יום: ${planningProfile.dayType === 'workday' ? 'יום עבודה' : planningProfile.dayType === 'day_off' ? 'יום חופשי' : 'לא ידוע עדיין'}
+שעות עבודה: ${planningProfile.workStart && planningProfile.workEnd ? `${planningProfile.workStart}-${planningProfile.workEnd}` : 'לא נמסרו'}
+זמן בבית / חלון מתאים למשימות בית: ${planningProfile.homeWindow || 'לא נמסר'}
+אילוצים קבועים / אימונים / פגישות: ${planningProfile.fixedCommitments || 'לא נמסרו'}
+משימות שחייבות להיכנס: ${planningProfile.mustDoTasks || 'לא נמסרו'}
+בקשת שיבוץ: ${planningProfile.schedulingIntent === 'autoschedule' ? 'אם יש מספיק מידע והמשתמש מבקש, אפשר לשבץ אוטומטית במתכנן.' : 'תן קודם הצעה, בלי ליצור אירועים בפועל.'}
+
+רשימת המשימות הפתוחות:
+${taskSummary || '- אין כרגע משימות פתוחות'}`;
+  };
+
+  const generateDailyPlan = useCallback(async () => {
     setLoading(true);
     setMessages([]);
 
@@ -175,9 +255,113 @@ const AiDailyPlanner = () => {
     } finally {
       setLoading(false);
     }
+  }, [buildTaskSummary, fetchAllOpenTasks, getCurrentTime, saveConversation]);
+
+  const sendPlanningAgentMessage = async (overrideMessage?: string) => {
+    if (!user || loading) return;
+
+    const initialPrompt = overrideMessage?.trim() || userInput.trim() || `תכנן לי את ${getRangeLabel(planningProfile.range)} לפי המשימות, הדחיפות והאילוצים שלי. אם חסר מידע - תשאל אותי שאלות קצרות וברורות.`;
+    const tasks = allTasks.length > 0 ? allTasks : await fetchAllOpenTasks();
+    if (allTasks.length === 0) {
+      setAllTasks(tasks);
+    }
+    setPendingAction(null);
+
+    const userMessage = `${initialPrompt}
+
+הקשר תכנון:
+${buildPlanningContext(tasks)}
+
+${planningProfile.schedulingIntent === 'autoschedule'
+  ? 'אם יש לך מספיק מידע, ובאמת ברור איך לשבץ, מותר גם להכניס את זה למתכנן בפועל.'
+  : 'אל תיצור אירועים עדיין. תן קודם תכנית, שאלות חסרות, והמלצה על הסדר.'}`;
+
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: initialPrompt }];
+    setMessages(nextMessages);
+    setUserInput('');
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('tabro-ai-agent', {
+        body: {
+          message: userMessage,
+          conversationHistory: nextMessages.slice(-10).map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+          userId: user.id,
+          userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          assistantMode: 'planning_agent',
+          dryRunActions: planningProfile.schedulingIntent === 'autoschedule',
+          plannerContext: {
+            ...planningProfile,
+            rangeLabel: getRangeLabel(planningProfile.range),
+            taskCount: tasks.length,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      const assistantMessage = data?.response || 'לא התקבלה תשובה מסוכן התכנון';
+      const updatedMessages: ChatMessage[] = [...nextMessages, { role: 'assistant', content: assistantMessage }];
+      setMessages(updatedMessages);
+      await saveConversation(updatedMessages, tasks);
+
+      if (data?.pendingAction) {
+        setPendingAction(data.pendingAction as PendingAction);
+        toast.success('התוכנית מוכנה. אפשר לאשר שיבוץ למתכנן.');
+      }
+
+      if (data?.action?.success) {
+        toast.success(ACTION_LABELS[data.action.type] || 'בוצע בהצלחה');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('שגיאה בהפעלת סוכן התכנון');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmPendingSchedule = async () => {
+    if (!user || !pendingAction || loading) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('tabro-ai-agent', {
+        body: {
+          userId: user.id,
+          prebuiltAction: pendingAction,
+          assistantMode: 'planning_agent',
+        },
+      });
+
+      if (error) throw error;
+
+      const confirmationText = data?.response || 'השיבוץ הוכנס למתכנן.';
+      const updatedMessages: ChatMessage[] = [...messages, { role: 'assistant', content: confirmationText }];
+      setMessages(updatedMessages);
+      await saveConversation(updatedMessages, allTasks);
+      setPendingAction(null);
+
+      if (data?.action?.success) {
+        toast.success(ACTION_LABELS[data.action.type] || 'השיבוץ נשמר במתכנן');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('שגיאה באישור השיבוץ למתכנן');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sendFeedback = async () => {
+    if (plannerMode === 'planning_agent') {
+      await sendPlanningAgentMessage();
+      return;
+    }
+
     if (!userInput.trim() || loading) return;
 
     const userMessage = userInput.trim();
@@ -235,25 +419,50 @@ ${taskSummary}
       startNewConversation();
       setMessages([]);
       setAllTasks([]);
+      setUserInput('');
       setSelectedDate(today);
     } else {
       await loadConversation(date);
     }
   };
 
+  const initializeDialog = useCallback(async (mode: PlannerMode) => {
+    setPlannerMode(mode);
+    setOpen(true);
+    setPendingAction(null);
+
+    const tasks = await fetchAllOpenTasks();
+    setAllTasks(tasks);
+    const todayConv = await loadTodayConversation();
+    if (todayConv) {
+      setMessages(todayConv.messages);
+      setAllTasks(todayConv.tasks_snapshot);
+      setSelectedDate(today);
+    } else if (mode === 'daily_plan') {
+      generateDailyPlan();
+    } else {
+      setMessages([]);
+      setSelectedDate(today);
+    }
+  }, [fetchAllOpenTasks, generateDailyPlan, loadTodayConversation, today]);
+
+  useEffect(() => {
+    const handleOpenPlannerAgent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ mode?: PlannerMode }>;
+      const requestedMode = customEvent.detail?.mode || 'planning_agent';
+      void initializeDialog(requestedMode);
+    };
+
+    window.addEventListener('tabro:open-planning-agent', handleOpenPlannerAgent as EventListener);
+    return () => {
+      window.removeEventListener('tabro:open-planning-agent', handleOpenPlannerAgent as EventListener);
+    };
+  }, [initializeDialog]);
+
   const handleDialogOpen = async (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen) {
-      // Try to load today's conversation first
-      const todayConv = await loadTodayConversation();
-      if (todayConv) {
-        setMessages(todayConv.messages);
-        setAllTasks(todayConv.tasks_snapshot);
-        setSelectedDate(today);
-      } else {
-        // No conversation today - auto-generate
-        generateDailyPlan();
-      }
+      await initializeDialog(plannerMode);
     }
   };
 
@@ -325,9 +534,27 @@ ${taskSummary}
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            תכנון יומי חכם
+            {plannerMode === 'planning_agent' ? 'סוכן תכנון ולוז' : 'תכנון יומי חכם'}
           </DialogTitle>
         </DialogHeader>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={plannerMode} onValueChange={(value: PlannerMode) => setPlannerMode(value)}>
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="בחר מצב תכנון" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily_plan">תכנון יומי מהיר</SelectItem>
+              <SelectItem value="planning_agent">סוכן תכנון חכם</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {plannerMode === 'planning_agent' && (
+            <div className="text-xs text-muted-foreground">
+              שואל על אילוצים, מעריך זמנים, ויכול גם לשבץ למתכנן
+            </div>
+          )}
+        </div>
 
         {/* History selector */}
         <div className="flex items-center gap-2">
@@ -351,6 +578,77 @@ ${taskSummary}
             </SelectContent>
           </Select>
         </div>
+
+        {plannerMode === 'planning_agent' && (
+          <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3 md:grid-cols-2">
+            <Select
+              value={planningProfile.range}
+              onValueChange={(value: PlanningRange) => setPlanningProfile((prev) => ({ ...prev, range: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="טווח תכנון" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">לתכנן את היום</SelectItem>
+                <SelectItem value="tomorrow">לתכנן את מחר</SelectItem>
+                <SelectItem value="week">לתכנן שבוע קדימה</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={planningProfile.dayType}
+              onValueChange={(value: PlanningProfile['dayType']) => setPlanningProfile((prev) => ({ ...prev, dayType: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="יום עבודה או חופשי?" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unknown">עדיין לא החלטתי</SelectItem>
+                <SelectItem value="workday">יום עבודה</SelectItem>
+                <SelectItem value="day_off">יום חופשי</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Input
+              value={planningProfile.workStart}
+              onChange={(event) => setPlanningProfile((prev) => ({ ...prev, workStart: event.target.value }))}
+              placeholder="שעת התחלת עבודה, למשל 09:00"
+            />
+            <Input
+              value={planningProfile.workEnd}
+              onChange={(event) => setPlanningProfile((prev) => ({ ...prev, workEnd: event.target.value }))}
+              placeholder="שעת סיום עבודה, למשל 17:30"
+            />
+            <Input
+              value={planningProfile.homeWindow}
+              onChange={(event) => setPlanningProfile((prev) => ({ ...prev, homeWindow: event.target.value }))}
+              placeholder="מתי אתה בבית? למשל 18:30-23:00"
+            />
+            <Input
+              value={planningProfile.fixedCommitments}
+              onChange={(event) => setPlanningProfile((prev) => ({ ...prev, fixedCommitments: event.target.value }))}
+              placeholder="אילוצים קבועים, אימון, פגישות, נסיעות"
+            />
+            <Input
+              value={planningProfile.mustDoTasks}
+              onChange={(event) => setPlanningProfile((prev) => ({ ...prev, mustDoTasks: event.target.value }))}
+              placeholder="מה חייב להיכנס? למשל ביטוח, מיילים, קניות"
+              className="md:col-span-2"
+            />
+            <Select
+              value={planningProfile.schedulingIntent}
+              onValueChange={(value: PlanningProfile['schedulingIntent']) => setPlanningProfile((prev) => ({ ...prev, schedulingIntent: value }))}
+            >
+              <SelectTrigger className="md:col-span-2">
+                <SelectValue placeholder="מה לעשות עם התוכנית?" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="suggest">רק להציע תוכנית</SelectItem>
+                <SelectItem value="autoschedule">גם לשבץ למתכנן אם יש מספיק מידע</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Stats */}
         {allTasks.length > 0 && (
@@ -402,17 +700,23 @@ ${taskSummary}
         </ScrollArea>
 
         {/* Input Area */}
-        {messages.length > 0 && (
+        {(messages.length > 0 || plannerMode === 'planning_agent') && (
           <div className="flex gap-2 pt-2 border-t">
             <Input
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="בקש תיקונים... (למשל: 'התחל מ-14:00', 'הוסף נקיון הבית', 'בלי משימות עבודה')"
+              placeholder={plannerMode === 'planning_agent'
+                ? "כתוב מה תרצה לתכנן... למשל: תכנן לי את מחר ותשבץ למתכנן"
+                : "בקש תיקונים... (למשל: 'התחל מ-14:00', 'הוסף נקיון הבית', 'בלי משימות עבודה')"}
               disabled={loading}
               className="flex-1"
             />
-            <Button onClick={sendFeedback} disabled={loading || !userInput.trim()} size="icon">
+            <Button
+              onClick={sendFeedback}
+              disabled={plannerMode === 'planning_agent' ? loading : loading || !userInput.trim()}
+              size="icon"
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>
@@ -420,12 +724,46 @@ ${taskSummary}
 
         {/* Action buttons */}
         <div className="flex justify-center gap-2 pt-2 flex-wrap">
-          <Button variant="outline" onClick={generateDailyPlan} disabled={loading} size="sm">
-            <Sparkles className="h-4 w-4 ml-1" />
-            צור לו"ז חדש
-          </Button>
+          {plannerMode === 'daily_plan' ? (
+            <Button variant="outline" onClick={generateDailyPlan} disabled={loading} size="sm">
+              <Sparkles className="h-4 w-4 ml-1" />
+              צור לו"ז חדש
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => void sendPlanningAgentMessage()}
+                disabled={loading}
+                size="sm"
+              >
+                <Sparkles className="h-4 w-4 ml-1" />
+                תכנן לי את {getRangeLabel(planningProfile.range)}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void sendPlanningAgentMessage('בדוק לי אילו מיילים צריכים מענה, כמה זמן ייקח לטפל בהם, ואיך נכון לשלב אותם בתכנון.')}
+                disabled={loading}
+                size="sm"
+              >
+                <History className="h-4 w-4 ml-1" />
+                מיילים שדורשים מענה
+              </Button>
+            </>
+          )}
           {messages.some(m => m.role === 'assistant') && (
             <>
+              {plannerMode === 'planning_agent' && pendingAction && (
+                <>
+                  <Button variant="default" onClick={confirmPendingSchedule} size="sm" disabled={loading}>
+                    <Sparkles className="h-4 w-4 ml-1" />
+                    אשר ושבץ למתכנן
+                  </Button>
+                  <Button variant="outline" onClick={() => setPendingAction(null)} size="sm" disabled={loading}>
+                    בטל שיבוץ מוכן
+                  </Button>
+                </>
+              )}
               <Button variant="outline" onClick={copyToClipboard} size="sm">
                 <Copy className="h-4 w-4 ml-1" />
                 העתק
