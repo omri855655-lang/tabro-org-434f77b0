@@ -17,6 +17,7 @@ type ZoneFlowAudioWindowKey = "_zoneflowMusicState" | "_zoneflowFreqState" | "_z
 export interface ZoneFlowYoutubePlayerState {
   videoId: string | null;
   title: string;
+  displayMode: "hidden" | "inline";
   viewerOpen: boolean;
 }
 
@@ -135,17 +136,30 @@ export function stopOtherZoneFlowAudio(activeKind: ZoneFlowAudioKind) {
 const EMPTY_YOUTUBE_PLAYER_STATE: ZoneFlowYoutubePlayerState = {
   videoId: null,
   title: "",
+  displayMode: "hidden",
   viewerOpen: false,
 };
 
+function normalizeZoneFlowYoutubePlayerState(
+  value?: Partial<ZoneFlowYoutubePlayerState>,
+): ZoneFlowYoutubePlayerState {
+  const videoId = value?.videoId ?? null;
+  return {
+    videoId,
+    title: value?.title ?? "",
+    displayMode: value?.displayMode ?? "hidden",
+    viewerOpen: value?.viewerOpen ?? Boolean(videoId),
+  };
+}
+
 export function getZoneFlowYoutubePlayerState(): ZoneFlowYoutubePlayerState {
   if (!canUseWindow()) return EMPTY_YOUTUBE_PLAYER_STATE;
-  return window._zoneflowYoutubePlayerState || EMPTY_YOUTUBE_PLAYER_STATE;
+  return normalizeZoneFlowYoutubePlayerState(window._zoneflowYoutubePlayerState);
 }
 
 export function setZoneFlowYoutubePlayerState(value: ZoneFlowYoutubePlayerState) {
   if (!canUseWindow()) return;
-  window._zoneflowYoutubePlayerState = value;
+  window._zoneflowYoutubePlayerState = normalizeZoneFlowYoutubePlayerState(value);
   notifyZoneFlowYoutubePlayerListeners();
 }
 

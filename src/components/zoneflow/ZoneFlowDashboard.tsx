@@ -341,6 +341,7 @@ const ZoneFlowDashboard = () => {
       videoId: nextVideoId,
       title: nextVideoId ? title : "",
       displayMode: nextVideoId ? displayMode : "hidden",
+      viewerOpen: Boolean(nextVideoId),
     });
   };
 
@@ -475,7 +476,7 @@ const ZoneFlowDashboard = () => {
     return meta.themes.includes(activeMeditationFilter as "compassion" | "sleep" | "focus" | "body" | "spiritual" | "calm");
   });
   const activeYouTube = youtubePlayerState.videoId;
-  const isInlineMeditationVideo = youtubePlayerState.displayMode === "inline";
+  const isInlineMeditationVideo = youtubePlayerState.viewerOpen && youtubePlayerState.displayMode === "inline";
   const activeMeditationVideo = meditationVideos.find((video) => video.id === activeYouTube) || null;
   const activeMeditationIframeSrc = useMemo(() => {
     if (!activeMeditationVideo || !isInlineMeditationVideo) return "";
