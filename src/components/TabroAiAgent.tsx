@@ -33,6 +33,22 @@ interface NotificationSettings {
 
 type PendingAction = Json;
 
+const shouldAutoExecutePlanning = (text: string) => {
+  const normalized = text.trim();
+  return [
+    "תשבץ",
+    "תשבץ לי",
+    "תכניס למתכנן",
+    "תכניס ללוז",
+    "תבצע",
+    "תבנה ותשבץ",
+    "תכנן ותשבץ",
+    "תכנן ותכניס",
+    "תעשה את זה בלוז",
+    "תיצור אירועים",
+  ].some((phrase) => normalized.includes(phrase));
+};
+
 const ACTION_LABELS: Record<string, string> = {
   add_task: "המשימה נוספה בהצלחה",
   update_task: "המשימה עודכנה",
@@ -62,14 +78,13 @@ const TabroAiAgent = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [input, setInput] = useState("");
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("general");
-  const historyKey = assistantMode === "planning_agent" ? "tabro-ai-planning-agent" : "tabro-ai";
   const {
     messages,
     setMessages,
     conversationHistory,
     clearAndArchive,
     loadConversation,
-  } = useTabroAiHistory(historyKey);
+  } = useTabroAiHistory("tabro-ai");
   const [aiPrefs, setAiPrefs] = useState<AiAgentPreferences>({
     enabled: true,
     dailyBriefingEnabled: true,
@@ -130,6 +145,7 @@ const TabroAiAgent = () => {
     setLoading(true);
 
     try {
+      const executeImmediately = assistantMode === "planning_agent" && shouldAutoExecutePlanning(userMsg.content);
       const { data, error } = await supabase.functions.invoke("tabro-ai-agent", {
         body: {
           message: userMsg.content,
@@ -138,7 +154,7 @@ const TabroAiAgent = () => {
           userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           aiPreferences: aiPrefs,
           assistantMode,
-          dryRunActions: assistantMode === "planning_agent",
+          dryRunActions: assistantMode === "planning_agent" && !executeImmediately,
         },
       });
 

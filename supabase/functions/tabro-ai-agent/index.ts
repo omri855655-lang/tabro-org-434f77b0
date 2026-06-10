@@ -6,6 +6,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const GENERIC_PLANNING_TITLES = new Set([
+  "זמן פנוי",
+  "פנוי",
+  "slot",
+  "free time",
+  "open block",
+  "time block",
+]);
+
+function containsGenericPlanningTitle(action: any): boolean {
+  if (!action || typeof action !== "object") return false;
+
+  if (action.type === "add_event" && typeof action.title === "string") {
+    return GENERIC_PLANNING_TITLES.has(action.title.trim().toLowerCase());
+  }
+
+  if (action.type === "multi" && Array.isArray(action.actions)) {
+    return action.actions.some((nestedAction) => containsGenericPlanningTitle(nestedAction));
+  }
+
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -386,6 +409,8 @@ ${isPlanningAgent ? `## מצב עבודה: סוכן תכנון ולוז
 19. כשהמשתמש מבקש תדריך יומי או תדריך בוקר - תן תבנית קבועה ומסודרת: (1) פוקוס עיקרי להיום, (2) משימות דחופות/באיחור, (3) אירועים להיום, (4) מיילים חשובים לפי קטגוריות, (5) דברים שדורשים החלטה, (6) המלצה מה לעשות ראשון.
 20. כשהמשתמש מבקש סיכום מיילים - ענה אך ורק מתוך המיילים המסונכרנים שלמעלה, ועדיף לקבץ לפי קטגוריות, ממתינים לטיפול, ומה אפשר לדחות.
 21. כשהמשתמש מבקש חדשות חיות ואין לך מקור חדשות אמיתי בנתונים - אל תמציא. אמור בצורה ברורה שחסר חיבור לפיד חדשות חי, אבל אפשר כבר להכין פורמט תדריך לפי תחומי העניין השמורים.`;
+22. כשאתה יוצר אירועים לתכנון, אסור להשתמש בכותרות גנריות כמו "זמן פנוי", "פנוי", "time block". כל אירוע חייב להיקרא בשם המשימה האמיתית או בשם ברור כמו "הפסקה", "מעבר", "ארוחת צהריים".
+23. אל תקבץ כמה משימות שונות תחת שם גנרי אחד. אם צריך, צור כמה אירועים עם שמות מפורשים.
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -493,6 +518,10 @@ ${isPlanningAgent ? `## מצב עבודה: סוכן תכנון ולוז
             const args = JSON.parse(toolCall.function.arguments);
             const action = args.action;
             console.log("Executing tool call action:", JSON.stringify(action));
+            if (containsGenericPlanningTitle(action)) {
+              actionResult = { success: false, error: "נוצרו כותרות גנריות בלוז במקום שמות משימות אמיתיים" };
+              continue;
+            }
             if (dryRunActions) {
               pendingAction = action;
               console.log("Dry-run action prepared:", JSON.stringify(pendingAction));
@@ -514,7 +543,9 @@ ${isPlanningAgent ? `## מצב עבודה: סוכן תכנון ולוז
         try {
           const action = JSON.parse(actionMatch[1].trim());
           console.log("Executing inline action:", JSON.stringify(action));
-          if (dryRunActions) {
+          if (containsGenericPlanningTitle(action)) {
+            actionResult = { success: false, error: "נוצרו כותרות גנריות בלוז במקום שמות משימות אמיתיים" };
+          } else if (dryRunActions) {
             pendingAction = action;
             console.log("Dry-run inline action prepared:", JSON.stringify(pendingAction));
           } else {

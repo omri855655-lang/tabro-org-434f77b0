@@ -65,6 +65,21 @@ const ACTION_LABELS: Record<string, string> = {
   multi: 'התכנון נשמר במתכנן',
 };
 
+const shouldAutoExecutePlanning = (text: string) => {
+  const normalized = text.trim();
+  return [
+    'תשבץ',
+    'תשבץ לי',
+    'תכניס למתכנן',
+    'תכניס ללוז',
+    'תבצע',
+    'תכנן ותשבץ',
+    'תכנן ותכניס',
+    'תיצור אירועים',
+    'תשים במתכנן',
+  ].some((phrase) => normalized.includes(phrase));
+};
+
 const AiDailyPlanner = () => {
   const { user } = useAuth();
   const { 
@@ -266,6 +281,7 @@ ${taskSummary || '- אין כרגע משימות פתוחות'}`;
       setAllTasks(tasks);
     }
     setPendingAction(null);
+    const executeImmediately = planningProfile.schedulingIntent === 'autoschedule' || shouldAutoExecutePlanning(initialPrompt);
 
     const userMessage = `${initialPrompt}
 
@@ -292,7 +308,7 @@ ${planningProfile.schedulingIntent === 'autoschedule'
           userId: user.id,
           userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           assistantMode: 'planning_agent',
-          dryRunActions: planningProfile.schedulingIntent === 'autoschedule',
+          dryRunActions: !executeImmediately,
           plannerContext: {
             ...planningProfile,
             rangeLabel: getRangeLabel(planningProfile.range),
