@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon } from "lucide-react";
+import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_PATHS, MEDITATION_SESSION_META, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPE_META, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
@@ -478,6 +478,21 @@ const ZoneFlowDashboard = () => {
   const activeYouTube = youtubePlayerState.videoId;
   const isInlineMeditationVideo = youtubePlayerState.viewerOpen && youtubePlayerState.displayMode === "inline";
   const activeMeditationVideo = meditationVideos.find((video) => video.id === activeYouTube) || null;
+  const isGenericInlineVideo =
+    youtubePlayerState.viewerOpen &&
+    youtubePlayerState.displayMode === "inline" &&
+    Boolean(activeYouTube) &&
+    !activeMeditationVideo;
+  const activeInlineIframeSrc = useMemo(() => {
+    if (!activeYouTube || !youtubePlayerState.viewerOpen || youtubePlayerState.displayMode !== "inline") return "";
+    const params = new URLSearchParams({
+      autoplay: "1",
+      playsinline: "1",
+      enablejsapi: "1",
+      rel: "0",
+    });
+    return `https://www.youtube.com/embed/${activeYouTube}?${params.toString()}`;
+  }, [activeYouTube, youtubePlayerState.displayMode, youtubePlayerState.viewerOpen]);
   const activeMeditationIframeSrc = useMemo(() => {
     if (!activeMeditationVideo || !isInlineMeditationVideo) return "";
     const params = new URLSearchParams({
@@ -1207,6 +1222,37 @@ const ZoneFlowDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {isGenericInlineVideo && (
+              <div className={`${isLight ? "bg-white border-rose-100" : "bg-white/5 border-white/10"} rounded-2xl border p-3`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium">תיבת צפייה</div>
+                    <div className={`mt-1 text-xs ${themeSubtle}`}>{youtubePlayerState.title || "YouTube"}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleYouTubeToggle(activeYouTube!, youtubePlayerState.title || "YouTube", "inline")}
+                    className={`rounded-full px-3 py-1 text-xs transition-all ${
+                      isLight
+                        ? "bg-rose-50 text-rose-900 border border-rose-200 hover:bg-rose-100"
+                        : "bg-black/10 text-rose-100 border border-rose-500/15 hover:bg-rose-500/10"
+                    }`}
+                  >
+                    סגור צפייה
+                  </button>
+                </div>
+                <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                  <iframe
+                    key={activeYouTube}
+                    src={activeInlineIframeSrc}
+                    title={youtubePlayerState.title || "YouTube Player"}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="aspect-video w-full border-0"
+                  />
+                </div>
+              </div>
+            )}
             {(() => {
               const ytCategories = [
                 {
@@ -1361,6 +1407,13 @@ const ZoneFlowDashboard = () => {
                                 <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                               </div>
                               <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleYouTubeToggle(v.id, v.title, "inline"); }}
+                                  className="text-cyan-300 hover:text-cyan-200 transition-colors"
+                                  title="צפה בתוך האתר"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </button>
                                 {isCustom ? (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); removeCustomYtVideo(activeYtCat, v.id); }}
@@ -1469,6 +1522,13 @@ const ZoneFlowDashboard = () => {
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
+                          onClick={() => handleYouTubeToggle(video.id, video.title, "inline")}
+                          className="text-cyan-300 hover:text-cyan-200 transition-colors"
+                          title="צפה בתוך האתר"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
                           onClick={() => restoreHiddenVideo(video.id)}
                           className="text-emerald-300 hover:text-emerald-200 transition-colors"
                           title="שחזר"
@@ -1532,6 +1592,9 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); handleYouTubeToggle(v.id, v.title, "inline"); }} className="text-cyan-300 hover:text-cyan-200 transition-colors" title="צפה בתוך האתר">
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("study-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1606,6 +1669,9 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); handleYouTubeToggle(v.id, v.title, "inline"); }} className="text-cyan-300 hover:text-cyan-200 transition-colors" title="צפה בתוך האתר">
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("read-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
