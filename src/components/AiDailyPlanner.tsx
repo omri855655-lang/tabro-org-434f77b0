@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarClock, Loader2, Sparkles, AlertTriangle, Clock, CheckCircle2, Send, Copy, FileText, History, Plus } from 'lucide-react';
+import { CalendarClock, Loader2, Sparkles, AlertTriangle, Clock, CheckCircle2, Send, Copy, FileText, History, Plus, MessageSquareText } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { estimateTaskDuration, formatDurationLabel } from '@/lib/planningDurationHeuristics';
 import type { Json } from '@/integrations/supabase/types';
+import type { ConversationRecord } from '@/hooks/usePlannerConversations';
 
 interface PlannerTask {
   type: 'task' | 'project_task' | 'course_lesson';
@@ -97,7 +99,7 @@ const AiDailyPlanner = () => {
   const [allTasks, setAllTasks] = useState<PlannerTask[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userInput, setUserInput] = useState('');
-  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [selectedConversationId, setSelectedConversationId] = useState<string>('');
   const [plannerMode, setPlannerMode] = useState<PlannerMode>('daily_plan');
   const [planningProfile, setPlanningProfile] = useState<PlanningProfile>({
     range: 'today',
@@ -110,10 +112,14 @@ const AiDailyPlanner = () => {
     schedulingIntent: 'suggest',
   });
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!messageListRef.current) return;
+    messageListRef.current.scrollTo({
+      top: messageListRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
   }, [messages, loading]);
 
   // Load conversation when dialog opens or date changes
@@ -121,6 +127,7 @@ const AiDailyPlanner = () => {
     if (open && currentConversation) {
       setMessages(currentConversation.messages);
       setAllTasks(currentConversation.tasks_snapshot);
+      setSelectedConversationId(currentConversation.id);
     }
   }, [open, currentConversation]);
 
@@ -429,17 +436,20 @@ ${taskSummary}
     }
   };
 
-  const handleDateChange = async (date: string) => {
-    setSelectedDate(date);
-    if (date === 'new') {
-      startNewConversation();
-      setMessages([]);
-      setAllTasks([]);
-      setUserInput('');
-      setSelectedDate(today);
-    } else {
-      await loadConversation(date);
+  const startFreshConversation = useCallback(() => {
+    const createdConversation = startNewConversation();
+    setMessages([]);
+    setAllTasks([]);
+    setUserInput('');
+    setPendingAction(null);
+    if (createdConversation) {
+      setSelectedConversationId(createdConversation.id);
     }
+  }, [startNewConversation]);
+
+  const handleConversationChange = async (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    await loadConversation(conversationId);
   };
 
   const initializeDialog = useCallback(async (mode: PlannerMode) => {
@@ -453,14 +463,13 @@ ${taskSummary}
     if (todayConv) {
       setMessages(todayConv.messages);
       setAllTasks(todayConv.tasks_snapshot);
-      setSelectedDate(today);
+      setSelectedConversationId(todayConv.id);
     } else if (mode === 'daily_plan') {
       generateDailyPlan();
     } else {
-      setMessages([]);
-      setSelectedDate(today);
+      startFreshConversation();
     }
-  }, [fetchAllOpenTasks, generateDailyPlan, loadTodayConversation, today]);
+  }, [fetchAllOpenTasks, generateDailyPlan, loadTodayConversation, startFreshConversation]);
 
   useEffect(() => {
     const handleOpenPlannerAgent = (event: Event) => {
@@ -536,6 +545,32 @@ ${taskSummary}
     return format(date, 'd בMMMM yyyy', { locale: he });
   };
 
+  const getConversationTitle = (conversation: ConversationRecord) => {
+    const firstUserMessage = conversation.messages.find((message) => message.role === 'user')?.content?.trim();
+    if (firstUserMessage) {
+      return firstUserMessage.split('\n')[0].slice(0, 48);
+    }
+
+    const lastAssistantMessage = [...conversation.messages].reverse().find((message) => message.role === 'assistant')?.content?.trim();
+    if (lastAssistantMessage) {
+      return lastAssistantMessage.split('\n')[0].slice(0, 48);
+    }
+
+    return `שיחה מ-${formatDateLabel(conversation.conversation_date)}`;
+  };
+
+  const getConversationPreview = (conversation: ConversationRecord) => {
+    const lastMessage = [...conversation.messages].reverse()[0];
+    if (!lastMessage?.content) return 'שיחה חדשה';
+    return lastMessage.content.replace(/\s+/g, ' ').slice(0, 90);
+  };
+
+  const formatConversationTimestamp = (conversation: ConversationRecord) => {
+    return format(new Date(conversation.updated_at), 'HH:mm', { locale: he });
+  };
+
+  const conversationItems = conversations.filter((conversation) => conversation.messages.length > 0 || conversation.id === currentConversation?.id);
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpen}>
       <DialogTrigger asChild>
@@ -546,7 +581,7 @@ ${taskSummary}
           <CalendarClock className="h-6 w-6" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col" dir="rtl">
+      <DialogContent className={`max-h-[88vh] flex flex-col ${plannerMode === 'planning_agent' ? 'max-w-5xl' : 'max-w-2xl'}`} dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -554,46 +589,48 @@ ${taskSummary}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={plannerMode} onValueChange={(value: PlannerMode) => setPlannerMode(value)}>
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="בחר מצב תכנון" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily_plan">תכנון יומי מהיר</SelectItem>
-              <SelectItem value="planning_agent">סוכן תכנון חכם</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={plannerMode} onValueChange={(value: PlannerMode) => setPlannerMode(value)}>
+              <SelectTrigger className="w-52">
+                <SelectValue placeholder="בחר מצב תכנון" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily_plan">תכנון יומי מהיר</SelectItem>
+                <SelectItem value="planning_agent">סוכן תכנון חכם</SelectItem>
+              </SelectContent>
+            </Select>
 
-          {plannerMode === 'planning_agent' && (
-            <div className="text-xs text-muted-foreground">
-              שואל על אילוצים, מעריך זמנים, ויכול גם לשבץ למתכנן
-            </div>
-          )}
+            {plannerMode === 'planning_agent' && (
+              <div className="text-xs text-muted-foreground">
+                שואל על אילוצים, מעריך זמנים, ויכול גם לשבץ למתכנן
+              </div>
+            )}
+          </div>
+
+          <Button variant="outline" size="sm" onClick={startFreshConversation}>
+            <Plus className="ml-1 h-4 w-4" />
+            שיחה חדשה
+          </Button>
         </div>
 
-        {/* History selector */}
-        <div className="flex items-center gap-2">
-          <History className="h-4 w-4 text-muted-foreground" />
-          <Select value={selectedDate} onValueChange={handleDateChange}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="בחר תאריך" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="new">
-                <span className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  שיחה חדשה
-                </span>
-              </SelectItem>
-              {conversations.map(conv => (
-                <SelectItem key={conv.id} value={conv.conversation_date}>
-                  {formatDateLabel(conv.conversation_date)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {plannerMode === 'daily_plan' && (
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            <Select value={selectedConversationId} onValueChange={handleConversationChange}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="בחר מצב תכנון" />
+              </SelectTrigger>
+              <SelectContent>
+                {conversationItems.map((conversation) => (
+                  <SelectItem key={conversation.id} value={conversation.id}>
+                    {formatDateLabel(conversation.conversation_date)} · {formatConversationTimestamp(conversation)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {plannerMode === 'planning_agent' && (
           <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3 md:grid-cols-2">
@@ -688,37 +725,103 @@ ${taskSummary}
           </div>
         )}
 
-        {/* Chat Messages */}
-        <ScrollArea className="flex-1 max-h-[50vh] pr-2">
-          <div className="space-y-4">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`p-3 rounded-lg ${
-                  msg.role === 'user'
-                    ? 'bg-primary/10 mr-8'
-                    : 'bg-muted/50 ml-0'
-                }`}
-              >
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {msg.content}
+        <div className={`min-h-0 flex-1 ${plannerMode === 'planning_agent' ? 'grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]' : ''}`}>
+          {plannerMode === 'planning_agent' && (
+            <div className="min-h-0 rounded-xl border border-border bg-muted/20">
+              <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm font-medium">
+                <MessageSquareText className="h-4 w-4 text-primary" />
+                היסטוריית שיחות
+              </div>
+              <ScrollArea className="h-[220px] md:h-full">
+                <div className="space-y-2 p-3">
+                  {conversationItems.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
+                      עדיין אין היסטוריה. התחל שיחה חדשה והסוכן ישמור אותה.
+                    </div>
+                  )}
+
+                  {conversationItems.map((conversation) => {
+                    const isActive = conversation.id === selectedConversationId;
+                    return (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        onClick={() => void handleConversationChange(conversation.id)}
+                        className={`w-full rounded-xl border px-3 py-3 text-right transition-colors ${
+                          isActive
+                            ? 'border-primary bg-primary/10'
+                            : 'border-border bg-background hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {formatDateLabel(conversation.conversation_date)}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {formatConversationTimestamp(conversation)}
+                          </span>
+                        </div>
+                        <div className="mt-1 line-clamp-2 text-sm font-medium">
+                          {getConversationTitle(conversation)}
+                        </div>
+                        <div className="mt-1 line-clamp-3 text-xs text-muted-foreground">
+                          {getConversationPreview(conversation)}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
+              </ScrollArea>
+            </div>
+          )}
+
+          <div className="min-h-0 flex flex-col">
+            <div
+              ref={messageListRef}
+              className="min-h-[260px] flex-1 overflow-y-auto rounded-xl border border-border bg-muted/15 p-3"
+            >
+              <div className="space-y-4">
+                {messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded-lg p-3 ${
+                      msg.role === 'user'
+                        ? 'mr-8 bg-primary/10'
+                        : 'ml-0 bg-muted/50'
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+
+                {loading && (
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">מעבד...</span>
+                  </div>
+                )}
+
+                {!loading && messages.length === 0 && plannerMode === 'planning_agent' && (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                    כתוב לסוכן מה אתה רוצה לתכנן, או תן לו אילוצים כמו שעות עבודה, אימון, משימות בית, ודברים שחייבים להיכנס.
+                  </div>
+                )}
+                {!loading && messages.length === 0 && plannerMode === 'daily_plan' && (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                    לחץ על "צור לו&quot;ז חדש" כדי לקבל הצעה ראשונית, ואז אפשר לדייק אותה עם בקשות המשך.
+                  </div>
+                )}
               </div>
-            ))}
-            {loading && (
-              <div className="flex items-center justify-center py-4 gap-2">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">מעבד...</span>
-              </div>
-            )}
-            <div ref={bottomRef} />
+            </div>
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Input Area */}
         {(messages.length > 0 || plannerMode === 'planning_agent') && (
           <div className="flex gap-2 pt-2 border-t">
-            <Input
+            <Textarea
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -726,12 +829,13 @@ ${taskSummary}
                 ? "כתוב מה תרצה לתכנן... למשל: תכנן לי את מחר ותשבץ למתכנן"
                 : "בקש תיקונים... (למשל: 'התחל מ-14:00', 'הוסף נקיון הבית', 'בלי משימות עבודה')"}
               disabled={loading}
-              className="flex-1"
+              className="min-h-[84px] flex-1 resize-none"
             />
             <Button
               onClick={sendFeedback}
-              disabled={plannerMode === 'planning_agent' ? loading : loading || !userInput.trim()}
+              disabled={loading || (plannerMode === 'daily_plan' && !userInput.trim())}
               size="icon"
+              className="self-end"
             >
               <Send className="h-4 w-4" />
             </Button>

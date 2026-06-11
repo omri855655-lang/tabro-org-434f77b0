@@ -8,12 +8,125 @@ interface ChatMessage {
   content: string;
 }
 
-interface ConversationRecord {
+export interface ConversationRecord {
   id: string;
   conversation_date: string;
+  created_at: string;
+  updated_at: string;
   messages: ChatMessage[];
-  tasks_snapshot: any[];
+  tasks_snapshot: unknown[];
+  source: 'remote' | 'local';
 }
+
+const STORAGE_VERSION = 'v2';
+
+const buildStorageKey = (userId: string) => `tabro:planner-conversations:${STORAGE_VERSION}:${userId}`;
+
+const isChatMessage = (value: unknown): value is ChatMessage => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    (candidate.role === 'user' || candidate.role === 'assistant') &&
+    typeof candidate.content === 'string'
+  );
+};
+
+const normalizeConversation = (
+  value: unknown,
+  fallbackSource: ConversationRecord['source'],
+): ConversationRecord | null => {
+  if (!value || typeof value !== 'object') return null;
+
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.id !== 'string' || typeof candidate.conversation_date !== 'string') {
+    return null;
+  }
+
+  const messages = Array.isArray(candidate.messages)
+    ? candidate.messages.filter(isChatMessage)
+    : [];
+  const tasksSnapshot = Array.isArray(candidate.tasks_snapshot) ? candidate.tasks_snapshot : [];
+  const createdAt = typeof candidate.created_at === 'string' ? candidate.created_at : new Date().toISOString();
+  const updatedAt = typeof candidate.updated_at === 'string' ? candidate.updated_at : createdAt;
+  const source = candidate.source === 'remote' || candidate.source === 'local'
+    ? candidate.source
+    : fallbackSource;
+
+  return {
+    id: candidate.id,
+    conversation_date: candidate.conversation_date,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    messages,
+    tasks_snapshot: tasksSnapshot,
+    source,
+  };
+};
+
+const readStoredConversations = (userId: string): ConversationRecord[] => {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(buildStorageKey(userId));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => normalizeConversation(item, 'local'))
+      .filter((item): item is ConversationRecord => Boolean(item))
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  } catch (error) {
+    console.warn('Failed to read planner conversations from localStorage', error);
+    return [];
+  }
+};
+
+const writeStoredConversations = (userId: string, conversations: ConversationRecord[]) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(buildStorageKey(userId), JSON.stringify(conversations));
+  } catch (error) {
+    console.warn('Failed to persist planner conversations to localStorage', error);
+  }
+};
+
+const mergeConversationLists = (
+  remoteConversations: ConversationRecord[],
+  localConversations: ConversationRecord[],
+) => {
+  const localDates = new Set(localConversations.map((conversation) => conversation.conversation_date));
+  const merged = new Map<string, ConversationRecord>();
+
+  localConversations.forEach((conversation) => {
+    merged.set(conversation.id, conversation);
+  });
+
+  remoteConversations.forEach((conversation) => {
+    if (localDates.has(conversation.conversation_date)) return;
+    merged.set(conversation.id, conversation);
+  });
+
+  return Array.from(merged.values()).sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+};
+
+const createLocalConversation = (date: string): ConversationRecord => {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: `local-${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+    conversation_date: date,
+    created_at: timestamp,
+    updated_at: timestamp,
+    messages: [],
+    tasks_snapshot: [],
+    source: 'local',
+  };
+};
 
 export function usePlannerConversations() {
   const { user } = useAuth();
@@ -23,128 +136,137 @@ export function usePlannerConversations() {
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  // Fetch all conversations for history dropdown
   const fetchConversations = useCallback(async () => {
-    if (!user) return;
-    
+    if (!user) return [];
+
+    const localConversations = readStoredConversations(user.id);
     const { data, error } = await supabase
       .from('planner_conversations')
       .select('*')
       .eq('user_id', user.id)
-      .order('conversation_date', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(30);
 
-    if (!error && data) {
-      // Cast the data to handle JSONB fields
-      const typedData = data.map(row => ({
-        id: row.id,
-        conversation_date: row.conversation_date,
-        messages: (row.messages as unknown as ChatMessage[]) || [],
-        tasks_snapshot: (row.tasks_snapshot as unknown as any[]) || []
-      }));
-      setConversations(typedData);
-    }
+    const remoteConversations = !error && data
+      ? data
+          .map((row) => normalizeConversation({
+            id: row.id,
+            conversation_date: row.conversation_date,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            messages: row.messages,
+            tasks_snapshot: row.tasks_snapshot,
+            source: 'remote',
+          }, 'remote'))
+          .filter((item): item is ConversationRecord => Boolean(item))
+      : [];
+
+    const merged = mergeConversationLists(remoteConversations, localConversations);
+    setConversations(merged);
+    return merged;
   }, [user]);
 
-  // Load today's conversation or create new
   const loadTodayConversation = useCallback(async () => {
     if (!user) return null;
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from('planner_conversations')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('conversation_date', today)
-      .maybeSingle();
+    const merged = await fetchConversations();
+    const todayConversation = merged.find((conversation) => conversation.conversation_date === today) || null;
 
+    setCurrentConversation(todayConversation);
     setLoading(false);
+    return todayConversation;
+  }, [fetchConversations, today, user]);
 
-    if (!error && data) {
-      const typedData = {
-        id: data.id,
-        conversation_date: data.conversation_date,
-        messages: (data.messages as unknown as ChatMessage[]) || [],
-        tasks_snapshot: (data.tasks_snapshot as unknown as any[]) || []
-      };
-      setCurrentConversation(typedData);
-      return typedData;
-    }
-    
-    return null;
-  }, [user, today]);
-
-  // Load a specific conversation by date
-  const loadConversation = useCallback(async (date: string) => {
+  const loadConversation = useCallback(async (conversationId: string) => {
     if (!user) return null;
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from('planner_conversations')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('conversation_date', date)
-      .maybeSingle();
+    const merged = conversations.length > 0 ? conversations : await fetchConversations();
+    const targetConversation = merged.find((conversation) => conversation.id === conversationId) || null;
 
+    setCurrentConversation(targetConversation);
     setLoading(false);
+    return targetConversation;
+  }, [conversations, fetchConversations, user]);
 
-    if (!error && data) {
-      const typedData = {
-        id: data.id,
-        conversation_date: data.conversation_date,
-        messages: (data.messages as unknown as ChatMessage[]) || [],
-        tasks_snapshot: (data.tasks_snapshot as unknown as any[]) || []
-      };
-      setCurrentConversation(typedData);
-      return typedData;
-    }
-    
-    return null;
-  }, [user]);
-
-  // Save/update conversation
   const saveConversation = useCallback(async (
-    messages: ChatMessage[], 
-    tasksSnapshot: any[],
-    date: string = today
+    messages: ChatMessage[],
+    tasksSnapshot: unknown[],
+    date?: string,
   ) => {
-    if (!user) return;
+    if (!user) return null;
 
-    const { data, error } = await supabase
+    const conversationDate = date || currentConversation?.conversation_date || today;
+    const timestamp = new Date().toISOString();
+    const localConversations = readStoredConversations(user.id);
+    const existingConversation = currentConversation
+      ? localConversations.find((conversation) => conversation.id === currentConversation.id) || currentConversation
+      : null;
+
+    const nextConversation: ConversationRecord = {
+      id: existingConversation?.id || createLocalConversation(conversationDate).id,
+      conversation_date: conversationDate,
+      created_at: existingConversation?.created_at || timestamp,
+      updated_at: timestamp,
+      messages,
+      tasks_snapshot: tasksSnapshot,
+      source: 'local',
+    };
+
+    const nextLocalConversations = [
+      nextConversation,
+      ...localConversations.filter((conversation) => conversation.id !== nextConversation.id),
+    ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+    writeStoredConversations(user.id, nextLocalConversations);
+    setCurrentConversation(nextConversation);
+    setConversations((previous) => mergeConversationLists(
+      previous.filter((conversation) => conversation.source === 'remote'),
+      nextLocalConversations,
+    ));
+
+    const { error } = await supabase
       .from('planner_conversations')
       .upsert({
         user_id: user.id,
-        conversation_date: date,
-        messages: messages as unknown as any,
-        tasks_snapshot: tasksSnapshot as unknown as any,
+        conversation_date: conversationDate,
+        messages: messages as unknown as never[],
+        tasks_snapshot: tasksSnapshot as unknown as never[],
       }, {
-        onConflict: 'user_id,conversation_date'
-      })
-      .select()
-      .single();
+        onConflict: 'user_id,conversation_date',
+      });
 
-    if (!error && data) {
-      const typedData = {
-        id: data.id,
-        conversation_date: data.conversation_date,
-        messages: (data.messages as unknown as ChatMessage[]) || [],
-        tasks_snapshot: (data.tasks_snapshot as unknown as any[]) || []
-      };
-      setCurrentConversation(typedData);
-      fetchConversations(); // Refresh list
+    if (error) {
+      console.warn('Failed to sync planner conversation to Supabase', error);
     }
-  }, [user, today, fetchConversations]);
 
-  // Start a new conversation for today (clears current)
-  const startNewConversation = useCallback(() => {
-    setCurrentConversation(null);
-  }, []);
+    return nextConversation;
+  }, [currentConversation, today, user]);
+
+  const startNewConversation = useCallback((date: string = today) => {
+    if (!user) return null;
+
+    const nextConversation = createLocalConversation(date);
+    const localConversations = [
+      nextConversation,
+      ...readStoredConversations(user.id),
+    ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+    writeStoredConversations(user.id, localConversations);
+    setCurrentConversation(nextConversation);
+    setConversations((previous) => mergeConversationLists(
+      previous.filter((conversation) => conversation.source === 'remote'),
+      localConversations,
+    ));
+
+    return nextConversation;
+  }, [today, user]);
 
   useEffect(() => {
-    if (user) {
-      fetchConversations();
-    }
-  }, [user, fetchConversations]);
+    if (!user) return;
+    void fetchConversations();
+  }, [fetchConversations, user]);
 
   return {
     conversations,
@@ -154,6 +276,6 @@ export function usePlannerConversations() {
     loadConversation,
     saveConversation,
     startNewConversation,
-    today
+    today,
   };
 }

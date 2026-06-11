@@ -197,6 +197,11 @@ const PersonalPlanner = () => {
     currentHour: number;
     currentMinute: number;
   } | null>(null);
+  const [dragHoverIndicator, setDragHoverIndicator] = useState<{
+    dayKey: string;
+    top: number;
+    label: string;
+  } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const quickEditorAnchorRef = useRef<HTMLButtonElement | null>(null);
@@ -648,7 +653,7 @@ const PersonalPlanner = () => {
   // Snap to 15-minute intervals
   const snapMinutes = (minutes: number) => Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
 
-  const getHourHeight = (h: number) => hourHeights[h] || hourHeight;
+  const getHourHeight = useCallback((h: number) => hourHeights[h] || hourHeight, [hourHeight, hourHeights]);
 
   const getTimeFromDayColumn = (clientY: number, columnEl: HTMLElement): { hour: number; minute: number } => {
     const columnRect = columnEl.getBoundingClientRect();
@@ -671,25 +676,67 @@ const PersonalPlanner = () => {
     return { hour: 23, minute: 45 };
   };
 
+  const getOffsetTopForTime = useCallback((hour: number, minute: number) => {
+    let offset = 0;
+
+    for (let currentHour = 0; currentHour < hour; currentHour += 1) {
+      offset += getHourHeight(currentHour);
+    }
+
+    offset += (minute / 60) * getHourHeight(hour);
+    return offset;
+  }, [getHourHeight]);
+
+  const autoScrollPlannerGrid = useCallback((clientY: number) => {
+    const container = gridRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const edgeThreshold = 72;
+    const scrollStep = 28;
+
+    if (clientY < rect.top + edgeThreshold) {
+      container.scrollTop = Math.max(0, container.scrollTop - scrollStep);
+    } else if (clientY > rect.bottom - edgeThreshold) {
+      container.scrollTop += scrollStep;
+    }
+  }, []);
+
   const updateDragCreateFromPoint = (day: Date, clientY: number, columnEl: HTMLElement) => {
     const { hour, minute } = getTimeFromDayColumn(clientY, columnEl);
+    autoScrollPlannerGrid(clientY);
 
     setDragCreateState((prev) => {
-      if (!prev || !isSameDay(prev.day, day)) {
-        return {
-          day,
-          startHour: hour,
-          startMinute: minute,
-          currentHour: hour,
-          currentMinute: minute,
-        };
-      }
+      const nextState = !prev || !isSameDay(prev.day, day)
+        ? {
+            day,
+            startHour: hour,
+            startMinute: minute,
+            currentHour: hour,
+            currentMinute: minute,
+          }
+        : {
+            ...prev,
+            currentHour: hour,
+            currentMinute: minute,
+          };
 
-      return {
-        ...prev,
-        currentHour: hour,
-        currentMinute: minute,
-      };
+      const startTotal = nextState.startHour * 60 + nextState.startMinute;
+      const endTotal = nextState.currentHour * 60 + nextState.currentMinute;
+      const previewStart = Math.min(startTotal, endTotal);
+      const previewEnd = Math.max(startTotal, endTotal);
+      const previewHour = Math.floor(previewStart / 60);
+      const previewMinute = previewStart % 60;
+      const previewEndHour = Math.floor(previewEnd / 60);
+      const previewEndMinute = previewEnd % 60;
+
+      setDragHoverIndicator({
+        dayKey: day.toISOString(),
+        top: 40 + getOffsetTopForTime(previewHour, previewMinute),
+        label: `${String(previewHour).padStart(2, "0")}:${String(previewMinute).padStart(2, "0")} - ${String(previewEndHour).padStart(2, "0")}:${String(previewEndMinute).padStart(2, "0")}`,
+      });
+
+      return nextState;
     });
   };
 
@@ -750,6 +797,7 @@ const PersonalPlanner = () => {
       });
       setDraggingEvent(null);
       setDragCreateState(null);
+      setDragHoverIndicator(null);
       toast.success("האירוע הוזז בהצלחה");
       return;
     }
@@ -804,12 +852,14 @@ const PersonalPlanner = () => {
 
     setDraggedTask(null);
     setDragCreateState(null);
+    setDragHoverIndicator(null);
   };
 
   const handleDragEnd = () => {
     setDraggedTask(null);
     setDragCreateState(null);
     setDraggingEvent(null);
+    setDragHoverIndicator(null);
   };
 
   const openNewEventDialog = ({
@@ -958,6 +1008,7 @@ const PersonalPlanner = () => {
     touchDragRef.current = null;
     setDraggedTask(null);
     setDragCreateState(null);
+    setDragHoverIndicator(null);
   }, [handleDrop]);
 
 
@@ -1536,7 +1587,7 @@ const PersonalPlanner = () => {
             <div
               key={day.toISOString()}
               data-day-column={day.toISOString()}
-              className={`border-l border-border min-w-[100px] relative transition-all duration-200 ${isExpanded ? "flex-[3]" : "flex-1"}`}
+              className={`border-l border-border min-w-[100px] relative transition-all duration-200 ${isExpanded ? "flex-[3]" : "flex-1"} ${dragHoverIndicator?.dayKey === day.toISOString() ? "bg-primary/[0.03]" : ""}`}
               style={isExpanded ? { minWidth: 250 } : undefined}
               onDragOver={(e) => handleDayColumnDragOver(e, day)}
               onDrop={(e) => handleDrop(day, undefined, e)}
@@ -1563,6 +1614,20 @@ const PersonalPlanner = () => {
                 >
                   <div className="px-2 py-1 text-[10px] font-medium text-primary">
                     {dragPreviewMetrics.label}
+                  </div>
+                </div>
+              )}
+
+              {dragHoverIndicator?.dayKey === day.toISOString() && (
+                <div
+                  className="pointer-events-none absolute inset-x-2 z-40"
+                  style={{ top: dragHoverIndicator.top }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-[88px] rounded-full bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground shadow-sm">
+                      {dragHoverIndicator.label}
+                    </div>
+                    <div className="h-[2px] flex-1 rounded-full bg-primary shadow-[0_0_0_4px_rgba(59,130,246,0.12)]" />
                   </div>
                 </div>
               )}
