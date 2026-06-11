@@ -15,6 +15,74 @@ const GENERIC_PLANNING_TITLES = new Set([
   "time block",
 ]);
 
+const DURATION_RULES: Array<{ minutes: number; reason: string; keywords: string[] }> = [
+  {
+    minutes: 5,
+    reason: "שליחה או אישור קצר",
+    keywords: ["לשלוח", "שלח", "להחזיר תשובה", "לענות", "אישור", "זימון", "להודיע", "לכתוב הודעה"],
+  },
+  {
+    minutes: 10,
+    reason: "שיחה קצרה או תיאום",
+    keywords: ["להתקשר", "טלפון", "לקבוע", "לתאם", "פגישה", "שיחה", "וואטסאפ", "וואצפ", "מייל"],
+  },
+  {
+    minutes: 15,
+    reason: "בדיקה או מעקב קצר",
+    keywords: ["לבדוק", "לברר", "לחפש", "לעבור", "לראות", "לקרוא", "מעקב"],
+  },
+  {
+    minutes: 25,
+    reason: "סידור אישי או קנייה קצרה",
+    keywords: ["לקנות", "להזמין", "קניות", "להביא", "סידור", "סופר", "נספרסו"],
+  },
+  {
+    minutes: 45,
+    reason: "טיפול אדמיניסטרטיבי",
+    keywords: ["ביטוח", "טופס", "טפסים", "ערעור", "מסמך", "דרישת תשלום", "תשלום", "החזר", "ביטוח לאומי"],
+  },
+  {
+    minutes: 60,
+    reason: "עבודה שדורשת ריכוז",
+    keywords: ["לכתוב", "לסכם", "לימוד", "ללמוד", "קורס", "לסדר", "לארגן", "דשבורד", "פרויקט", "לבנות", "אתר"],
+  },
+  {
+    minutes: 90,
+    reason: "משימה עמוקה או יצירתית",
+    keywords: ["מחקר", "אסטרטגיה", "הכנה", "מצגת", "פיתוח", "לעבוד על", "תכנון שבוע", "לתכנן שבוע"],
+  },
+];
+
+function estimatePlanningDuration(title: string, source?: string) {
+  const normalized = `${title || ""} ${source || ""}`.toLowerCase().trim();
+
+  for (const rule of DURATION_RULES) {
+    if (rule.keywords.some((keyword) => normalized.includes(keyword.toLowerCase()))) {
+      return { minutes: rule.minutes, reason: rule.reason };
+    }
+  }
+
+  if (normalized.includes("מייל") || normalized.includes("reply")) {
+    return { minutes: 10, reason: "טיפול ממוקד במייל" };
+  }
+
+  return { minutes: 30, reason: "ברירת מחדל למשימה כללית" };
+}
+
+function formatDurationLabel(minutes: number) {
+  if (minutes % 60 === 0) {
+    return `${minutes / 60} שעות`;
+  }
+
+  if (minutes > 60) {
+    const hours = Math.floor(minutes / 60);
+    const remaining = minutes % 60;
+    return `${hours} ש' ${remaining} דק'`;
+  }
+
+  return `${minutes} דק'`;
+}
+
 function containsGenericPlanningTitle(action: any): boolean {
   if (!action || typeof action !== "object") return false;
 
@@ -127,9 +195,33 @@ serve(async (req) => {
     const offsetHours = Math.round(offsetMs / (1000 * 60 * 60));
     const offsetSign = offsetHours >= 0 ? "+" : "-";
     const tzOffset = `${offsetSign}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
-    const urgentTasks = allTasks.filter((task: any) => task.urgent || task.overdue).slice(0, 8);
+    const tasksWithEstimates = allTasks.map((task: any) => {
+      const estimate = estimatePlanningDuration(task.description || "", task.task_type === "work" ? "עבודה" : "אישי");
+      return {
+        ...task,
+        estimated_minutes: estimate.minutes,
+        estimate_reason: estimate.reason,
+      };
+    });
+    const urgentTasks = tasksWithEstimates.filter((task: any) => task.urgent || task.overdue).slice(0, 8);
     const tasksDueToday = allTasks.filter((task: any) => task.planned_end === today && task.status !== "בוצע").slice(0, 8);
     const todayEvents = (eventsRes.data || []).filter((event: any) => (event.start_time || "").startsWith(today)).slice(0, 10);
+    const quickWinTasks = tasksWithEstimates
+      .filter((task: any) => task.estimated_minutes <= 15)
+      .sort((left: any, right: any) => {
+        const leftScore = (left.overdue ? 4 : 0) + (left.urgent ? 2 : 0);
+        const rightScore = (right.overdue ? 4 : 0) + (right.urgent ? 2 : 0);
+        return rightScore - leftScore;
+      })
+      .slice(0, 8);
+    const deepWorkTasks = tasksWithEstimates
+      .filter((task: any) => task.estimated_minutes >= 45)
+      .sort((left: any, right: any) => {
+        const leftScore = (left.overdue ? 4 : 0) + (left.urgent ? 2 : 0);
+        const rightScore = (right.overdue ? 4 : 0) + (right.urgent ? 2 : 0);
+        return rightScore - leftScore;
+      })
+      .slice(0, 6);
     const emailCategorySummary = Object.entries(
       recentEmails.reduce((acc: Record<string, { total: number; pending: number }>, email: any) => {
         const key = email.category || "לא מסווג";
@@ -223,11 +315,17 @@ ${emailCategorySummary || 'אין עדיין מספיק מיילים מסונכ�
 
 ### תמונת בוקר מהירה:
 - משימות דחופות / באיחור: ${urgentTasks.length}
-${urgentTasks.map((task: any) => `  - "${task.description}" | סטטוס: ${task.status}${task.overdue ? ' | באיחור' : ''}${task.urgent ? ' | דחוף' : ''}`).join('\n')}
+${urgentTasks.map((task: any) => `  - "${task.description}" | סטטוס: ${task.status}${task.overdue ? ' | באיחור' : ''}${task.urgent ? ' | דחוף' : ''} | זמן משוער: ${formatDurationLabel(task.estimated_minutes)}`).join('\n')}
 - משימות להיום: ${tasksDueToday.length}
 ${tasksDueToday.map((task: any) => `  - "${task.description}" | קטגוריה: ${task.category || '-'} | אחראי: ${task.responsible || '-'}`).join('\n')}
 - אירועים להיום: ${todayEvents.length}
 ${todayEvents.map((event: any) => `  - "${event.title}" | ${event.start_time} עד ${event.end_time} | קטגוריה: ${event.category || '-'}`).join('\n')}
+
+### משימות קצרות לסגירה מהירה (עד 15 דקות):
+${quickWinTasks.map((task: any) => `- "${task.description}" | ${formatDurationLabel(task.estimated_minutes)} | ${task.estimate_reason}${task.overdue ? ' | באיחור' : ''}${task.urgent ? ' | דחוף' : ''}`).join('\n') || 'אין כרגע מועמדות קצרות בולטות'}
+
+### משימות שמתאימות לבלוק פוקוס (45 דקות ומעלה):
+${deepWorkTasks.map((task: any) => `- "${task.description}" | ${formatDurationLabel(task.estimated_minutes)} | ${task.estimate_reason}${task.overdue ? ' | באיחור' : ''}${task.urgent ? ' | דחוף' : ''}`).join('\n') || 'אין כרגע מועמדות עומק בולטות'}
 
 ### יומן עריכות אחרון במשימות (${recentTaskEdits.length}):
 ${recentTaskEdits.map((entry: any) => `- ${entry.action_type} | משימה ${entry.task_id} | ${entry.changed_count || 0} שדות | על ידי ${entry.edited_by_name || entry.edited_by_email || 'לא ידוע'} | ${entry.created_at}`).join('\n')}
@@ -273,6 +371,17 @@ ${isPlanningAgent ? `## מצב עבודה: סוכן תכנון ולוז
 8. כשאתה יוצר שיבוץ, שמור על ריאליות: הפסקות, באפרים, מעבר בין בית/עבודה, ולא לדחוס יותר מדי.
 9. אם המשתמש מבקש תכנון שבועי, תחשוב קדימה על חלוקת עומס בין ימים, ימי עבודה מול ימי חופש, ומשימות שמוטב לקבץ יחד.
 10. תמיד תסביר בקצרה למה הצעת את הסדר הזה.` : ""}
+
+## כשמבקשים תעדוף, מה קודם, או "מה עכשיו":
+1. קודם הסתכל על דחוף/באיחור, אירועים קרובים, ותאריכי יעד.
+2. תמיד תזהה גם "ניצחונות מהירים" של 5-15 דקות וגם "בלוקי עומק" של 45-120 דקות.
+3. אם למשתמש יש מעט זמן פנוי, תעדיף משימות קצרות עם ערך גבוה או משימות שחוסמות אחרות.
+4. אם יש חלון גדול, תמליץ על משימת עומק אחת עיקרית ולא על ערבוב של הרבה קטנות.
+5. כשמתאים, חלק את ההמלצה ל:
+   - מה דחוף עכשיו
+   - מה אפשר לסגור מהר
+   - מה לשמור לבלוק פוקוס
+   - מה אפשר לדחות
 
 ## הוראות פעולה - חשוב מאוד!
 כשהמשתמש מבקש פעולה (הוספה, עדכון, מחיקה), אתה חייב להחזיר בלוק JSON של הפעולה.

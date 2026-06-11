@@ -1,18 +1,38 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, X, Send, Loader2, Trash2, History, ChevronRight } from "lucide-react";
+import { Bot, X, Send, Loader2, Trash2, History, ChevronRight, Flame, Clock3, CalendarDays, BrainCircuit } from "lucide-react";
 import { toast } from "sonner";
 import { useTabroAiHistory } from "@/hooks/useTabroAiHistory";
 import type { Json } from "@/integrations/supabase/types";
+import { estimateTaskDuration, formatDurationLabel } from "@/lib/planningDurationHeuristics";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface TaskInsight {
+  id: string;
+  title: string;
+  taskType: "work" | "personal";
+  urgent: boolean;
+  overdue: boolean;
+  plannedEnd?: string | null;
+  estimatedMinutes: number;
+  estimateReason: string;
+}
+
+interface AgentContextSummary {
+  urgentCount: number;
+  overdueCount: number;
+  pendingEmailCount: number;
+  todayEventCount: number;
+  shortTasks: TaskInsight[];
+  deepTasks: TaskInsight[];
 }
 
 interface AiAgentPreferences {
@@ -96,6 +116,14 @@ const TabroAiAgent = () => {
   });
   const [loading, setLoading] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [contextSummary, setContextSummary] = useState<AgentContextSummary>({
+    urgentCount: 0,
+    overdueCount: 0,
+    pendingEmailCount: 0,
+    todayEventCount: 0,
+    shortTasks: [],
+    deepTasks: [],
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,6 +150,66 @@ const TabroAiAgent = () => {
 
     loadAiPrefs();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !open) return;
+
+    const loadContextSummary = async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const [{ data: tasks }, { data: emails }, { data: events }] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("id, description, task_type, urgent, overdue, planned_end, status")
+          .eq("user_id", user.id)
+          .eq("archived", false)
+          .neq("status", "בוצע")
+          .limit(250),
+        supabase
+          .from("email_analyses")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_processed", false),
+        supabase
+          .from("calendar_events")
+          .select("id")
+          .eq("user_id", user.id)
+          .gte("start_time", `${today}T00:00:00`)
+          .lte("start_time", `${today}T23:59:59`),
+      ]);
+
+      const normalizedTasks: TaskInsight[] = (tasks || []).map((task) => {
+        const estimate = estimateTaskDuration(task.description || "", task.task_type === "work" ? "עבודה" : "אישי");
+        return {
+          id: task.id,
+          title: task.description || "(ללא כותרת)",
+          taskType: task.task_type === "work" ? "work" : "personal",
+          urgent: Boolean(task.urgent),
+          overdue: Boolean(task.overdue),
+          plannedEnd: task.planned_end,
+          estimatedMinutes: estimate.minutes,
+          estimateReason: estimate.reason,
+        };
+      });
+
+      const sortedTasks = [...normalizedTasks].sort((left, right) => {
+        const leftScore = (left.overdue ? 4 : 0) + (left.urgent ? 2 : 0) + (left.plannedEnd ? 1 : 0);
+        const rightScore = (right.overdue ? 4 : 0) + (right.urgent ? 2 : 0) + (right.plannedEnd ? 1 : 0);
+        if (rightScore !== leftScore) return rightScore - leftScore;
+        return left.estimatedMinutes - right.estimatedMinutes;
+      });
+
+      setContextSummary({
+        urgentCount: normalizedTasks.filter((task) => task.urgent).length,
+        overdueCount: normalizedTasks.filter((task) => task.overdue).length,
+        pendingEmailCount: emails?.length ?? 0,
+        todayEventCount: events?.length ?? 0,
+        shortTasks: sortedTasks.filter((task) => task.estimatedMinutes <= 15).slice(0, 4),
+        deepTasks: sortedTasks.filter((task) => task.estimatedMinutes >= 45).slice(0, 3),
+      });
+    };
+
+    void loadContextSummary();
+  }, [open, user]);
 
   const clearChat = () => {
     if (messages.length === 0) return;
@@ -218,6 +306,29 @@ const TabroAiAgent = () => {
     await sendMessage(prompt);
   };
 
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendMessage();
+    }
+  };
+
+  const shortTaskPrompt = useMemo(() => {
+    if (contextSummary.shortTasks.length === 0) {
+      return "תגיד לי אילו משימות קצרות אפשר לסגור ב-15 דקות או פחות לפי מה שפתוח כרגע.";
+    }
+
+    return `יש לי עכשיו כמה משימות קצרות. תגיד לי מה הכי נכון לסגור קודם מבין: ${contextSummary.shortTasks.map((task) => `"${task.title}" (${formatDurationLabel(task.estimatedMinutes)})`).join(", ")}.`;
+  }, [contextSummary.shortTasks]);
+
+  const deepTaskPrompt = useMemo(() => {
+    if (contextSummary.deepTasks.length === 0) {
+      return "איזו משימה עמוקה כדאי לי לקחת לבלוק של שעה עד שעתיים עכשיו?";
+    }
+
+    return `אם יש לי בלוק פוקוס של שעה-שעתיים, מה הכי נכון לקחת מבין: ${contextSummary.deepTasks.map((task) => `"${task.title}" (${formatDurationLabel(task.estimatedMinutes)})`).join(", ")}?`;
+  }, [contextSummary.deepTasks]);
+
   const quickPrompts = assistantMode === "planning_agent"
     ? [
         "תכנן לי את היום לפי דחיפות, משך משימה סביר, ואילוצים. אם חסר מידע - תשאל אותי שאלות קצרות.",
@@ -255,7 +366,7 @@ const TabroAiAgent = () => {
       )}
 
       {open && (
-        <div className="fixed left-4 bottom-20 z-50 w-[360px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-6rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
+        <div className="fixed left-4 bottom-20 z-50 w-[440px] max-w-[calc(100vw-2rem)] h-[620px] max-h-[calc(100vh-5rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
             <Bot className="h-5 w-5 text-primary" />
@@ -290,6 +401,97 @@ const TabroAiAgent = () => {
                 <SelectItem value="planning_agent">סוכן תכנון ולוז</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="px-3 py-3 border-b border-border bg-muted/20">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                onClick={() => queuePrompt("מה הכי דחוף לי לעשות עכשיו לפי מה שמסומן דחוף/באיחור ואירועי היום?")}
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  דחוף ובאיחור
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  דחוף {contextSummary.urgentCount} · באיחור {contextSummary.overdueCount}
+                </div>
+              </button>
+              <button
+                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                onClick={() => queuePrompt(shortTaskPrompt)}
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <Clock3 className="h-4 w-4 text-emerald-600" />
+                  משימות קצרות
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  עד 15 דק' · {contextSummary.shortTasks.length} מועמדות
+                </div>
+              </button>
+              <button
+                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                onClick={() => queuePrompt(deepTaskPrompt)}
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <BrainCircuit className="h-4 w-4 text-blue-600" />
+                  בלוק פוקוס
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  45-120 דק' · {contextSummary.deepTasks.length} משימות עומק
+                </div>
+              </button>
+              <button
+                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                onClick={() => queuePrompt("תן לי תמונת מצב: כמה מיילים ממתינים, כמה אירועים יש לי היום, ומה הכי נכון לשלב קודם.")}
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <CalendarDays className="h-4 w-4 text-violet-600" />
+                  היום שלי
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  {contextSummary.todayEventCount} אירועים · {contextSummary.pendingEmailCount} מיילים ממתינים
+                </div>
+              </button>
+            </div>
+
+            {(contextSummary.shortTasks.length > 0 || contextSummary.deepTasks.length > 0) && (
+              <div className="mt-3 space-y-2">
+                {contextSummary.shortTasks.length > 0 && (
+                  <div>
+                    <div className="mb-1 text-[10px] font-semibold text-muted-foreground">קצרות שאפשר לסגור מהר</div>
+                    <div className="flex flex-wrap gap-1">
+                      {contextSummary.shortTasks.map((task) => (
+                        <button
+                          key={`short-${task.id}`}
+                          className="rounded-full border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                          onClick={() => queuePrompt(`האם כדאי לי לסגור עכשיו את "${task.title}"? זה נראה כמו משימה של ${formatDurationLabel(task.estimatedMinutes)}.`)}
+                        >
+                          {task.title.length > 26 ? `${task.title.slice(0, 26)}…` : task.title} · {formatDurationLabel(task.estimatedMinutes)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {contextSummary.deepTasks.length > 0 && (
+                  <div>
+                    <div className="mb-1 text-[10px] font-semibold text-muted-foreground">מועמדות לבלוק עומק</div>
+                    <div className="flex flex-wrap gap-1">
+                      {contextSummary.deepTasks.map((task) => (
+                        <button
+                          key={`deep-${task.id}`}
+                          className="rounded-full border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                          onClick={() => queuePrompt(`אם אני נותן עכשיו בלוק פוקוס, תבחן את "${task.title}" כמשימה של בערך ${formatDurationLabel(task.estimatedMinutes)}.`)}
+                        >
+                          {task.title.length > 24 ? `${task.title.slice(0, 24)}…` : task.title} · {formatDurationLabel(task.estimatedMinutes)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* History sidebar */}
@@ -396,7 +598,7 @@ const TabroAiAgent = () => {
           </div>
 
           {/* Messages */}
-          <ScrollArea className="flex-1 p-3" ref={scrollRef}>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3">
             <div className="space-y-3">
               {messages.length === 0 && (
                 <div className="text-center text-muted-foreground text-sm py-8 space-y-2">
@@ -418,6 +620,9 @@ const TabroAiAgent = () => {
                     {(assistantMode === "planning_agent"
                       ? [
                           "תכנן לי את היום",
+                          "מה 3 הדברים הכי דחופים?",
+                          "איזה משימות קצרות אפשר לסגור ב-15 דקות?",
+                          "תן לי בלוק פוקוס של שעה",
                           "תכנן לי את מחר לפי שעות עבודה",
                           "תכנן לי שבוע קדימה",
                           "איזה מיילים צריכים מענה?",
@@ -475,7 +680,7 @@ const TabroAiAgent = () => {
               )}
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 </div>
@@ -488,7 +693,7 @@ const TabroAiAgent = () => {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Input */}
           <div className="p-3 border-t border-border">
@@ -502,18 +707,41 @@ const TabroAiAgent = () => {
                 </Button>
               </div>
             )}
-            <div className="flex gap-2">
-              <Input
+            <div className="space-y-2">
+              <Textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && sendMessage()}
-                placeholder={assistantMode === "planning_agent" ? "כתוב מה אתה רוצה לתכנן..." : "מה תרצה לעשות?"}
-                className="flex-1 text-sm"
+                onKeyDown={handleComposerKeyDown}
+                placeholder={assistantMode === "planning_agent" ? "כתוב מה אתה רוצה לתכנן, מה דחוף, כמה זמן יש לך, ואם אתה רוצה רק הצעה או שיבוץ ממשי..." : "כתוב מה תרצה שהסוכן יעשה, יסכם, יתעדף או יתכנן..."}
+                className="min-h-[88px] resize-none text-sm"
                 disabled={loading}
               />
-              <Button size="icon" onClick={sendMessage} disabled={loading || !input.trim()} className="shrink-0">
-                <Send className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    className="rounded-full border border-border px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                    onClick={() => queuePrompt("מה הכי נכון לי לעשות ב-30 הדקות הקרובות?")}
+                  >
+                    חצי שעה פנויה
+                  </button>
+                  <button
+                    className="rounded-full border border-border px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                    onClick={() => queuePrompt("תחשוב לפי דחוף, באיחור, ומשך משוער. מה כדאי ראשון?")}
+                  >
+                    מה קודם?
+                  </button>
+                  <button
+                    className="rounded-full border border-border px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                    onClick={() => queuePrompt("חלק לי את המשימות שלי לקצרות, בינוניות ועמוקות עם זמן משוער לכל אחת.")}
+                  >
+                    חלוקת זמנים
+                  </button>
+                </div>
+                <Button onClick={sendMessage} disabled={loading || !input.trim()} className="shrink-0">
+                  <Send className="ml-2 h-4 w-4" />
+                  שלח
+                </Button>
+              </div>
             </div>
           </div>
         </div>
