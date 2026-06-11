@@ -204,6 +204,7 @@ const PersonalPlanner = () => {
   } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const desktopTaskListRef = useRef<HTMLDivElement>(null);
   const quickEditorAnchorRef = useRef<HTMLButtonElement | null>(null);
   const quickDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -701,6 +702,33 @@ const PersonalPlanner = () => {
       container.scrollTop += scrollStep;
     }
   }, []);
+
+  const autoScrollTaskSidebar = useCallback((clientY: number) => {
+    const container = desktopTaskListRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const edgeThreshold = 64;
+    const scrollStep = 24;
+
+    if (clientY < rect.top + edgeThreshold) {
+      container.scrollTop = Math.max(0, container.scrollTop - scrollStep);
+    } else if (clientY > rect.bottom - edgeThreshold) {
+      container.scrollTop += scrollStep;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draggedTask && !draggingEvent) return;
+
+    const handleGlobalDragOver = (event: DragEvent) => {
+      autoScrollTaskSidebar(event.clientY);
+      autoScrollPlannerGrid(event.clientY);
+    };
+
+    window.addEventListener("dragover", handleGlobalDragOver);
+    return () => window.removeEventListener("dragover", handleGlobalDragOver);
+  }, [autoScrollPlannerGrid, autoScrollTaskSidebar, draggedTask, draggingEvent]);
 
   const updateDragCreateFromPoint = (day: Date, clientY: number, columnEl: HTMLElement) => {
     const { hour, minute } = getTimeFromDayColumn(clientY, columnEl);
@@ -2237,7 +2265,7 @@ const PersonalPlanner = () => {
           </CollapsibleContent>
         </Collapsible>
 
-        <ScrollArea className="flex-1">
+        <div ref={desktopTaskListRef} className="flex-1 overflow-y-auto">
           <div className="p-2 space-y-1.5">
             {visibleTasks.map((task) => {
               const srcColor = getSourceColor(task.source);
@@ -2335,7 +2363,7 @@ const PersonalPlanner = () => {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {isMobile && (
