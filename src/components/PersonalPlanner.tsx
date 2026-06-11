@@ -47,6 +47,7 @@ type ViewMode = "day" | "week" | "month" | "year";
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const DEFAULT_HOUR_HEIGHT = 60;
 const SNAP_MINUTES = 5;
+const DRAG_STRETCH_DELAY_MS = 2600;
 const MIN_HOUR_HEIGHT = 30;
 const MAX_HOUR_HEIGHT = 120;
 const QUICK_EVENT_PRESETS = [
@@ -201,12 +202,21 @@ const PersonalPlanner = () => {
     dayKey: string;
     top: number;
     label: string;
+    helper?: string;
+    mode?: "hover" | "stretch";
   } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const desktopTaskListRef = useRef<HTMLDivElement>(null);
   const quickEditorAnchorRef = useRef<HTMLButtonElement | null>(null);
   const quickDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const dragImageRef = useRef<HTMLDivElement | null>(null);
+  const dragStretchTimerRef = useRef<number | null>(null);
+  const dragStretchAnchorRef = useRef<{
+    dayKey: string;
+    hour: number;
+    minute: number;
+  } | null>(null);
 
   // Touch drag state for mobile
   const touchDragRef = useRef<{
@@ -718,6 +728,36 @@ const PersonalPlanner = () => {
     }
   }, []);
 
+  const clearPendingDragStretch = useCallback(() => {
+    if (dragStretchTimerRef.current !== null) {
+      window.clearTimeout(dragStretchTimerRef.current);
+      dragStretchTimerRef.current = null;
+    }
+    dragStretchAnchorRef.current = null;
+  }, []);
+
+  const clearDragArtifacts = useCallback(() => {
+    if (dragImageRef.current) {
+      dragImageRef.current.remove();
+      dragImageRef.current = null;
+    }
+
+    if (touchDragRef.current) {
+      touchDragRef.current.ghostEl?.remove();
+      touchDragRef.current.lastSlotEl?.classList.remove("bg-primary/10");
+      touchDragRef.current = null;
+    }
+  }, []);
+
+  const resetDragState = useCallback(() => {
+    clearPendingDragStretch();
+    clearDragArtifacts();
+    setDraggedTask(null);
+    setDragCreateState(null);
+    setDraggingEvent(null);
+    setDragHoverIndicator(null);
+  }, [clearDragArtifacts, clearPendingDragStretch]);
+
   useEffect(() => {
     if (!draggedTask && !draggingEvent) return;
 
@@ -730,9 +770,86 @@ const PersonalPlanner = () => {
     return () => window.removeEventListener("dragover", handleGlobalDragOver);
   }, [autoScrollPlannerGrid, autoScrollTaskSidebar, draggedTask, draggingEvent]);
 
+  useEffect(() => {
+    if (!draggedTask && !draggingEvent) return;
+
+    const handleWindowDrop = () => resetDragState();
+    const handleWindowDragEnd = () => resetDragState();
+    const handleWindowBlur = () => resetDragState();
+    const handlePointerUp = () => resetDragState();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        resetDragState();
+      }
+    };
+
+    window.addEventListener("drop", handleWindowDrop);
+    window.addEventListener("dragend", handleWindowDragEnd, true);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("mouseup", handlePointerUp);
+    window.addEventListener("pointerup", handlePointerUp);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("drop", handleWindowDrop);
+      window.removeEventListener("dragend", handleWindowDragEnd, true);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("mouseup", handlePointerUp);
+      window.removeEventListener("pointerup", handlePointerUp);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [draggedTask, draggingEvent, resetDragState]);
+
   const updateDragCreateFromPoint = (day: Date, clientY: number, columnEl: HTMLElement) => {
     const { hour, minute } = getTimeFromDayColumn(clientY, columnEl);
     autoScrollPlannerGrid(clientY);
+
+    const dayKey = day.toISOString();
+    const top = 40 + getOffsetTopForTime(hour, minute);
+
+    if (!dragCreateState) {
+      const activeAnchor = dragStretchAnchorRef.current;
+      const sameAnchor = activeAnchor
+        && activeAnchor.dayKey === dayKey
+        && activeAnchor.hour === hour
+        && activeAnchor.minute === minute;
+
+      if (!sameAnchor) {
+        clearPendingDragStretch();
+        dragStretchAnchorRef.current = { dayKey, hour, minute };
+        dragStretchTimerRef.current = window.setTimeout(() => {
+          const anchor = dragStretchAnchorRef.current;
+          if (!anchor || anchor.dayKey !== dayKey || anchor.hour !== hour || anchor.minute !== minute) return;
+
+          setDragCreateState({
+            day,
+            startHour: hour,
+            startMinute: minute,
+            currentHour: hour,
+            currentMinute: minute,
+          });
+          setDragHoverIndicator({
+            dayKey,
+            top,
+            label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} - ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+            helper: "מצב מתיחה הופעל. אפשר לגרור למעלה או למטה כדי לקבוע משך.",
+            mode: "stretch",
+          });
+          dragStretchTimerRef.current = null;
+        }, DRAG_STRETCH_DELAY_MS);
+      }
+
+      setDragHoverIndicator({
+        dayKey,
+        top,
+        label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+        helper: "השאר כאן כ-3 שניות כדי לעבור למתיחה, או שחרר עכשיו לשיבוץ מהיר.",
+        mode: "hover",
+      });
+      return;
+    }
+
+    clearPendingDragStretch();
 
     setDragCreateState((prev) => {
       const nextState = !prev || !isSameDay(prev.day, day)
@@ -759,9 +876,11 @@ const PersonalPlanner = () => {
       const previewEndMinute = previewEnd % 60;
 
       setDragHoverIndicator({
-        dayKey: day.toISOString(),
+        dayKey,
         top: 40 + getOffsetTopForTime(previewHour, previewMinute),
         label: `${String(previewHour).padStart(2, "0")}:${String(previewMinute).padStart(2, "0")} - ${String(previewEndHour).padStart(2, "0")}:${String(previewEndMinute).padStart(2, "0")}`,
+        helper: "שחרר כדי לפתוח את האירוע עם הטווח הזה.",
+        mode: "stretch",
       });
 
       return nextState;
@@ -782,8 +901,31 @@ const PersonalPlanner = () => {
     return { hour: Math.max(0, Math.min(23, hour)), minute: Math.min(45, minute) };
   };
 
-  const handleDragStart = (task: AggregatedTask) => {
+  const handleDragStart = (task: AggregatedTask, event?: React.DragEvent<HTMLElement>) => {
+    clearPendingDragStretch();
+    clearDragArtifacts();
     setDraggedTask(task);
+    setDragCreateState(null);
+    setDragHoverIndicator(null);
+
+    if (event?.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", task.title || "task");
+
+      dragImageRef.current?.remove();
+      const dragGhost = document.createElement("div");
+      dragGhost.className = "fixed top-0 left-0 pointer-events-none z-[9999] rounded-xl border border-border bg-background/95 px-3 py-2 text-xs shadow-2xl backdrop-blur";
+      dragGhost.style.maxWidth = "220px";
+      dragGhost.style.borderInlineStart = `4px solid ${getSourceColor(task.source)}`;
+      dragGhost.style.color = "hsl(var(--foreground))";
+      dragGhost.innerHTML = `
+        <div style="font-size:10px;opacity:.72;margin-bottom:4px;">${getSourceLabel(task.source)}</div>
+        <div style="font-weight:600;line-height:1.4;">${task.title || "(ללא כותרת)"}</div>
+      `;
+      document.body.appendChild(dragGhost);
+      dragImageRef.current = dragGhost;
+      event.dataTransfer.setDragImage(dragGhost, 20, 20);
+    }
   };
 
   // Handle dragover on hour slots to track position for stretch-drag
@@ -823,6 +965,7 @@ const PersonalPlanner = () => {
         startTime: toLocalISOString(newStart),
         endTime: toLocalISOString(newEnd),
       });
+      clearPendingDragStretch();
       setDraggingEvent(null);
       setDragCreateState(null);
       setDragHoverIndicator(null);
@@ -878,16 +1021,14 @@ const PersonalPlanner = () => {
       ),
     });
 
+    clearPendingDragStretch();
     setDraggedTask(null);
     setDragCreateState(null);
     setDragHoverIndicator(null);
   };
 
   const handleDragEnd = () => {
-    setDraggedTask(null);
-    setDragCreateState(null);
-    setDraggingEvent(null);
-    setDragHoverIndicator(null);
+    resetDragState();
   };
 
   const openNewEventDialog = ({
@@ -971,6 +1112,8 @@ const PersonalPlanner = () => {
   // --- Touch drag handlers for mobile (iOS) ---
   const handleTouchStart = (e: React.TouchEvent, task: AggregatedTask) => {
     const touch = e.touches[0];
+    clearDragArtifacts();
+    clearPendingDragStretch();
     const ghost = document.createElement("div");
     ghost.className = "fixed z-[9999] pointer-events-none bg-primary/80 text-primary-foreground text-xs rounded-lg px-3 py-2 shadow-lg max-w-[200px] truncate";
     ghost.textContent = task.title || "(ללא כותרת)";
@@ -978,6 +1121,8 @@ const PersonalPlanner = () => {
     ghost.style.top = `${touch.clientY - 30}px`;
     document.body.appendChild(ghost);
     touchDragRef.current = { task, ghostEl: ghost, lastSlotEl: null };
+    setDragCreateState(null);
+    setDragHoverIndicator(null);
     setDraggedTask(task);
   };
 
@@ -1012,14 +1157,11 @@ const PersonalPlanner = () => {
         }
       }
     }
-  }, []);
+  }, [resetDragState]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (!touchDragRef.current) return;
     const ref = touchDragRef.current;
-    if (ref.ghostEl) ref.ghostEl.remove();
-    if (ref.lastSlotEl) ref.lastSlotEl.classList.remove("bg-primary/10");
-
     const touch = e.changedTouches[0];
     const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
     const slotEl = elementBelow?.closest("[data-slot-day]") as HTMLElement | null;
@@ -1033,11 +1175,8 @@ const PersonalPlanner = () => {
       }
     }
 
-    touchDragRef.current = null;
-    setDraggedTask(null);
-    setDragCreateState(null);
-    setDragHoverIndicator(null);
-  }, [handleDrop]);
+    resetDragState();
+  }, [handleDrop, resetDragState]);
 
 
   const handleResizeStart = (e: React.MouseEvent, event: CalendarEvent, edge: "top" | "bottom" = "bottom") => {
@@ -1651,9 +1790,20 @@ const PersonalPlanner = () => {
                   className="pointer-events-none absolute inset-x-2 z-40"
                   style={{ top: dragHoverIndicator.top }}
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="min-w-[88px] rounded-full bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground shadow-sm">
-                      {dragHoverIndicator.label}
+                  <div className="flex items-start gap-2">
+                    <div
+                      className={`min-w-[112px] rounded-2xl px-2.5 py-1.5 text-[10px] shadow-sm ${
+                        dragHoverIndicator.mode === "stretch"
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-primary/30 bg-background/95 text-foreground"
+                      }`}
+                    >
+                      <div className="font-semibold">{dragHoverIndicator.label}</div>
+                      {dragHoverIndicator.helper && (
+                        <div className={`mt-0.5 leading-4 ${dragHoverIndicator.mode === "stretch" ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                          {dragHoverIndicator.helper}
+                        </div>
+                      )}
                     </div>
                     <div className="h-[2px] flex-1 rounded-full bg-primary shadow-[0_0_0_4px_rgba(59,130,246,0.12)]" />
                   </div>
@@ -2275,7 +2425,7 @@ const PersonalPlanner = () => {
               <div
                 key={`${task.source}-${task.id}`}
                 draggable
-                onDragStart={() => handleDragStart(task)}
+                onDragStart={(e) => handleDragStart(task, e)}
                 onDragEnd={handleDragEnd}
                 onTouchStart={(e) => handleTouchStart(e, task)}
                 onTouchMove={(e) => handleTouchMove(e)}
@@ -2401,7 +2551,7 @@ const PersonalPlanner = () => {
                     <div
                       key={`mobile-${task.source}-${task.id}`}
                       draggable
-                      onDragStart={() => handleDragStart(task)}
+                      onDragStart={(e) => handleDragStart(task, e)}
                       onDragEnd={handleDragEnd}
                       onTouchStart={(e) => handleTouchStart(e, task)}
                       onTouchMove={(e) => handleTouchMove(e)}
