@@ -392,7 +392,7 @@ ${isPlanningAgent ? `## מצב עבודה: סוכן תכנון ולוז
 
 הוספת משימה:
 \`\`\`action
-{"type":"add_task","task_type":"work","description":"לסיים דוח","category":"עבודה","sheet_name":"2026"}
+{"type":"add_task","task_type":"work","description":"לסיים דוח","category":"עבודה","responsible":"עומרי","planned_end":"${today}","status":"טרם החל","status_notes":"מחכה לנתונים","progress":"נאספו מקורות ראשוניים","urgent":true,"sheet_name":"2026"}
 \`\`\`
 
 הוספת משימה אישית:
@@ -547,6 +547,8 @@ ${isPlanningAgent ? `## מצב עבודה: סוכן תכנון ולוז
                   category: { type: "string" },
                   responsible: { type: "string" },
                   planned_end: { type: "string" },
+                  status_notes: { type: "string" },
+                  progress: { type: "string" },
                   sheet_name: { type: "string" },
                   urgent: { type: "boolean" },
                   task_id: { type: "string" },
@@ -716,6 +718,8 @@ async function executeAction(supabase: any, userId: string, action: any): Promis
           category: action.category || null,
           responsible: action.responsible || null,
           planned_end: action.planned_end || null,
+          status_notes: action.status_notes || null,
+          progress: action.progress || null,
           urgent: action.urgent || false,
           status: action.status || "טרם החל",
           sheet_name: action.sheet_name || String(new Date().getFullYear()),
@@ -742,6 +746,8 @@ async function executeAction(supabase: any, userId: string, action: any): Promis
         if (action.category) updates.category = action.category;
         if (action.planned_end) updates.planned_end = action.planned_end;
         if (action.description) updates.description = action.description;
+        if (action.status_notes !== undefined) updates.status_notes = action.status_notes || null;
+        if (action.progress !== undefined) updates.progress = action.progress || null;
         const { error } = await supabase.from("tasks").update(updates).eq("id", action.task_id).eq("user_id", userId);
         if (error) console.error("update_task error:", error);
         return error ? { success: false, error: error.message } : { success: true, type: "update_task" };

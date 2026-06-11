@@ -53,6 +53,188 @@ interface NotificationSettings {
 
 type PendingAction = Json;
 
+type TaskWizardStep =
+  | "task_type"
+  | "description"
+  | "category"
+  | "responsible"
+  | "planned_end"
+  | "status"
+  | "status_notes"
+  | "progress"
+  | "urgent"
+  | "sheet_name"
+  | "confirm";
+
+interface TaskWizardDraft {
+  taskType: "work" | "personal" | null;
+  description: string;
+  category: string;
+  responsible: string;
+  plannedEnd: string;
+  status: "טרם החל" | "בטיפול" | "בוצע";
+  statusNotes: string;
+  progress: string;
+  urgent: boolean | null;
+  sheetName: string;
+}
+
+interface TaskWizardState {
+  step: TaskWizardStep;
+  draft: TaskWizardDraft;
+}
+
+const TASK_WIZARD_SKIP_WORDS = new Set(["דלג", "לא", "אין", "-", "לא רלוונטי", "לא יודע"]);
+const TASK_WIZARD_CONFIRM_WORDS = new Set(["אשר", "מאשר", "כן", "כן תיצור", "תיצור", "שמור", "תשמור"]);
+const TASK_WIZARD_CANCEL_WORDS = new Set(["בטל", "ביטול", "עזוב", "תפסיק"]);
+
+const createTaskWizardDraft = (sheetName: string): TaskWizardDraft => ({
+  taskType: null,
+  description: "",
+  category: "",
+  responsible: "",
+  plannedEnd: "",
+  status: "טרם החל",
+  statusNotes: "",
+  progress: "",
+  urgent: null,
+  sheetName,
+});
+
+const normalizeWizardAnswer = (value: string) => value.trim().toLowerCase();
+
+const isTaskCreationRequest = (text: string) => {
+  const normalized = normalizeWizardAnswer(text);
+  return [
+    "תוסיף משימה",
+    "להוסיף משימה",
+    "תיצור משימה",
+    "צור משימה",
+    "משימה חדשה",
+    "פתח משימה",
+  ].some((phrase) => normalized.includes(phrase));
+};
+
+const inferTaskTypeFromText = (text: string): "work" | "personal" | null => {
+  const normalized = normalizeWizardAnswer(text);
+  if (normalized.includes("עבודה")) return "work";
+  if (normalized.includes("אישי") || normalized.includes("אישית")) return "personal";
+  return null;
+};
+
+const parseTaskStatus = (text: string): TaskWizardDraft["status"] | null => {
+  const normalized = normalizeWizardAnswer(text);
+  if (normalized.includes("טרם") || normalized.includes("לא התחל")) return "טרם החל";
+  if (normalized.includes("בטיפול") || normalized.includes("בתהליך") || normalized.includes("בעבודה")) return "בטיפול";
+  if (normalized.includes("בוצע") || normalized.includes("הושלם") || normalized.includes("סיימ")) return "בוצע";
+  return null;
+};
+
+const parseUrgentAnswer = (text: string): boolean | null => {
+  const normalized = normalizeWizardAnswer(text);
+  if (normalized.includes("כן") || normalized.includes("דחוף")) return true;
+  if (normalized.includes("לא")) return false;
+  return null;
+};
+
+const parsePlannedEndInput = (text: string) => {
+  const raw = text.trim();
+  if (!raw || TASK_WIZARD_SKIP_WORDS.has(normalizeWizardAnswer(raw))) return "";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const normalized = normalizeWizardAnswer(raw);
+  if (normalized === "היום") {
+    return today.toISOString().slice(0, 10);
+  }
+
+  if (normalized === "מחר") {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().slice(0, 10);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const slashMatch = raw.match(/^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$/);
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]);
+    const year = slashMatch[3]
+      ? Number(slashMatch[3].length === 2 ? `20${slashMatch[3]}` : slashMatch[3])
+      : today.getFullYear();
+
+    const parsed = new Date(year, month - 1, day);
+    if (
+      parsed.getFullYear() === year &&
+      parsed.getMonth() === month - 1 &&
+      parsed.getDate() === day
+    ) {
+      return parsed.toISOString().slice(0, 10);
+    }
+  }
+
+  return null;
+};
+
+const resolveWizardEditStep = (text: string): TaskWizardStep | null => {
+  const normalized = normalizeWizardAnswer(text);
+  if (normalized.includes("תיאור") || normalized.includes("משימה")) return "description";
+  if (normalized.includes("סיווג") || normalized.includes("קטגור")) return "category";
+  if (normalized.includes("אחריות") || normalized.includes("אחראי")) return "responsible";
+  if (normalized.includes("תאריך") || normalized.includes("מועד") || normalized.includes("סיום")) return "planned_end";
+  if (normalized.includes("סטטוס")) return "status";
+  if (normalized.includes("איפה") || normalized.includes("עומד")) return "status_notes";
+  if (normalized.includes("התקדמות") || normalized.includes("בוצעו")) return "progress";
+  if (normalized.includes("דחוף")) return "urgent";
+  if (normalized.includes("גליון")) return "sheet_name";
+  if (normalized.includes("סוג") || normalized.includes("עבודה") || normalized.includes("אישי")) return "task_type";
+  return null;
+};
+
+const getWizardQuestion = (step: TaskWizardStep, defaultSheetName: string) => {
+  switch (step) {
+    case "task_type":
+      return "מעולה. זו משימת עבודה או משימה אישית?";
+    case "description":
+      return "מה תיאור המשימה?";
+    case "category":
+      return "מה הסיווג של המשימה? אם לא רלוונטי אפשר לכתוב 'דלג'.";
+    case "responsible":
+      return "על מי האחריות? אם לא רלוונטי אפשר לכתוב 'דלג'.";
+    case "planned_end":
+      return "מה התאריך לסיום מתוכנן? אפשר לכתוב למשל `2026-06-11`, `11/06/2026`, `היום`, `מחר`, או `דלג`.";
+    case "status":
+      return "מה הסטטוס כרגע? טרם החל / בטיפול / בוצע";
+    case "status_notes":
+      return "איפה זה עומד כרגע? אם אין עדיין מידע אפשר לכתוב 'דלג'.";
+    case "progress":
+      return "יש משימות שבוצעו או התקדמות שכדאי לשמור? אם לא, כתוב 'דלג'.";
+    case "urgent":
+      return "האם לסמן את המשימה כדחופה? כן / לא";
+    case "sheet_name":
+      return `לאיזה גליון לשייך? ברירת המחדל היא ${defaultSheetName}. אפשר לכתוב שם גליון או 'דלג'.`;
+    case "confirm":
+      return "";
+  }
+};
+
+const buildTaskWizardSummary = (draft: TaskWizardDraft) => [
+  `סוג: ${draft.taskType === "work" ? "עבודה" : "אישי"}`,
+  `תיאור: ${draft.description}`,
+  `סיווג: ${draft.category || "-"}`,
+  `אחריות: ${draft.responsible || "-"}`,
+  `תאריך: ${draft.plannedEnd || "-"}`,
+  `סטטוס: ${draft.status}`,
+  `איפה זה עומד: ${draft.statusNotes || "-"}`,
+  `התקדמות: ${draft.progress || "-"}`,
+  `דחוף: ${draft.urgent ? "כן" : "לא"}`,
+  `גליון: ${draft.sheetName}`,
+].join("\n");
+
 const shouldAutoExecutePlanning = (text: string) => {
   const normalized = text.trim();
   return [
@@ -116,6 +298,8 @@ const TabroAiAgent = () => {
   });
   const [loading, setLoading] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const defaultTaskSheetName = useMemo(() => String(new Date().getFullYear()), []);
+  const [taskWizard, setTaskWizard] = useState<TaskWizardState | null>(null);
   const [contextSummary, setContextSummary] = useState<AgentContextSummary>({
     urgentCount: 0,
     overdueCount: 0,
@@ -214,18 +398,220 @@ const TabroAiAgent = () => {
   const clearChat = () => {
     if (messages.length === 0) return;
     clearAndArchive();
+    setTaskWizard(null);
     toast.success("השיחה נוקתה ונשמרה בהיסטוריה");
   };
 
   const handleLoadConversation = (entry: { id: string; date: string; preview: string; messages: Message[] }) => {
     loadConversation(entry);
+    setTaskWizard(null);
     setShowHistory(false);
+  };
+
+  const startTaskWizard = (rawTriggerText: string, userMsg: Message) => {
+    const inferredType = inferTaskTypeFromText(rawTriggerText);
+    const draft = createTaskWizardDraft(defaultTaskSheetName);
+    const nextDraft = inferredType ? { ...draft, taskType: inferredType } : draft;
+    const nextStep: TaskWizardStep = inferredType ? "description" : "task_type";
+    const assistantPrompt = inferredType
+      ? `בשמחה. נפתח משימה חדשה באזור ${inferredType === "work" ? "עבודה" : "אישי"}.\n${getWizardQuestion("description", defaultTaskSheetName)}`
+      : `בשמחה. נפתח משימה חדשה.\n${getWizardQuestion("task_type", defaultTaskSheetName)}`;
+
+    setTaskWizard({ draft: nextDraft, step: nextStep });
+    setMessages([...messages, userMsg, { role: "assistant", content: assistantPrompt }]);
+    setInput("");
+  };
+
+  const finalizeTaskWizard = async (draft: TaskWizardDraft, conversation: Message[]) => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("tasks").insert({
+        user_id: user.id,
+        description: draft.description,
+        task_type: draft.taskType || "personal",
+        category: draft.category || null,
+        responsible: draft.responsible || null,
+        planned_end: draft.plannedEnd || null,
+        status: draft.status,
+        status_notes: draft.statusNotes || null,
+        progress: draft.progress || null,
+        urgent: Boolean(draft.urgent),
+        overdue: false,
+        archived: false,
+        sheet_name: draft.sheetName || defaultTaskSheetName,
+        creator_name: "Tabro AI",
+        creator_username: "tabro-ai",
+        creator_email: "ai@tabro.app",
+        last_editor_name: "Tabro AI",
+        last_editor_username: "tabro-ai",
+        last_editor_email: "ai@tabro.app",
+      });
+
+      if (error) throw error;
+
+      const successText = `המשימה נוספה בהצלחה.\n\n${buildTaskWizardSummary({
+        ...draft,
+        taskType: draft.taskType || "personal",
+        urgent: Boolean(draft.urgent),
+      })}`;
+
+      setMessages([...conversation, { role: "assistant", content: successText }]);
+      setTaskWizard(null);
+      toast.success(ACTION_LABELS.add_task);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Tabro AI task wizard error:", errorMessage);
+      setMessages([...conversation, { role: "assistant", content: "לא הצלחתי ליצור את המשימה כרגע. אפשר לנסות שוב." }]);
+    }
+    setLoading(false);
+  };
+
+  const handleTaskWizardResponse = async (rawInput: string) => {
+    if (!taskWizard) return;
+
+    const answer = rawInput.trim();
+    const normalized = normalizeWizardAnswer(answer);
+    const userMsg: Message = { role: "user", content: answer };
+    const baseConversation = [...messages, userMsg];
+
+    if (TASK_WIZARD_CANCEL_WORDS.has(normalized)) {
+      setTaskWizard(null);
+      setMessages([...baseConversation, { role: "assistant", content: "ביטלתי את יצירת המשימה." }]);
+      setInput("");
+      return;
+    }
+
+    const goToStep = (step: TaskWizardStep, draft: TaskWizardDraft, prefix?: string) => {
+      setTaskWizard({ draft, step });
+      setMessages([
+        ...baseConversation,
+        {
+          role: "assistant",
+          content: [prefix, step === "confirm"
+            ? `אלה הפרטים שאספתי:\n${buildTaskWizardSummary(draft)}\n\nכתוב 'אשר' כדי ליצור את המשימה, 'בטל' כדי לעצור, או ציין שדה לתיקון: תיאור / סיווג / אחריות / תאריך / סטטוס / איפה זה עומד / התקדמות / דחוף / גליון.`
+            : getWizardQuestion(step, defaultTaskSheetName)]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      ]);
+      setInput("");
+    };
+
+    const draft = { ...taskWizard.draft };
+
+    if (taskWizard.step === "confirm") {
+      if (TASK_WIZARD_CONFIRM_WORDS.has(normalized)) {
+        setInput("");
+        await finalizeTaskWizard(draft, baseConversation);
+        return;
+      }
+
+      const editStep = resolveWizardEditStep(answer);
+      if (editStep) {
+        goToStep(editStep, draft, "אין בעיה, נעדכן את השדה שביקשת.");
+        return;
+      }
+
+      goToStep("confirm", draft, "לא קלטתי אם לאשר או איזה שדה לתקן.");
+      return;
+    }
+
+    switch (taskWizard.step) {
+      case "task_type": {
+        const parsedType = inferTaskTypeFromText(answer);
+        if (!parsedType) {
+          goToStep("task_type", draft, "צריך לבחור אם זו משימת עבודה או משימה אישית.");
+          return;
+        }
+        draft.taskType = parsedType;
+        goToStep("description", draft);
+        return;
+      }
+      case "description": {
+        if (!answer) {
+          goToStep("description", draft, "צריך תיאור משימה כדי להמשיך.");
+          return;
+        }
+        draft.description = answer;
+        goToStep("category", draft);
+        return;
+      }
+      case "category": {
+        draft.category = TASK_WIZARD_SKIP_WORDS.has(normalized) ? "" : answer;
+        goToStep("responsible", draft);
+        return;
+      }
+      case "responsible": {
+        draft.responsible = TASK_WIZARD_SKIP_WORDS.has(normalized) ? "" : answer;
+        goToStep("planned_end", draft);
+        return;
+      }
+      case "planned_end": {
+        const parsedDate = parsePlannedEndInput(answer);
+        if (parsedDate === null) {
+          goToStep("planned_end", draft, "לא הצלחתי להבין את התאריך. אפשר לכתוב `2026-06-11`, `11/06/2026`, `היום`, `מחר`, או `דלג`.");
+          return;
+        }
+        draft.plannedEnd = parsedDate;
+        goToStep("status", draft);
+        return;
+      }
+      case "status": {
+        const parsedStatus = parseTaskStatus(answer);
+        if (!parsedStatus) {
+          goToStep("status", draft, "הסטטוס צריך להיות: טרם החל / בטיפול / בוצע.");
+          return;
+        }
+        draft.status = parsedStatus;
+        goToStep("status_notes", draft);
+        return;
+      }
+      case "status_notes": {
+        draft.statusNotes = TASK_WIZARD_SKIP_WORDS.has(normalized) ? "" : answer;
+        goToStep("progress", draft);
+        return;
+      }
+      case "progress": {
+        draft.progress = TASK_WIZARD_SKIP_WORDS.has(normalized) ? "" : answer;
+        goToStep("urgent", draft);
+        return;
+      }
+      case "urgent": {
+        const urgent = parseUrgentAnswer(answer);
+        if (urgent === null) {
+          goToStep("urgent", draft, "צריך לענות כאן 'כן' או 'לא'.");
+          return;
+        }
+        draft.urgent = urgent;
+        goToStep("sheet_name", draft);
+        return;
+      }
+      case "sheet_name": {
+        draft.sheetName = TASK_WIZARD_SKIP_WORDS.has(normalized) || !answer ? defaultTaskSheetName : answer;
+        goToStep("confirm", draft);
+        return;
+      }
+    }
   };
 
   const sendMessage = async (overrideInput?: string) => {
     const finalInput = (overrideInput ?? input).trim();
     if (!finalInput || !user || loading) return;
+
+    if (taskWizard) {
+      await handleTaskWizardResponse(finalInput);
+      return;
+    }
+
     const userMsg: Message = { role: "user", content: finalInput };
+
+    if (isTaskCreationRequest(finalInput)) {
+      startTaskWizard(finalInput, userMsg);
+      return;
+    }
+
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
