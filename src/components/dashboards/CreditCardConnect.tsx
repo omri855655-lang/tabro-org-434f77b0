@@ -38,6 +38,23 @@ const CARD_PROVIDERS = [
   { id: "other-card", labelHe: "כרטיס אחר", labelEn: "Other card", region: "GLOBAL" },
 ] as const;
 
+function getConnectionTableErrorMessage(
+  error: { code?: string; message?: string } | null,
+  isHe: boolean,
+) {
+  const normalized = (error?.message || "").toLowerCase();
+
+  if (error?.code === "42501" || normalized.includes("permission denied")) {
+    return isHe
+      ? "חיבורי האשראי עדיין לא פעילים בשרת כי חסרות הרשאות לטבלת הכרטיסים ב-Supabase."
+      : "Card connections are not active on the server yet because Supabase table permissions are missing.";
+  }
+
+  return isHe
+    ? "לא הצלחתי לטעון את מקורות האשראי כרגע."
+    : "Could not load credit card sources right now.";
+}
+
 function getSecureConnectionErrorMessage(
   error: { message?: string } | null,
   data: { error?: string; message?: string } | null | undefined,
@@ -64,6 +81,12 @@ function getSecureConnectionErrorMessage(
     return isHe ? "החיבור המאובטח נדחה בגלל הרשאה או טוקן לא תקין." : "The secure connection was rejected due to an authorization issue.";
   }
 
+  if (normalized.includes("non-2xx status code") || normalized.includes("functionsfetcherror")) {
+    return isHe
+      ? "שרת החיבור המאובטח לא מעודכן או נכשל ב-Supabase. צריך לפרוס את Edge Function וההגדרות של Salt Edge."
+      : "The secure connection backend is outdated or failing in Supabase. The Edge Function and Salt Edge server setup still need deployment.";
+  }
+
   if (normalized.includes("provider") && normalized.includes("not found")) {
     return isHe ? "ספק האשראי לא זמין כרגע דרך החיבור המאובטח." : "This card provider is not currently available through the secure connector.";
   }
@@ -79,6 +102,7 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
   const [saving, setSaving] = useState(false);
   const [secureConnecting, setSecureConnecting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [provider, setProvider] = useState<string>("isracard");
   const [displayName, setDisplayName] = useState("");
   const [lastDigits, setLastDigits] = useState("");
@@ -92,6 +116,7 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
     }
 
     setLoading(true);
+    setLoadError(null);
     const { data, error } = await supabase
       .from("credit_card_connections")
       .select("*")
@@ -100,13 +125,14 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
 
     if (error) {
       console.error("Failed to load credit card connections:", error);
-      toast.error(t("syncError" as any));
+      setLoadError(getConnectionTableErrorMessage(error, isHe));
+      setConnections([]);
     } else {
       setConnections(data || []);
     }
 
     setLoading(false);
-  }, [t, user]);
+  }, [isHe, user]);
 
   useEffect(() => {
     loadConnections();
@@ -184,7 +210,7 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
       });
 
       if (error) {
-        toast.error(t("syncError" as any));
+        toast.error(getConnectionTableErrorMessage(error, isHe));
         return;
       }
 
@@ -242,7 +268,7 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
       const { error } = await supabase.from("credit_card_connections").delete().eq("id", connectionId);
 
       if (error) {
-        toast.error(t("deleteError" as any));
+        toast.error(getConnectionTableErrorMessage(error, isHe));
         return;
       }
 
@@ -282,6 +308,14 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
               : "Israeli cards are supported through CSV / Excel import. Global cards can come through the Open Banking connection above or through statement files. Only expense rows are kept here for savings analysis."}
           </AlertDescription>
         </Alert>
+
+        {loadError && (
+          <Alert variant="destructive">
+            <Info className="h-4 w-4" />
+            <AlertTitle>{isHe ? "חיבור האשראי עדיין לא הושלם בשרת" : "Card connection setup is still incomplete on the server"}</AlertTitle>
+            <AlertDescription>{loadError}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
           <div className="space-y-1">

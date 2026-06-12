@@ -46,6 +46,12 @@ function getBankConnectionErrorMessage(
       : "The secure bank connection is not configured on the server yet. Salt Edge credentials are missing.";
   }
 
+  if (normalized.includes("non-2xx status code") || normalized.includes("functionsfetcherror")) {
+    return isHe
+      ? "שרת חיבור הבנק ב-Supabase עדיין לא מעודכן או נכשל בפריסה. צריך לפרוס את Edge Function של Salt Edge."
+      : "The bank connection backend in Supabase is outdated or failing. The Salt Edge Edge Function still needs deployment.";
+  }
+
   return isHe ? `שגיאת חיבור בנק: ${rawMessage}` : `Secure bank connection error: ${rawMessage}`;
 }
 
