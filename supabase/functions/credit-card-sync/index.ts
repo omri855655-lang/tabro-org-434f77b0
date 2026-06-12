@@ -32,13 +32,16 @@ Deno.serve(async (req) => {
     // This is a placeholder that updates the status. In production, this would call an external 
     // scraping service (e.g., Caspion API) or process uploaded CSV files.
     
-    await supabase.from("credit_card_connections").update({ 
-      sync_status: "pending",
-      sync_error: "Direct scraping not yet available. Please use CSV import.",
+    await supabase.from("credit_card_connections").update({
+      sync_status: "csv_ready",
+      sync_error: "Direct sync is not available for this source yet. Use CSV import or Open Banking when supported.",
       last_sync: new Date().toISOString(),
     }).eq("id", connectionId).eq("user_id", user.id);
 
-    return new Response(JSON.stringify({ success: true, message: "Use CSV import for now" }), {
+    return new Response(JSON.stringify({
+      success: true,
+      message: "Direct sync is not available for this source yet. Use CSV import or an Open Banking connection when supported.",
+    }), {
       headers: { ...corsH, "Content-Type": "application/json" },
     });
   } catch (e) {

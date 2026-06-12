@@ -6,6 +6,45 @@ const corsH = {
 };
 
 const SALT_EDGE_BASE = "https://www.saltedge.com/api/v5";
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
+function normalizeOrigin(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function getAllowedOrigin(candidate: string | null | undefined) {
+  const normalizedCandidate = normalizeOrigin(candidate);
+  const configuredOrigins = [
+    Deno.env.get("SITE_URL"),
+    ...(Deno.env.get("APP_ORIGINS") || "").split(","),
+  ]
+    .map((value) => normalizeOrigin(value))
+    .filter((value): value is string => Boolean(value));
+
+  const allowedOrigins = [...new Set(configuredOrigins)];
+  if (normalizedCandidate && allowedOrigins.length === 0) return normalizedCandidate;
+  if (normalizedCandidate && allowedOrigins.includes(normalizedCandidate)) return normalizedCandidate;
+  return allowedOrigins[0] ?? null;
+}
+
+function buildPopupResponse(payload: Record<string, unknown>, message: string, origin: string | null | undefined) {
+  const allowedOrigin = getAllowedOrigin(origin);
+  const postMessageScript = allowedOrigin
+    ? `window.opener&&window.opener.postMessage(${JSON.stringify(payload)},${JSON.stringify(allowedOrigin)});`
+    : "";
+
+  return new Response(
+    `<html><body><script>${postMessageScript}window.close();</script><p>${message}</p></body></html>`,
+    { headers: { "Content-Type": "text/html" } },
+  );
+}
 
 async function saltEdgeRequest(path: string, method: string, body?: any) {
   const res = await fetch(`${SALT_EDGE_BASE}${path}`, {
@@ -20,6 +59,36 @@ async function saltEdgeRequest(path: string, method: string, body?: any) {
   return res.json();
 }
 
+function buildFinancialTransactionRow(userId: string, connectionId: string, providerName: string | null, tx: Record<string, any>) {
+  const rawAmount = Number(tx.amount || 0);
+  const direction = rawAmount > 0 ? "income" : "expense";
+  const transactionDate = tx.made_on || tx.posted_on || new Date().toISOString().slice(0, 10);
+  const description =
+    tx.description ||
+    tx.extra?.original_description ||
+    tx.extra?.merchant_name ||
+    tx.extra?.merchant_id ||
+    "Bank Transaction";
+
+  return {
+    user_id: userId,
+    source_type: "bank_open_banking",
+    source_connection_id: connectionId || ZERO_UUID,
+    provider: providerName || tx.account_name || "Salt Edge",
+    external_transaction_id: String(tx.id || `${transactionDate}_${description}_${Math.abs(rawAmount)}`),
+    transaction_date: transactionDate,
+    posted_date: tx.posted_on || null,
+    amount: Math.abs(rawAmount),
+    currency: tx.currency_code || "ILS",
+    direction,
+    description,
+    merchant: tx.extra?.merchant_name || tx.extra?.merchant_id || null,
+    category: Array.isArray(tx.category) ? tx.category[0] : tx.category || null,
+    month_key: transactionDate.slice(0, 7),
+    raw_data: tx,
+  };
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const urlAction = url.searchParams.get("action");
@@ -28,6 +97,7 @@ Deno.serve(async (req) => {
   if (req.method === "GET" && urlAction === "callback") {
     const connectionId = url.searchParams.get("connection_id");
     const customerId = url.searchParams.get("customer_id");
+    const origin = url.searchParams.get("origin");
 
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -80,16 +150,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      return new Response(
-        `<html><body><script>window.opener&&window.opener.postMessage({type:'bank-connected',provider:'${providerName}'},'*');window.close();</script><p>Connected! You can close this window.</p></body></html>`,
-        { headers: { "Content-Type": "text/html" } }
+      return buildPopupResponse(
+        { source: "tabro-oauth", provider: "bank", type: "bank-connected", providerName },
+        "Connected! You can close this window.",
+        origin,
       );
     }
 
     // Error or cancelled
-    return new Response(
-      `<html><body><script>window.opener&&window.opener.postMessage({type:'bank-error'},'*');window.close();</script><p>Connection was not completed. You can close this window.</p></body></html>`,
-      { headers: { "Content-Type": "text/html" } }
+    return buildPopupResponse(
+      { source: "tabro-oauth", provider: "bank", type: "bank-error" },
+      "Connection was not completed. You can close this window.",
+      origin,
     );
   }
 
@@ -108,7 +180,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
 
-    const { action, connectionId } = await req.json();
+    const { action, connectionId, origin } = await req.json();
 
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -156,13 +228,18 @@ Deno.serve(async (req) => {
         customerId = custResult.data.id;
       }
 
-      const returnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/salt-edge-connect?action=callback`;
+      const returnUrl = new URL(`${Deno.env.get("SUPABASE_URL")}/functions/v1/salt-edge-connect`);
+      returnUrl.searchParams.set("action", "callback");
+      const normalizedOrigin = normalizeOrigin(typeof origin === "string" ? origin : req.headers.get("origin"));
+      if (normalizedOrigin) {
+        returnUrl.searchParams.set("origin", normalizedOrigin);
+      }
 
       const result = await saltEdgeRequest("/connect_sessions/create", "POST", {
         data: {
           customer_id: customerId,
           consent: { scopes: ["account_details", "transactions_details"] },
-          attempt: { return_to: returnUrl },
+          attempt: { return_to: returnUrl.toString() },
         },
       });
 
@@ -213,21 +290,48 @@ Deno.serve(async (req) => {
 
       let txCount = 0;
       if (txResult.data && Array.isArray(txResult.data)) {
-        for (const tx of txResult.data) {
-          const isIncome = tx.amount > 0;
-          await serviceClient.from("payment_tracking").upsert({
-            user_id: user.id,
-            title: tx.description || tx.extra?.merchant_id || "Bank Transaction",
-            amount: Math.abs(tx.amount),
-            currency: tx.currency_code || "ILS",
-            payment_type: isIncome ? "income" : "expense",
-            category: tx.category || null,
-            due_date: tx.made_on,
-            paid: true,
-            sheet_name: conn.provider_name || "Bank",
-            notes: `Salt Edge: ${tx.id}`,
-          } as any, { onConflict: "id" });
-          txCount++;
+        const expenseRows = txResult.data
+          .map((tx: Record<string, any>) => buildFinancialTransactionRow(user.id, conn.id, conn.provider_name, tx))
+          .filter((row: Record<string, any>) => row.direction === "expense" && row.amount > 0);
+
+        if (expenseRows.length > 0) {
+          const externalIds = expenseRows
+            .map((row: Record<string, any>) => row.external_transaction_id)
+            .filter((value: string | null) => Boolean(value));
+
+          const { data: existingRows, error: existingError } = await serviceClient
+            .from("financial_transactions")
+            .select("external_transaction_id")
+            .eq("user_id", user.id)
+            .eq("source_type", "bank_open_banking")
+            .eq("source_connection_id", conn.id)
+            .in("external_transaction_id", externalIds);
+
+          if (existingError) {
+            throw existingError;
+          }
+
+          const existingIds = new Set(
+            (existingRows || [])
+              .map((row: Record<string, any>) => row.external_transaction_id)
+              .filter((value: string | null) => Boolean(value)),
+          );
+
+          const rowsToInsert = expenseRows.filter(
+            (row: Record<string, any>) => !existingIds.has(row.external_transaction_id),
+          );
+
+          if (rowsToInsert.length > 0) {
+            const { error: insertError } = await serviceClient
+              .from("financial_transactions")
+              .insert(rowsToInsert as any);
+
+            if (insertError) {
+              throw insertError;
+            }
+          }
+
+          txCount = rowsToInsert.length;
         }
       }
 

@@ -13,7 +13,11 @@ import { importParsedFinancialTransactions } from "@/lib/financialImport";
 
 const CSV_SOURCE_CONNECTION_ID = "00000000-0000-0000-0000-000000000000";
 
-const FinancialCsvImport = () => {
+interface FinancialCsvImportProps {
+  onImported?: () => void | Promise<void>;
+}
+
+const FinancialCsvImport = ({ onImported }: FinancialCsvImportProps) => {
   const { user } = useAuth();
   const { lang } = useLanguage();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -98,6 +102,7 @@ const FinancialCsvImport = () => {
 
       setImportResult(result);
       setStep("done");
+      await onImported?.();
       toast.success(`${result.imported} ${lang === "he" ? "עסקאות יובאו בהצלחה" : "transactions imported successfully"}`);
     } catch (error) {
       console.error("Import error:", error);

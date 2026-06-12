@@ -1,15 +1,25 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, FileSpreadsheet, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { detectProvider, financialProviders, parseCSV, type ParsedTransaction } from "@/lib/financialProviders";
 import { importParsedFinancialTransactions, IMPORT_SOURCE_CONNECTION_ID } from "@/lib/financialImport";
 
-const CreditCardImport = () => {
+type CreditCardConnection = Database["public"]["Tables"]["credit_card_connections"]["Row"];
+const CREDIT_CARD_CONNECTIONS_EVENT = "tabro-credit-card-connections-changed";
+
+interface CreditCardImportProps {
+  onImported?: () => void | Promise<void>;
+}
+
+const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -17,8 +27,35 @@ const CreditCardImport = () => {
   const [providerId, setProviderId] = useState("");
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
+  const [connections, setConnections] = useState<CreditCardConnection[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState(IMPORT_SOURCE_CONNECTION_ID);
 
   const isRtl = lang === "he" || lang === "ar";
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadConnections = async () => {
+      const { data, error } = await supabase
+        .from("credit_card_connections")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (!error) {
+        setConnections(data || []);
+      }
+    };
+
+    loadConnections();
+
+    const handleConnectionsChanged = () => {
+      loadConnections();
+    };
+
+    window.addEventListener(CREDIT_CARD_CONNECTIONS_EVENT, handleConnectionsChanged);
+    return () => window.removeEventListener(CREDIT_CARD_CONNECTIONS_EVENT, handleConnectionsChanged);
+  }, [user]);
 
   const processText = (text: string) => {
     const { headers, rows } = parseCSV(text);
@@ -30,12 +67,14 @@ const CreditCardImport = () => {
       return;
     }
 
-    const parsed = provider.parse(rows, headers).filter((tx) => tx.amount > 0);
+    const parsed = provider
+      .parse(rows, headers)
+      .filter((tx) => tx.amount > 0 && tx.direction === "expense");
     setProviderId(provider.id);
     setTransactions(parsed);
 
     if (parsed.length === 0) {
-      toast.error(isRtl ? "לא נמצאו עסקאות בקובץ" : "No transactions found in file");
+      toast.error(isRtl ? "לא נמצאו הוצאות בקובץ" : "No expense transactions found in file");
     }
   };
 
@@ -74,17 +113,19 @@ const CreditCardImport = () => {
     setImporting(true);
 
     try {
+      const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
       const result = await importParsedFinancialTransactions({
         userId: user.id,
         parsed: transactions,
-        provider: providerId || "credit-card",
+        provider: selectedConnection?.provider || providerId || "credit-card",
         sourceType: "credit_card_import",
-        sourceConnectionId: IMPORT_SOURCE_CONNECTION_ID,
+        sourceConnectionId: selectedConnection?.id || IMPORT_SOURCE_CONNECTION_ID,
       });
 
+      await onImported?.();
       toast.success(
         isRtl
-          ? `${result.imported} עסקאות אשראי נשמרו`
+          ? `${result.imported} הוצאות אשראי נשמרו`
           : `${result.imported} credit card transactions saved`,
       );
       setTransactions([]);
@@ -108,6 +149,31 @@ const CreditCardImport = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {isRtl
+              ? "הייבוא שומר הוצאות אשראי בלבד, כדי לנתח הוצאה אמיתית ולא לערבב הכנסות."
+              : "This import keeps expense rows only so your budget reflects real card spending."}
+          </p>
+          <Select value={selectedConnectionId} onValueChange={setSelectedConnectionId}>
+            <SelectTrigger className="text-sm">
+              <SelectValue
+                placeholder={isRtl ? "בחר מקור כרטיס לשיוך הייבוא" : "Choose a card source for this import"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={IMPORT_SOURCE_CONNECTION_ID}>
+                {isRtl ? "כרטיס כללי / ללא שיוך" : "Generic card / unassigned"}
+              </SelectItem>
+              {connections.map((connection) => (
+                <SelectItem key={connection.id} value={connection.id}>
+                  {connection.display_name || connection.provider}
+                  {connection.card_last_digits ? ` • ****${connection.card_last_digits}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls" className="hidden" onChange={handleFileChange} />
         <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
           <Upload className="h-3 w-3 mr-1" />{isRtl ? "ייבוא CSV / Excel" : "Import CSV / Excel"}
@@ -123,6 +189,9 @@ const CreditCardImport = () => {
                   {(financialProviders.find((item) => item.id === providerId)?.nameHe) || providerId}
                 </Badge>
               )}
+              <Badge variant="outline">
+                {isRtl ? "הוצאות בלבד" : "Expenses only"}
+              </Badge>
             </div>
             <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
               {transactions.slice(0, 20).map((tx, i) => (
