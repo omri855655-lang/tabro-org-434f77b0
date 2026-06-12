@@ -24,6 +24,31 @@ const SUPABASE_FUNCTIONS_ORIGIN = (() => {
   }
 })();
 
+function getBankConnectionErrorMessage(
+  error: { message?: string } | null,
+  data: { error?: string; message?: string } | null | undefined,
+  isHe: boolean,
+) {
+  const rawMessage = data?.error || data?.message || error?.message || "";
+  const normalized = rawMessage.toLowerCase();
+
+  if (!rawMessage) {
+    return isHe ? "לא הצלחתי לפתוח חיבור בנק מאובטח" : "Could not open a secure bank connection";
+  }
+
+  if (
+    normalized.includes("salt_edge_app_id") ||
+    normalized.includes("salt_edge_secret") ||
+    normalized.includes("not configured on the server")
+  ) {
+    return isHe
+      ? "חיבור הבנק המאובטח עדיין לא מוגדר בשרת. צריך להגדיר מפתחות Salt Edge."
+      : "The secure bank connection is not configured on the server yet. Salt Edge credentials are missing.";
+  }
+
+  return isHe ? `שגיאת חיבור בנק: ${rawMessage}` : `Secure bank connection error: ${rawMessage}`;
+}
+
 const BankConnect = ({ onChanged }: BankConnectProps) => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
@@ -92,7 +117,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
       });
 
       if (error || !data?.connect_url) {
-        toast.error(t("bankConnectError" as any));
+        toast.error(getBankConnectionErrorMessage(error, data, isHe));
         return;
       }
 

@@ -38,6 +38,39 @@ const CARD_PROVIDERS = [
   { id: "other-card", labelHe: "כרטיס אחר", labelEn: "Other card", region: "GLOBAL" },
 ] as const;
 
+function getSecureConnectionErrorMessage(
+  error: { message?: string } | null,
+  data: { error?: string; message?: string } | null | undefined,
+  isHe: boolean,
+) {
+  const rawMessage = data?.error || data?.message || error?.message || "";
+  const normalized = rawMessage.toLowerCase();
+
+  if (!rawMessage) {
+    return isHe ? "לא הצלחתי לפתוח חיבור מאובטח לאשראי" : "Could not open a secure card connection";
+  }
+
+  if (
+    normalized.includes("salt_edge_app_id") ||
+    normalized.includes("salt_edge_secret") ||
+    normalized.includes("not configured on the server")
+  ) {
+    return isHe
+      ? "החיבור המאובטח לאשראי עדיין לא מוגדר בשרת. צריך להגדיר מפתחות Salt Edge."
+      : "The secure card connection is not configured on the server yet. Salt Edge credentials are missing.";
+  }
+
+  if (normalized.includes("unauthorized")) {
+    return isHe ? "החיבור המאובטח נדחה בגלל הרשאה או טוקן לא תקין." : "The secure connection was rejected due to an authorization issue.";
+  }
+
+  if (normalized.includes("provider") && normalized.includes("not found")) {
+    return isHe ? "ספק האשראי לא זמין כרגע דרך החיבור המאובטח." : "This card provider is not currently available through the secure connector.";
+  }
+
+  return isHe ? `שגיאת חיבור מאובטח: ${rawMessage}` : `Secure connection error: ${rawMessage}`;
+}
+
 const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
@@ -111,7 +144,7 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
       });
 
       if (error || !data?.connect_url) {
-        toast.error(isHe ? "לא הצלחתי לפתוח חיבור מאובטח לאשראי" : "Could not open a secure card connection");
+        toast.error(getSecureConnectionErrorMessage(error, data, isHe));
         return;
       }
 

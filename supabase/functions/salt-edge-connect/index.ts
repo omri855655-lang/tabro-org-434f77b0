@@ -8,6 +8,14 @@ const corsH = {
 const SALT_EDGE_BASE = "https://www.saltedge.com/api/v5";
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
+function requireEnv(name: string) {
+  const value = Deno.env.get(name);
+  if (!value) {
+    throw new Error(`${name} is not configured on the server`);
+  }
+  return value;
+}
+
 function normalizeOrigin(value: string | null | undefined) {
   if (!value) return null;
   try {
@@ -47,16 +55,37 @@ function buildPopupResponse(payload: Record<string, unknown>, message: string, o
 }
 
 async function saltEdgeRequest(path: string, method: string, body?: any) {
+  const appId = requireEnv("SALT_EDGE_APP_ID");
+  const secret = requireEnv("SALT_EDGE_SECRET");
   const res = await fetch(`${SALT_EDGE_BASE}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      "App-id": Deno.env.get("SALT_EDGE_APP_ID")!,
-      "Secret": Deno.env.get("SALT_EDGE_SECRET")!,
+      "App-id": appId,
+      "Secret": secret,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json();
+
+  const raw = await res.text();
+  let parsed: Record<string, any> | null = null;
+
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!res.ok) {
+    const message =
+      parsed?.error?.message ||
+      parsed?.message ||
+      raw ||
+      `Salt Edge request failed with status ${res.status}`;
+    throw new Error(message);
+  }
+
+  return parsed ?? {};
 }
 
 function buildFinancialTransactionRow(userId: string, connectionId: string, providerName: string | null, tx: Record<string, any>) {
