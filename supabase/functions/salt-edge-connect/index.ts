@@ -401,6 +401,14 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: corsH });
   } catch (e) {
     console.error("salt-edge-connect error:", e);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsH });
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: e instanceof Error ? e.message : "Unknown secure connection error",
+      }),
+      {
+        headers: { ...corsH, "Content-Type": "application/json" },
+      },
+    );
   }
 });
