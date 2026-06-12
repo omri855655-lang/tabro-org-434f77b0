@@ -10,11 +10,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CreditCard, Info, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { CreditCard, Info, Landmark, Loader2, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type CreditCardConnection = Database["public"]["Tables"]["credit_card_connections"]["Row"];
 const CREDIT_CARD_CONNECTIONS_EVENT = "tabro-credit-card-connections-changed";
+
+interface CreditCardConnectProps {
+  onChanged?: () => void | Promise<void>;
+}
+
+const SUPABASE_FUNCTIONS_ORIGIN = (() => {
+  try {
+    return new URL(import.meta.env.VITE_SUPABASE_URL).origin;
+  } catch {
+    return null;
+  }
+})();
 
 const CARD_PROVIDERS = [
   { id: "isracard", labelHe: "ישראכרט", labelEn: "Isracard", region: "IL" },
@@ -26,12 +38,13 @@ const CARD_PROVIDERS = [
   { id: "other-card", labelHe: "כרטיס אחר", labelEn: "Other card", region: "GLOBAL" },
 ] as const;
 
-const CreditCardConnect = () => {
+const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const [connections, setConnections] = useState<CreditCardConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [secureConnecting, setSecureConnecting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [provider, setProvider] = useState<string>("isracard");
   const [displayName, setDisplayName] = useState("");
@@ -65,6 +78,61 @@ const CreditCardConnect = () => {
   useEffect(() => {
     loadConnections();
   }, [loadConnections]);
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (SUPABASE_FUNCTIONS_ORIGIN && event.origin !== SUPABASE_FUNCTIONS_ORIGIN) return;
+      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "bank") return;
+
+      if (event.data?.type === "bank-connected") {
+        await onChanged?.();
+        toast.success(
+          isHe
+            ? `החיבור המאובטח הופעל. המקור יופיע באזור Open Banking${event.data?.providerName ? `: ${event.data.providerName}` : ""}`
+            : `Secure read-only connection enabled. It now appears under Open Banking${event.data?.providerName ? `: ${event.data.providerName}` : ""}`,
+        );
+      }
+
+      if (event.data?.type === "bank-error") {
+        toast.error(isHe ? "שגיאה בחיבור המאובטח" : "Error opening the secure connection");
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [isHe, onChanged]);
+
+  const handleSecureConnect = async () => {
+    setSecureConnecting(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("salt-edge-connect", {
+        body: { action: "create_connect_session", origin: window.location.origin },
+      });
+
+      if (error || !data?.connect_url) {
+        toast.error(isHe ? "לא הצלחתי לפתוח חיבור מאובטח לאשראי" : "Could not open a secure card connection");
+        return;
+      }
+
+      const popup = window.open(data.connect_url, "tabro-card-connect", "width=720,height=820");
+      if (!popup) {
+        toast.error(isHe ? "הדפדפן חסם את חלון החיבור" : "The browser blocked the connection popup");
+        return;
+      }
+
+      toast.success(
+        isHe
+          ? "נפתח מסך חיבור מאובטח. אם ספק האשראי נתמך, אפשר להתחבר שם בקריאה בלבד."
+          : "Secure connection opened. If the card provider is supported, you can connect there in read-only mode.",
+      );
+    } catch (error) {
+      console.error("Failed to start secure credit card connection:", error);
+      toast.error(isHe ? "שגיאה בחיבור המאובטח" : "Error opening the secure connection");
+    } finally {
+      setSecureConnecting(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!user) return;
@@ -181,6 +249,31 @@ const CreditCardConnect = () => {
               : "Israeli cards are supported through CSV / Excel import. Global cards can come through the Open Banking connection above or through statement files. Only expense rows are kept here for savings analysis."}
           </AlertDescription>
         </Alert>
+
+        <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              {isHe ? "חיבור מאובטח לקריאה בלבד" : "Secure read-only connection"}
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              {isHe
+                ? "זה המסלול הישיר למשיכת הוצאות מאפליקציית אשראי או מספק תומך. אם הספק לא מופיע בווידג'ט, נשארים עם CSV / Excel."
+                : "This is the direct path for pulling expenses from a supported card app or provider. If it does not appear in the widget, use CSV / Excel."}
+            </p>
+          </div>
+
+          <Button onClick={handleSecureConnect} disabled={secureConnecting} className="w-full sm:w-auto">
+            {secureConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Landmark className="mr-2 h-4 w-4" />}
+            {isHe ? "חבר אשראי מאובטח" : "Connect card securely"}
+          </Button>
+
+          <p className="text-xs text-muted-foreground">
+            {isHe
+              ? "אחרי החיבור, המקור יופיע ברשימת Open Banking למעלה וייסונכרנו ממנו רק הוצאות."
+              : "After connection, the source appears in the Open Banking list above and only expense transactions are synced."}
+          </p>
+        </div>
 
         <div className="rounded-lg border p-3 space-y-3">
           <div className="grid gap-3 md:grid-cols-2">

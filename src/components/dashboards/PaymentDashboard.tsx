@@ -1000,7 +1000,7 @@ ${context}
         <TabsContent value="credit-cards" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <BankConnect onChanged={fetchFinanceData} />
-            <CreditCardConnect />
+            <CreditCardConnect onChanged={fetchFinanceData} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <FinancialCsvImport onImported={fetchFinanceData} />
