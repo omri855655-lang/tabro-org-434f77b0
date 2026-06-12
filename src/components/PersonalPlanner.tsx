@@ -703,12 +703,15 @@ const PersonalPlanner = () => {
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    const edgeThreshold = 72;
-    const scrollStep = 28;
+    const edgeThreshold = 104;
 
     if (clientY < rect.top + edgeThreshold) {
+      const intensity = Math.min(1, (rect.top + edgeThreshold - clientY) / edgeThreshold);
+      const scrollStep = Math.round(34 + intensity * 86);
       container.scrollTop = Math.max(0, container.scrollTop - scrollStep);
     } else if (clientY > rect.bottom - edgeThreshold) {
+      const intensity = Math.min(1, (clientY - (rect.bottom - edgeThreshold)) / edgeThreshold);
+      const scrollStep = Math.round(28 + intensity * 66);
       container.scrollTop += scrollStep;
     }
   }, []);
@@ -718,12 +721,15 @@ const PersonalPlanner = () => {
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    const edgeThreshold = 64;
-    const scrollStep = 24;
+    const edgeThreshold = 116;
 
     if (clientY < rect.top + edgeThreshold) {
+      const intensity = Math.min(1, (rect.top + edgeThreshold - clientY) / edgeThreshold);
+      const scrollStep = Math.round(40 + intensity * 116);
       container.scrollTop = Math.max(0, container.scrollTop - scrollStep);
     } else if (clientY > rect.bottom - edgeThreshold) {
+      const intensity = Math.min(1, (clientY - (rect.bottom - edgeThreshold)) / edgeThreshold);
+      const scrollStep = Math.round(30 + intensity * 74);
       container.scrollTop += scrollStep;
     }
   }, []);

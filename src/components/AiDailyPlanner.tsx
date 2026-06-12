@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarClock, Loader2, Sparkles, AlertTriangle, Clock, CheckCircle2, Send, Copy, FileText, History, Plus, MessageSquareText } from 'lucide-react';
+import { CalendarClock, Loader2, Sparkles, AlertTriangle, Clock, CheckCircle2, Send, Copy, FileText, History, Plus, MessageSquareText, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -101,6 +101,8 @@ const AiDailyPlanner = () => {
   const [userInput, setUserInput] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState<string>('');
   const [plannerMode, setPlannerMode] = useState<PlannerMode>('daily_plan');
+  const [showPlanningProfile, setShowPlanningProfile] = useState(true);
+  const [showConversationSidebar, setShowConversationSidebar] = useState(false);
   const [planningProfile, setPlanningProfile] = useState<PlanningProfile>({
     range: 'today',
     dayType: 'unknown',
@@ -121,6 +123,19 @@ const AiDailyPlanner = () => {
       behavior: 'smooth',
     });
   }, [messages, loading]);
+
+  useEffect(() => {
+    if (!open || plannerMode !== 'planning_agent') return;
+
+    if (messages.length === 0) {
+      setShowPlanningProfile(true);
+      setShowConversationSidebar(false);
+      return;
+    }
+
+    setShowPlanningProfile(false);
+    setShowConversationSidebar(false);
+  }, [messages.length, open, plannerMode]);
 
   // Load conversation when dialog opens or date changes
   useEffect(() => {
@@ -581,7 +596,7 @@ ${taskSummary}
           <CalendarClock className="h-6 w-6" />
         </Button>
       </DialogTrigger>
-      <DialogContent className={`max-h-[88vh] flex flex-col ${plannerMode === 'planning_agent' ? 'max-w-5xl' : 'max-w-2xl'}`} dir="rtl">
+      <DialogContent className={`max-h-[92vh] h-[min(92vh,860px)] flex flex-col ${plannerMode === 'planning_agent' ? 'max-w-6xl' : 'max-w-2xl'}`} dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -614,6 +629,30 @@ ${taskSummary}
           </Button>
         </div>
 
+        {plannerMode === 'planning_agent' && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => setShowPlanningProfile((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+            >
+              {showPlanningProfile ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              אילוצים והעדפות
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowConversationSidebar((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+            >
+              {showConversationSidebar ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              היסטוריית שיחות
+            </button>
+            <div className="mr-auto text-xs text-muted-foreground">
+              {messages.length > 0 ? `${messages.length} הודעות בשיחה הנוכחית` : "הצ'אט מוכן לתכנון ושיבוץ"}
+            </div>
+          </div>
+        )}
+
         {plannerMode === 'daily_plan' && (
           <div className="flex items-center gap-2">
             <History className="h-4 w-4 text-muted-foreground" />
@@ -632,7 +671,7 @@ ${taskSummary}
           </div>
         )}
 
-        {plannerMode === 'planning_agent' && (
+        {plannerMode === 'planning_agent' && showPlanningProfile && (
           <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3 md:grid-cols-2">
             <Select
               value={planningProfile.range}
@@ -725,8 +764,8 @@ ${taskSummary}
           </div>
         )}
 
-        <div className={`min-h-0 flex-1 ${plannerMode === 'planning_agent' ? 'grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]' : ''}`}>
-          {plannerMode === 'planning_agent' && (
+        <div className={`min-h-0 flex-1 ${plannerMode === 'planning_agent' && showConversationSidebar ? 'grid gap-4 md:grid-cols-[260px_minmax(0,1fr)]' : ''}`}>
+          {plannerMode === 'planning_agent' && showConversationSidebar && (
             <div className="min-h-0 rounded-xl border border-border bg-muted/20">
               <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm font-medium">
                 <MessageSquareText className="h-4 w-4 text-primary" />
@@ -778,7 +817,7 @@ ${taskSummary}
           <div className="min-h-0 flex flex-col">
             <div
               ref={messageListRef}
-              className="min-h-[260px] flex-1 overflow-y-auto rounded-xl border border-border bg-muted/15 p-3"
+              className="min-h-[320px] flex-1 overflow-y-auto rounded-xl border border-border bg-muted/15 p-3"
             >
               <div className="space-y-4">
                 {messages.map((msg, idx) => (
@@ -820,13 +859,13 @@ ${taskSummary}
 
         {/* Input Area */}
         {(messages.length > 0 || plannerMode === 'planning_agent') && (
-          <div className="flex gap-2 pt-2 border-t">
+          <div className="shrink-0 flex gap-2 pt-2 border-t bg-background">
             <Textarea
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={plannerMode === 'planning_agent'
-                ? "כתוב מה תרצה לתכנן... למשל: תכנן לי את מחר ותשבץ למתכנן"
+                ? "כתוב מה תרצה לתכנן... למשל: תכנן לי את מחר, תשאל אותי שאלות חסרות, ואז תשבץ למתכנן"
                 : "בקש תיקונים... (למשל: 'התחל מ-14:00', 'הוסף נקיון הבית', 'בלי משימות עבודה')"}
               disabled={loading}
               className="min-h-[84px] flex-1 resize-none"

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, X, Send, Loader2, Trash2, History, ChevronRight, Flame, Clock3, CalendarDays, BrainCircuit } from "lucide-react";
+import { Bot, X, Send, Loader2, Trash2, History, ChevronRight, ChevronDown, ChevronUp, Flame, Clock3, CalendarDays, BrainCircuit } from "lucide-react";
 import { toast } from "sonner";
 import { useTabroAiHistory } from "@/hooks/useTabroAiHistory";
 import type { Json } from "@/integrations/supabase/types";
@@ -278,6 +278,8 @@ const TabroAiAgent = () => {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showInsightsPanel, setShowInsightsPanel] = useState(true);
+  const [showQuickActionsPanel, setShowQuickActionsPanel] = useState(false);
   const [input, setInput] = useState("");
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("general");
   const {
@@ -315,6 +317,19 @@ const TabroAiAgent = () => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (messages.length === 0) {
+      setShowInsightsPanel(true);
+      setShowQuickActionsPanel(true);
+      return;
+    }
+
+    setShowInsightsPanel(false);
+    setShowQuickActionsPanel(false);
+  }, [messages.length, open]);
 
   useEffect(() => {
     if (!user) return;
@@ -752,7 +767,7 @@ const TabroAiAgent = () => {
       )}
 
       {open && (
-        <div className="fixed left-4 bottom-20 z-50 w-[440px] max-w-[calc(100vw-2rem)] h-[620px] max-h-[calc(100vh-5rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
+        <div className="fixed left-4 bottom-20 z-50 w-[460px] max-w-[calc(100vw-2rem)] h-[680px] max-h-[calc(100vh-4rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
             <Bot className="h-5 w-5 text-primary" />
@@ -789,96 +804,124 @@ const TabroAiAgent = () => {
             </Select>
           </div>
 
-          <div className="px-3 py-3 border-b border-border bg-muted/20">
-            <div className="grid grid-cols-2 gap-2">
+          <div className="px-3 py-2 border-b border-border bg-muted/10">
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
-                onClick={() => queuePrompt("מה הכי דחוף לי לעשות עכשיו לפי מה שמסומן דחוף/באיחור ואירועי היום?")}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-[11px] font-medium hover:bg-muted transition-colors"
+                onClick={() => setShowInsightsPanel((prev) => !prev)}
               >
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <Flame className="h-4 w-4 text-orange-500" />
-                  דחוף ובאיחור
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  דחוף {contextSummary.urgentCount} · באיחור {contextSummary.overdueCount}
-                </div>
+                {showInsightsPanel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                תמונת מצב וכלים
               </button>
               <button
-                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
-                onClick={() => queuePrompt(shortTaskPrompt)}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-[11px] font-medium hover:bg-muted transition-colors"
+                onClick={() => setShowQuickActionsPanel((prev) => !prev)}
               >
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <Clock3 className="h-4 w-4 text-emerald-600" />
-                  משימות קצרות
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  עד 15 דק' · {contextSummary.shortTasks.length} מועמדות
-                </div>
+                {showQuickActionsPanel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                פעולות מהירות
               </button>
-              <button
-                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
-                onClick={() => queuePrompt(deepTaskPrompt)}
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <BrainCircuit className="h-4 w-4 text-blue-600" />
-                  בלוק פוקוס
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  45-120 דק' · {contextSummary.deepTasks.length} משימות עומק
-                </div>
-              </button>
-              <button
-                className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
-                onClick={() => queuePrompt("תן לי תמונת מצב: כמה מיילים ממתינים, כמה אירועים יש לי היום, ומה הכי נכון לשלב קודם.")}
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <CalendarDays className="h-4 w-4 text-violet-600" />
-                  היום שלי
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  {contextSummary.todayEventCount} אירועים · {contextSummary.pendingEmailCount} מיילים ממתינים
-                </div>
-              </button>
-            </div>
-
-            {(contextSummary.shortTasks.length > 0 || contextSummary.deepTasks.length > 0) && (
-              <div className="mt-3 space-y-2">
-                {contextSummary.shortTasks.length > 0 && (
-                  <div>
-                    <div className="mb-1 text-[10px] font-semibold text-muted-foreground">קצרות שאפשר לסגור מהר</div>
-                    <div className="flex flex-wrap gap-1">
-                      {contextSummary.shortTasks.map((task) => (
-                        <button
-                          key={`short-${task.id}`}
-                          className="rounded-full border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted transition-colors"
-                          onClick={() => queuePrompt(`האם כדאי לי לסגור עכשיו את "${task.title}"? זה נראה כמו משימה של ${formatDurationLabel(task.estimatedMinutes)}.`)}
-                        >
-                          {task.title.length > 26 ? `${task.title.slice(0, 26)}…` : task.title} · {formatDurationLabel(task.estimatedMinutes)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {contextSummary.deepTasks.length > 0 && (
-                  <div>
-                    <div className="mb-1 text-[10px] font-semibold text-muted-foreground">מועמדות לבלוק עומק</div>
-                    <div className="flex flex-wrap gap-1">
-                      {contextSummary.deepTasks.map((task) => (
-                        <button
-                          key={`deep-${task.id}`}
-                          className="rounded-full border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted transition-colors"
-                          onClick={() => queuePrompt(`אם אני נותן עכשיו בלוק פוקוס, תבחן את "${task.title}" כמשימה של בערך ${formatDurationLabel(task.estimatedMinutes)}.`)}
-                        >
-                          {task.title.length > 24 ? `${task.title.slice(0, 24)}…` : task.title} · {formatDurationLabel(task.estimatedMinutes)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              <div className="mr-auto text-[11px] text-muted-foreground">
+                {taskWizard
+                  ? `יצירת משימה: ${taskWizard.step === "confirm" ? "אישור סופי" : "ממלאים פרטים"}`
+                  : messages.length > 0
+                    ? `${messages.length} הודעות בשיחה`
+                    : "הצ'אט פתוח ומוכן לפעולה"}
               </div>
-            )}
+            </div>
           </div>
+
+          {showInsightsPanel && (
+            <div className="px-3 py-3 border-b border-border bg-muted/20 overflow-y-auto max-h-[220px]">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                  onClick={() => queuePrompt("מה הכי דחוף לי לעשות עכשיו לפי מה שמסומן דחוף/באיחור ואירועי היום?")}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    <Flame className="h-4 w-4 text-orange-500" />
+                    דחוף ובאיחור
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    דחוף {contextSummary.urgentCount} · באיחור {contextSummary.overdueCount}
+                  </div>
+                </button>
+                <button
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                  onClick={() => queuePrompt(shortTaskPrompt)}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    <Clock3 className="h-4 w-4 text-emerald-600" />
+                    משימות קצרות
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    עד 15 דק' · {contextSummary.shortTasks.length} מועמדות
+                  </div>
+                </button>
+                <button
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                  onClick={() => queuePrompt(deepTaskPrompt)}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    <BrainCircuit className="h-4 w-4 text-blue-600" />
+                    בלוק פוקוס
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    45-120 דק' · {contextSummary.deepTasks.length} משימות עומק
+                  </div>
+                </button>
+                <button
+                  className="rounded-xl border border-border bg-background px-3 py-2 text-right hover:bg-muted/60 transition-colors"
+                  onClick={() => queuePrompt("תן לי תמונת מצב: כמה מיילים ממתינים, כמה אירועים יש לי היום, ומה הכי נכון לשלב קודם.")}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    <CalendarDays className="h-4 w-4 text-violet-600" />
+                    היום שלי
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {contextSummary.todayEventCount} אירועים · {contextSummary.pendingEmailCount} מיילים ממתינים
+                  </div>
+                </button>
+              </div>
+
+              {(contextSummary.shortTasks.length > 0 || contextSummary.deepTasks.length > 0) && (
+                <div className="mt-3 space-y-2">
+                  {contextSummary.shortTasks.length > 0 && (
+                    <div>
+                      <div className="mb-1 text-[10px] font-semibold text-muted-foreground">קצרות שאפשר לסגור מהר</div>
+                      <div className="flex flex-wrap gap-1">
+                        {contextSummary.shortTasks.map((task) => (
+                          <button
+                            key={`short-${task.id}`}
+                            className="rounded-full border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                            onClick={() => queuePrompt(`האם כדאי לי לסגור עכשיו את "${task.title}"? זה נראה כמו משימה של ${formatDurationLabel(task.estimatedMinutes)}.`)}
+                          >
+                            {task.title.length > 26 ? `${task.title.slice(0, 26)}…` : task.title} · {formatDurationLabel(task.estimatedMinutes)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {contextSummary.deepTasks.length > 0 && (
+                    <div>
+                      <div className="mb-1 text-[10px] font-semibold text-muted-foreground">מועמדות לבלוק עומק</div>
+                      <div className="flex flex-wrap gap-1">
+                        {contextSummary.deepTasks.map((task) => (
+                          <button
+                            key={`deep-${task.id}`}
+                            className="rounded-full border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                            onClick={() => queuePrompt(`אם אני נותן עכשיו בלוק פוקוס, תבחן את "${task.title}" כמשימה של בערך ${formatDurationLabel(task.estimatedMinutes)}.`)}
+                          >
+                            {task.title.length > 24 ? `${task.title.slice(0, 24)}…` : task.title} · {formatDurationLabel(task.estimatedMinutes)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* History sidebar */}
           {showHistory && (
@@ -907,84 +950,93 @@ const TabroAiAgent = () => {
           )}
 
           {/* AI actions */}
-          <div className="px-3 py-2 border-b border-border bg-muted/20">
-            <div className="grid grid-cols-2 gap-2">
-              {assistantMode === "planning_agent" ? (
-                <>
-                  <button
-                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                    onClick={() => void runQuickPrompt("תכנן לי את היום לפי המשימות הדחופות, אירועים שכבר קיימים, והזמן הסביר של כל משימה. אם חסרים לך אילוצים - תשאל אותי קודם.")}
-                  >
-                    <span className="block text-xs font-semibold">תכנון היום</span>
-                    <span className="block text-[10px] text-muted-foreground">דחיפות, משכים ואילוצים</span>
-                  </button>
-                  <button
-                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                    onClick={() => void runQuickPrompt("תכנן לי שבוע קדימה. תשאל אותי מה ימי העבודה שלי, אילו אילוצים קבועים יש לי, ומה חייב להיכנס קודם.")}
-                  >
-                    <span className="block text-xs font-semibold">תכנון שבועי</span>
-                    <span className="block text-[10px] text-muted-foreground">שבוע עבודה, בית וקבועים</span>
-                  </button>
-                  <button
-                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                    onClick={() => void runQuickPrompt("בדוק לי אילו מיילים צריכים מענה, כמה זמן צפוי לטפל בכל אחד, ואיך כדאי לשבץ אותם בלוז.")}
-                  >
-                    <span className="block text-xs font-semibold">מיילים לטיפול</span>
-                    <span className="block text-[10px] text-muted-foreground">מי דורש תגובה ומתי</span>
-                  </button>
-                  <button
-                    className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                    onClick={() => void runQuickPrompt("תכנן לי את מחר ותשאל אותי קודם אם אני עובד, מאיזה שעה עד איזה שעה, והאם יש אימון או אילוץ קבוע.")}
-                  >
-                    <span className="block text-xs font-semibold">תכנון למחר</span>
-                    <span className="block text-[10px] text-muted-foreground">שאלות מקדימות ואחר כך שיבוץ</span>
-                  </button>
-                </>
-              ) : (
-                <>
-              {aiPrefs.dailyBriefingEnabled && (
-                <button
-                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt("תן לי עכשיו תדריך בוקר מלא וקבוע: פוקוס עיקרי, משימות דחופות, אירועים להיום, מיילים חשובים לפי קטגוריות, דברים שדורשים החלטה, ומה לעשות ראשון.")}
-                >
-                  <span className="block text-xs font-semibold">תדריך היום</span>
-                  <span className="block text-[10px] text-muted-foreground">סדר יום, דחופים והמלצה מה קודם</span>
-                </button>
-              )}
-              {aiPrefs.emailDigestEnabled && (
-                <button
-                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt("סכם לי עכשיו את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, מה אפשר לדחות, ומה הכי חשוב לי לטפל בו קודם.")}
-                >
-                  <span className="block text-xs font-semibold">סיכום מיילים</span>
-                  <span className="block text-[10px] text-muted-foreground">מה חשוב, מה דחוף, ומה ממתין</span>
-                </button>
-              )}
-              {aiPrefs.newsBriefingEnabled && (
-                <button
-                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt(`בנה לי תדריך חדשות בוקר לפי תחומי העניין שלי: ${aiPrefs.newsTopics || "חדשות כלליות"}. אם אין מקור חדשות חי, תגיד לי בקצרה מה חסר.`)}
-                >
-                  <span className="block text-xs font-semibold">תדריך חדשות</span>
-                  <span className="block text-[10px] text-muted-foreground">{aiPrefs.newsTopics || "לא הוגדרו תחומים"}</span>
-                </button>
-              )}
-              {aiPrefs.reminderEnabled && (
-                <button
-                  className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
-                  onClick={() => void runQuickPrompt(`תן לי תזכורת מסודרת סביב ${aiPrefs.reminderTime}, כולל מה חשוב לי לא לפספס היום.`)}
-                >
-                  <span className="block text-xs font-semibold">תזכורת AI</span>
-                  <span className="block text-[10px] text-muted-foreground">שמורה לשעה {aiPrefs.reminderTime}</span>
-                </button>
-              )}
-                </>
-              )}
+          {showQuickActionsPanel && (
+            <div className="px-3 py-2 border-b border-border bg-muted/20 overflow-y-auto max-h-[190px]">
+              <div className="grid grid-cols-2 gap-2">
+                {assistantMode === "planning_agent" ? (
+                  <>
+                    <button
+                      className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                      onClick={() => void runQuickPrompt("תכנן לי את היום לפי המשימות הדחופות, אירועים שכבר קיימים, והזמן הסביר של כל משימה. אם חסרים לך אילוצים - תשאל אותי קודם.")}
+                    >
+                      <span className="block text-xs font-semibold">תכנון היום</span>
+                      <span className="block text-[10px] text-muted-foreground">דחיפות, משכים ואילוצים</span>
+                    </button>
+                    <button
+                      className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                      onClick={() => void runQuickPrompt("תכנן לי שבוע קדימה. תשאל אותי מה ימי העבודה שלי, אילו אילוצים קבועים יש לי, ומה חייב להיכנס קודם.")}
+                    >
+                      <span className="block text-xs font-semibold">תכנון שבועי</span>
+                      <span className="block text-[10px] text-muted-foreground">שבוע עבודה, בית וקבועים</span>
+                    </button>
+                    <button
+                      className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                      onClick={() => void runQuickPrompt("בדוק לי אילו מיילים צריכים מענה, כמה זמן צפוי לטפל בכל אחד, ואיך כדאי לשבץ אותם בלוז.")}
+                    >
+                      <span className="block text-xs font-semibold">מיילים לטיפול</span>
+                      <span className="block text-[10px] text-muted-foreground">מי דורש תגובה ומתי</span>
+                    </button>
+                    <button
+                      className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                      onClick={() => void runQuickPrompt("תכנן לי את מחר ותשאל אותי קודם אם אני עובד, מאיזה שעה עד איזה שעה, והאם יש אימון או אילוץ קבוע.")}
+                    >
+                      <span className="block text-xs font-semibold">תכנון למחר</span>
+                      <span className="block text-[10px] text-muted-foreground">שאלות מקדימות ואחר כך שיבוץ</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                      onClick={() => setInput("אני רוצה להוסיף משימה")}
+                    >
+                      <span className="block text-xs font-semibold">הוסף משימה</span>
+                      <span className="block text-[10px] text-muted-foreground">הסוכן ישאל אותך את כל השדות</span>
+                    </button>
+                    {aiPrefs.dailyBriefingEnabled && (
+                      <button
+                        className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                        onClick={() => void runQuickPrompt("תן לי עכשיו תדריך בוקר מלא וקבוע: פוקוס עיקרי, משימות דחופות, אירועים להיום, מיילים חשובים לפי קטגוריות, דברים שדורשים החלטה, ומה לעשות ראשון.")}
+                      >
+                        <span className="block text-xs font-semibold">תדריך היום</span>
+                        <span className="block text-[10px] text-muted-foreground">סדר יום, דחופים והמלצה מה קודם</span>
+                      </button>
+                    )}
+                    {aiPrefs.emailDigestEnabled && (
+                      <button
+                        className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                        onClick={() => void runQuickPrompt("סכם לי עכשיו את המיילים האחרונים שסונכרנו לפי קטגוריות, מה דורש תגובה, מה אפשר לדחות, ומה הכי חשוב לי לטפל בו קודם.")}
+                      >
+                        <span className="block text-xs font-semibold">סיכום מיילים</span>
+                        <span className="block text-[10px] text-muted-foreground">מה חשוב, מה דחוף, ומה ממתין</span>
+                      </button>
+                    )}
+                    {aiPrefs.newsBriefingEnabled && (
+                      <button
+                        className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                        onClick={() => void runQuickPrompt(`בנה לי תדריך חדשות בוקר לפי תחומי העניין שלי: ${aiPrefs.newsTopics || "חדשות כלליות"}. אם אין מקור חדשות חי, תגיד לי בקצרה מה חסר.`)}
+                      >
+                        <span className="block text-xs font-semibold">תדריך חדשות</span>
+                        <span className="block text-[10px] text-muted-foreground">{aiPrefs.newsTopics || "לא הוגדרו תחומים"}</span>
+                      </button>
+                    )}
+                    {aiPrefs.reminderEnabled && (
+                      <button
+                        className="rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors px-3 py-2 text-right"
+                        onClick={() => void runQuickPrompt(`תן לי תזכורת מסודרת סביב ${aiPrefs.reminderTime}, כולל מה חשוב לי לא לפספס היום.`)}
+                      >
+                        <span className="block text-xs font-semibold">תזכורת AI</span>
+                        <span className="block text-[10px] text-muted-foreground">שמורה לשעה {aiPrefs.reminderTime}</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3">
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 bg-background/50">
             <div className="space-y-3">
               {messages.length === 0 && (
                 <div className="text-center text-muted-foreground text-sm py-8 space-y-2">
@@ -1082,7 +1134,7 @@ const TabroAiAgent = () => {
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-border">
+          <div className="shrink-0 p-3 border-t border-border bg-background/95 backdrop-blur">
             {pendingAction && assistantMode === "planning_agent" && (
               <div className="mb-2 flex gap-2">
                 <Button className="flex-1" size="sm" onClick={confirmPendingAction} disabled={loading}>
@@ -1121,6 +1173,12 @@ const TabroAiAgent = () => {
                     onClick={() => queuePrompt("חלק לי את המשימות שלי לקצרות, בינוניות ועמוקות עם זמן משוער לכל אחת.")}
                   >
                     חלוקת זמנים
+                  </button>
+                  <button
+                    className="rounded-full border border-border px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                    onClick={() => setInput("אני רוצה להוסיף משימה")}
+                  >
+                    הוסף משימה
                   </button>
                 </div>
                 <Button onClick={sendMessage} disabled={loading || !input.trim()} className="shrink-0">
