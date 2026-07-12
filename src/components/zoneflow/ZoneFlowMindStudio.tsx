@@ -1,0 +1,1267 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  BrainCircuit,
+  CalendarDays,
+  CheckCircle2,
+  Circle,
+  Flame,
+  MapPin,
+  Mic,
+  RefreshCcw,
+  Send,
+  Sparkles,
+  Star,
+  Target,
+  Trophy,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import { cn } from "@/lib/utils";
+import { safeLocalStorage } from "@/lib/safeLocalStorage";
+import { useTabroAiHistory } from "@/hooks/useTabroAiHistory";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+type MindTab = "home" | "journeys" | "coach" | "numbers" | "stars";
+type CoachIntensity = 1 | 2 | 3 | 4 | 5;
+
+interface JourneyDay {
+  day: number;
+  title: string;
+  body: string;
+  prompt: string;
+}
+
+interface MindJourney {
+  id: string;
+  title: string;
+  subtitle: string;
+  summary: string;
+  duration: number;
+  minutes: number;
+  questions: number;
+  accent: string;
+  accentSoft: string;
+  icon: string;
+  coachPrompt: string;
+  days: JourneyDay[];
+}
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+type SpeechRecognitionResultLike = {
+  transcript: string;
+};
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>>;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  }
+}
+
+const DAILY_TIPS = [
+  "המטרה שלך לא נעלמה. פשוט עצרת נשימה. קח אותה בחזרה.",
+  "פעולה קטנה עכשיו עדיפה על תכנון מושלם שלא מתחיל.",
+  "גם אם היום מבולגן, אפשר להציל ממנו בלוק אחד טוב.",
+  "אם יש פחד, תן לו שם. כשהוא מקבל שם, הוא מאבד קצת כוח.",
+  "לפעמים ההתקדמות היא לא מהירות אלא חזרה למסלול.",
+  "משימה שמפחידה אותך לא חייבת להיעלם, רק להתחלק לחלק הראשון.",
+  "כשאתה עייף, תבחר בגרסה עדינה יותר של ההצלחה.",
+];
+
+const NUMEROLOGY_MEANINGS: Record<number, { title: string; summary: string; action: string }> = {
+  1: { title: "יוזם", summary: "אתה נועד להתחיל, להנהיג וליצור תנופה.", action: "בחר היום צעד ראשון אחד ואל תחכה לחשק." },
+  2: { title: "רגיש ומחבר", summary: "הכוח שלך נמצא בשיתוף פעולה, רגש ודיוק בין אנשים.", action: "בדוק איזה שיתוף פעולה יוריד ממך עומס." },
+  3: { title: "יוצר ומבטא", summary: "יש לך כוח דרך מילים, יצירה והבעה אישית.", action: "כתוב 5 שורות שמסדרות את הראש במקום להחזיק הכל בפנים." },
+  4: { title: "בונה יציב", summary: "אתה מתקדם דרך מבנה, שגרה וקרקע בטוחה.", action: "ארגן למשימה מסגרת: שעה, מקום, והגדרה ברורה לסיום." },
+  5: { title: "זז ומתחדש", summary: "אתה זקוק לחופש, גיוון ותנועה כדי להרגיש חי.", action: "שנה סביבה או קצב עבודה כדי להניע את עצמך." },
+  6: { title: "מטפל ומאזן", summary: "יש בך אחריות, חמלה ודחף לסדר הרמוניה.", action: "שמור גבול אחד היום כדי לא להחזיק הכל לבד." },
+  7: { title: "חוקר פנימי", summary: "אתה צריך שקט, עומק והבנה לפני פעולה גדולה.", action: "תן לעצמך 20 דקות בלי רעש, ואז חזור לבחור צעד." },
+  8: { title: "מממש", summary: "יש לך כישרון להפוך חזון לתוצאה בעולם האמיתי.", action: "הגדר תוצאה מדידה אחת להיום במקום כוונה כללית." },
+  9: { title: "רואה רחב", summary: "אתה מונע ממשמעות, תרומה וסגירת מעגלים.", action: "שאל את עצמך איזו משימה תשחרר הכי הרבה מקום בלב." },
+  11: { title: "אינטואיציה גבוהה", summary: "אתה קולט דקויות מהר, אבל צריך לעגן אותן לקרקע.", action: "חבר בין אינטואיציה לפעולה אחת קטנה ומעשית." },
+  22: { title: "בונה חזון", summary: "אתה יכול להחזיק רעיון גדול וגם לפרק אותו לביצוע.", action: "המר חלום גדול לשני אבני דרך פשוטות." },
+  33: { title: "מנחה ומרפא", summary: "האנרגיה שלך מזמינה ריפוי, השראה והכוונה.", action: "בחר מסר אחד מרגיע שילווה אותך לאורך היום." },
+};
+
+const ZODIAC_SIGNS = [
+  { id: "aries", name: "טלה", start: [3, 21], end: [4, 19], vibe: "אש יוזמת" },
+  { id: "taurus", name: "שור", start: [4, 20], end: [5, 20], vibe: "קרקע יציבה" },
+  { id: "gemini", name: "תאומים", start: [5, 21], end: [6, 20], vibe: "תנועה מחשבתית" },
+  { id: "cancer", name: "סרטן", start: [6, 21], end: [7, 22], vibe: "רגש והגנה" },
+  { id: "leo", name: "אריה", start: [7, 23], end: [8, 22], vibe: "נוכחות וביטוי" },
+  { id: "virgo", name: "בתולה", start: [8, 23], end: [9, 22], vibe: "דיוק וריפוי" },
+  { id: "libra", name: "מאזניים", start: [9, 23], end: [10, 22], vibe: "איזון וקשרים" },
+  { id: "scorpio", name: "עקרב", start: [10, 23], end: [11, 21], vibe: "עומק ושינוי" },
+  { id: "sagittarius", name: "קשת", start: [11, 22], end: [12, 21], vibe: "חזון וחופש" },
+  { id: "capricorn", name: "גדי", start: [12, 22], end: [1, 19], vibe: "משמעת ובנייה" },
+  { id: "aquarius", name: "דלי", start: [1, 20], end: [2, 18], vibe: "חדשנות ומבט עתידי" },
+  { id: "pisces", name: "דגים", start: [2, 19], end: [3, 20], vibe: "דמיון ורגישות" },
+] as const;
+
+const HOROSCOPE_FOCUS = [
+  "אל תרוץ לפתור הכל. בחר דבר אחד שיחזיר שליטה.",
+  "היום מתאים לשיחה שמפוגגת ערפל ולא לעוד ניחושים.",
+  "רוגע יחזור דרך מסגרת קטנה, לא דרך עומס יתר.",
+  "אם יש התלבטות, בדוק איפה הגוף נרגע ואיפה הוא נסגר.",
+  "היום מבקש ממך פחות הוכחה ויותר הקשבה פנימית.",
+  "יש ערך בלסגור קצוות לפני פתיחת התחייבות חדשה.",
+  "הפעולה הנכונה היום היא בדרך כלל הפשוטה יותר, לא הדרמטית.",
+];
+
+const HOROSCOPE_ACTIONS = [
+  "קבע חלון של 25 דקות למשימה שמפחידה אותך.",
+  "שלח הודעה אחת שהתחמקת ממנה.",
+  "פנה 10 דקות לסדר פיזי כדי להקל על הראש.",
+  "כתוב שלוש שורות: מה מלחיץ, מה בשליטתי, מה הצעד הראשון.",
+  "צא להליכה קצרה לפני שאתה מכריע לגבי דבר חשוב.",
+  "העבר משימה אחת מ'יום אחד' ל'מתי בדיוק'.",
+  "שחרר משימה שלא באמת שייכת לך.",
+];
+
+const JOURNEYS: MindJourney[] = [
+  {
+    id: "task-paralysis",
+    title: "להפשיר תקיעות מול משימות",
+    subtitle: "מסלול עדין להתחלה מחדש בלי אלימות עצמית",
+    summary: "כשיש עומס, מוח מוצף, או פחד להתחיל, אנחנו מחזירים תנועה דרך צעדים קטנים ובטוחים.",
+    duration: 7,
+    minutes: 9,
+    questions: 3,
+    accent: "from-[#2b1cff] via-[#4530ff] to-[#6d73ff]",
+    accentSoft: "bg-[#eef0ff] text-[#3327d8]",
+    icon: "🧊",
+    coachPrompt: "אני קפוא מול משימה ולא מצליח להתחיל.",
+    days: [
+      { day: 1, title: "להקטין את החיכוך", body: "בחר משימה אחת שתקועה. אל תנסה לפתור אותה, רק לפרק אותה לצעד של 5 דקות.", prompt: "מהו הצעד הכי קטן שלא דורש ממך אומץ גדול?" },
+      { day: 2, title: "להוציא מהראש", body: "כתוב למה אתה נמנע. עומס, פחד לטעות, חוסר ודאות, עייפות או התנגדות.", prompt: "מה באמת מפחיד אותך במשימה הזאת?" },
+      { day: 3, title: "להתחיל בזמן מוגן", body: "פתח בלוק קצר של 15 דקות. מותר להפסיק בסוף, העיקר להתחיל בצורה בטוחה.", prompt: "איזה חלון זמן היום מרגיש הכי פחות מאיים?" },
+      { day: 4, title: "לצמצם החלטות", body: "הכן מראש מסמך, טאבים, טלפון על שקט, וכל מה שמבלבל בתחילת עבודה.", prompt: "מה אפשר להכין מראש כדי שההתחלה תהיה כמעט אוטומטית?" },
+      { day: 5, title: "להפריד בין ערך לביצוע", body: "המשימה לא מגדירה אותך. היא רק פעולה אחת בתוך יום אחד.", prompt: "איזה משפט היית רוצה לשמוע ממישהו שמאמין בך?" },
+      { day: 6, title: "לייצר ניצחון נראה לעין", body: "סגור משהו קטן באמת. תגובה, תיוק, טיוטה, הודעה, או בדיקה אחת.", prompt: "מה אפשר לסיים היום כדי שהמוח ירגיש תזוזה?" },
+      { day: 7, title: "לייצב שגרה", body: "בחר טקס פתיחה קבוע למשימות קשות: מים, נשימה, טיימר, מסך נקי, והתחלה.", prompt: "איזה טקס קצר אתה רוצה לאמץ מעכשיו?" },
+    ],
+  },
+  {
+    id: "money-stress",
+    title: "להרגיע חרדה סביב כסף",
+    subtitle: "להחליף ערפל כלכלי בשקיפות עדינה",
+    summary: "הכסף מלחיץ בעיקר כשאין תמונה ברורה. כאן אנחנו בונים בהירות בלי להציף אותך.",
+    duration: 7,
+    minutes: 10,
+    questions: 4,
+    accent: "from-[#17335c] via-[#235fb0] to-[#2fc0ff]",
+    accentSoft: "bg-[#e7f5ff] text-[#0d5eaa]",
+    icon: "💸",
+    coachPrompt: "אני לחוץ מכסף ומרגיש שאני דוחה התמודדות.",
+    days: [
+      { day: 1, title: "מבט נקי", body: "לא מנסים לפתור הכל, רק להסתכל. רשום שלוש הוצאות שמכבידות עליך כרגע.", prompt: "מה הדבר הכלכלי שהכי יושב עליך עכשיו?" },
+      { day: 2, title: "להבדיל בין עובדה לפחד", body: "כתוב שתי עמודות: מה ידוע בוודאות, ומה רק תסריט שאתה מריץ בראש.", prompt: "איזו מחשבה נראית מאיימת אבל לא בטוח שהיא עובדה?" },
+      { day: 3, title: "נקודת שליטה אחת", body: "בחר פעולה כלכלית פשוטה: לבדוק חיוב, לבטל מינוי, או לכתוב סכום יעד.", prompt: "איזו פעולה אחת תיתן לך תחושת שליטה?" },
+      { day: 4, title: "להקטין בושה", body: "כסף הוא מיומנות ומערכת, לא הוכחה לערך העצמי שלך.", prompt: "על מה אתה שופט את עצמך כלכלית יותר מדי?" },
+      { day: 5, title: "לסמן חיסכון ריאלי", body: "מצא דליפה אחת קטנה שאפשר לצמצם השבוע בלי לפגוע בחיים שלך.", prompt: "מה אפשר להוריד בלי להרגיש ענישה?" },
+      { day: 6, title: "לתעדף שקט", body: "בחר הוצאה אחת שחשוב לך להבין לפני כל דבר אחר.", prompt: "איזו אי ודאות כספית הכי חשובה לבירור?" },
+      { day: 7, title: "לסגור מעגל", body: "סכם מה למדת השבוע וכתוב מה הפעולה הבאה לחודש הקרוב.", prompt: "מה אתה רוצה לזכור בפעם הבאה שהלחץ חוזר?" },
+    ],
+  },
+  {
+    id: "people-pleasing",
+    title: "פחות לרצות, יותר לנשום",
+    subtitle: "להחזיר גבול בלי אשמה",
+    summary: "אם קשה לך לאכזב, להגיד לא, או לבחור את עצמך, המסלול הזה יוצר מרחב בטוח יותר.",
+    duration: 7,
+    minutes: 8,
+    questions: 3,
+    accent: "from-[#6b2cff] via-[#9f55ff] to-[#ff7dcf]",
+    accentSoft: "bg-[#f6ebff] text-[#8537db]",
+    icon: "🫶",
+    coachPrompt: "אני שם את כולם לפניי ואז נגמר לי הכוח.",
+    days: [
+      { day: 1, title: "לזהות את האוטומט", body: "שים לב מתי אתה אומר כן מהר מדי כדי להימנע מאי נוחות.", prompt: "איפה אמרת כן למרות שרצית לעצור?" },
+      { day: 2, title: "לנשום לפני תגובה", body: "במקום לענות מיד, תן לעצמך משפט ביניים: 'אחזור אליך'.", prompt: "איזה משפט ביניים ישמור עליך?" },
+      { day: 3, title: "להבדיל בין אכפתיות להצלה", body: "לא כל צורך של אחר הוא אחריות שלך.", prompt: "מה אתה לוקח על עצמך שלא באמת שייך לך?" },
+      { day: 4, title: "אשמה היא לא בהכרח אמת", body: "הרגשת אשמה לא אומרת שעשית משהו לא טוב.", prompt: "מה אתה מפחד שיחשבו עליך אם תבחר בעצמך?" },
+      { day: 5, title: "גבול קטן", body: "קבע גבול אחד זעיר: שעה, משך שיחה, משימה שאתה לא מקבל.", prompt: "איזה גבול קטן יקל עליך מיד?" },
+      { day: 6, title: "בחירת האנרגיה", body: "שאל את עצמך מי ממלא אותך ומי שואב אותך.", prompt: "איפה אתה צריך פחות זמינות?" },
+      { day: 7, title: "קול פנימי חדש", body: "החלף את 'אני חייב' ב'אני בוחר'.", prompt: "מה משתנה כשאתה עובר משפה של חובה לשפה של בחירה?" },
+    ],
+  },
+  {
+    id: "emotional-reconnect",
+    title: "חיבור מחדש לרגש",
+    subtitle: "כשיש ניתוק, עומס או קהות",
+    summary: "לפעמים אי אפשר לעבוד כי אנחנו בכלל לא מרגישים את עצמנו. כאן חוזרים לאט לקרקע.",
+    duration: 7,
+    minutes: 12,
+    questions: 4,
+    accent: "from-[#31214e] via-[#6b55b8] to-[#9ac6ff]",
+    accentSoft: "bg-[#eef1ff] text-[#5a4ab4]",
+    icon: "🌙",
+    coachPrompt: "אני מרגיש מנותק מעצמי ולא מצליח להבין מה קורה לי.",
+    days: [
+      { day: 1, title: "לבדוק את הגוף", body: "עצור ל-60 שניות ושאל איפה בגוף יש כיווץ, עייפות או חוסר שקט.", prompt: "איפה הגוף מדבר הכי חזק היום?" },
+      { day: 2, title: "לתת שם למצב", body: "בחר שלוש מילים שמתקרבות למה שעובר עליך בלי לנסות לדייק מושלם.", prompt: "מה שלוש המילים של היום?" },
+      { day: 3, title: "מותר לא לדעת", body: "לא חייבים מיד להבין הכול. מספיק להישאר לרגע עם מה שיש.", prompt: "מה קורה כשאתה מפסיק לדרוש מעצמך תשובה מיידית?" },
+      { day: 4, title: "לעגן משהו נעים", body: "חפש דבר קטן שמחזיר נוכחות: אור, מים, הליכה, מוזיקה או כתיבה.", prompt: "מה מחזיר אותך לעצמך בדרך הכי עדינה?" },
+      { day: 5, title: "לזהות צורך", body: "מתחת לרגש יש לרוב צורך: מנוחה, גבול, קרבה, בהירות, שקט.", prompt: "איזה צורך שלך לא קיבל מקום לאחרונה?" },
+      { day: 6, title: "לבקש עזרה ברורה", body: "לא 'קשה לי', אלא מה בדיוק יעזור עכשיו.", prompt: "אם היית מבקש עזרה אחת ספציפית, מה היית מבקש?" },
+      { day: 7, title: "לסמן עוגן להמשך", body: "בחר הרגל רך לימים עמוסים: 5 דקות כתיבה, נשימה, או בדיקת גוף.", prompt: "איזה עוגן אתה לוקח איתך הלאה?" },
+    ],
+  },
+];
+
+const getDateStrip = (selectedOffset: number) => {
+  const today = new Date();
+  return Array.from({ length: 7 }, (_, index) => {
+    const offset = index - selectedOffset;
+    const date = new Date(today);
+    date.setDate(today.getDate() + offset);
+    return {
+      key: date.toISOString().slice(0, 10),
+      date,
+      offset,
+      dayNumber: date.getDate(),
+      weekday: new Intl.DateTimeFormat("he-IL", { weekday: "short" }).format(date),
+    };
+  }).reverse();
+};
+
+const reduceNumber = (value: number): number => {
+  if ([11, 22, 33].includes(value)) return value;
+  let current = value;
+  while (current > 9) {
+    current = String(current)
+      .split("")
+      .reduce((sum, digit) => sum + Number(digit), 0);
+    if ([11, 22, 33].includes(current)) return current;
+  }
+  return current;
+};
+
+const getLifePathNumber = (birthDate: string) => {
+  const digits = birthDate.replaceAll("-", "").split("").map(Number);
+  return reduceNumber(digits.reduce((sum, digit) => sum + digit, 0));
+};
+
+const getAttitudeNumber = (birthDate: string) => {
+  const date = new Date(birthDate);
+  return reduceNumber(date.getMonth() + 1 + date.getDate());
+};
+
+const getPersonalYearNumber = (birthDate: string, currentDate: Date) => {
+  const date = new Date(birthDate);
+  const yearDigits = String(currentDate.getFullYear()).split("").map(Number);
+  return reduceNumber(date.getDate() + (date.getMonth() + 1) + yearDigits.reduce((sum, digit) => sum + digit, 0));
+};
+
+const getPersonalMonthNumber = (personalYear: number, currentDate: Date) => {
+  return reduceNumber(personalYear + currentDate.getMonth() + 1);
+};
+
+const getPersonalDayNumber = (personalMonth: number, currentDate: Date) => {
+  return reduceNumber(personalMonth + currentDate.getDate());
+};
+
+const getZodiacSign = (birthDate: string) => {
+  const date = new Date(birthDate);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  const found = ZODIAC_SIGNS.find((sign) => {
+    const [startMonth, startDay] = sign.start;
+    const [endMonth, endDay] = sign.end;
+
+    if (startMonth <= endMonth) {
+      return (month === startMonth && day >= startDay) || (month === endMonth && day <= endDay) || (month > startMonth && month < endMonth);
+    }
+
+    return (
+      (month === startMonth && day >= startDay) ||
+      (month === endMonth && day <= endDay) ||
+      month > startMonth ||
+      month < endMonth
+    );
+  });
+
+  return found ?? ZODIAC_SIGNS[0];
+};
+
+const hashString = (value: string) => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+};
+
+interface ZoneFlowMindStudioProps {
+  isLight: boolean;
+}
+
+export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
+  const [activeTab, setActiveTab] = useState<MindTab>(() => {
+    const saved = safeLocalStorage.getString("zoneflow-mind-tab", "home");
+    return (saved as MindTab) || "home";
+  });
+  const [selectedOffset, setSelectedOffset] = useState(0);
+  const [selectedJourneyId, setSelectedJourneyId] = useState(() => {
+    return safeLocalStorage.getString("zoneflow-mind-selected-journey", JOURNEYS[0].id) || JOURNEYS[0].id;
+  });
+  const [completedDays, setCompletedDays] = useState<string[]>(() => safeLocalStorage.getJSON("zoneflow-mind-completed-days", []));
+  const [journalEntries, setJournalEntries] = useState<Record<string, string>>(() => safeLocalStorage.getJSON("zoneflow-mind-journal", {}));
+  const [birthDate, setBirthDate] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "");
+  const [birthCity, setBirthCity] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcity", "") || "");
+  const [coachInput, setCoachInput] = useState("");
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [coachIntensity, setCoachIntensity] = useState<CoachIntensity>(3);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const coachScrollRef = useRef<HTMLDivElement | null>(null);
+  const {
+    messages,
+    setMessages,
+    conversationHistory,
+    clearAndArchive,
+    loadConversation,
+  } = useTabroAiHistory("zoneflow-mind-ai");
+
+  useEffect(() => {
+    safeLocalStorage.setString("zoneflow-mind-tab", activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    safeLocalStorage.setString("zoneflow-mind-selected-journey", selectedJourneyId);
+  }, [selectedJourneyId]);
+
+  useEffect(() => {
+    safeLocalStorage.setJSON("zoneflow-mind-completed-days", completedDays);
+  }, [completedDays]);
+
+  useEffect(() => {
+    safeLocalStorage.setJSON("zoneflow-mind-journal", journalEntries);
+  }, [journalEntries]);
+
+  useEffect(() => {
+    safeLocalStorage.setString("zoneflow-mind-birthdate", birthDate);
+  }, [birthDate]);
+
+  useEffect(() => {
+    safeLocalStorage.setString("zoneflow-mind-birthcity", birthCity);
+  }, [birthCity]);
+
+  useEffect(() => {
+    if (coachScrollRef.current) {
+      coachScrollRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, coachLoading]);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
+
+  const stripDays = useMemo(() => getDateStrip(selectedOffset), [selectedOffset]);
+  const selectedJourney = useMemo(
+    () => JOURNEYS.find((journey) => journey.id === selectedJourneyId) ?? JOURNEYS[0],
+    [selectedJourneyId],
+  );
+
+  const completedCount = useMemo(() => {
+    return completedDays.filter((key) => key.startsWith(`${selectedJourney.id}:`)).length;
+  }, [completedDays, selectedJourney.id]);
+
+  const totalCompletedCount = completedDays.length;
+  const selectedProgress = Math.round((completedCount / selectedJourney.duration) * 100);
+  const totalProgress = Math.min(100, Math.round((totalCompletedCount / 14) * 100));
+
+  const dailyTip = DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length];
+
+  const achievements = useMemo(() => {
+    return [
+      { id: "first-step", title: "ניצחון ראשון", description: "השלמת יום ראשון", unlocked: totalCompletedCount >= 1 },
+      { id: "motion", title: "יוצא מתקיעות", description: "3 ימים של תנועה", unlocked: totalCompletedCount >= 3 },
+      { id: "week", title: "שבוע של עקביות", description: "7 ימים הושלמו", unlocked: totalCompletedCount >= 7 },
+      { id: "builder", title: "בונה מערכת", description: "14 ימים הושלמו", unlocked: totalCompletedCount >= 14 },
+    ];
+  }, [totalCompletedCount]);
+
+  const numerology = useMemo(() => {
+    if (!birthDate) return null;
+    const now = new Date();
+    const lifePath = getLifePathNumber(birthDate);
+    const attitude = getAttitudeNumber(birthDate);
+    const personalYear = getPersonalYearNumber(birthDate, now);
+    const personalMonth = getPersonalMonthNumber(personalYear, now);
+    const personalDay = getPersonalDayNumber(personalMonth, now);
+
+    return { lifePath, attitude, personalYear, personalMonth, personalDay };
+  }, [birthDate]);
+
+  const zodiac = useMemo(() => {
+    if (!birthDate) return null;
+    return getZodiacSign(birthDate);
+  }, [birthDate]);
+
+  const horoscope = useMemo(() => {
+    if (!zodiac) return null;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const seed = hashString(`${zodiac.id}:${todayKey}:${birthCity || "home"}`);
+    return {
+      focus: HOROSCOPE_FOCUS[seed % HOROSCOPE_FOCUS.length],
+      action: HOROSCOPE_ACTIONS[seed % HOROSCOPE_ACTIONS.length],
+      mood: [
+        "יש רגישות גבוהה למה שמכביד עליך באמת.",
+        "היום מתאים לדיוק, פחות לפיזור.",
+        "יש סיכוי לפריצת דרך אם תבחר בבהירות ולא בדחיינות.",
+        "זה יום טוב לרכך שיפוט עצמי ולחזור לקצב נכון.",
+      ][seed % 4],
+    };
+  }, [birthCity, zodiac]);
+
+  const toggleDayCompletion = (day: number) => {
+    const key = `${selectedJourney.id}:${day}`;
+    setCompletedDays((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
+  };
+
+  const updateJournal = (day: number, value: string) => {
+    setJournalEntries((prev) => ({ ...prev, [`${selectedJourney.id}:${day}`]: value }));
+  };
+
+  const resetJourney = () => {
+    setCompletedDays((prev) => prev.filter((item) => !item.startsWith(`${selectedJourney.id}:`)));
+    setJournalEntries((prev) => {
+      const next = { ...prev };
+      selectedJourney.days.forEach((day) => {
+        delete next[`${selectedJourney.id}:${day.day}`];
+      });
+      return next;
+    });
+  };
+
+  const sendCoachMessage = async (prefill?: string) => {
+    const text = (prefill ?? coachInput).trim();
+    if (!text || coachLoading) return;
+
+    const userMessage: Message = { role: "user", content: text };
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
+    setCoachInput("");
+    setCoachLoading(true);
+
+    const context = [
+      `עוצמת הקושי כרגע: ${coachIntensity} מתוך 5`,
+      `נושא מיקוד: ${selectedJourney.title}`,
+      birthCity ? `מקום מגורים: ${birthCity}` : null,
+      `בקשה: ${text}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("task-ai-helper", {
+        body: {
+          taskDescription: context,
+          taskCategory: "mental_coaching",
+          conversationHistory: nextMessages,
+        },
+      });
+
+      if (error) throw error;
+
+      const reply = data?.suggestion || data?.reply || "אני כאן איתך. בוא נבחר צעד ראשון עדין.";
+      setMessages([...nextMessages, { role: "assistant", content: reply }]);
+    } catch (error) {
+      console.error("ZoneFlow mind AI error:", error);
+      toast.error("לא הצלחתי לקבל תשובה מהמאמן כרגע");
+      setMessages([
+        ...nextMessages,
+        {
+          role: "assistant",
+          content: "אני כאן איתך. כרגע הייתה בעיית חיבור, אבל אפשר כבר עכשיו לבחור צעד ראשון קטן של 5 דקות ולחזור לנסות.",
+        },
+      ]);
+    } finally {
+      setCoachLoading(false);
+    }
+  };
+
+  const startVoiceCapture = () => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      toast.error("זיהוי קולי לא זמין בדפדפן הזה");
+      return;
+    }
+
+    recognitionRef.current?.stop();
+    const recognition = new Recognition();
+    recognition.lang = "he-IL";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+      if (transcript) {
+        setCoachInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      }
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const shellCard = isLight
+    ? "border-[#dfe5ff] bg-white/95 shadow-[0_20px_70px_rgba(69,48,255,0.08)]"
+    : "border-white/10 bg-[#10172d]/85 shadow-[0_20px_70px_rgba(9,12,31,0.45)]";
+
+  const softPanel = isLight ? "bg-[#f3f4ff] border-[#dfe5ff]" : "bg-white/5 border-white/10";
+  const subtleText = isLight ? "text-slate-500" : "text-slate-300/70";
+  const titleText = isLight ? "text-slate-900" : "text-white";
+  const inputClass = isLight
+    ? "border-[#d7dcff] bg-white text-slate-900 placeholder:text-slate-400"
+    : "border-white/10 bg-white/5 text-white placeholder:text-white/35";
+
+  return (
+    <div className="space-y-4" dir="rtl">
+      <Card className={cn("overflow-hidden border", shellCard)}>
+        <CardContent className="p-0">
+          <div className="bg-gradient-to-br from-[#1f1acb] via-[#3f33ff] to-[#8f95ff] px-5 py-6 text-white">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  ZoneFlow Mind
+                </div>
+                <h2 className="text-2xl font-bold">מרחב מנטלי בתוך ZoneFlow</h2>
+                <p className="max-w-3xl text-sm text-white/80">
+                  אזור נפרד לרגעים של תקיעות, חרדה סביב משימות, עומס רגשי או צורך בכיוון רך יותר. הוא בנוי בשביל להחזיר תנועה, לא להלחיץ עוד יותר.
+                </p>
+              </div>
+              <div className="grid min-w-[220px] grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-white/12 p-3">
+                  <div className="text-xs text-white/70">התקדמות כוללת</div>
+                  <div className="mt-1 text-2xl font-bold">{totalCompletedCount}</div>
+                  <div className="text-xs text-white/70">ימים מסומנים</div>
+                </div>
+                <div className="rounded-2xl bg-white/12 p-3">
+                  <div className="text-xs text-white/70">פוקוס פעיל</div>
+                  <div className="mt-1 text-sm font-semibold">{selectedJourney.title}</div>
+                  <div className="text-xs text-white/70">{selectedJourney.duration} ימים</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+              {stripDays.map((item) => {
+                const isSelected = item.offset === 0;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setSelectedOffset(-item.offset)}
+                    className={cn(
+                      "min-w-[84px] rounded-2xl border px-3 py-3 text-center transition-all",
+                      isSelected ? "border-white/30 bg-white text-[#2b1cff]" : "border-white/15 bg-white/10 text-white",
+                    )}
+                  >
+                    <div className="text-xs opacity-80">{item.weekday}</div>
+                    <div className="mt-1 text-2xl font-bold">{item.dayNumber}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as MindTab)}>
+        <TabsList className={cn("grid w-full grid-cols-5 rounded-2xl p-1", isLight ? "bg-[#ecefff]" : "bg-white/5")}>
+          <TabsTrigger value="home">בית</TabsTrigger>
+          <TabsTrigger value="journeys">מסלולים</TabsTrigger>
+          <TabsTrigger value="coach">AI מנטלי</TabsTrigger>
+          <TabsTrigger value="numbers">מפה נומרולוגית</TabsTrigger>
+          <TabsTrigger value="stars">הורוסקופ</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {activeTab === "home" && (
+        <div className="space-y-4">
+          <Card className={cn("overflow-hidden border", shellCard)}>
+            <CardContent className="grid gap-4 p-5 md:grid-cols-[1.35fr_0.8fr]">
+              <div className={cn("rounded-[28px] bg-gradient-to-br p-5 text-white", selectedJourney.accent)}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-sm text-white/75">משימה חדשה לגרסה רגועה יותר שלך</div>
+                    <h3 className="mt-2 text-3xl font-bold">{selectedJourney.title}</h3>
+                    <p className="mt-2 max-w-xl text-sm text-white/80">{selectedJourney.summary}</p>
+                  </div>
+                  <div className="text-5xl">{selectedJourney.icon}</div>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => setActiveTab("journeys")}
+                    className="rounded-full bg-white text-[#2b1cff] hover:bg-white/90"
+                  >
+                    פתח מסלול
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActiveTab("coach");
+                      setCoachInput(selectedJourney.coachPrompt);
+                    }}
+                    className="rounded-full border-white/25 bg-white/10 text-white hover:bg-white/20"
+                  >
+                    דבר עם ה־AI
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Card className={cn("border", softPanel)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Sparkles className="h-4 w-4 text-[#4530ff]" />
+                      טיפ למוטיבציה
+                    </div>
+                    <p className={cn("mt-3 text-base leading-7", titleText)}>{dailyTip}</p>
+                  </CardContent>
+                </Card>
+                <Card className={cn("border", softPanel)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold">התקדמות במסלול הפעיל</div>
+                        <div className={cn("text-xs", subtleText)}>
+                          {completedCount} מתוך {selectedJourney.duration} ימים
+                        </div>
+                      </div>
+                      <div className={cn("rounded-full px-3 py-1 text-xs", selectedJourney.accentSoft)}>
+                        {selectedProgress}%
+                      </div>
+                    </div>
+                    <Progress value={selectedProgress} className="mt-4 h-2.5" />
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr]">
+            <Card className={cn("overflow-hidden border", shellCard)}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-xl">מרחב גילוי עצמי</CardTitle>
+                  <Button variant="ghost" className={cn("rounded-full px-3 text-xs", titleText)} onClick={() => setActiveTab("journeys")}>
+                    הצג הכל
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="px-5 pb-5">
+                <Carousel opts={{ align: "start" }} className="w-full">
+                  <CarouselContent>
+                    {JOURNEYS.map((journey) => {
+                      const journeyProgress = Math.round(
+                        (completedDays.filter((item) => item.startsWith(`${journey.id}:`)).length / journey.duration) * 100,
+                      );
+                      return (
+                        <CarouselItem key={journey.id} className="basis-[85%] md:basis-1/2 xl:basis-1/3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedJourneyId(journey.id);
+                              setActiveTab("journeys");
+                            }}
+                            className="h-full w-full text-right"
+                          >
+                            <Card className="h-full overflow-hidden border-[#dfe5ff] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-white/5">
+                              <div className={cn("h-40 bg-gradient-to-br", journey.accent)} />
+                              <CardContent className="space-y-3 p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-lg font-semibold">{journey.title}</div>
+                                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-300/70">{journey.subtitle}</div>
+                                  </div>
+                                  <div className="text-3xl">{journey.icon}</div>
+                                </div>
+                                <div className="flex gap-2 text-xs">
+                                  <span className={cn("rounded-full px-2 py-1", journey.accentSoft)}>{journey.questions} שאלות</span>
+                                  <span className={cn("rounded-full px-2 py-1", journey.accentSoft)}>{journey.minutes} דק'</span>
+                                </div>
+                                <Progress value={journeyProgress} className="h-2" />
+                              </CardContent>
+                            </Card>
+                          </button>
+                        </CarouselItem>
+                      );
+                    })}
+                  </CarouselContent>
+                  <CarouselPrevious className="hidden md:flex" />
+                  <CarouselNext className="hidden md:flex" />
+                </Carousel>
+              </CardContent>
+            </Card>
+
+            <Card className={cn("border", shellCard)}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">הישגים והתקדמות</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 p-5">
+                <div className={cn("rounded-3xl border p-4", softPanel)}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">אתגר רצף</div>
+                      <div className={cn("text-xs", subtleText)}>מטרה רכה: 14 ימים של תנועה</div>
+                    </div>
+                    <div className="text-xl font-bold">{totalCompletedCount}/14</div>
+                  </div>
+                  <Progress value={totalProgress} className="mt-4 h-2.5" />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {achievements.map((achievement) => (
+                    <div
+                      key={achievement.id}
+                      className={cn(
+                        "rounded-3xl border p-4 text-right transition",
+                        achievement.unlocked
+                          ? "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
+                          : softPanel,
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Trophy className={cn("h-4 w-4", achievement.unlocked ? "text-amber-500" : "text-slate-400")} />
+                        <div className="font-semibold">{achievement.title}</div>
+                      </div>
+                      <div className={cn("mt-2 text-sm", subtleText)}>{achievement.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "journeys" && (
+        <div className="grid gap-4 xl:grid-cols-[0.92fr_1.38fr]">
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">המסלולים שלך</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5">
+              {JOURNEYS.map((journey) => {
+                const journeyProgress = Math.round(
+                  (completedDays.filter((item) => item.startsWith(`${journey.id}:`)).length / journey.duration) * 100,
+                );
+                const isActiveJourney = journey.id === selectedJourney.id;
+                return (
+                  <button
+                    key={journey.id}
+                    type="button"
+                    onClick={() => setSelectedJourneyId(journey.id)}
+                    className={cn(
+                      "w-full rounded-3xl border p-4 text-right transition",
+                      isActiveJourney
+                        ? "border-[#4a40ff] bg-[#eef0ff] shadow-sm dark:border-[#736cff] dark:bg-[#2a2460]"
+                        : softPanel,
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-semibold">{journey.title}</div>
+                        <div className={cn("mt-1 text-sm", subtleText)}>{journey.subtitle}</div>
+                      </div>
+                      <div className="text-3xl">{journey.icon}</div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className={cn("rounded-full px-2 py-1", journey.accentSoft)}>{journey.duration} ימים</span>
+                      <span className={cn("rounded-full px-2 py-1", journey.accentSoft)}>{journey.minutes} דק'</span>
+                    </div>
+                    <Progress value={journeyProgress} className="mt-4 h-2" />
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-2xl">{selectedJourney.title}</CardTitle>
+                  <p className={cn("mt-1 text-sm", subtleText)}>{selectedJourney.summary}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={resetJourney} className="rounded-full">
+                    <RefreshCcw className="h-4 w-4 ml-1" />
+                    התחל מחדש
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setActiveTab("coach");
+                      setCoachInput(selectedJourney.coachPrompt);
+                    }}
+                    className="rounded-full bg-[#4530ff] hover:bg-[#3421d9]"
+                  >
+                    <BrainCircuit className="h-4 w-4 ml-1" />
+                    AI למסלול הזה
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="mb-4 rounded-3xl border border-[#dfe5ff] bg-[#f5f6ff] p-4 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold">התקדמות במסלול</div>
+                    <div className={cn("text-xs", subtleText)}>
+                      {completedCount} מתוך {selectedJourney.duration} ימים הושלמו
+                    </div>
+                  </div>
+                  <div className={cn("rounded-full px-3 py-1 text-xs", selectedJourney.accentSoft)}>{selectedProgress}%</div>
+                </div>
+                <Progress value={selectedProgress} className="mt-4 h-2.5" />
+              </div>
+
+              <ScrollArea className="h-[680px] pr-1">
+                <div className="space-y-4">
+                  {selectedJourney.days.map((day) => {
+                    const dayKey = `${selectedJourney.id}:${day.day}`;
+                    const isDone = completedDays.includes(dayKey);
+                    return (
+                      <Card key={dayKey} className={cn("border", isDone ? "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10" : softPanel)}>
+                        <CardContent className="space-y-4 p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-xs font-medium text-[#4530ff]">יום {day.day}</div>
+                              <div className="mt-1 text-lg font-semibold">{day.title}</div>
+                              <p className={cn("mt-2 text-sm leading-7", subtleText)}>{day.body}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleDayCompletion(day.day)}
+                              className="shrink-0"
+                            >
+                              {isDone ? <CheckCircle2 className="h-6 w-6 text-emerald-500" /> : <Circle className="h-6 w-6 text-slate-400" />}
+                            </button>
+                          </div>
+
+                          <div className="rounded-2xl border border-[#dfe5ff] bg-white/80 p-3 dark:border-white/10 dark:bg-black/10">
+                            <div className="text-sm font-medium">שאלת היום</div>
+                            <div className={cn("mt-2 text-sm", titleText)}>{day.prompt}</div>
+                          </div>
+
+                          <Textarea
+                            value={journalEntries[dayKey] || ""}
+                            onChange={(event) => updateJournal(day.day, event.target.value)}
+                            placeholder="לרשימות שלך..."
+                            className={cn("min-h-[96px] resize-none", inputClass)}
+                          />
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "coach" && (
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.4fr]">
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">המאמן המנטלי שלך</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5">
+              <div className={cn("rounded-3xl border p-4", softPanel)}>
+                <div className="text-sm font-semibold">איך אתה מרגיש עכשיו?</div>
+                <div className="mt-3 grid grid-cols-5 gap-2">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setCoachIntensity(level as CoachIntensity)}
+                      className={cn(
+                        "rounded-2xl border px-2 py-3 text-sm font-medium transition",
+                        coachIntensity === level
+                          ? "border-[#4530ff] bg-[#eef0ff] text-[#2b1cff] dark:border-[#736cff] dark:bg-[#2a2460] dark:text-white"
+                          : softPanel,
+                      )}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={cn("rounded-3xl border p-4", softPanel)}>
+                <div className="text-sm font-semibold">התחלות מהירות</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[
+                    "אני קפוא מול משימה",
+                    "אני מוצף ואין לי סדר",
+                    "אני מפחד להתחיל כי אכשל",
+                    "תעזור לי לפרק את זה לצעד ראשון",
+                    selectedJourney.coachPrompt,
+                  ].map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => sendCoachMessage(prompt)}
+                      className="rounded-full border border-[#dfe5ff] bg-white px-3 py-2 text-right text-xs text-slate-700 transition hover:border-[#4530ff] hover:text-[#2b1cff] dark:border-white/10 dark:bg-white/5 dark:text-white/85"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={cn("rounded-3xl border p-4", softPanel)}>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">היסטוריית שיחות</div>
+                  <Button variant="ghost" className="h-auto rounded-full px-2 py-1 text-xs" onClick={clearAndArchive}>
+                    ארכב את השיחה הנוכחית
+                  </Button>
+                </div>
+                <ScrollArea className="mt-3 h-[220px]">
+                  <div className="space-y-2 pl-2">
+                    {conversationHistory.length === 0 && (
+                      <div className={cn("rounded-2xl border p-3 text-sm", softPanel)}>
+                        כאן יישמרו שיחות קודמות כדי שתוכל לחזור אליהן.
+                      </div>
+                    )}
+                    {conversationHistory.map((conversation) => (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        onClick={() => loadConversation(conversation)}
+                        className={cn("w-full rounded-2xl border p-3 text-right transition hover:border-[#4530ff]", softPanel)}
+                      >
+                        <div className="text-sm font-medium">{conversation.preview}</div>
+                        <div className={cn("mt-1 text-xs", subtleText)}>{conversation.date}</div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-2xl">שיחה פעילה</CardTitle>
+                  <p className={cn("mt-1 text-sm", subtleText)}>
+                    המאמן מכוון לרגשות, תקיעות, דחיינות וקושי להתחיל, ולא רק לפרודוקטיביות "קשוחה".
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={startVoiceCapture}
+                    className={cn("rounded-full", isListening && "border-rose-400 text-rose-500")}
+                  >
+                    <Mic className="h-4 w-4 ml-1" />
+                    {isListening ? "מקשיב..." : "קול"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setMessages([])} className="rounded-full">
+                    שיחה חדשה
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5">
+              <ScrollArea className="h-[520px] rounded-3xl border border-[#dfe5ff] bg-[#f7f8ff] p-4 dark:border-white/10 dark:bg-[#0f1630]">
+                <div className="space-y-3">
+                  {messages.length === 0 && (
+                    <div className="rounded-3xl border border-dashed border-[#d8deff] bg-white/80 p-5 text-center dark:border-white/10 dark:bg-white/5">
+                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#eef0ff] text-[#4530ff] dark:bg-[#2a2460] dark:text-white">
+                        <BrainCircuit className="h-7 w-7" />
+                      </div>
+                      <div className="text-lg font-semibold">איך אתה באמת מרגיש מול היום?</div>
+                      <p className={cn("mx-auto mt-2 max-w-xl text-sm leading-7", subtleText)}>
+                        אפשר לכתוב חופשי, לבקש פירוק למשימה, לדבר על תקיעות, על פחד להתחיל, על עומס, או על הצורך לעשות סדר רגשי לפני ביצוע.
+                      </p>
+                    </div>
+                  )}
+
+                  {messages.map((message, index) => (
+                    <div
+                      key={`${message.role}-${index}`}
+                      className={cn(
+                        "max-w-[88%] rounded-3xl px-4 py-3 text-sm leading-7",
+                        message.role === "user"
+                          ? "mr-auto bg-[#4530ff] text-white"
+                          : isLight
+                            ? "bg-white text-slate-800 shadow-sm"
+                            : "bg-white/8 text-white",
+                      )}
+                    >
+                      {message.content}
+                    </div>
+                  ))}
+
+                  {coachLoading && (
+                    <div className={cn("max-w-[88%] rounded-3xl px-4 py-3 text-sm", isLight ? "bg-white text-slate-600" : "bg-white/8 text-white/75")}>
+                      חושב איתך על הצעד הבא...
+                    </div>
+                  )}
+                  <div ref={coachScrollRef} />
+                </div>
+              </ScrollArea>
+
+              <div className="rounded-3xl border border-[#dfe5ff] bg-white p-3 shadow-sm dark:border-white/10 dark:bg-[#111936]">
+                <Textarea
+                  value={coachInput}
+                  onChange={(event) => setCoachInput(event.target.value)}
+                  placeholder="כתוב מה עוצר אותך, מה מלחיץ אותך, או איזו משימה אתה לא מצליח להתחיל..."
+                  className={cn("min-h-[110px] resize-none border-0 shadow-none focus-visible:ring-0", inputClass)}
+                />
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className={cn("text-xs", subtleText)}>
+                    ממוקד כרגע ב־{selectedJourney.title} · עוצמה {coachIntensity}/5
+                  </div>
+                  <Button
+                    onClick={() => sendCoachMessage()}
+                    disabled={coachLoading || !coachInput.trim()}
+                    className="rounded-full bg-[#4530ff] hover:bg-[#3421d9]"
+                  >
+                    <Send className="h-4 w-4 ml-1" />
+                    שלח
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "numbers" && (
+        <div className="grid gap-4 xl:grid-cols-[0.86fr_1.44fr]">
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">פרטי מפה</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5">
+              <div>
+                <label className="mb-2 block text-sm font-medium">תאריך לידה</label>
+                <Input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium">מקום מגורים</label>
+                <Input value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="למשל: ירושלים" className={inputClass} />
+              </div>
+
+              <div className={cn("rounded-3xl border p-4", softPanel)}>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Target className="h-4 w-4 text-[#4530ff]" />
+                  איך זה עובד?
+                </div>
+                <p className={cn("mt-2 text-sm leading-7", subtleText)}>
+                  המפה מציגה מספרי ליבה נומרולוגיים אישיים: מספר נתיב חיים, מספר גישה, מספר שנה אישית ומספר יום אישי.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-2xl">המפה הנומרולוגית שלך</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              {!numerology ? (
+                <div className={cn("rounded-3xl border border-dashed p-10 text-center", softPanel)}>
+                  <CalendarDays className="mx-auto mb-3 h-8 w-8 text-[#4530ff]" />
+                  <div className="text-lg font-semibold">כדי לפתוח את המפה, צריך רק תאריך לידה</div>
+                  <p className={cn("mt-2 text-sm", subtleText)}>אחר כך נחשב עבורך את המספרים המרכזיים ונסביר מה הם אומרים על הקצב, האופי והפוקוס שלך.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      { label: "נתיב חיים", value: numerology.lifePath },
+                      { label: "מספר גישה", value: numerology.attitude },
+                      { label: "שנה אישית", value: numerology.personalYear },
+                      { label: "יום אישי", value: numerology.personalDay },
+                    ].map((item) => {
+                      const meaning = NUMEROLOGY_MEANINGS[item.value] || NUMEROLOGY_MEANINGS[1];
+                      return (
+                        <Card key={item.label} className={cn("border", softPanel)}>
+                          <CardContent className="p-4">
+                            <div className="text-xs font-medium text-[#4530ff]">{item.label}</div>
+                            <div className="mt-2 text-3xl font-bold">{item.value}</div>
+                            <div className={cn("mt-2 text-sm", subtleText)}>{meaning.title}</div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {[
+                      { label: "נתיב חיים", value: numerology.lifePath },
+                      { label: "מספר גישה", value: numerology.attitude },
+                      { label: "שנה אישית", value: numerology.personalYear },
+                      { label: "יום אישי", value: numerology.personalDay },
+                    ].map((item) => {
+                      const meaning = NUMEROLOGY_MEANINGS[item.value] || NUMEROLOGY_MEANINGS[1];
+                      return (
+                        <Card key={`${item.label}-meaning`} className={cn("border", softPanel)}>
+                          <CardContent className="space-y-3 p-4">
+                            <div>
+                              <div className="text-sm font-semibold">{item.label}: {item.value} · {meaning.title}</div>
+                              <p className={cn("mt-2 text-sm leading-7", subtleText)}>{meaning.summary}</p>
+                            </div>
+                            <div className="rounded-2xl bg-white/80 p-3 text-sm dark:bg-black/10">
+                              <span className="font-medium">כיוון להיום:</span> {meaning.action}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "stars" && (
+        <div className="grid gap-4 xl:grid-cols-[0.88fr_1.42fr]">
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">פרטי התאמה יומית</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5">
+              <div>
+                <label className="mb-2 block text-sm font-medium">תאריך לידה</label>
+                <Input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium">מקום מגורים</label>
+                <Input value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="למשל: תל אביב" className={inputClass} />
+              </div>
+              <div className={cn("rounded-3xl border p-4", softPanel)}>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Star className="h-4 w-4 text-[#4530ff]" />
+                  עדכון יומי
+                </div>
+                <p className={cn("mt-2 text-sm leading-7", subtleText)}>
+                  הכרטיס הזה מתעדכן לפי התאריך של היום, המזל שלך, והעיר שהזנת, כדי לתת לך תחושת כיוון רכה וממוקדת.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={cn("overflow-hidden border", shellCard)}>
+            <CardContent className="p-0">
+              {!zodiac || !horoscope ? (
+                <div className={cn("p-10 text-center", isLight ? "bg-[#f5f6ff]" : "bg-[#10172d]")}>
+                  <Star className="mx-auto mb-3 h-8 w-8 text-[#4530ff]" />
+                  <div className="text-lg font-semibold">כדי להפעיל הורוסקופ, צריך תאריך לידה</div>
+                  <p className={cn("mt-2 text-sm", subtleText)}>אחרי שתזין תאריך, נבנה עבורך תחזית יומית בסגנון אישי יותר.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-gradient-to-br from-[#1613a8] via-[#3f33ff] to-[#90a3ff] px-6 py-8 text-white">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <div className="text-sm text-white/75">היום של {zodiac.name}</div>
+                        <h3 className="mt-2 text-4xl font-bold">{zodiac.vibe}</h3>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                          <span className="rounded-full bg-white/15 px-3 py-1">מתעדכן כל יום</span>
+                          {birthCity && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1">
+                              <MapPin className="h-3.5 w-3.5" />
+                              {birthCity}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-3xl bg-white/10 px-4 py-3">
+                        <div className="text-xs text-white/70">מזל</div>
+                        <div className="text-2xl font-bold">{zodiac.name}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 p-5 md:grid-cols-2">
+                    <Card className={cn("border", softPanel)}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Flame className="h-4 w-4 text-[#4530ff]" />
+                          מוקד היום
+                        </div>
+                        <p className={cn("mt-3 text-sm leading-7", titleText)}>{horoscope.focus}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className={cn("border", softPanel)}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Sparkles className="h-4 w-4 text-[#4530ff]" />
+                          אנרגיה מורגשת
+                        </div>
+                        <p className={cn("mt-3 text-sm leading-7", titleText)}>{horoscope.mood}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className={cn("border md:col-span-2", softPanel)}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Target className="h-4 w-4 text-[#4530ff]" />
+                          פעולה מומלצת להיום
+                        </div>
+                        <p className={cn("mt-3 text-sm leading-7", titleText)}>{horoscope.action}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+

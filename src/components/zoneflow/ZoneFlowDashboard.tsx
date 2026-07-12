@@ -19,6 +19,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { ZoneFlowMusicPlayer } from "./ZoneFlowMusicPlayer";
 import { useDailyStopwatch } from "@/hooks/useDailyStopwatch";
 import { useLanguage } from "@/hooks/useLanguage";
+import { safeLocalStorage } from "@/lib/safeLocalStorage";
+import { ZoneFlowMindStudio } from "./ZoneFlowMindStudio";
 
 // Background themes
 const BG_THEMES = [
@@ -111,6 +113,9 @@ const ZoneFlowDashboard = () => {
   const [bgTheme, setBgTheme] = useState(() => {
     const saved = localStorage.getItem("zoneflow-bg-theme") || localStorage.getItem("deeply-bg-theme");
     return saved || "dark";
+  });
+  const [workspace, setWorkspace] = useState<"core" | "mind">(() => {
+    return safeLocalStorage.getString("zoneflow-workspace", "core") === "mind" ? "mind" : "core";
   });
 
   // Timer
@@ -226,12 +231,18 @@ const ZoneFlowDashboard = () => {
   useEffect(() => { localStorage.setItem("zoneflow-custom-yt", JSON.stringify(customYtVideos)); }, [customYtVideos]);
   useEffect(() => { localStorage.setItem("zoneflow-hidden-yt", JSON.stringify(hiddenYtVideos)); }, [hiddenYtVideos]);
   useEffect(() => { localStorage.setItem("zoneflow-show-meditation-hub", String(showMeditationHub)); }, [showMeditationHub]);
+  useEffect(() => { safeLocalStorage.setString("zoneflow-workspace", workspace); }, [workspace]);
   useEffect(() => {
     setYoutubePlayerState(getZoneFlowYoutubePlayerState());
     return subscribeToZoneFlowYoutubePlayerState(() => {
       setYoutubePlayerState(getZoneFlowYoutubePlayerState());
     });
   }, []);
+  useEffect(() => {
+    if (workspace === "mind") {
+      setShowAiChat(false);
+    }
+  }, [workspace]);
 
   const extractYouTubeId = (url: string): string | null => {
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
@@ -504,7 +515,33 @@ const ZoneFlowDashboard = () => {
   return (
     <div className={`h-full ${currentTheme.bg} ${currentTheme.text} overflow-auto ${isLight ? "zoneflow-light" : ""}`} dir="rtl">
       <div className="max-w-7xl mx-auto p-4 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className={`inline-flex rounded-full border p-1 ${isLight ? "bg-white border-slate-200" : "bg-white/5 border-white/10"}`}>
+            <button
+              onClick={() => setWorkspace("core")}
+              className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "core" ? isLight ? "bg-slate-900 text-white" : "bg-white text-slate-900" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}
+            >
+              ZoneFlow Core
+            </button>
+            <button
+              onClick={() => setWorkspace("mind")}
+              className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "mind" ? "bg-gradient-to-r from-[#2b1cff] via-[#4530ff] to-[#6d73ff] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}
+            >
+              ZoneFlow Mind
+            </button>
+          </div>
 
+          {workspace === "mind" && (
+            <div className={`text-xs ${themeMuted}`}>
+              מרחב נפרד לתקיעות, חרדה סביב משימות, עומס רגשי, AI מנטלי, מפה נומרולוגית והורוסקופ היומי שלך.
+            </div>
+          )}
+        </div>
+
+        {workspace === "mind" ? (
+          <ZoneFlowMindStudio isLight={isLight} />
+        ) : (
+          <>
         {/* Background selector + AI Chat button */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs ${themeMuted}`}>רקע:</span>
@@ -2124,6 +2161,8 @@ const ZoneFlowDashboard = () => {
             ))}
           </CardContent>
         </Card>
+          </>
+        )}
 
       </div>
     </div>
