@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Ban, Bot, Check, Clock3, Laptop, Medal, Smartphone, Trophy, Users, Wifi } from "lucide-react";
+import { Ban, Bot, Check, Clock3, Laptop, LockKeyhole, Medal, ShieldCheck, Smartphone, Trophy, Users, Wifi } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,10 +23,19 @@ const COPY = {
 } as const;
 
 const deviceIcons = { computer: Laptop, iphone: Smartphone, android: Smartphone };
+const PERMISSION_COPY = {
+  he: { title: "הרשאות וגבולות", body: "האישור מאפשר ל־Tabro לשמור הגדרות מיקוד ורשימת הסחות. הוא לא נותן לאתר גישה לאפליקציות, למצלמה, להודעות או לזמן המסך של המכשיר.", grant: "אשר שימוש בתוך Tabro", revoke: "בטל אישור", granted: "אישור Tabro פעיל", native: "לחסימה אמיתית במחשב או בטלפון נדרש תוסף או אפליקציה עם הרשאת מערכת נפרדת." },
+  en: { title: "Permissions and limits", body: "This consent lets Tabro save focus settings and your distraction list. It does not give the website access to apps, camera, messages, or device screen time.", grant: "Allow Tabro features", revoke: "Revoke consent", granted: "Tabro consent is active", native: "Real blocking requires a separate extension or native app with system permission." },
+  es: { title: "Permisos y limites", body: "Este consentimiento guarda ajustes de enfoque y tu lista de distracciones. No da acceso a apps, camara, mensajes ni tiempo de pantalla.", grant: "Permitir funciones de Tabro", revoke: "Revocar consentimiento", granted: "Consentimiento activo", native: "El bloqueo real requiere una extension o app con permiso del sistema." },
+  zh: { title: "权限与边界", body: "此同意允许Tabro保存专注设置和干扰列表，但不会访问应用、相机、消息或屏幕时间。", grant: "允许Tabro功能", revoke: "撤销同意", granted: "同意已启用", native: "真正的设备屏蔽需要扩展或原生应用及系统权限。" },
+  ar: { title: "الأذونات والحدود", body: "يسمح هذا الإذن بحفظ إعدادات التركيز وقائمة المشتتات، ولا يمنح الموقع وصولا إلى التطبيقات أو الكاميرا أو الرسائل أو وقت الشاشة.", grant: "السماح بميزات Tabro", revoke: "إلغاء الإذن", granted: "الإذن فعال", native: "الحظر الحقيقي يحتاج إلى إضافة أو تطبيق أصلي بإذن نظام منفصل." },
+  ru: { title: "Разрешения и границы", body: "Согласие позволяет сохранять настройки фокуса и список отвлечений. Оно не дает сайту доступа к приложениям, камере, сообщениям или экранному времени.", grant: "Разрешить функции Tabro", revoke: "Отозвать согласие", granted: "Согласие активно", native: "Для настоящей блокировки нужны расширение или нативное приложение с системным разрешением." },
+} as const;
 
 export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boolean; onOpenCoach: () => void }) {
   const { lang, dir } = useLanguage();
   const copy = COPY[lang] ?? COPY.en;
+  const permissionCopy = PERMISSION_COPY[lang] ?? PERMISSION_COPY.en;
   const [devices, setDevices] = useState<Device[]>(() => safeLocalStorage.getJSON("zoneflow-wellbeing-devices", [
     { id: "computer", kind: "computer", name: copy.computer, minutes: 0, connected: true },
     { id: "iphone", kind: "iphone", name: copy.iphone, minutes: 0, connected: false },
@@ -37,9 +46,11 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const [focusActive, setFocusActive] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [joined, setJoined] = useState(false);
+  const [consentGranted, setConsentGranted] = useState(() => safeLocalStorage.getJSON("zoneflow-wellbeing-consent", false));
 
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-devices", devices), [devices]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-blocked", blockedApps), [blockedApps]);
+  useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-consent", consentGranted), [consentGranted]);
 
   const totalMinutes = devices.reduce((sum, device) => sum + device.minutes, 0);
   const savedMinutes = blockedApps.reduce((sum, app) => sum + app.minutesSaved, 0);
@@ -84,6 +95,20 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
         </CardContent>
       </Card>
 
+      <Card className={cn("border", panel)}>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><ShieldCheck className="h-5 w-5 text-emerald-600" />{permissionCopy.title}</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className={cn("text-sm leading-7", muted)}>{permissionCopy.body}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant={consentGranted ? "outline" : "default"} onClick={() => setConsentGranted((value) => !value)}>
+              <LockKeyhole className="h-4 w-4" /> {consentGranted ? permissionCopy.revoke : permissionCopy.grant}
+            </Button>
+            {consentGranted && <span className="text-sm text-emerald-600"><Check className="mr-1 inline h-4 w-4" />{permissionCopy.granted}</span>}
+          </div>
+          <p className={cn("text-xs leading-6", muted)}>{permissionCopy.native}</p>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className={cn("border", panel)}>
           <CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle className="flex items-center gap-2 text-xl"><Smartphone className="h-5 w-5 text-cyan-600" />{copy.devices}</CardTitle><Button variant="outline" size="sm" onClick={addDevice}>{copy.add}</Button></CardHeader>
@@ -105,7 +130,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
           <CardContent className="space-y-3">
             <div className="flex gap-2"><Input value={appName} onChange={(event) => setAppName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addBlockedApp()} placeholder={copy.app} /><Button onClick={addBlockedApp}>{copy.addBlock}</Button></div>
             {blockedApps.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noApps}</p> : blockedApps.map((app) => <div key={app.id} className={cn("flex items-center gap-3 rounded-2xl border p-3", panel)}><Ban className="h-4 w-4 text-rose-500" /><span className="flex-1 font-medium">{app.name}</span><span className={cn("text-xs", muted)}>{app.minutesSaved} {copy.saved}</span></div>)}
-            <Button className="w-full rounded-full" onClick={() => setFocusActive((value) => !value)} variant={focusActive ? "destructive" : "default"}>{focusActive ? copy.stop : copy.focus}</Button>
+            <Button className="w-full rounded-full" disabled={!consentGranted} onClick={() => setFocusActive((value) => !value)} variant={focusActive ? "destructive" : "default"}>{focusActive ? copy.stop : copy.focus}</Button>
             {focusActive && <div className="rounded-2xl bg-emerald-50 p-3 text-center text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200">{copy.active}</div>}
             <p className={cn("text-xs leading-6", muted)}>{copy.limitations}</p>
           </CardContent>
