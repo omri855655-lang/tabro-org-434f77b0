@@ -32,10 +32,12 @@ import {
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { useTabroAiHistory } from "@/hooks/useTabroAiHistory";
+import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ZoneFlowMindUnfreeze } from "./ZoneFlowMindUnfreeze";
 
-type MindTab = "home" | "journeys" | "coach" | "numbers" | "stars";
+type MindTab = "home" | "journeys" | "coach" | "progress" | "numbers" | "stars";
 type CoachIntensity = 1 | 2 | 3 | 4 | 5;
 
 interface JourneyDay {
@@ -63,6 +65,12 @@ interface MindJourney {
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface MasteryWin {
+  task?: string;
+  step?: string;
+  completedAt?: string;
 }
 
 type SpeechRecognitionResultLike = {
@@ -245,10 +253,39 @@ const JOURNEYS: MindJourney[] = [
   },
 ];
 
-const getDateStrip = (selectedOffset: number) => {
+const LOCALES: Record<string, string> = {
+  he: "he-IL",
+  en: "en-US",
+  es: "es-ES",
+  zh: "zh-CN",
+  ar: "ar",
+  ru: "ru-RU",
+};
+
+const MIND_UI = {
+  he: { title: "מרחב מנטלי בתוך ZoneFlow", subtitle: "כלים עדינים לתקיעות, עומס רגשי והתחלה מחדש.", home: "בית", journeys: "מסלולים", coach: "AI מנטלי", progress: "התקדמות", numbers: "מפה נומרולוגית", stars: "השראה יומית", overall: "התקדמות כוללת", marked: "ימים מסומנים", focus: "פוקוס פעיל", days: "ימים", symbolic: "תוכן סמלי לרפלקציה ובידור בלבד; אינו מדעי, טיפולי או בסיס לקבלת החלטות.", support: "המאמן הוא כלי תמיכה ותכנון, לא מטפל ולא שירות חירום.", mapDetails: "פרטי מפה", birthDate: "תאריך לידה", city: "מקום מגורים (אופציונלי)", dailyInspiration: "השראה יומית", speechUnavailable: "זיהוי קולי לא זמין בדפדפן הזה", coachError: "לא הצלחתי לקבל תשובה מהמאמן כרגע" },
+  en: { title: "A mental space inside ZoneFlow", subtitle: "Gentle tools for feeling stuck, emotional load, and starting again.", home: "Home", journeys: "Journeys", coach: "AI coach", progress: "Progress", numbers: "Numerology map", stars: "Daily inspiration", overall: "Overall progress", marked: "marked days", focus: "Active focus", days: "days", symbolic: "Symbolic content for reflection and entertainment only; it is not scientific, therapeutic, or a basis for decisions.", support: "The coach is a planning and self-support tool, not a therapist or emergency service.", mapDetails: "Map details", birthDate: "Birth date", city: "City (optional)", dailyInspiration: "Daily inspiration", speechUnavailable: "Voice recognition is not available in this browser", coachError: "The coach could not respond right now" },
+  es: { title: "Un espacio mental dentro de ZoneFlow", subtitle: "Herramientas suaves para el bloqueo, la carga emocional y volver a empezar.", home: "Inicio", journeys: "Recorridos", coach: "Coach IA", progress: "Progreso", numbers: "Mapa numerologico", stars: "Inspiracion diaria", overall: "Progreso total", marked: "dias marcados", focus: "Enfoque activo", days: "dias", symbolic: "Contenido simbolico solo para reflexion y entretenimiento; no es cientifico ni terapeutico ni sirve para tomar decisiones.", support: "El coach es una herramienta de apoyo y planificacion, no un terapeuta ni un servicio de emergencia.", mapDetails: "Datos del mapa", birthDate: "Fecha de nacimiento", city: "Ciudad (opcional)", dailyInspiration: "Inspiracion diaria", speechUnavailable: "El reconocimiento de voz no esta disponible", coachError: "El coach no pudo responder ahora" },
+  zh: { title: "ZoneFlow 心理空间", subtitle: "温和应对卡顿、情绪负担，并重新开始。", home: "首页", journeys: "旅程", coach: "AI教练", progress: "进度", numbers: "数字命理图", stars: "每日灵感", overall: "总体进度", marked: "已标记天数", focus: "当前重点", days: "天", symbolic: "象征性内容仅供反思和娱乐；不具有科学或治疗性质，也不应作为决策依据。", support: "AI教练是规划与自助工具，不是治疗师或紧急服务。", mapDetails: "资料", birthDate: "出生日期", city: "城市（可选）", dailyInspiration: "每日灵感", speechUnavailable: "此浏览器不支持语音识别", coachError: "教练暂时无法回复" },
+  ar: { title: "مساحة ذهنية داخل ZoneFlow", subtitle: "أدوات لطيفة للتعطل والضغط العاطفي والبدء من جديد.", home: "الرئيسية", journeys: "المسارات", coach: "مدرب AI", progress: "التقدم", numbers: "خريطة الأرقام", stars: "إلهام يومي", overall: "التقدم العام", marked: "أيام محددة", focus: "التركيز الحالي", days: "أيام", symbolic: "محتوى رمزي للتأمل والترفيه فقط؛ ليس علميا أو علاجيا ولا أساسا للقرارات.", support: "المدرب أداة دعم وتخطيط وليس معالجا أو خدمة طوارئ.", mapDetails: "تفاصيل الخريطة", birthDate: "تاريخ الميلاد", city: "المدينة (اختياري)", dailyInspiration: "إلهام يومي", speechUnavailable: "التعرف الصوتي غير متاح في هذا المتصفح", coachError: "تعذر الحصول على رد من المدرب الآن" },
+  ru: { title: "Ментальное пространство в ZoneFlow", subtitle: "Мягкие инструменты для ступора, эмоциональной нагрузки и нового старта.", home: "Главная", journeys: "Маршруты", coach: "AI-тренер", progress: "Прогресс", numbers: "Карта нумерологии", stars: "Вдохновение дня", overall: "Общий прогресс", marked: "отмечено дней", focus: "Активный фокус", days: "дней", symbolic: "Символический контент только для размышления и развлечения; он не является научным, лечебным или основой для решений.", support: "Тренер — инструмент поддержки и планирования, а не терапевт или экстренная служба.", mapDetails: "Данные карты", birthDate: "Дата рождения", city: "Город (необязательно)", dailyInspiration: "Вдохновение дня", speechUnavailable: "Распознавание речи недоступно", coachError: "Тренер временно не может ответить" },
+} as const;
+
+const CRISIS_COPY: Record<string, string> = {
+  he: "אני מצטער שאתה עובר את זה. אני לא שירות חירום ולא רוצה שתישאר עם זה לבד. אם יש סכנה מיידית, התקשר עכשיו ל-100 או 101 בישראל, או למספר החירום המקומי. אפשר גם לפנות לער\"ן 1201 ולשתף אדם קרוב שנמצא לידך.",
+  en: "I am sorry you are going through this. I am not an emergency service, and you should not face this alone. If there is immediate danger, call your local emergency number now and contact a trusted person who can stay with you.",
+  es: "Siento que estes pasando por esto. No soy un servicio de emergencia y no deberias afrontarlo a solas. Si hay peligro inmediato, llama ahora al numero local de emergencias y contacta a una persona de confianza.",
+  zh: "很抱歉你正在经历这些。我不是紧急服务，你不必独自面对。如果有立即危险，请马上拨打当地急救电话，并联系一位可以陪伴你的可信任的人。",
+  ar: "أنا آسف لأنك تمر بهذا. لست خدمة طوارئ ولا ينبغي أن تواجه هذا وحدك. إذا كان هناك خطر فوري فاتصل الآن برقم الطوارئ المحلي وتواصل مع شخص موثوق يمكنه البقاء معك.",
+  ru: "Мне жаль, что вы через это проходите. Я не экстренная служба, и вам не нужно оставаться с этим одному. При непосредственной опасности позвоните в местную экстренную службу и свяжитесь с близким человеком.",
+};
+
+const CRISIS_PATTERN = /suicid|kill myself|hurt myself|self[- ]?harm|no quiero vivir|hacerme dano|убить себя|самоубий|انتحار|أؤذي نفسي|自杀|伤害自己|להתאבד|לפגוע בעצמי|לא רוצה לחיות/i;
+
+const getDateStrip = (locale: string) => {
   const today = new Date();
   return Array.from({ length: 7 }, (_, index) => {
-    const offset = index - selectedOffset;
+    const offset = index - 6;
     const date = new Date(today);
     date.setDate(today.getDate() + offset);
     return {
@@ -256,9 +293,9 @@ const getDateStrip = (selectedOffset: number) => {
       date,
       offset,
       dayNumber: date.getDate(),
-      weekday: new Intl.DateTimeFormat("he-IL", { weekday: "short" }).format(date),
+      weekday: new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date),
     };
-  }).reverse();
+  });
 };
 
 const reduceNumber = (value: number): number => {
@@ -278,15 +315,20 @@ const getLifePathNumber = (birthDate: string) => {
   return reduceNumber(digits.reduce((sum, digit) => sum + digit, 0));
 };
 
+const getBirthParts = (birthDate: string) => {
+  const [year, month, day] = birthDate.split("-").map(Number);
+  return { year, month, day };
+};
+
 const getAttitudeNumber = (birthDate: string) => {
-  const date = new Date(birthDate);
-  return reduceNumber(date.getMonth() + 1 + date.getDate());
+  const { month, day } = getBirthParts(birthDate);
+  return reduceNumber(month + day);
 };
 
 const getPersonalYearNumber = (birthDate: string, currentDate: Date) => {
-  const date = new Date(birthDate);
+  const { month, day } = getBirthParts(birthDate);
   const yearDigits = String(currentDate.getFullYear()).split("").map(Number);
-  return reduceNumber(date.getDate() + (date.getMonth() + 1) + yearDigits.reduce((sum, digit) => sum + digit, 0));
+  return reduceNumber(day + month + yearDigits.reduce((sum, digit) => sum + digit, 0));
 };
 
 const getPersonalMonthNumber = (personalYear: number, currentDate: Date) => {
@@ -298,9 +340,7 @@ const getPersonalDayNumber = (personalMonth: number, currentDate: Date) => {
 };
 
 const getZodiacSign = (birthDate: string) => {
-  const date = new Date(birthDate);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
+  const { month, day } = getBirthParts(birthDate);
 
   const found = ZODIAC_SIGNS.find((sign) => {
     const [startMonth, startDay] = sign.start;
@@ -335,9 +375,11 @@ interface ZoneFlowMindStudioProps {
 }
 
 export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
+  const { lang, dir } = useLanguage();
+  const ui = MIND_UI[lang] ?? MIND_UI.en;
   const [activeTab, setActiveTab] = useState<MindTab>(() => {
     const saved = safeLocalStorage.getString("zoneflow-mind-tab", "home");
-    return (saved as MindTab) || "home";
+    return ["home", "journeys", "coach", "progress", "numbers", "stars"].includes(saved || "") ? (saved as MindTab) : "home";
   });
   const [selectedOffset, setSelectedOffset] = useState(0);
   const [selectedJourneyId, setSelectedJourneyId] = useState(() => {
@@ -351,6 +393,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachIntensity, setCoachIntensity] = useState<CoachIntensity>(3);
   const [isListening, setIsListening] = useState(false);
+  const [masteryWins, setMasteryWins] = useState<MasteryWin[]>(() => safeLocalStorage.getJSON("zoneflow-mind-mastery-ledger", []));
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const coachScrollRef = useRef<HTMLDivElement | null>(null);
   const {
@@ -363,6 +406,9 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
 
   useEffect(() => {
     safeLocalStorage.setString("zoneflow-mind-tab", activeTab);
+    if (activeTab === "progress") {
+      setMasteryWins(safeLocalStorage.getJSON("zoneflow-mind-mastery-ledger", []));
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -397,7 +443,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     };
   }, []);
 
-  const stripDays = useMemo(() => getDateStrip(selectedOffset), [selectedOffset]);
+  const stripDays = useMemo(() => getDateStrip(LOCALES[lang] || "en-US"), [lang]);
   const selectedJourney = useMemo(
     () => JOURNEYS.find((journey) => journey.id === selectedJourneyId) ?? JOURNEYS[0],
     [selectedJourneyId],
@@ -409,9 +455,15 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
 
   const totalCompletedCount = completedDays.length;
   const selectedProgress = Math.round((completedCount / selectedJourney.duration) * 100);
-  const totalProgress = Math.min(100, Math.round((totalCompletedCount / 14) * 100));
+  const totalJourneyDays = JOURNEYS.reduce((sum, journey) => sum + journey.duration, 0);
+  const totalProgress = Math.min(100, Math.round((totalCompletedCount / totalJourneyDays) * 100));
 
-  const dailyTip = DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length];
+  const selectedCalendarDate = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + selectedOffset);
+    return date;
+  }, [selectedOffset]);
+  const dailyTip = DAILY_TIPS[selectedCalendarDate.getDate() % DAILY_TIPS.length];
 
   const achievements = useMemo(() => {
     return [
@@ -441,8 +493,8 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
 
   const horoscope = useMemo(() => {
     if (!zodiac) return null;
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const seed = hashString(`${zodiac.id}:${todayKey}:${birthCity || "home"}`);
+    const todayKey = new Intl.DateTimeFormat("en-CA").format(new Date());
+    const seed = hashString(`${zodiac.id}:${todayKey}`);
     return {
       focus: HOROSCOPE_FOCUS[seed % HOROSCOPE_FOCUS.length],
       action: HOROSCOPE_ACTIONS[seed % HOROSCOPE_ACTIONS.length],
@@ -453,7 +505,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
         "זה יום טוב לרכך שיפוט עצמי ולחזור לקצב נכון.",
       ][seed % 4],
     };
-  }, [birthCity, zodiac]);
+  }, [zodiac]);
 
   const toggleDayCompletion = (day: number) => {
     const key = `${selectedJourney.id}:${day}`;
@@ -483,12 +535,18 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
     setCoachInput("");
+
+    if (CRISIS_PATTERN.test(text)) {
+      setMessages([...nextMessages, { role: "assistant", content: CRISIS_COPY[lang] || CRISIS_COPY.en }]);
+      return;
+    }
+
     setCoachLoading(true);
 
     const context = [
       `עוצמת הקושי כרגע: ${coachIntensity} מתוך 5`,
       `נושא מיקוד: ${selectedJourney.title}`,
-      birthCity ? `מקום מגורים: ${birthCity}` : null,
+      `Response language: ${LOCALES[lang] || "en-US"}`,
       `בקשה: ${text}`,
     ]
       .filter(Boolean)
@@ -509,7 +567,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
       setMessages([...nextMessages, { role: "assistant", content: reply }]);
     } catch (error) {
       console.error("ZoneFlow mind AI error:", error);
-      toast.error("לא הצלחתי לקבל תשובה מהמאמן כרגע");
+      toast.error(ui.coachError);
       setMessages([
         ...nextMessages,
         {
@@ -525,13 +583,13 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const startVoiceCapture = () => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) {
-      toast.error("זיהוי קולי לא זמין בדפדפן הזה");
+      toast.error(ui.speechUnavailable);
       return;
     }
 
     recognitionRef.current?.stop();
     const recognition = new Recognition();
-    recognition.lang = "he-IL";
+    recognition.lang = LOCALES[lang] || "en-US";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onstart = () => setIsListening(true);
@@ -559,7 +617,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     : "border-white/10 bg-white/5 text-white placeholder:text-white/35";
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4" dir={dir}>
       <Card className={cn("overflow-hidden border", shellCard)}>
         <CardContent className="p-0">
           <div className="bg-gradient-to-br from-[#1f1acb] via-[#3f33ff] to-[#8f95ff] px-5 py-6 text-white">
@@ -569,33 +627,34 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                   <Sparkles className="h-3.5 w-3.5" />
                   ZoneFlow Mind
                 </div>
-                <h2 className="text-2xl font-bold">מרחב מנטלי בתוך ZoneFlow</h2>
+                <h2 className="text-2xl font-bold">{ui.title}</h2>
                 <p className="max-w-3xl text-sm text-white/80">
-                  אזור נפרד לרגעים של תקיעות, חרדה סביב משימות, עומס רגשי או צורך בכיוון רך יותר. הוא בנוי בשביל להחזיר תנועה, לא להלחיץ עוד יותר.
+                  {ui.subtitle}
                 </p>
               </div>
               <div className="grid min-w-[220px] grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-white/12 p-3">
-                  <div className="text-xs text-white/70">התקדמות כוללת</div>
+                  <div className="text-xs text-white/70">{ui.overall}</div>
                   <div className="mt-1 text-2xl font-bold">{totalCompletedCount}</div>
-                  <div className="text-xs text-white/70">ימים מסומנים</div>
+                  <div className="text-xs text-white/70">{ui.marked}</div>
                 </div>
                 <div className="rounded-2xl bg-white/12 p-3">
-                  <div className="text-xs text-white/70">פוקוס פעיל</div>
+                  <div className="text-xs text-white/70">{ui.focus}</div>
                   <div className="mt-1 text-sm font-semibold">{selectedJourney.title}</div>
-                  <div className="text-xs text-white/70">{selectedJourney.duration} ימים</div>
+                  <div className="text-xs text-white/70">{selectedJourney.duration} {ui.days}</div>
                 </div>
               </div>
             </div>
 
             <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
               {stripDays.map((item) => {
-                const isSelected = item.offset === 0;
+                const isSelected = item.offset === selectedOffset;
                 return (
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setSelectedOffset(-item.offset)}
+                    onClick={() => setSelectedOffset(item.offset)}
+                    aria-pressed={isSelected}
                     className={cn(
                       "min-w-[84px] rounded-2xl border px-3 py-3 text-center transition-all",
                       isSelected ? "border-white/30 bg-white text-[#2b1cff]" : "border-white/15 bg-white/10 text-white",
@@ -612,17 +671,19 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
       </Card>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as MindTab)}>
-        <TabsList className={cn("grid w-full grid-cols-5 rounded-2xl p-1", isLight ? "bg-[#ecefff]" : "bg-white/5")}>
-          <TabsTrigger value="home">בית</TabsTrigger>
-          <TabsTrigger value="journeys">מסלולים</TabsTrigger>
-          <TabsTrigger value="coach">AI מנטלי</TabsTrigger>
-          <TabsTrigger value="numbers">מפה נומרולוגית</TabsTrigger>
-          <TabsTrigger value="stars">הורוסקופ</TabsTrigger>
+        <TabsList className={cn("flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl p-1 sm:grid sm:grid-cols-6", isLight ? "bg-[#ecefff]" : "bg-white/5")}>
+          <TabsTrigger className="min-w-max flex-1" value="home">{ui.home}</TabsTrigger>
+          <TabsTrigger className="min-w-max flex-1" value="journeys">{ui.journeys}</TabsTrigger>
+          <TabsTrigger className="min-w-max flex-1" value="coach">{ui.coach}</TabsTrigger>
+          <TabsTrigger className="min-w-max flex-1" value="progress">{ui.progress}</TabsTrigger>
+          <TabsTrigger className="min-w-max flex-1" value="numbers">{ui.numbers}</TabsTrigger>
+          <TabsTrigger className="min-w-max flex-1" value="stars">{ui.stars}</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {activeTab === "home" && (
         <div className="space-y-4">
+          <ZoneFlowMindUnfreeze isLight={isLight} />
           <Card className={cn("overflow-hidden border", shellCard)}>
             <CardContent className="grid gap-4 p-5 md:grid-cols-[1.35fr_0.8fr]">
               <div className={cn("rounded-[28px] bg-gradient-to-br p-5 text-white", selectedJourney.accent)}>
@@ -750,7 +811,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                       <div className="text-sm font-semibold">אתגר רצף</div>
                       <div className={cn("text-xs", subtleText)}>מטרה רכה: 14 ימים של תנועה</div>
                     </div>
-                    <div className="text-xl font-bold">{totalCompletedCount}/14</div>
+                    <div className="text-xl font-bold">{totalCompletedCount}/{totalJourneyDays}</div>
                   </div>
                   <Progress value={totalProgress} className="mt-4 h-2.5" />
                 </div>
@@ -860,7 +921,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                 <Progress value={selectedProgress} className="mt-4 h-2.5" />
               </div>
 
-              <ScrollArea className="h-[680px] pr-1">
+              <ScrollArea className="max-h-[70svh] min-h-[420px] pr-1">
                 <div className="space-y-4">
                   {selectedJourney.days.map((day) => {
                     const dayKey = `${selectedJourney.id}:${day.day}`;
@@ -878,6 +939,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                               type="button"
                               onClick={() => toggleDayCompletion(day.day)}
                               className="shrink-0"
+                              aria-label={`${isDone ? "Unmark" : "Mark"} day ${day.day}`}
                             >
                               {isDone ? <CheckCircle2 className="h-6 w-6 text-emerald-500" /> : <Circle className="h-6 w-6 text-slate-400" />}
                             </button>
@@ -912,6 +974,9 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
               <CardTitle className="text-xl">המאמן המנטלי שלך</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 p-5">
+              <div className={cn("rounded-2xl border p-3 text-xs leading-6", softPanel)} role="note">
+                {ui.support}
+              </div>
               <div className={cn("rounded-3xl border p-4", softPanel)}>
                 <div className="text-sm font-semibold">איך אתה מרגיש עכשיו?</div>
                 <div className="mt-3 grid grid-cols-5 gap-2">
@@ -1011,8 +1076,8 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
               </div>
             </CardHeader>
             <CardContent className="space-y-4 p-5">
-              <ScrollArea className="h-[520px] rounded-3xl border border-[#dfe5ff] bg-[#f7f8ff] p-4 dark:border-white/10 dark:bg-[#0f1630]">
-                <div className="space-y-3">
+              <ScrollArea className="h-[min(520px,58svh)] min-h-[360px] rounded-3xl border border-[#dfe5ff] bg-[#f7f8ff] p-4 dark:border-white/10 dark:bg-[#0f1630]">
+                <div className="space-y-3" aria-live="polite">
                   {messages.length === 0 && (
                     <div className="rounded-3xl border border-dashed border-[#d8deff] bg-white/80 p-5 text-center dark:border-white/10 dark:bg-white/5">
                       <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#eef0ff] text-[#4530ff] dark:bg-[#2a2460] dark:text-white">
@@ -1076,20 +1141,82 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
         </div>
       )}
 
+      {activeTab === "progress" && (
+        <div className="grid gap-4 xl:grid-cols-[0.86fr_1.44fr]">
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">{ui.overall}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5">
+              <div className="rounded-[32px] bg-gradient-to-br from-[#1f1acb] via-[#4530ff] to-[#8f95ff] p-6 text-white">
+                <div className="text-5xl font-bold">{totalProgress}%</div>
+                <div className="mt-2 text-sm text-white/75">{totalCompletedCount} {ui.marked}</div>
+                <Progress value={totalProgress} className="mt-5 h-3" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {achievements.map((achievement) => (
+                  <div key={achievement.id} className={cn("rounded-3xl border p-4", achievement.unlocked ? "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10" : softPanel)}>
+                    <div className="flex items-center gap-2">
+                      <Trophy className={cn("h-4 w-4", achievement.unlocked ? "text-amber-500" : "text-slate-400")} />
+                      <div className="font-semibold">{achievement.title}</div>
+                    </div>
+                    <div className={cn("mt-2 text-sm", subtleText)}>{achievement.description}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">{ui.progress}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              {masteryWins.length === 0 ? (
+                <div className={cn("rounded-3xl border border-dashed p-10 text-center", softPanel)}>
+                  <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-[#118a91]" />
+                  <p className={cn("text-sm leading-7", subtleText)}>{ui.subtitle}</p>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {masteryWins.map((win, index) => (
+                    <Card key={`${win.completedAt || "win"}-${index}`} className={cn("border", softPanel)}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                          <div>
+                            <div className="font-semibold">{win.task || win.step}</div>
+                            {win.step && win.task && <p className={cn("mt-2 text-sm leading-6", subtleText)}>{win.step}</p>}
+                            {win.completedAt && <div className={cn("mt-3 text-xs", subtleText)}>{new Intl.DateTimeFormat(LOCALES[lang] || "en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(win.completedAt))}</div>}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {activeTab === "numbers" && (
         <div className="grid gap-4 xl:grid-cols-[0.86fr_1.44fr]">
           <Card className={cn("border", shellCard)}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xl">פרטי מפה</CardTitle>
+              <CardTitle className="text-xl">{ui.mapDetails}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 p-5">
               <div>
-                <label className="mb-2 block text-sm font-medium">תאריך לידה</label>
-                <Input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
+                <label htmlFor="zoneflow-mind-birthdate-numbers" className="mb-2 block text-sm font-medium">{ui.birthDate}</label>
+                <Input id="zoneflow-mind-birthdate-numbers" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium">מקום מגורים</label>
-                <Input value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="למשל: ירושלים" className={inputClass} />
+                <label htmlFor="zoneflow-mind-city-numbers" className="mb-2 block text-sm font-medium">{ui.city}</label>
+                <Input id="zoneflow-mind-city-numbers" value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="Jerusalem" className={inputClass} />
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100" role="note">
+                {ui.symbolic}
               </div>
 
               <div className={cn("rounded-3xl border p-4", softPanel)}>
@@ -1098,9 +1225,21 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                   איך זה עובד?
                 </div>
                 <p className={cn("mt-2 text-sm leading-7", subtleText)}>
-                  המפה מציגה מספרי ליבה נומרולוגיים אישיים: מספר נתיב חיים, מספר גישה, מספר שנה אישית ומספר יום אישי.
+                  המפה מחשבת את המספרים המקובלים לפי תאריך הלידה שהזנת: נתיב חיים, מספר גישה, שנה אישית, חודש אישי ויום אישי. זהו כלי סמלי לרפלקציה ולא מדידה מדעית.
                 </p>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-full"
+                onClick={() => {
+                  setActiveTab("coach");
+                  setCoachInput("עזור לי להפוך את ההשראה מהמספרים שלי לצעד מעשי להיום.");
+                }}
+              >
+                <BrainCircuit className="h-4 w-4 ml-1" />
+                התייעץ עם AI על המפה
+              </Button>
             </CardContent>
           </Card>
 
@@ -1117,11 +1256,12 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                     {[
                       { label: "נתיב חיים", value: numerology.lifePath },
                       { label: "מספר גישה", value: numerology.attitude },
                       { label: "שנה אישית", value: numerology.personalYear },
+                      { label: "חודש אישי", value: numerology.personalMonth },
                       { label: "יום אישי", value: numerology.personalDay },
                     ].map((item) => {
                       const meaning = NUMEROLOGY_MEANINGS[item.value] || NUMEROLOGY_MEANINGS[1];
@@ -1142,6 +1282,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                       { label: "נתיב חיים", value: numerology.lifePath },
                       { label: "מספר גישה", value: numerology.attitude },
                       { label: "שנה אישית", value: numerology.personalYear },
+                      { label: "חודש אישי", value: numerology.personalMonth },
                       { label: "יום אישי", value: numerology.personalDay },
                     ].map((item) => {
                       const meaning = NUMEROLOGY_MEANINGS[item.value] || NUMEROLOGY_MEANINGS[1];
@@ -1171,16 +1312,19 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
         <div className="grid gap-4 xl:grid-cols-[0.88fr_1.42fr]">
           <Card className={cn("border", shellCard)}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-xl">פרטי התאמה יומית</CardTitle>
+              <CardTitle className="text-xl">{ui.dailyInspiration}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 p-5">
               <div>
-                <label className="mb-2 block text-sm font-medium">תאריך לידה</label>
-                <Input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
+                <label htmlFor="zoneflow-mind-birthdate-stars" className="mb-2 block text-sm font-medium">{ui.birthDate}</label>
+                <Input id="zoneflow-mind-birthdate-stars" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium">מקום מגורים</label>
-                <Input value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="למשל: תל אביב" className={inputClass} />
+                <label htmlFor="zoneflow-mind-city-stars" className="mb-2 block text-sm font-medium">{ui.city}</label>
+                <Input id="zoneflow-mind-city-stars" value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="Tel Aviv" className={inputClass} />
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100" role="note">
+                {ui.symbolic}
               </div>
               <div className={cn("rounded-3xl border p-4", softPanel)}>
                 <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1188,9 +1332,21 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                   עדכון יומי
                 </div>
                 <p className={cn("mt-2 text-sm leading-7", subtleText)}>
-                  הכרטיס הזה מתעדכן לפי התאריך של היום, המזל שלך, והעיר שהזנת, כדי לתת לך תחושת כיוון רכה וממוקדת.
+                  הכרטיס מתחלף לפי התאריך המקומי והמזל שלך. העיר נשמרת כהקשר אישי בלבד ואינה הופכת את התוכן לחיזוי מדעי.
                 </p>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-full"
+                onClick={() => {
+                  setActiveTab("coach");
+                  setCoachInput("קח את ההשראה היומית שלי והצע לי פעולה קטנה שמתאימה ליום הזה.");
+                }}
+              >
+                <BrainCircuit className="h-4 w-4 ml-1" />
+                התייעץ עם AI על ההשראה
+              </Button>
             </CardContent>
           </Card>
 
@@ -1264,4 +1420,3 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     </div>
   );
 }
-

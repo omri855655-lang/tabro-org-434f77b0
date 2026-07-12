@@ -103,7 +103,7 @@ const ACTIVE_COLOR_MAP: Record<string, string> = {
 const ZoneFlowDashboard = () => {
   const { activePresetId, isPlaying, isRendering, toggle } = useZoneFlowAudioEngine();
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, lang, dir } = useLanguage();
   const { stopwatchTime, isStopwatchRunning, toggleStopwatch, resetStopwatch } = useDailyStopwatch();
 
   // Sound category
@@ -513,7 +513,7 @@ const ZoneFlowDashboard = () => {
   const themeInput = currentTheme.inputBg + " " + currentTheme.inputBorder;
 
   return (
-    <div className={`h-full ${currentTheme.bg} ${currentTheme.text} overflow-auto ${isLight ? "zoneflow-light" : ""}`} dir="rtl">
+    <div className={`h-full ${currentTheme.bg} ${currentTheme.text} overflow-auto ${isLight ? "zoneflow-light" : ""}`} dir={dir}>
       <div className="max-w-7xl mx-auto p-4 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className={`inline-flex rounded-full border p-1 ${isLight ? "bg-white border-slate-200" : "bg-white/5 border-white/10"}`}>
@@ -533,7 +533,14 @@ const ZoneFlowDashboard = () => {
 
           {workspace === "mind" && (
             <div className={`text-xs ${themeMuted}`}>
-              מרחב נפרד לתקיעות, חרדה סביב משימות, עומס רגשי, AI מנטלי, מפה נומרולוגית והורוסקופ היומי שלך.
+              {{
+                he: "מרחב נפרד לתקיעות, עומס רגשי, אימון AI ותוכן סמלי לרפלקציה.",
+                en: "A separate space for feeling stuck, emotional load, AI support, and symbolic reflection.",
+                es: "Un espacio para el bloqueo, la carga emocional, el apoyo con IA y la reflexion simbolica.",
+                zh: "独立空间：应对卡顿、情绪负担、AI支持与象征性反思。",
+                ar: "مساحة منفصلة للتعطل والضغط العاطفي ودعم الذكاء الاصطناعي والتأمل الرمزي.",
+                ru: "Отдельное пространство для ступора, эмоциональной нагрузки, AI-поддержки и символической рефлексии.",
+              }[lang]}
             </div>
           )}
         </div>

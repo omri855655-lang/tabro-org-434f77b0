@@ -18,7 +18,6 @@ import ProjectsManager from "@/components/ProjectsManager";
 import CoursesManager from "@/components/CoursesManager";
 import Dashboard from "@/components/Dashboard";
 import DailyRoutine from "@/components/DailyRoutine";
-import AiDailyPlanner from "@/components/AiDailyPlanner";
 import PersonalPlanner from "@/components/PersonalPlanner";
 import ZoneFlowDashboard from "@/components/zoneflow/ZoneFlowDashboard";
 import { ZoneFlowMiniPlayer } from "@/components/zoneflow/ZoneFlowMiniPlayer";
@@ -582,7 +581,6 @@ const Personal = () => {
         </SidebarLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
         <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
-        <AiDailyPlanner />
       </>
     );
   }
@@ -597,7 +595,6 @@ const Personal = () => {
         </CompactLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
         <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
-        <AiDailyPlanner />
       </>
     );
   }
@@ -612,7 +609,6 @@ const Personal = () => {
         </BottomNavLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
         <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
-        <AiDailyPlanner />
       </>
     );
   }
@@ -627,7 +623,6 @@ const Personal = () => {
         </HamburgerLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
         <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
-        <AiDailyPlanner />
       </>
     );
   }
@@ -642,7 +637,6 @@ const Personal = () => {
         </DashboardCardsLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
         <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
-        <AiDailyPlanner />
       </>
     );
   }
@@ -657,7 +651,6 @@ const Personal = () => {
         </SplitViewLayout>
         <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
         <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
-        <AiDailyPlanner />
       </>
     );
   }
@@ -865,7 +858,6 @@ const Personal = () => {
 
       <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
       <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
-      <AiDailyPlanner />
     </div>
     </>
   );
