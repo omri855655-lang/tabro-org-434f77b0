@@ -617,7 +617,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     : "border-white/10 bg-white/5 text-white placeholder:text-white/35";
 
   return (
-    <div className="space-y-4" dir={dir}>
+    <div className="min-h-0 space-y-4" dir={dir}>
       <Card className={cn("overflow-hidden border", shellCard)}>
         <CardContent className="p-0">
           <div className="bg-gradient-to-br from-[#1f1acb] via-[#3f33ff] to-[#8f95ff] px-5 py-6 text-white">
@@ -921,7 +921,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                 <Progress value={selectedProgress} className="mt-4 h-2.5" />
               </div>
 
-              <ScrollArea className="max-h-[70svh] min-h-[420px] pr-1">
+              <ScrollArea className="h-[min(70svh,680px)] min-h-[420px] max-w-full overscroll-contain touch-pan-y pr-1">
                 <div className="space-y-4">
                   {selectedJourney.days.map((day) => {
                     const dayKey = `${selectedJourney.id}:${day.day}`;

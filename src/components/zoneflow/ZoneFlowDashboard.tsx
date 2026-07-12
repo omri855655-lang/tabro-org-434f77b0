@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff } from "lucide-react";
+import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff, Settings2 } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_PATHS, MEDITATION_SESSION_META, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPE_META, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
@@ -21,6 +21,7 @@ import { useDailyStopwatch } from "@/hooks/useDailyStopwatch";
 import { useLanguage } from "@/hooks/useLanguage";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { ZoneFlowMindStudio } from "./ZoneFlowMindStudio";
+import { ZoneFlowWellbeingStudio } from "./ZoneFlowWellbeingStudio";
 
 // Background themes
 const BG_THEMES = [
@@ -84,6 +85,9 @@ interface HiddenYtVideo {
   desc: string;
 }
 
+type Workspace = "core" | "mind" | "wellbeing";
+type VisibleWorkspaces = Record<Workspace, boolean>;
+
 const COLOR_MAP: Record<string, string> = {
   violet: "from-violet-500 to-violet-700",
   cyan: "from-cyan-500 to-cyan-700",
@@ -114,9 +118,12 @@ const ZoneFlowDashboard = () => {
     const saved = localStorage.getItem("zoneflow-bg-theme") || localStorage.getItem("deeply-bg-theme");
     return saved || "dark";
   });
-  const [workspace, setWorkspace] = useState<"core" | "mind">(() => {
-    return safeLocalStorage.getString("zoneflow-workspace", "core") === "mind" ? "mind" : "core";
+  const [workspace, setWorkspace] = useState<"core" | "mind" | "wellbeing">(() => {
+    const saved = safeLocalStorage.getString("zoneflow-workspace", "core");
+    return saved === "mind" || saved === "wellbeing" ? saved : "core";
   });
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [visibleWorkspaces, setVisibleWorkspaces] = useState<VisibleWorkspaces>(() => safeLocalStorage.getJSON("zoneflow-visible-workspaces", { core: true, mind: true, wellbeing: true }));
 
   // Timer
   const [timerPreset, setTimerPreset] = useState(TIMER_PRESETS[0]);
@@ -232,6 +239,13 @@ const ZoneFlowDashboard = () => {
   useEffect(() => { localStorage.setItem("zoneflow-hidden-yt", JSON.stringify(hiddenYtVideos)); }, [hiddenYtVideos]);
   useEffect(() => { localStorage.setItem("zoneflow-show-meditation-hub", String(showMeditationHub)); }, [showMeditationHub]);
   useEffect(() => { safeLocalStorage.setString("zoneflow-workspace", workspace); }, [workspace]);
+  useEffect(() => {
+    safeLocalStorage.setJSON("zoneflow-visible-workspaces", visibleWorkspaces);
+    if (!visibleWorkspaces[workspace]) {
+      const fallback = (Object.keys(visibleWorkspaces) as Workspace[]).find((key) => visibleWorkspaces[key]);
+      if (fallback) setWorkspace(fallback);
+    }
+  }, [visibleWorkspaces, workspace]);
   useEffect(() => {
     setYoutubePlayerState(getZoneFlowYoutubePlayerState());
     return subscribeToZoneFlowYoutubePlayerState(() => {
@@ -515,21 +529,23 @@ const ZoneFlowDashboard = () => {
   return (
     <div className={`h-full ${currentTheme.bg} ${currentTheme.text} overflow-auto ${isLight ? "zoneflow-light" : ""}`} dir={dir}>
       <div className="max-w-7xl mx-auto p-4 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className={`inline-flex rounded-full border p-1 ${isLight ? "bg-white border-slate-200" : "bg-white/5 border-white/10"}`}>
-            <button
-              onClick={() => setWorkspace("core")}
-              className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "core" ? isLight ? "bg-slate-900 text-white" : "bg-white text-slate-900" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}
-            >
-              ZoneFlow Core
-            </button>
-            <button
-              onClick={() => setWorkspace("mind")}
-              className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "mind" ? "bg-gradient-to-r from-[#2b1cff] via-[#4530ff] to-[#6d73ff] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}
-            >
-              ZoneFlow Mind
-            </button>
+        <div className="relative flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={`inline-flex max-w-full overflow-x-auto rounded-full border p-1 ${isLight ? "bg-white border-slate-200" : "bg-white/5 border-white/10"}`}>
+              {visibleWorkspaces.core && <button onClick={() => setWorkspace("core")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "core" ? isLight ? "bg-slate-900 text-white" : "bg-white text-slate-900" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>ZoneFlow Core</button>}
+              {visibleWorkspaces.mind && <button onClick={() => setWorkspace("mind")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "mind" ? "bg-gradient-to-r from-[#2b1cff] via-[#4530ff] to-[#6d73ff] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>ZoneFlow Mind</button>}
+              {visibleWorkspaces.wellbeing && <button onClick={() => setWorkspace("wellbeing")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "wellbeing" ? "bg-gradient-to-r from-[#0d6473] via-[#118a91] to-[#52c7b8] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>Digital Wellbeing</button>}
+            </div>
+            <Button variant="ghost" size="icon" className={isLight ? "text-slate-600" : "text-white/70"} onClick={() => setWorkspaceSettingsOpen((value) => !value)} aria-label="התאמת מרחבי ZoneFlow" aria-expanded={workspaceSettingsOpen}><Settings2 className="h-4 w-4" /></Button>
           </div>
+
+          {workspaceSettingsOpen && <div className={`absolute z-20 mt-14 rounded-2xl border p-3 shadow-xl ${isLight ? "border-slate-200 bg-white" : "border-white/10 bg-[#10172d]"}`}>
+            <div className="mb-2 text-xs font-semibold">הצג או הסתר מרחבי ZoneFlow</div>
+            {(["core", "mind", "wellbeing"] as const).map((key) => <button key={key} type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10" onClick={() => setVisibleWorkspaces((value) => {
+              if (value[key] && Object.values(value).filter(Boolean).length === 1) return value;
+              return { ...value, [key]: !value[key] };
+            })}><span className={`h-2.5 w-2.5 rounded-full ${visibleWorkspaces[key] ? "bg-emerald-500" : "bg-slate-300"}`} />{key === "core" ? "ZoneFlow Core" : key === "mind" ? "ZoneFlow Mind" : "Digital Wellbeing"}</button>)}
+          </div>}
 
           {workspace === "mind" && (
             <div className={`text-xs ${themeMuted}`}>
@@ -547,6 +563,8 @@ const ZoneFlowDashboard = () => {
 
         {workspace === "mind" ? (
           <ZoneFlowMindStudio isLight={isLight} />
+        ) : workspace === "wellbeing" ? (
+          <ZoneFlowWellbeingStudio isLight={isLight} onOpenCoach={() => setWorkspace("mind")} />
         ) : (
           <>
         {/* Background selector + AI Chat button */}
