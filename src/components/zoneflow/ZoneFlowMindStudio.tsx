@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BrainCircuit,
+  BatteryMedium,
   CalendarDays,
   CheckCircle2,
   Circle,
   Flame,
+  HeartPulse,
   MapPin,
   Mic,
   RefreshCcw,
   Send,
   Sparkles,
+  Wind,
   Star,
   Target,
   Trophy,
@@ -271,6 +274,24 @@ const MIND_UI = {
   ru: { title: "Ментальное пространство в ZoneFlow", subtitle: "Мягкие инструменты для ступора, эмоциональной нагрузки и нового старта.", home: "Главная", journeys: "Маршруты", coach: "AI-тренер", progress: "Прогресс", numbers: "Карта нумерологии", stars: "Вдохновение дня", overall: "Общий прогресс", marked: "отмечено дней", focus: "Активный фокус", days: "дней", symbolic: "Символический контент только для размышления и развлечения; он не является научным, лечебным или основой для решений.", support: "Тренер — инструмент поддержки и планирования, а не терапевт или экстренная служба.", mapDetails: "Данные карты", birthDate: "Дата рождения", city: "Город (необязательно)", dailyInspiration: "Вдохновение дня", speechUnavailable: "Распознавание речи недоступно", coachError: "Тренер временно не может ответить" },
 } as const;
 
+const CHECKIN_COPY = {
+  he: { title: "בדיקת מצב קצרה", mood: "איך אתה מרגיש עכשיו?", anxiety: "רמת חרדה", energy: "רמת אנרגיה", need: "מה יעזור עכשיו?", calm: "להירגע", action: "צעד קטן", clarity: "בהירות", saved: "נשמר בהיסטוריה", save: "שמור בדיקה", safety: "אם יש סכנה מיידית או מחשבות לפגיעה, פנה עכשיו לאדם קרוב או לשירותי חירום. הכלי אינו טיפול." },
+  en: { title: "Quick check-in", mood: "How do you feel now?", anxiety: "Anxiety level", energy: "Energy level", need: "What would help now?", calm: "Calm down", action: "Small action", clarity: "Clarity", saved: "Saved to history", save: "Save check-in", safety: "If there is immediate danger or thoughts of self-harm, contact a trusted person or emergency services. This is not treatment." },
+  es: { title: "Registro breve", mood: "Como te sientes ahora?", anxiety: "Nivel de ansiedad", energy: "Nivel de energia", need: "Que ayudaria ahora?", calm: "Calmarme", action: "Un paso pequeno", clarity: "Claridad", saved: "Guardado en historial", save: "Guardar", safety: "Si hay peligro inmediato o ideas de hacerte dano, contacta a alguien de confianza o emergencias. Esto no es terapia." },
+  zh: { title: "快速自检", mood: "你现在感觉如何？", anxiety: "焦虑程度", energy: "精力水平", need: "现在需要什么？", calm: "平静下来", action: "小行动", clarity: "清晰感", saved: "已保存到历史", save: "保存自检", safety: "如果有即时危险或自伤想法，请联系可信任的人或当地急救服务。本工具不是治疗。" },
+  ar: { title: "تسجيل سريع", mood: "كيف تشعر الآن؟", anxiety: "مستوى القلق", energy: "مستوى الطاقة", need: "ما الذي سيساعدك الآن؟", calm: "الهدوء", action: "خطوة صغيرة", clarity: "وضوح", saved: "تم الحفظ في السجل", save: "حفظ", safety: "إذا كان هناك خطر فوري أو أفكار لإيذاء النفس، تواصل مع شخص موثوق أو الطوارئ. هذا ليس علاجا." },
+  ru: { title: "Быстрая проверка", mood: "Что вы чувствуете сейчас?", anxiety: "Уровень тревоги", energy: "Уровень энергии", need: "Что поможет сейчас?", calm: "Успокоиться", action: "Маленький шаг", clarity: "Ясность", saved: "Сохранено в историю", save: "Сохранить", safety: "При непосредственной опасности или мыслях о самоповреждении свяжитесь с близким или экстренной службой. Это не лечение." },
+} as const;
+
+const MAP_COPY = {
+  he: { birthTime: "שעת לידה (אופציונלי)", birthPlace: "מקום לידה", birthCountry: "מדינת לידה", method: "הצגת 11/22/33 כמספרי מאסטר", mode: "סגנון התוכן", reflection: "רפלקציה סמלית", science: "מדע והקשר", faith: "אמונה אישית", astrology: "שעה ומקום משמשים רק למפת לידה אסטרולוגית; נומרולוגיה מסתמכת על תאריך לידה.", questions: "מה תרצה לקבל? בחר נושא לשיחה עם ה־AI.", topic: "נושא להתבוננות" },
+  en: { birthTime: "Birth time (optional)", birthPlace: "Birth place", birthCountry: "Birth country", method: "Keep 11/22/33 as master numbers", mode: "Content style", reflection: "Symbolic reflection", science: "Science and context", faith: "Personal belief", astrology: "Time and birthplace are only for a birth-chart reading; numerology uses the birth date.", questions: "What would you like to explore with AI?", topic: "Reflection topic" },
+  es: { birthTime: "Hora de nacimiento (opcional)", birthPlace: "Lugar de nacimiento", birthCountry: "Pais de nacimiento", method: "Mantener 11/22/33 como maestros", mode: "Estilo", reflection: "Reflexion simbolica", science: "Ciencia y contexto", faith: "Creencia personal", astrology: "La hora y el lugar solo sirven para una carta natal; la numerologia usa la fecha.", questions: "Que quieres explorar con la IA?", topic: "Tema de reflexion" },
+  zh: { birthTime: "出生时间（可选）", birthPlace: "出生地", birthCountry: "出生国家", method: "保留11/22/33大师数", mode: "内容风格", reflection: "象征性反思", science: "科学与背景", faith: "个人信念", astrology: "时间和出生地只用于星盘；数字命理使用出生日期。", questions: "你想和AI探索什么？", topic: "反思主题" },
+  ar: { birthTime: "وقت الميلاد (اختياري)", birthPlace: "مكان الميلاد", birthCountry: "دولة الميلاد", method: "إبقاء 11/22/33 كأرقام رئيسية", mode: "أسلوب المحتوى", reflection: "تأمل رمزي", science: "علم وسياق", faith: "معتقد شخصي", astrology: "الوقت ومكان الميلاد يستخدمان لخريطة الميلاد فقط؛ علم الأرقام يستخدم التاريخ.", questions: "ما الذي تريد استكشافه مع AI؟", topic: "موضوع التأمل" },
+  ru: { birthTime: "Время рождения (необязательно)", birthPlace: "Место рождения", birthCountry: "Страна рождения", method: "Сохранять 11/22/33 как мастер-числа", mode: "Стиль контента", reflection: "Символическая рефлексия", science: "Наука и контекст", faith: "Личная вера", astrology: "Время и место нужны только для натальной карты; нумерология использует дату.", questions: "Что вы хотите исследовать с AI?", topic: "Тема рефлексии" },
+} as const;
+
 const CRISIS_COPY: Record<string, string> = {
   he: "אני מצטער שאתה עובר את זה. אני לא שירות חירום ולא רוצה שתישאר עם זה לבד. אם יש סכנה מיידית, התקשר עכשיו ל-100 או 101 בישראל, או למספר החירום המקומי. אפשר גם לפנות לער\"ן 1201 ולשתף אדם קרוב שנמצא לידך.",
   en: "I am sorry you are going through this. I am not an emergency service, and you should not face this alone. If there is immediate danger, call your local emergency number now and contact a trusted person who can stay with you.",
@@ -308,6 +329,11 @@ const reduceNumber = (value: number): number => {
     if ([11, 22, 33].includes(current)) return current;
   }
   return current;
+};
+
+const collapseMasterNumber = (value: number, keepMasterNumbers: boolean) => {
+  if (keepMasterNumbers || ![11, 22, 33].includes(value)) return value;
+  return String(value).split("").reduce((sum, digit) => sum + Number(digit), 0);
 };
 
 const getLifePathNumber = (birthDate: string) => {
@@ -377,6 +403,8 @@ interface ZoneFlowMindStudioProps {
 export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const { lang, dir } = useLanguage();
   const ui = MIND_UI[lang] ?? MIND_UI.en;
+  const checkinUi = CHECKIN_COPY[lang] ?? CHECKIN_COPY.en;
+  const mapUi = MAP_COPY[lang] ?? MAP_COPY.en;
   const [activeTab, setActiveTab] = useState<MindTab>(() => {
     const saved = safeLocalStorage.getString("zoneflow-mind-tab", "home");
     return ["home", "journeys", "coach", "progress", "numbers", "stars"].includes(saved || "") ? (saved as MindTab) : "home";
@@ -389,6 +417,16 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [journalEntries, setJournalEntries] = useState<Record<string, string>>(() => safeLocalStorage.getJSON("zoneflow-mind-journal", {}));
   const [birthDate, setBirthDate] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "");
   const [birthCity, setBirthCity] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcity", "") || "");
+  const [birthTime, setBirthTime] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "");
+  const [birthPlace, setBirthPlace] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "");
+  const [birthCountry, setBirthCountry] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "");
+  const [keepMasterNumbers, setKeepMasterNumbers] = useState(() => safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true));
+  const [contentMode, setContentMode] = useState<"reflection" | "science" | "faith">(() => (safeLocalStorage.getString("zoneflow-mind-content-mode", "reflection") as "reflection" | "science" | "faith") || "reflection");
+  const [reflectionTopic, setReflectionTopic] = useState("");
+  const [checkinAnxiety, setCheckinAnxiety] = useState(0);
+  const [checkinEnergy, setCheckinEnergy] = useState(5);
+  const [checkinNeed, setCheckinNeed] = useState<"calm" | "action" | "clarity">("action");
+  const [checkinSaved, setCheckinSaved] = useState(false);
   const [coachInput, setCoachInput] = useState("");
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachIntensity, setCoachIntensity] = useState<CoachIntensity>(3);
@@ -430,6 +468,12 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   useEffect(() => {
     safeLocalStorage.setString("zoneflow-mind-birthcity", birthCity);
   }, [birthCity]);
+
+  useEffect(() => safeLocalStorage.setString("zoneflow-mind-birthtime", birthTime), [birthTime]);
+  useEffect(() => safeLocalStorage.setString("zoneflow-mind-birthplace", birthPlace), [birthPlace]);
+  useEffect(() => safeLocalStorage.setString("zoneflow-mind-birthcountry", birthCountry), [birthCountry]);
+  useEffect(() => safeLocalStorage.setJSON("zoneflow-mind-master-numbers", keepMasterNumbers), [keepMasterNumbers]);
+  useEffect(() => safeLocalStorage.setString("zoneflow-mind-content-mode", contentMode), [contentMode]);
 
   useEffect(() => {
     if (coachScrollRef.current) {
@@ -477,14 +521,14 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const numerology = useMemo(() => {
     if (!birthDate) return null;
     const now = new Date();
-    const lifePath = getLifePathNumber(birthDate);
-    const attitude = getAttitudeNumber(birthDate);
-    const personalYear = getPersonalYearNumber(birthDate, now);
-    const personalMonth = getPersonalMonthNumber(personalYear, now);
-    const personalDay = getPersonalDayNumber(personalMonth, now);
+    const lifePath = collapseMasterNumber(getLifePathNumber(birthDate), keepMasterNumbers);
+    const attitude = collapseMasterNumber(getAttitudeNumber(birthDate), keepMasterNumbers);
+    const personalYear = collapseMasterNumber(getPersonalYearNumber(birthDate, now), keepMasterNumbers);
+    const personalMonth = collapseMasterNumber(getPersonalMonthNumber(personalYear, now), keepMasterNumbers);
+    const personalDay = collapseMasterNumber(getPersonalDayNumber(personalMonth, now), keepMasterNumbers);
 
     return { lifePath, attitude, personalYear, personalMonth, personalDay };
-  }, [birthDate]);
+  }, [birthDate, keepMasterNumbers]);
 
   const zodiac = useMemo(() => {
     if (!birthDate) return null;
@@ -510,6 +554,12 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const toggleDayCompletion = (day: number) => {
     const key = `${selectedJourney.id}:${day}`;
     setCompletedDays((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
+  };
+
+  const saveCheckin = () => {
+    const history = safeLocalStorage.getJSON<Array<{ date: string; anxiety: number; energy: number; need: string }>>("zoneflow-mind-checkins", []);
+    safeLocalStorage.setJSON("zoneflow-mind-checkins", [...history, { date: new Date().toISOString(), anxiety: checkinAnxiety, energy: checkinEnergy, need: checkinNeed }].slice(-30));
+    setCheckinSaved(true);
   };
 
   const updateJournal = (day: number, value: string) => {
@@ -684,6 +734,18 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
       {activeTab === "home" && (
         <div className="space-y-4">
           <ZoneFlowMindUnfreeze isLight={isLight} />
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xl"><HeartPulse className="h-5 w-5 text-rose-500" />{checkinUi.title}</CardTitle></CardHeader>
+            <CardContent className="space-y-4 p-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                <label className="space-y-2 text-sm"><span>{checkinUi.mood}</span><div className="flex items-center gap-2"><BatteryMedium className="h-4 w-4 text-emerald-500" /><Input type="range" min="0" max="10" value={checkinEnergy} onChange={(event) => setCheckinEnergy(Number(event.target.value))} /><span>{checkinEnergy}/10</span></div></label>
+                <label className="space-y-2 text-sm"><span>{checkinUi.anxiety}</span><div className="flex items-center gap-2"><Wind className="h-4 w-4 text-sky-500" /><Input type="range" min="0" max="10" value={checkinAnxiety} onChange={(event) => setCheckinAnxiety(Number(event.target.value))} /><span>{checkinAnxiety}/10</span></div></label>
+                <label className="space-y-2 text-sm"><span>{checkinUi.need}</span><select value={checkinNeed} onChange={(event) => setCheckinNeed(event.target.value as typeof checkinNeed)} className={cn("h-10 w-full rounded-xl border px-3 text-sm", inputClass)}><option value="calm">{checkinUi.calm}</option><option value="action">{checkinUi.action}</option><option value="clarity">{checkinUi.clarity}</option></select></label>
+              </div>
+              <div className="flex flex-wrap items-center gap-3"><Button onClick={saveCheckin} className="rounded-full">{checkinUi.save}</Button>{checkinSaved && <span className="text-sm text-emerald-600">{checkinUi.saved}</span>}</div>
+              <p className={cn("text-xs leading-6", subtleText)}>{checkinUi.safety}</p>
+            </CardContent>
+          </Card>
           <Card className={cn("overflow-hidden border", shellCard)}>
             <CardContent className="grid gap-4 p-5 md:grid-cols-[1.35fr_0.8fr]">
               <div className={cn("rounded-[28px] bg-gradient-to-br p-5 text-white", selectedJourney.accent)}>
@@ -1215,8 +1277,19 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                 <label htmlFor="zoneflow-mind-city-numbers" className="mb-2 block text-sm font-medium">{ui.city}</label>
                 <Input id="zoneflow-mind-city-numbers" value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="Jerusalem" className={inputClass} />
               </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label htmlFor="zoneflow-mind-birthplace" className="mb-2 block text-sm font-medium">{mapUi.birthPlace}</label><Input id="zoneflow-mind-birthplace" value={birthPlace} onChange={(event) => setBirthPlace(event.target.value)} placeholder="Jerusalem" className={inputClass} /></div>
+                <div><label htmlFor="zoneflow-mind-birthcountry" className="mb-2 block text-sm font-medium">{mapUi.birthCountry}</label><Input id="zoneflow-mind-birthcountry" value={birthCountry} onChange={(event) => setBirthCountry(event.target.value)} placeholder="Israel" className={inputClass} /></div>
+              </div>
+              <div><label htmlFor="zoneflow-mind-birthtime" className="mb-2 block text-sm font-medium">{mapUi.birthTime}</label><Input id="zoneflow-mind-birthtime" type="time" value={birthTime} onChange={(event) => setBirthTime(event.target.value)} className={inputClass} /></div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={keepMasterNumbers} onChange={(event) => setKeepMasterNumbers(event.target.checked)} />{mapUi.method}</label>
+              <div><label htmlFor="zoneflow-mind-content-mode" className="mb-2 block text-sm font-medium">{mapUi.mode}</label><select id="zoneflow-mind-content-mode" value={contentMode} onChange={(event) => setContentMode(event.target.value as typeof contentMode)} className={cn("h-10 w-full rounded-xl border px-3 text-sm", inputClass)}><option value="reflection">{mapUi.reflection}</option><option value="science">{mapUi.science}</option><option value="faith">{mapUi.faith}</option></select></div>
+              <div><label htmlFor="zoneflow-mind-topic" className="mb-2 block text-sm font-medium">{mapUi.topic}</label><Input id="zoneflow-mind-topic" value={reflectionTopic} onChange={(event) => setReflectionTopic(event.target.value)} placeholder={mapUi.questions} className={inputClass} /></div>
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100" role="note">
                 {ui.symbolic}
+              </div>
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-xs leading-6 text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-100" role="note">
+                {mapUi.astrology}
               </div>
 
               <div className={cn("rounded-3xl border p-4", softPanel)}>
@@ -1234,7 +1307,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                 className="w-full rounded-full"
                 onClick={() => {
                   setActiveTab("coach");
-                  setCoachInput("עזור לי להפוך את ההשראה מהמספרים שלי לצעד מעשי להיום.");
+                  setCoachInput(`עזור לי להפוך את ההשראה הסמלית מהמספרים שלי לצעד מעשי להיום. ${reflectionTopic ? `הנושא שלי: ${reflectionTopic}` : ""}`);
                 }}
               >
                 <BrainCircuit className="h-4 w-4 ml-1" />
