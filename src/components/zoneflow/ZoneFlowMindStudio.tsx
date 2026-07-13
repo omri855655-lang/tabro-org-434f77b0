@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrainCircuit,
   BatteryMedium,
@@ -326,6 +326,18 @@ const CRISIS_COPY: Record<string, string> = {
 
 const CRISIS_PATTERN = /suicid|kill myself|hurt myself|self[- ]?harm|no quiero vivir|hacerme dano|убить себя|самоубий|انتحار|أؤذي نفسي|自杀|伤害自己|להתאבד|לפגוע בעצמי|לא רוצה לחיות/i;
 
+const formatSafeDate = (date: Date, locale: string, options: Intl.DateTimeFormatOptions) => {
+  if (Number.isNaN(date.getTime())) return "";
+
+  try {
+    return new Intl.DateTimeFormat(locale, options).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+};
+
+const getSafeDateKey = (date: Date) => formatSafeDate(date, "en-CA", { year: "numeric", month: "2-digit", day: "2-digit" });
+
 const getDateStrip = (locale: string) => {
   const today = new Date();
   return Array.from({ length: 7 }, (_, index) => {
@@ -337,7 +349,7 @@ const getDateStrip = (locale: string) => {
       date,
       offset,
       dayNumber: date.getDate(),
-      weekday: new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date),
+      weekday: formatSafeDate(date, locale, { weekday: "short" }),
     };
   });
 };
@@ -460,6 +472,31 @@ const getStoredMapProfile = (): MapProfile => {
 
 interface ZoneFlowMindStudioProps {
   isLight: boolean;
+}
+
+class ZoneFlowMindTabBoundary extends Component<{ children: ReactNode; onReset: () => void }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("ZoneFlow Mind tab failed to render", error);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-50">
+        <Star className="mx-auto mb-3 h-8 w-8 text-amber-600" />
+        <div className="text-lg font-semibold">לא הצלחנו לפתוח את ההורוסקופ כרגע</div>
+        <p className="mt-2 text-sm leading-6">אפשר לאפס רק את ההערות וההיסטוריה של ההורוסקופ ולנסות שוב. פרטי המפה והמשימות שלך לא יימחקו.</p>
+        <Button className="mt-4" variant="outline" onClick={this.props.onReset}>אפס נתוני הורוסקופ ונסה שוב</Button>
+      </div>
+    );
+  }
 }
 
 export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
@@ -614,7 +651,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     if (!zodiac) return null;
     const date = new Date();
     date.setDate(date.getDate() + horoscopeOffset);
-    const dateKey = new Intl.DateTimeFormat("en-CA").format(date);
+    const dateKey = getSafeDateKey(date);
     const seed = hashString(`${zodiac.id}:${dateKey}`);
     return {
       date,
@@ -629,7 +666,10 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     };
   }, [horoscopeOffset, zodiac]);
 
-  const horoscopeDateKey = useMemo(() => horoscope ? new Intl.DateTimeFormat("en-CA").format(horoscope.date) : "", [horoscope]);
+  const horoscopeDateKey = useMemo(() => horoscope ? getSafeDateKey(horoscope.date) : "", [horoscope]);
+  const horoscopeDisplayDate = useMemo(() => horoscope
+    ? formatSafeDate(horoscope.date, LOCALES[lang] || "en-US", { weekday: "long", day: "numeric", month: "long" })
+    : "", [horoscope, lang]);
   const birthChartDataQuality = !appliedMapProfile.birthDate
     ? "אין עדיין תאריך לידה שמור"
     : !appliedMapProfile.birthTime
@@ -643,6 +683,13 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     setAppliedMapProfile(nextProfile);
     safeLocalStorage.setJSON("zoneflow-mind-applied-map-profile", nextProfile);
     toast.success(mapUi.mapSaved);
+  };
+
+  const resetHoroscope = () => {
+    safeLocalStorage.remove("zoneflow-mind-horoscope-notes");
+    setHoroscopeNotes({});
+    setHoroscopeOffset(0);
+    window.setTimeout(() => window.location.reload(), 0);
   };
 
   const toggleDayCompletion = (day: number) => {
@@ -1612,6 +1659,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
       )}
 
       {activeTab === "stars" && (
+        <ZoneFlowMindTabBoundary onReset={resetHoroscope}>
         <div className="grid gap-4 xl:grid-cols-[0.88fr_1.42fr]">
           <Card className={cn("border", shellCard)}>
             <CardHeader className="pb-2">
@@ -1669,7 +1717,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                   <div className="bg-gradient-to-br from-[#1613a8] via-[#3f33ff] to-[#90a3ff] px-6 py-8 text-white">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <div className="text-sm text-white/75">{new Intl.DateTimeFormat(LOCALES[lang] || "en-US", { weekday: "long", day: "numeric", month: "long" }).format(horoscope.date)} · {zodiac.name}</div>
+                        <div className="text-sm text-white/75">{horoscopeDisplayDate} · {zodiac.name}</div>
                         <h3 className="mt-2 text-4xl font-bold">{zodiac.vibe}</h3>
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-white/15 px-3 py-1">מתעדכן כל יום</span>
@@ -1741,6 +1789,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
             </CardContent>
           </Card>
         </div>
+        </ZoneFlowMindTabBoundary>
       )}
     </div>
   );
