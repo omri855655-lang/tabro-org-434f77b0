@@ -70,7 +70,9 @@ const parseBookNotes = (notes: string | null): ParsedBookNotes => {
         chapterSummaries: Array.isArray(parsed.chapterSummaries) ? parsed.chapterSummaries.filter(Boolean) : [],
       };
     }
-  } catch {}
+  } catch {
+    // Legacy notes may be plain text rather than structured JSON.
+  }
   return { plainNotes: notes, longSummary: "", chapterSummaries: [] };
 };
 
@@ -343,6 +345,9 @@ const BooksManager = () => {
   }
 
   const readCount = books.filter(b => b.status === 'נקרא').length;
+  const readBooks = books
+    .filter((book) => book.status === 'נקרא')
+    .map((book) => ({ id: book.id, title: book.title, author: book.author }));
   const readingCount = books.filter(b => b.status === 'בקריאה').length;
   const toReadCount = books.filter(b => b.status === 'לקרוא').length;
 
@@ -363,7 +368,7 @@ const BooksManager = () => {
           <div className="text-sm text-muted-foreground">{t('toRead')}</div>
         </div>
       </div>
-      <BookCompetitionPanel readCount={readCount} />
+      <BookCompetitionPanel readBooks={readBooks} />
 
       {/* Header with count */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">

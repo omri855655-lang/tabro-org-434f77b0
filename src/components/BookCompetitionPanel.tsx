@@ -4,6 +4,7 @@ import { BookOpen, CheckCircle2, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -20,7 +21,13 @@ const COPY = {
   ru: { title: "Книжный челлендж", subtitle: "Участие и публикация только по вашему выбору", open: "Открыть челлендж", pages: "Прочитано страниц", books: "Завершено книг", update: "Обновить", join: "Вступить", joined: "Вы участвуете", rank: "Место", recommendation: "Рекомендация сообщества", details: "Детали челленджа", private: "Данные остаются личными, пока вы не решите поделиться отзывом.", summary: "Отзыв о книге для публикации", summaryPlaceholder: "Что понравилось, кому порекомендуете и что осталось с вами?", share: "Поделиться отзывом", shareUnavailable: "В этом браузере нет функции публикации", close: "Закрыть", save: "Сохранить прогресс" },
 } as const;
 
-export function BookCompetitionPanel({ readCount }: { readCount: number }) {
+interface ExistingReadBook {
+  id: string;
+  title: string;
+  author: string | null;
+}
+
+export function BookCompetitionPanel({ readBooks }: { readBooks: ExistingReadBook[] }) {
   const { lang, dir } = useLanguage();
   const { user } = useAuth();
   const copy = COPY[lang] ?? COPY.en;
@@ -35,6 +42,7 @@ export function BookCompetitionPanel({ readCount }: { readCount: number }) {
   const [shareSummary, setShareSummary] = useState(false);
   const [saving, setSaving] = useState(false);
   const [leaderboard, setLeaderboard] = useState<Array<{ display_name: string; books_completed: number; pages_read: number }>>([]);
+  const [selectedBookId, setSelectedBookId] = useState("");
 
   const fetchLeaderboard = async () => {
     const client = supabase as unknown as { rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> };
@@ -64,13 +72,33 @@ export function BookCompetitionPanel({ readCount }: { readCount: number }) {
     void fetchLeaderboard();
   };
 
+  const chooseExistingBook = (bookId: string) => {
+    setSelectedBookId(bookId);
+    const selected = readBooks.find((book) => book.id === bookId);
+    if (!selected) return;
+    setTitle(selected.title);
+    setAuthor(selected.author || "");
+  };
+
   return <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-4" dir={dir}>
     <div className="flex flex-wrap items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10"><Trophy className="h-5 w-5 text-primary" /></div><div className="min-w-[180px] flex-1"><div className="flex items-center gap-2 font-semibold"><BookOpen className="h-4 w-4" />{copy.title}</div><div className="text-xs text-muted-foreground">{copy.subtitle}</div></div><Button size="sm" onClick={() => setOpen(true)}>{copy.open}</Button></div>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent dir={dir} className="max-w-lg">
         <DialogHeader><DialogTitle>{copy.details}</DialogTitle><DialogDescription>{copy.private}</DialogDescription></DialogHeader>
         <div className="grid gap-4 py-2">
-          <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{leaderboard.reduce((sum, entry) => sum + Number(entry.pages_read || 0), 0)}</div><div className="text-xs text-muted-foreground">{copy.pages} בקהילה</div></div><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{readCount}</div><div className="text-xs text-muted-foreground">{copy.books} ברשימה שלך</div></div></div>
+          <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{leaderboard.reduce((sum, entry) => sum + Number(entry.pages_read || 0), 0)}</div><div className="text-xs text-muted-foreground">{copy.pages} בקהילה</div></div><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{readBooks.length}</div><div className="text-xs text-muted-foreground">{copy.books} ברשימה שלך</div></div></div>
+          {readBooks.length > 0 && (
+            <div className="grid gap-2 rounded-xl border bg-muted/30 p-3">
+              <Label>בחר ספר שכבר סימנת כנקרא</Label>
+              <Select value={selectedBookId} onValueChange={chooseExistingBook}>
+                <SelectTrigger><SelectValue placeholder="בחר מתוך הספרים שקראת" /></SelectTrigger>
+                <SelectContent>
+                  {readBooks.map((book) => <SelectItem key={book.id} value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">הבחירה ממלאת את פרטי הספר בלבד. הצטרפות לדירוג ושיתוף סיכום נשארים בשליטתך.</p>
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2"><Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.title} /><Input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="מחבר/ת (אופציונלי)" /><Input type="number" min="1" value={pages || ""} onChange={(event) => setPages(Math.max(0, Number(event.target.value)))} placeholder={copy.pages} /><Input value={languageCode} onChange={(event) => setLanguageCode(event.target.value.slice(0, 10))} placeholder="שפת הספר, למשל he / en" /></div>
           <div className="grid gap-2"><Label htmlFor="book-competition-summary">{copy.summary}</Label><Textarea id="book-competition-summary" value={summary} onChange={(event) => setSummary(event.target.value)} placeholder={copy.summaryPlaceholder} className="min-h-28" /></div>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={joinCompetition} onChange={(event) => setJoinCompetition(event.target.checked)} className="mt-1" />הצטרף לדירוג עם שם התצוגה, מספר הספרים והעמודים בלבד.</label>

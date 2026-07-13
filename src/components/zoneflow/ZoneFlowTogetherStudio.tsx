@@ -1,19 +1,35 @@
-import { useMemo, useState } from "react";
-import { BookOpen, Clock3, Flame, Globe2, LockKeyhole, Medal, Play, Plus, Trophy, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BookOpen, Clock3, Coffee, Flame, Globe2, Library, LockKeyhole, Medal, Pause, Plane, Play, Plus, RotateCcw, Shuffle, Trophy, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
+import { supabase } from "@/integrations/supabase/client";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type TogetherTab = "rooms" | "competitions" | "progress";
 type CompetitionKind = "focus" | "books" | "distractions";
-interface Room { id: string; name: string; topic: string; users: number; country: string; }
+type RoomScene = "library" | "plane" | "cafe" | "office";
+type RoomAccess = "public" | "friends";
+interface Room { id: string; name: string; topic: string; users: number; country: string; scene: RoomScene; access: RoomAccess; inviteCode?: string; }
 interface BookProgress { title: string; pages: number; total: number; }
+interface RoomDirectoryRow { id: string; name: string; topic: string; scene: string; access: string; invite_code: string | null; users: number | string; country: string | null; }
+
+type FocusRoomClient = {
+  rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+  from: (table: string) => {
+    insert: (values: Record<string, unknown>) => {
+      select: (columns: string) => { single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }> };
+      then: PromiseLike<{ data: unknown; error: { message: string } | null }>['then'];
+    };
+  };
+};
 
 const COPY = {
   he: { title: "ZoneFlow Together", subtitle: "ריכוז משותף, תחרויות קטנות והתקדמות עם אנשים מכל העולם.", rooms: "חדרים חיים", competitions: "תחרויות", progress: "ההתקדמות שלי", join: "היכנס לחדר", joined: "אתה בחדר", public: "פתוח לכולם", friends: "חברים", focus: "ריכוז", books: "ספרים", distractions: "צמצום הסחות", people: "משתתפים", minutes: "דקות", pages: "עמודים", addBook: "הוסף ספר", bookName: "שם הספר", bookPages: "עמודים שנקראו היום", update: "עדכן קריאה", recommendation: "המלצת ספר", username: "שם משתמש שיוצג", points: "נקודות", unlock: "זמן פתיחה שנצבר", unlockText: "כל 30 דקות ריכוז מאומתות מזכות ב־10 דקות זמן פתיחה מקומי. חסימה מערכתית דורשת תוסף או אפליקציה.", start: "התחל סשן", create: "צור חדר", roomName: "שם החדר", topic: "מה לומדים?", noBooks: "עדיין לא הוספת ספרים לתחרות.", rank: "מקום", streak: "רצף" },
@@ -24,6 +40,15 @@ const COPY = {
   ru: { title: "ZoneFlow Together", subtitle: "Общий фокус, дружеские челленджи и прогресс с людьми со всего мира.", rooms: "Комнаты в эфире", competitions: "Челленджи", progress: "Мой прогресс", join: "Войти", joined: "Вы участвуете", public: "Открыто для всех", friends: "Друзья", focus: "Фокус", books: "Книги", distractions: "Меньше отвлечений", people: "участников", minutes: "минут", pages: "страниц", addBook: "Добавить книгу", bookName: "Название книги", bookPages: "Страниц прочитано сегодня", update: "Обновить чтение", recommendation: "Рекомендация книги", username: "Отображаемое имя", points: "баллов", unlock: "Заработанное время разблокировки", unlockText: "Каждые подтвержденные 30 минут фокуса дают 10 минут локальной разблокировки. Системная блокировка требует расширения или приложения.", start: "Начать сессию", create: "Создать комнату", roomName: "Название комнаты", topic: "Что вы изучаете?", noBooks: "Книги еще не добавлены.", rank: "Место", streak: "Серия" },
 } as const;
 
+const ROOM_COPY = {
+  he: { random: "הצטרף לחדר אקראי", friendCode: "קוד חדר של חברים", joinCode: "הצטרף עם קוד", duration: "משך הסשן", timer: "טיימר משותף", pause: "השהה", resume: "המשך", reset: "אפס", leave: "צא מהחדר", publicRoom: "חדר ציבורי", friendsRoom: "חברים בלבד", scene: "סביבה", library: "ספרייה שקטה", plane: "מטוס פוקוס", cafe: "בית קפה", office: "חלל עבודה", activeRoom: "החדר הפעיל", noRoom: "בחר חדר כדי להתחיל לעבוד יחד", voiceNote: "שמע וקול יופעלו רק לאחר אישור מיקרופון ובחדר שתומך בשיחה." },
+  en: { random: "Join a random room", friendCode: "Friends room code", joinCode: "Join with code", duration: "Session length", timer: "Shared timer", pause: "Pause", resume: "Resume", reset: "Reset", leave: "Leave room", publicRoom: "Public room", friendsRoom: "Friends only", scene: "Environment", library: "Quiet library", plane: "Focus plane", cafe: "Cafe", office: "Coworking space", activeRoom: "Active room", noRoom: "Choose a room to start working together", voiceNote: "Audio is enabled only after microphone permission and in voice-enabled rooms." },
+  es: { random: "Entrar a una sala al azar", friendCode: "Codigo de amigos", joinCode: "Entrar con codigo", duration: "Duracion", timer: "Temporizador compartido", pause: "Pausa", resume: "Continuar", reset: "Reiniciar", leave: "Salir", publicRoom: "Sala publica", friendsRoom: "Solo amigos", scene: "Ambiente", library: "Biblioteca", plane: "Avion focus", cafe: "Cafe", office: "Coworking", activeRoom: "Sala activa", noRoom: "Elige una sala para trabajar juntos", voiceNote: "El audio requiere permiso de microfono y una sala compatible." },
+  zh: { random: "随机加入房间", friendCode: "好友房间代码", joinCode: "使用代码加入", duration: "专注时长", timer: "共享计时器", pause: "暂停", resume: "继续", reset: "重置", leave: "离开房间", publicRoom: "公开房间", friendsRoom: "仅好友", scene: "环境", library: "安静图书馆", plane: "专注航班", cafe: "咖啡馆", office: "共享办公室", activeRoom: "当前房间", noRoom: "选择房间开始共同专注", voiceNote: "音频仅在授权麦克风并进入支持语音的房间后启用。" },
+  ar: { random: "انضم إلى غرفة عشوائية", friendCode: "رمز غرفة الأصدقاء", joinCode: "انضم بالرمز", duration: "مدة الجلسة", timer: "مؤقت مشترك", pause: "إيقاف مؤقت", resume: "متابعة", reset: "إعادة", leave: "مغادرة", publicRoom: "غرفة عامة", friendsRoom: "للأصدقاء", scene: "البيئة", library: "مكتبة هادئة", plane: "طائرة التركيز", cafe: "مقهى", office: "مساحة عمل", activeRoom: "الغرفة النشطة", noRoom: "اختر غرفة للبدء معا", voiceNote: "الصوت يتطلب إذن الميكروفون وغرفة تدعم المحادثة." },
+  ru: { random: "Случайная комната", friendCode: "Код комнаты друзей", joinCode: "Войти по коду", duration: "Длительность", timer: "Общий таймер", pause: "Пауза", resume: "Продолжить", reset: "Сбросить", leave: "Выйти", publicRoom: "Открытая комната", friendsRoom: "Только друзья", scene: "Обстановка", library: "Тихая библиотека", plane: "Фокус-самолет", cafe: "Кафе", office: "Коворкинг", activeRoom: "Активная комната", noRoom: "Выберите комнату для совместной работы", voiceNote: "Аудио доступно после разрешения микрофона в поддерживаемой комнате." },
+} as const;
+
 const COMPETITIONS: { id: CompetitionKind; icon: typeof Trophy; title: string; detail: string; value: string }[] = [
   { id: "focus", icon: Clock3, title: "מרתון ריכוז", detail: "השבוע מודדים דקות ריכוז מאומתות", value: "1,284 דק׳" },
   { id: "books", icon: BookOpen, title: "אתגר הספרים", detail: "עמודים וספרים שנקראו החודש", value: "12,450 עמ׳" },
@@ -31,16 +56,42 @@ const COMPETITIONS: { id: CompetitionKind; icon: typeof Trophy; title: string; d
 ];
 
 const INITIAL_ROOMS: Room[] = [
-  { id: "library", name: "National Library", topic: "Reading quietly", users: 721, country: "Global" },
-  { id: "focus-plane", name: "Focus Plane", topic: "Deep work", users: 604, country: "Global" },
-  { id: "hebrew-study", name: "לומדים ביחד", topic: "עברית / קריאה", users: 83, country: "Israel" },
+  { id: "library", name: "Tabro Library", topic: "Reading quietly", users: 0, country: "Global", scene: "library", access: "public" },
+  { id: "focus-plane", name: "Focus Flight", topic: "Deep work", users: 0, country: "Global", scene: "plane", access: "public" },
+  { id: "hebrew-study", name: "לומדים ביחד", topic: "עברית / קריאה", users: 0, country: "Israel", scene: "cafe", access: "public" },
+  { id: "cowork", name: "Tabro Cowork", topic: "Work sprint", users: 0, country: "Global", scene: "office", access: "public" },
 ];
+
+const SCENE_ICONS = { library: Library, plane: Plane, cafe: Coffee, office: Users };
+
+const getStoredRooms = (): Room[] => {
+  const stored = safeLocalStorage.getJSON<unknown>("zoneflow-together-rooms", INITIAL_ROOMS);
+  if (!Array.isArray(stored)) return INITIAL_ROOMS;
+  const rooms = stored.filter((room): room is Partial<Room> & Pick<Room, "id" | "name"> => Boolean(room) && typeof room === "object" && typeof (room as Room).id === "string" && typeof (room as Room).name === "string")
+    .map((room) => ({
+      id: room.id,
+      name: room.name,
+      topic: typeof room.topic === "string" ? room.topic : "Focus",
+      users: typeof room.users === "number" && Number.isFinite(room.users) ? Math.max(0, room.users) : 0,
+      country: typeof room.country === "string" ? room.country : "Global",
+      scene: room.scene === "plane" || room.scene === "cafe" || room.scene === "office" ? room.scene : "library",
+      access: room.access === "friends" ? "friends" : "public",
+      inviteCode: typeof room.inviteCode === "string" ? room.inviteCode : undefined,
+    }));
+  return rooms.length ? rooms : INITIAL_ROOMS;
+};
+
+const formatTimer = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+const makeInviteCode = () => `TABRO-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
 
 export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const { lang, dir } = useLanguage();
+  const { user } = useAuth();
   const copy = COPY[lang] ?? COPY.en;
+  const roomCopy = ROOM_COPY[lang] ?? ROOM_COPY.en;
   const [tab, setTab] = useState<TogetherTab>("rooms");
-  const [rooms, setRooms] = useState<Room[]>(() => safeLocalStorage.getJSON("zoneflow-together-rooms", INITIAL_ROOMS));
+  const [rooms, setRooms] = useState<Room[]>(getStoredRooms);
   const [joinedRooms, setJoinedRooms] = useState<string[]>(() => safeLocalStorage.getJSON("zoneflow-together-joined", []));
   const [books, setBooks] = useState<BookProgress[]>(() => safeLocalStorage.getJSON("zoneflow-together-books", []));
   const [username, setUsername] = useState(() => safeLocalStorage.getString("zoneflow-together-username", "Tabro learner"));
@@ -48,8 +99,87 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [bookPages, setBookPages] = useState("");
   const [roomName, setRoomName] = useState("");
   const [roomTopic, setRoomTopic] = useState("");
+  const [roomScene, setRoomScene] = useState<RoomScene>("library");
+  const [roomAccess, setRoomAccess] = useState<RoomAccess>("public");
+  const [friendCode, setFriendCode] = useState("");
+  const [selectedRoomId, setSelectedRoomId] = useState(() => safeLocalStorage.getString("zoneflow-together-active-room", ""));
+  const [sessionDuration, setSessionDuration] = useState(25);
+  const [remainingSeconds, setRemainingSeconds] = useState(25 * 60);
   const [focusMinutes, setFocusMinutes] = useState(90);
   const [focusActive, setFocusActive] = useState(false);
+  const [liveRoomsAvailable, setLiveRoomsAvailable] = useState(false);
+  const sessionStartedAt = useRef<string | null>(null);
+
+  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
+
+  const fetchLiveRooms = useCallback(async () => {
+    if (!user) return;
+    const client = supabase as unknown as FocusRoomClient;
+    const { data, error } = await client.rpc("zoneflow_focus_room_directory");
+    if (error || !Array.isArray(data)) {
+      setLiveRoomsAvailable(false);
+      return;
+    }
+    const liveRooms = (data as RoomDirectoryRow[]).map((room): Room => ({
+      id: room.id,
+      name: room.name,
+      topic: room.topic,
+      users: Math.max(0, Number(room.users) || 0),
+      country: room.country || "Global",
+      scene: room.scene === "plane" || room.scene === "cafe" || room.scene === "office" ? room.scene : "library",
+      access: room.access === "friends" ? "friends" : "public",
+      inviteCode: room.invite_code || undefined,
+    }));
+    setLiveRoomsAvailable(true);
+    setRooms(liveRooms.length ? liveRooms : INITIAL_ROOMS);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    void fetchLiveRooms();
+    const channel = supabase
+      .channel(`zoneflow-focus-presence-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "zoneflow_focus_room_members" }, () => void fetchLiveRooms())
+      .subscribe();
+    const heartbeat = window.setInterval(() => void fetchLiveRooms(), 60_000);
+    return () => {
+      window.clearInterval(heartbeat);
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchLiveRooms, user]);
+
+  const recordCompletedSession = useCallback(async () => {
+    if (!user || !sessionStartedAt.current) return;
+    const startedAt = sessionStartedAt.current;
+    sessionStartedAt.current = null;
+    const client = supabase as unknown as FocusRoomClient;
+    await client.from("zoneflow_focus_sessions").insert({
+      user_id: user.id,
+      room_id: selectedRoom && isUuid(selectedRoom.id) ? selectedRoom.id : null,
+      started_at: startedAt,
+      ended_at: new Date().toISOString(),
+      duration_seconds: sessionDuration * 60,
+      completed: true,
+    });
+  }, [selectedRoom, sessionDuration, user]);
+
+  useEffect(() => {
+    if (!focusActive) return;
+    const interval = window.setInterval(() => {
+      setRemainingSeconds((seconds) => {
+        if (seconds > 1) return seconds - 1;
+        setFocusActive(false);
+        setFocusMinutes((minutes) => minutes + sessionDuration);
+        void recordCompletedSession();
+        return 0;
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [focusActive, recordCompletedSession, sessionDuration]);
+
+  useEffect(() => {
+    safeLocalStorage.setString("zoneflow-together-active-room", selectedRoomId);
+  }, [selectedRoomId]);
 
   const totalPages = books.reduce((sum, book) => sum + book.pages, 0);
   const points = focusMinutes + totalPages * 2 + books.length * 25;
@@ -59,11 +189,26 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const competitionCards = useMemo(() => COMPETITIONS.map((item) => ({ ...item, icon: item.icon })), []);
 
   const persistRooms = (next: Room[]) => { setRooms(next); safeLocalStorage.setJSON("zoneflow-together-rooms", next); };
-  const joinRoom = (room: Room) => {
-    if (joinedRooms.includes(room.id)) return;
-    const next = [...joinedRooms, room.id];
-    setJoinedRooms(next);
-    safeLocalStorage.setJSON("zoneflow-together-joined", next);
+  const joinRoom = async (room: Room, inviteCode?: string) => {
+    if (user && isUuid(room.id)) {
+      const client = supabase as unknown as FocusRoomClient;
+      const { error } = await client.rpc("join_zoneflow_focus_room", {
+        p_room_id: room.id,
+        p_display_name: username.trim() || "Tabro member",
+        p_invite_code: inviteCode || room.inviteCode || null,
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      void fetchLiveRooms();
+    }
+    setSelectedRoomId(room.id);
+    if (!joinedRooms.includes(room.id)) {
+      const next = [...joinedRooms, room.id];
+      setJoinedRooms(next);
+      safeLocalStorage.setJSON("zoneflow-together-joined", next);
+    }
   };
   const addBook = () => {
     const title = bookName.trim();
@@ -72,10 +217,78 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     const next = [{ title, pages, total: Math.max(pages, 300) }, ...books];
     setBooks(next); safeLocalStorage.setJSON("zoneflow-together-books", next); setBookName(""); setBookPages("");
   };
-  const createRoom = () => {
+  const createRoom = async () => {
     if (!roomName.trim()) return;
-    const room: Room = { id: `${Date.now()}`, name: roomName.trim(), topic: roomTopic.trim() || copy.focus, users: 1, country: "Private" };
-    persistRooms([room, ...rooms]); joinRoom(room); setRoomName(""); setRoomTopic("");
+    const inviteCode = roomAccess === "friends" ? makeInviteCode() : undefined;
+    if (user && liveRoomsAvailable) {
+      const client = supabase as unknown as FocusRoomClient;
+      const { data, error } = await client.from("zoneflow_focus_rooms").insert({
+        owner_id: user.id,
+        name: roomName.trim(),
+        topic: roomTopic.trim() || copy.focus,
+        scene: roomScene,
+        access: roomAccess,
+        invite_code: inviteCode || null,
+      }).select("id").single();
+      if (error || !data) {
+        toast.error(error?.message || "Could not create the room");
+        return;
+      }
+      const room: Room = { id: data.id, name: roomName.trim(), topic: roomTopic.trim() || copy.focus, users: 1, country: "Global", scene: roomScene, access: roomAccess, inviteCode };
+      await joinRoom(room, inviteCode);
+      setRoomName(""); setRoomTopic("");
+      return;
+    }
+    const room: Room = {
+      id: `${Date.now()}`,
+      name: roomName.trim(),
+      topic: roomTopic.trim() || copy.focus,
+      users: 1,
+      country: roomAccess === "friends" ? "Private" : "Global",
+      scene: roomScene,
+      access: roomAccess,
+      inviteCode,
+    };
+    persistRooms([room, ...rooms]); void joinRoom(room); setRoomName(""); setRoomTopic("");
+    toast.info("החדר נשמר במכשיר. חדרים חיים יופעלו לאחר התקנת עדכון מסד הנתונים.");
+  };
+
+  const joinRandomRoom = () => {
+    const publicRooms = rooms.filter((room) => room.access === "public");
+    if (!publicRooms.length) return;
+    void joinRoom(publicRooms[Math.floor(Math.random() * publicRooms.length)]);
+  };
+
+  const joinByCode = async () => {
+    const normalized = friendCode.trim().toUpperCase();
+    if (!normalized) return;
+    if (user && liveRoomsAvailable) {
+      const client = supabase as unknown as FocusRoomClient;
+      const { data, error } = await client.rpc("join_zoneflow_focus_room_by_code", { p_invite_code: normalized, p_display_name: username.trim() || "Tabro member" });
+      if (error || typeof data !== "string") {
+        toast.error(error?.message || "Room code not found");
+        return;
+      }
+      await fetchLiveRooms();
+      setSelectedRoomId(data);
+      setFriendCode("");
+      return;
+    }
+    const room = rooms.find((item) => item.inviteCode?.toUpperCase() === normalized);
+    if (room) void joinRoom(room, normalized);
+  };
+
+  const startTimer = () => {
+    if (!selectedRoom) return;
+    if (remainingSeconds === 0) setRemainingSeconds(sessionDuration * 60);
+    if (!sessionStartedAt.current) sessionStartedAt.current = new Date().toISOString();
+    setFocusActive(true);
+  };
+
+  const resetTimer = () => {
+    setFocusActive(false);
+    sessionStartedAt.current = null;
+    setRemainingSeconds(sessionDuration * 60);
   };
 
   return <div className="space-y-4" dir={dir}>
@@ -88,7 +301,77 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     <Tabs value={tab} onValueChange={(value) => setTab(value as TogetherTab)}><TabsList className="grid h-auto w-full grid-cols-3"><TabsTrigger value="rooms">{copy.rooms}</TabsTrigger><TabsTrigger value="competitions">{copy.competitions}</TabsTrigger><TabsTrigger value="progress">{copy.progress}</TabsTrigger></TabsList></Tabs>
 
-    {tab === "rooms" && <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]"><Card className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-cyan-600" />{copy.rooms}</CardTitle></CardHeader><CardContent className="space-y-3">{rooms.map((room) => <div key={room.id} className={cn("flex flex-wrap items-center gap-3 rounded-2xl border p-4", panel)}><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/15"><Globe2 className="h-5 w-5 text-cyan-600" /></div><div className="min-w-[180px] flex-1"><div className="font-semibold">{room.name}</div><div className={cn("text-sm", muted)}>{room.topic} · {room.country}</div><div className={cn("mt-1 text-xs", muted)}>{room.users} {copy.people} · {copy.public}</div></div><Button onClick={() => joinRoom(room)} variant={joinedRooms.includes(room.id) ? "outline" : "default"}>{joinedRooms.includes(room.id) ? copy.joined : copy.join}</Button></div>)}</CardContent></Card><Card className={cn("border", panel)}><CardHeader><CardTitle>{copy.create}</CardTitle></CardHeader><CardContent className="space-y-3"><Input value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder={copy.roomName} /><Input value={roomTopic} onChange={(event) => setRoomTopic(event.target.value)} placeholder={copy.topic} /><Button className="w-full" onClick={createRoom}><Plus className="h-4 w-4" /> {copy.create}</Button></CardContent></Card></div>}
+    {tab === "rooms" && (
+      <div className="space-y-4">
+        <Card className={cn("overflow-hidden border", panel)}>
+          <CardContent className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 className="h-4 w-4 text-cyan-600" />{roomCopy.activeRoom}</div>
+              {selectedRoom ? (
+                <div className="mt-2">
+                  <div className="text-xl font-bold">{selectedRoom.name}</div>
+                  <div className={cn("text-sm", muted)}>{selectedRoom.topic} · {selectedRoom.access === "friends" ? roomCopy.friendsRoom : roomCopy.publicRoom}</div>
+                  {selectedRoom.inviteCode && <div className="mt-2 inline-flex rounded-full bg-cyan-500/10 px-3 py-1 font-mono text-xs">{selectedRoom.inviteCode}</div>}
+                </div>
+              ) : <p className={cn("mt-2 text-sm", muted)}>{roomCopy.noRoom}</p>}
+            </div>
+            <div className="min-w-[260px] rounded-3xl bg-slate-950 p-5 text-center text-white">
+              <div className="text-xs text-white/60">{roomCopy.timer}</div>
+              <div className="mt-1 font-mono text-5xl font-bold tracking-tight">{formatTimer(remainingSeconds)}</div>
+              <div className="mt-4 flex justify-center gap-2">
+                <Button size="sm" disabled={!selectedRoom} onClick={focusActive ? () => setFocusActive(false) : startTimer}>
+                  {focusActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  {focusActive ? roomCopy.pause : remainingSeconds < sessionDuration * 60 ? roomCopy.resume : copy.start}
+                </Button>
+                <Button size="icon" variant="secondary" onClick={resetTimer} aria-label={roomCopy.reset}><RotateCcw className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
+          <Card className={cn("border", panel)}>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-cyan-600" />{copy.rooms}</CardTitle>
+              <Button variant="outline" size="sm" onClick={joinRandomRoom}><Shuffle className="h-4 w-4" />{roomCopy.random}</Button>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              {rooms.map((room) => {
+                const SceneIcon = SCENE_ICONS[room.scene];
+                return <div key={room.id} className={cn("rounded-3xl border p-4", selectedRoomId === room.id && "border-cyan-500 bg-cyan-500/5", panel)}>
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15"><SceneIcon className="h-6 w-6 text-cyan-600" /></div>
+                    <div className="min-w-0 flex-1"><div className="font-semibold">{room.name}</div><div className={cn("text-sm", muted)}>{room.topic}</div><div className={cn("mt-1 text-xs", muted)}>{room.access === "friends" ? roomCopy.friendsRoom : roomCopy.publicRoom}</div></div>
+                  </div>
+                  <Button className="mt-4 w-full" onClick={() => void joinRoom(room)} variant={selectedRoomId === room.id ? "outline" : "default"}>{selectedRoomId === room.id ? copy.joined : copy.join}</Button>
+                </div>;
+              })}
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            <Card className={cn("border", panel)}>
+              <CardHeader><CardTitle>{copy.create}</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <Input value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder={copy.roomName} />
+                <Input value={roomTopic} onChange={(event) => setRoomTopic(event.target.value)} placeholder={copy.topic} />
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={roomScene} onChange={(event) => setRoomScene(event.target.value as RoomScene)} className="h-10 rounded-md border bg-background px-3 text-sm">
+                    <option value="library">{roomCopy.library}</option><option value="plane">{roomCopy.plane}</option><option value="cafe">{roomCopy.cafe}</option><option value="office">{roomCopy.office}</option>
+                  </select>
+                  <select value={roomAccess} onChange={(event) => setRoomAccess(event.target.value as RoomAccess)} className="h-10 rounded-md border bg-background px-3 text-sm">
+                    <option value="public">{roomCopy.publicRoom}</option><option value="friends">{roomCopy.friendsRoom}</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2"><Input type="number" min="5" max="180" value={sessionDuration} onChange={(event) => { const minutes = Math.min(180, Math.max(5, Number(event.target.value) || 25)); setSessionDuration(minutes); setRemainingSeconds(minutes * 60); }} /><span className={cn("whitespace-nowrap text-xs", muted)}>{roomCopy.duration}</span></div>
+                <Button className="w-full" onClick={() => void createRoom()}><Plus className="h-4 w-4" /> {copy.create}</Button>
+              </CardContent>
+            </Card>
+            <Card className={cn("border", panel)}><CardContent className="space-y-3 p-4"><Input value={friendCode} onChange={(event) => setFriendCode(event.target.value)} placeholder={roomCopy.friendCode} /><Button className="w-full" variant="outline" onClick={() => void joinByCode()}>{roomCopy.joinCode}</Button><p className={cn("text-xs leading-5", muted)}>{roomCopy.voiceNote}</p></CardContent></Card>
+          </div>
+        </div>
+      </div>
+    )}
 
     {tab === "competitions" && <div className="grid gap-4 xl:grid-cols-3">{competitionCards.map((competition) => { const Icon = competition.icon; return <Card key={competition.id} className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-amber-500" />{competition.title}</CardTitle></CardHeader><CardContent><p className={cn("text-sm leading-6", muted)}>{competition.detail}</p><div className="mt-5 text-2xl font-bold">{competition.value}</div><div className={cn("mt-1 text-xs", muted)}>{competition.id === "books" ? "הדירוג מופיע בדשבורד הספרים לאחר הצטרפות מפורשת." : "דירוג ציבורי יוצג רק לאחר חיבור נתוני המשתתפים."}</div><Progress value={competition.id === "books" ? Math.min(100, totalPages / 5) : competition.id === "focus" ? Math.min(100, focusMinutes / 3) : Math.min(100, unlockMinutes)} className="mt-4 h-2" /></CardContent></Card> })}</div>}
 

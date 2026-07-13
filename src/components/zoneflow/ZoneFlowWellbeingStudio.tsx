@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useLanguage } from "@/hooks/useLanguage";
+import { applyBlockingPolicy, getBlockingAuthorization, getBlockingPlatform, requestBlockingAuthorization, stopBlockingPolicy, type BlockingAuthorization } from "@/lib/appBlocking";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type DeviceKind = "computer" | "iphone" | "android";
 interface Device { id: string; kind: DeviceKind; name: string; minutes: number; connected: boolean; }
@@ -32,10 +34,20 @@ const PERMISSION_COPY = {
   ru: { title: "Разрешения и границы", body: "Согласие позволяет сохранять настройки фокуса и список отвлечений. Оно не дает сайту доступа к приложениям, камере, сообщениям или экранному времени.", grant: "Разрешить функции Tabro", revoke: "Отозвать согласие", granted: "Согласие активно", native: "Для настоящей блокировки нужны расширение или нативное приложение с системным разрешением." },
 } as const;
 
+const BLOCKER_COPY = {
+  he: { systemTitle: "חיבור חסימה מערכתית", platform: "פלטפורמה", permission: "הרשאת חסימה", granted: "מאושר", denied: "נדחה", install: "נדרש רכיב Tabro למכשיר", unavailable: "לא זמין", request: "בדוק ובקש הרשאה", localOnly: "Focus מקומי הופעל. חסימת אפליקציות תתחיל לאחר התקנת רכיב המכשיר.", policyStarted: "מדיניות החסימה הופעלה במכשיר", policyStopped: "מדיניות החסימה הופסקה" },
+  en: { systemTitle: "System blocking connection", platform: "Platform", permission: "Blocking permission", granted: "Granted", denied: "Denied", install: "Tabro device component required", unavailable: "Unavailable", request: "Check and request permission", localOnly: "Local Focus started. App blocking will start after installing the device component.", policyStarted: "Blocking policy started on this device", policyStopped: "Blocking policy stopped" },
+  es: { systemTitle: "Conexion de bloqueo", platform: "Plataforma", permission: "Permiso", granted: "Concedido", denied: "Denegado", install: "Se requiere el componente Tabro", unavailable: "No disponible", request: "Comprobar permiso", localOnly: "Focus local iniciado. El bloqueo requiere el componente del dispositivo.", policyStarted: "Bloqueo iniciado", policyStopped: "Bloqueo detenido" },
+  zh: { systemTitle: "系统屏蔽连接", platform: "平台", permission: "屏蔽权限", granted: "已授权", denied: "已拒绝", install: "需要安装 Tabro 设备组件", unavailable: "不可用", request: "检查并请求权限", localOnly: "已开启本地专注。安装设备组件后才能屏蔽应用。", policyStarted: "设备屏蔽已开启", policyStopped: "设备屏蔽已停止" },
+  ar: { systemTitle: "اتصال الحظر بالنظام", platform: "المنصة", permission: "إذن الحظر", granted: "ممنوح", denied: "مرفوض", install: "مطلوب مكون Tabro للجهاز", unavailable: "غير متاح", request: "فحص وطلب الإذن", localOnly: "تم تشغيل التركيز المحلي. حظر التطبيقات يحتاج إلى مكون الجهاز.", policyStarted: "تم تشغيل الحظر", policyStopped: "تم إيقاف الحظر" },
+  ru: { systemTitle: "Системная блокировка", platform: "Платформа", permission: "Разрешение", granted: "Разрешено", denied: "Отклонено", install: "Нужен компонент Tabro", unavailable: "Недоступно", request: "Проверить разрешение", localOnly: "Локальный Focus запущен. Для блокировки приложений нужен компонент устройства.", policyStarted: "Блокировка запущена", policyStopped: "Блокировка остановлена" },
+} as const;
+
 export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boolean; onOpenCoach: () => void }) {
   const { lang, dir } = useLanguage();
   const copy = COPY[lang] ?? COPY.en;
   const permissionCopy = PERMISSION_COPY[lang] ?? PERMISSION_COPY.en;
+  const blockerCopy = BLOCKER_COPY[lang] ?? BLOCKER_COPY.en;
   const [devices, setDevices] = useState<Device[]>(() => safeLocalStorage.getJSON("zoneflow-wellbeing-devices", [
     { id: "computer", kind: "computer", name: copy.computer, minutes: 0, connected: true },
     { id: "iphone", kind: "iphone", name: copy.iphone, minutes: 0, connected: false },
@@ -47,10 +59,13 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const [inviteCode, setInviteCode] = useState("");
   const [joined, setJoined] = useState(false);
   const [consentGranted, setConsentGranted] = useState(() => safeLocalStorage.getJSON("zoneflow-wellbeing-consent", false));
+  const [blockingAuthorization, setBlockingAuthorization] = useState<BlockingAuthorization>("unavailable");
+  const blockingPlatform = getBlockingPlatform();
 
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-devices", devices), [devices]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-blocked", blockedApps), [blockedApps]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-consent", consentGranted), [consentGranted]);
+  useEffect(() => { void getBlockingAuthorization().then(setBlockingAuthorization); }, []);
 
   const totalMinutes = devices.reduce((sum, device) => sum + device.minutes, 0);
   const savedMinutes = blockedApps.reduce((sum, app) => sum + app.minutesSaved, 0);
@@ -74,6 +89,40 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const updateMinutes = (id: string, value: number) => {
     setDevices((items) => items.map((device) => device.id === id ? { ...device, minutes: Math.max(0, value) } : device));
   };
+
+  const requestSystemPermission = async () => {
+    const status = await requestBlockingAuthorization();
+    setBlockingAuthorization(status);
+    if (status === "needs-install") toast.info(blockerCopy.install);
+  };
+
+  const toggleFocusPolicy = async () => {
+    if (focusActive) {
+      setFocusActive(false);
+      if (blockingAuthorization === "granted") {
+        try { await stopBlockingPolicy(); toast.success(blockerCopy.policyStopped); } catch { /* Local focus still stops safely. */ }
+      }
+      return;
+    }
+
+    setFocusActive(true);
+    if (blockingAuthorization !== "granted") {
+      toast.info(blockerCopy.localOnly);
+      return;
+    }
+
+    try {
+      await applyBlockingPolicy({
+        appIds: blockedApps.filter((item) => !item.name.includes(".")).map((item) => item.name),
+        websiteHosts: blockedApps.filter((item) => item.name.includes(".")).map((item) => item.name),
+      });
+      toast.success(blockerCopy.policyStarted);
+    } catch {
+      toast.error(blockerCopy.install);
+    }
+  };
+
+  const authorizationLabel = blockingAuthorization === "granted" ? blockerCopy.granted : blockingAuthorization === "denied" ? blockerCopy.denied : blockingAuthorization === "needs-install" ? blockerCopy.install : blockerCopy.unavailable;
 
   return (
     <div className="space-y-4" dir={dir}>
@@ -105,6 +154,11 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
             </Button>
             {consentGranted && <span className="text-sm text-emerald-600"><Check className="mr-1 inline h-4 w-4" />{permissionCopy.granted}</span>}
           </div>
+          <div className={cn("grid gap-3 rounded-2xl border p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-center", panel)}>
+            <div><div className={cn("text-xs", muted)}>{blockerCopy.platform}</div><div className="font-semibold">{blockingPlatform === "ios" ? "iPhone / iPad" : blockingPlatform === "android" ? "Android" : "Web / Desktop"}</div></div>
+            <div><div className={cn("text-xs", muted)}>{blockerCopy.permission}</div><div className={cn("font-semibold", blockingAuthorization === "granted" ? "text-emerald-600" : "text-amber-600")}>{authorizationLabel}</div></div>
+            <Button variant="outline" onClick={requestSystemPermission}>{blockerCopy.request}</Button>
+          </div>
           <p className={cn("text-xs leading-6", muted)}>{permissionCopy.native}</p>
         </CardContent>
       </Card>
@@ -130,7 +184,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
           <CardContent className="space-y-3">
             <div className="flex gap-2"><Input value={appName} onChange={(event) => setAppName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addBlockedApp()} placeholder={copy.app} /><Button onClick={addBlockedApp}>{copy.addBlock}</Button></div>
             {blockedApps.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noApps}</p> : blockedApps.map((app) => <div key={app.id} className={cn("flex items-center gap-3 rounded-2xl border p-3", panel)}><Ban className="h-4 w-4 text-rose-500" /><span className="flex-1 font-medium">{app.name}</span><span className={cn("text-xs", muted)}>{app.minutesSaved} {copy.saved}</span></div>)}
-            <Button className="w-full rounded-full" disabled={!consentGranted} onClick={() => setFocusActive((value) => !value)} variant={focusActive ? "destructive" : "default"}>{focusActive ? copy.stop : copy.focus}</Button>
+            <Button className="w-full rounded-full" disabled={!consentGranted} onClick={() => void toggleFocusPolicy()} variant={focusActive ? "destructive" : "default"}>{focusActive ? copy.stop : copy.focus}</Button>
             {focusActive && <div className="rounded-2xl bg-emerald-50 p-3 text-center text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200">{copy.active}</div>}
             <p className={cn("text-xs leading-6", muted)}>{copy.limitations}</p>
           </CardContent>
