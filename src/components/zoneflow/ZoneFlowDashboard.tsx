@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff, Settings2 } from "lucide-react";
+import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff, Settings2, Users } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_PATHS, MEDITATION_SESSION_META, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPE_META, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
