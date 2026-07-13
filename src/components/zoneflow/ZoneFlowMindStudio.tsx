@@ -445,6 +445,27 @@ const getStoredStringRecord = (key: string): Record<string, string> => {
   ) as Record<string, string>;
 };
 
+const getStoredStringArray = (key: string): string[] => {
+  const value = safeLocalStorage.getJSON<unknown>(key, []);
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+};
+
+const getStoredBoolean = (key: string, fallback: boolean) => {
+  const value = safeLocalStorage.getJSON<unknown>(key, fallback);
+  return typeof value === "boolean" ? value : fallback;
+};
+
+const getStoredContentMode = (): "reflection" | "science" | "faith" => {
+  const value = safeLocalStorage.getString("zoneflow-mind-content-mode", "reflection");
+  return value === "science" || value === "faith" || value === "reflection" ? value : "reflection";
+};
+
+const getStoredMasteryWins = (): MasteryWin[] => {
+  const value = safeLocalStorage.getJSON<unknown>("zoneflow-mind-mastery-ledger", []);
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is MasteryWin => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry));
+};
+
 const getStoredMapProfile = (): MapProfile => {
   const fallback: MapProfile = {
     birthDate: safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "",
@@ -452,7 +473,7 @@ const getStoredMapProfile = (): MapProfile => {
     birthPlace: safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "",
     birthCountry: safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "",
     utcOffsetMinutes: getStoredFiniteNumber("zoneflow-mind-birth-utc-offset", 180),
-    keepMasterNumbers: safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true),
+    keepMasterNumbers: getStoredBoolean("zoneflow-mind-master-numbers", true),
   };
   const saved = safeLocalStorage.getJSON<unknown>("zoneflow-mind-applied-map-profile", null);
   if (!saved || typeof saved !== "object" || Array.isArray(saved)) return fallback;
@@ -499,7 +520,48 @@ class ZoneFlowMindTabBoundary extends Component<{ children: ReactNode; onReset: 
   }
 }
 
-export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
+class ZoneFlowMindBoundary extends Component<{ children: ReactNode; onReset: () => void }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("ZoneFlow Mind failed to render", error);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <Card className="mx-auto max-w-2xl border-amber-200 bg-amber-50 text-center dark:border-amber-500/30 dark:bg-amber-500/10">
+        <CardContent className="p-8">
+          <Star className="mx-auto mb-4 h-10 w-10 text-amber-600" />
+          <h2 className="text-xl font-bold">ZoneFlow Mind צריך איפוס קטן</h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">נמצא נתון ישן שלא מתאים לגרסה החדשה. אפשר לאפס רק את נתוני העבודה של ZoneFlow Mind ולהיכנס מחדש. פרטי הלידה השמורים שלך יישארו.</p>
+          <Button className="mt-5" onClick={this.props.onReset}>אפס את ZoneFlow Mind ופתח מחדש</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+}
+
+const resetZoneFlowMindStorage = () => {
+  [
+    "zoneflow-mind-tab",
+    "zoneflow-mind-selected-journey",
+    "zoneflow-mind-completed-days",
+    "zoneflow-mind-journal",
+    "zoneflow-mind-content-mode",
+    "zoneflow-mind-horoscope-notes",
+    "zoneflow-mind-mastery-ledger",
+  ].forEach((key) => safeLocalStorage.remove(key));
+
+  window.setTimeout(() => window.location.reload(), 0);
+};
+
+function ZoneFlowMindStudioContent({ isLight }: ZoneFlowMindStudioProps) {
   const { lang, dir } = useLanguage();
   const ui = MIND_UI[lang] ?? MIND_UI.en;
   const checkinUi = CHECKIN_COPY[lang] ?? CHECKIN_COPY.en;
@@ -512,17 +574,17 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [selectedJourneyId, setSelectedJourneyId] = useState(() => {
     return safeLocalStorage.getString("zoneflow-mind-selected-journey", JOURNEYS[0].id) || JOURNEYS[0].id;
   });
-  const [completedDays, setCompletedDays] = useState<string[]>(() => safeLocalStorage.getJSON("zoneflow-mind-completed-days", []));
-  const [journalEntries, setJournalEntries] = useState<Record<string, string>>(() => safeLocalStorage.getJSON("zoneflow-mind-journal", {}));
+  const [completedDays, setCompletedDays] = useState<string[]>(() => getStoredStringArray("zoneflow-mind-completed-days"));
+  const [journalEntries, setJournalEntries] = useState<Record<string, string>>(() => getStoredStringRecord("zoneflow-mind-journal"));
   const [birthDate, setBirthDate] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "");
   const [birthCity, setBirthCity] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcity", "") || "");
   const [birthTime, setBirthTime] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "");
   const [birthPlace, setBirthPlace] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "");
   const [birthCountry, setBirthCountry] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "");
   const [birthUtcOffsetMinutes, setBirthUtcOffsetMinutes] = useState(() => getStoredFiniteNumber("zoneflow-mind-birth-utc-offset", 180));
-  const [keepMasterNumbers, setKeepMasterNumbers] = useState(() => safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true));
+  const [keepMasterNumbers, setKeepMasterNumbers] = useState(() => getStoredBoolean("zoneflow-mind-master-numbers", true));
   const [appliedMapProfile, setAppliedMapProfile] = useState<MapProfile>(getStoredMapProfile);
-  const [contentMode, setContentMode] = useState<"reflection" | "science" | "faith">(() => (safeLocalStorage.getString("zoneflow-mind-content-mode", "reflection") as "reflection" | "science" | "faith") || "reflection");
+  const [contentMode, setContentMode] = useState<"reflection" | "science" | "faith">(getStoredContentMode);
   const [reflectionTopic, setReflectionTopic] = useState("");
   const [checkinAnxiety, setCheckinAnxiety] = useState(0);
   const [checkinEnergy, setCheckinEnergy] = useState(5);
@@ -534,7 +596,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachIntensity, setCoachIntensity] = useState<CoachIntensity>(3);
   const [isListening, setIsListening] = useState(false);
-  const [masteryWins, setMasteryWins] = useState<MasteryWin[]>(() => safeLocalStorage.getJSON("zoneflow-mind-mastery-ledger", []));
+  const [masteryWins, setMasteryWins] = useState<MasteryWin[]>(getStoredMasteryWins);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const coachScrollRef = useRef<HTMLDivElement | null>(null);
   const {
@@ -548,7 +610,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   useEffect(() => {
     safeLocalStorage.setString("zoneflow-mind-tab", activeTab);
     if (activeTab === "progress") {
-      setMasteryWins(safeLocalStorage.getJSON("zoneflow-mind-mastery-ledger", []));
+      setMasteryWins(getStoredMasteryWins());
     }
   }, [activeTab]);
 
@@ -1792,5 +1854,13 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
         </ZoneFlowMindTabBoundary>
       )}
     </div>
+  );
+}
+
+export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
+  return (
+    <ZoneFlowMindBoundary onReset={resetZoneFlowMindStorage}>
+      <ZoneFlowMindStudioContent isLight={isLight} />
+    </ZoneFlowMindBoundary>
   );
 }
