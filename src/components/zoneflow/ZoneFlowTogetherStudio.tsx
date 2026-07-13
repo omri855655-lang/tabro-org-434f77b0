@@ -57,9 +57,13 @@ const COMPETITIONS: { id: CompetitionKind; icon: typeof Trophy; title: string; d
 
 const INITIAL_ROOMS: Room[] = [
   { id: "library", name: "Tabro Library", topic: "Reading quietly", users: 0, country: "Global", scene: "library", access: "public" },
+  { id: "reading-club", name: "Reading Hall", topic: "Books and long-form reading", users: 0, country: "Global", scene: "library", access: "public" },
   { id: "focus-plane", name: "Focus Flight", topic: "Deep work", users: 0, country: "Global", scene: "plane", access: "public" },
+  { id: "exam-flight", name: "Exam Flight", topic: "Quiet exam preparation", users: 0, country: "Global", scene: "plane", access: "public" },
   { id: "hebrew-study", name: "לומדים ביחד", topic: "עברית / קריאה", users: 0, country: "Israel", scene: "cafe", access: "public" },
+  { id: "study-cafe", name: "Study Cafe", topic: "Light study and planning", users: 0, country: "Global", scene: "cafe", access: "public" },
   { id: "cowork", name: "Tabro Cowork", topic: "Work sprint", users: 0, country: "Global", scene: "office", access: "public" },
+  { id: "body-double", name: "Silent Body Double", topic: "Camera-optional accountability", users: 0, country: "Global", scene: "office", access: "public" },
 ];
 
 const SCENE_ICONS = { library: Library, plane: Plane, cafe: Coffee, office: Users };
@@ -78,7 +82,10 @@ const getStoredRooms = (): Room[] => {
       access: room.access === "friends" ? "friends" : "public",
       inviteCode: typeof room.inviteCode === "string" ? room.inviteCode : undefined,
     }));
-  return rooms.length ? rooms : INITIAL_ROOMS;
+  if (!rooms.length) return INITIAL_ROOMS;
+  const merged = new Map(INITIAL_ROOMS.map((room) => [room.id, room]));
+  rooms.forEach((room) => merged.set(room.id, room));
+  return Array.from(merged.values());
 };
 
 const formatTimer = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -341,7 +348,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
                 return <div key={room.id} className={cn("rounded-3xl border p-4", selectedRoomId === room.id && "border-cyan-500 bg-cyan-500/5", panel)}>
                   <div className="flex items-start gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15"><SceneIcon className="h-6 w-6 text-cyan-600" /></div>
-                    <div className="min-w-0 flex-1"><div className="font-semibold">{room.name}</div><div className={cn("text-sm", muted)}>{room.topic}</div><div className={cn("mt-1 text-xs", muted)}>{room.access === "friends" ? roomCopy.friendsRoom : roomCopy.publicRoom}</div></div>
+                    <div className="min-w-0 flex-1"><div className="font-semibold">{room.name}</div><div className={cn("text-sm", muted)}>{room.topic}</div><div className={cn("mt-1 flex flex-wrap items-center gap-2 text-xs", muted)}><span>{room.access === "friends" ? roomCopy.friendsRoom : roomCopy.publicRoom}</span><span>·</span><span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{room.users} {copy.people}</span></div></div>
                   </div>
                   <Button className="mt-4 w-full" onClick={() => void joinRoom(room)} variant={selectedRoomId === room.id ? "outline" : "default"}>{selectedRoomId === room.id ? copy.joined : copy.join}</Button>
                 </div>;

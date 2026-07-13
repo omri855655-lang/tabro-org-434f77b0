@@ -89,6 +89,26 @@ interface HiddenYtVideo {
 type Workspace = "core" | "mind" | "wellbeing" | "together";
 type VisibleWorkspaces = Record<Workspace, boolean>;
 
+const getVisibleWorkspaces = (): VisibleWorkspaces => {
+  const saved = safeLocalStorage.getJSON<Partial<VisibleWorkspaces>>("zoneflow-visible-workspaces", {});
+  return {
+    core: saved.core !== false,
+    mind: saved.mind !== false,
+    wellbeing: saved.wellbeing !== false,
+    // Older preferences predate this workspace, so a missing value must be visible.
+    together: saved.together !== false,
+  };
+};
+
+const WORKSPACE_LABELS = {
+  he: { core: "ZoneFlow ראשי", mind: "ZoneFlow Mind", wellbeing: "רווחה דיגיטלית", together: "חדרי ריכוז" },
+  en: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Digital Wellbeing", together: "Focus Rooms" },
+  es: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Bienestar digital", together: "Salas de enfoque" },
+  zh: { core: "ZoneFlow 核心", mind: "ZoneFlow Mind", wellbeing: "数字健康", together: "专注房间" },
+  ar: { core: "ZoneFlow الأساسي", mind: "ZoneFlow Mind", wellbeing: "الرفاه الرقمي", together: "غرف التركيز" },
+  ru: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Цифровое благополучие", together: "Комнаты фокуса" },
+} as const;
+
 const COLOR_MAP: Record<string, string> = {
   violet: "from-violet-500 to-violet-700",
   cyan: "from-cyan-500 to-cyan-700",
@@ -124,7 +144,8 @@ const ZoneFlowDashboard = () => {
     return saved === "mind" || saved === "wellbeing" || saved === "together" ? saved : "core";
   });
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
-  const [visibleWorkspaces, setVisibleWorkspaces] = useState<VisibleWorkspaces>(() => safeLocalStorage.getJSON("zoneflow-visible-workspaces", { core: true, mind: true, wellbeing: true, together: true }));
+  const [visibleWorkspaces, setVisibleWorkspaces] = useState<VisibleWorkspaces>(getVisibleWorkspaces);
+  const workspaceLabels = WORKSPACE_LABELS[lang] ?? WORKSPACE_LABELS.en;
 
   // Timer
   const [timerPreset, setTimerPreset] = useState(TIMER_PRESETS[0]);
@@ -535,8 +556,8 @@ const ZoneFlowDashboard = () => {
             <div className={`inline-flex max-w-full overflow-x-auto rounded-full border p-1 ${isLight ? "bg-white border-slate-200" : "bg-white/5 border-white/10"}`}>
               {visibleWorkspaces.core && <button onClick={() => setWorkspace("core")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "core" ? isLight ? "bg-slate-900 text-white" : "bg-white text-slate-900" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>ZoneFlow Core</button>}
               {visibleWorkspaces.mind && <button onClick={() => setWorkspace("mind")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "mind" ? "bg-gradient-to-r from-[#2b1cff] via-[#4530ff] to-[#6d73ff] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>ZoneFlow Mind</button>}
-              {visibleWorkspaces.wellbeing && <button onClick={() => setWorkspace("wellbeing")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "wellbeing" ? "bg-gradient-to-r from-[#0d6473] via-[#118a91] to-[#52c7b8] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>Digital Wellbeing</button>}
-              {visibleWorkspaces.together && <button onClick={() => setWorkspace("together")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "together" ? "bg-gradient-to-r from-[#3b35ae] via-[#5147d9] to-[#0ea5a6] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>Together</button>}
+              {visibleWorkspaces.wellbeing && <button onClick={() => setWorkspace("wellbeing")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "wellbeing" ? "bg-gradient-to-r from-[#0d6473] via-[#118a91] to-[#52c7b8] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>{workspaceLabels.wellbeing}</button>}
+              {visibleWorkspaces.together && <button onClick={() => setWorkspace("together")} className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${workspace === "together" ? "bg-gradient-to-r from-[#3b35ae] via-[#5147d9] to-[#0ea5a6] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}><Users className="me-1 inline h-4 w-4" />{workspaceLabels.together}</button>}
             </div>
             <Button variant="ghost" size="icon" className={isLight ? "text-slate-600" : "text-white/70"} onClick={() => setWorkspaceSettingsOpen((value) => !value)} aria-label="התאמת מרחבי ZoneFlow" aria-expanded={workspaceSettingsOpen}><Settings2 className="h-4 w-4" /></Button>
           </div>
@@ -546,7 +567,7 @@ const ZoneFlowDashboard = () => {
             {(["core", "mind", "wellbeing", "together"] as const).map((key) => <button key={key} type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10" onClick={() => setVisibleWorkspaces((value) => {
               if (value[key] && Object.values(value).filter(Boolean).length === 1) return value;
               return { ...value, [key]: !value[key] };
-            })}><span className={`h-2.5 w-2.5 rounded-full ${visibleWorkspaces[key] ? "bg-emerald-500" : "bg-slate-300"}`} />{key === "core" ? "ZoneFlow Core" : key === "mind" ? "ZoneFlow Mind" : key === "wellbeing" ? "Digital Wellbeing" : "ZoneFlow Together"}</button>)}
+            })}><span className={`h-2.5 w-2.5 rounded-full ${visibleWorkspaces[key] ? "bg-emerald-500" : "bg-slate-300"}`} />{workspaceLabels[key]}</button>)}
           </div>}
 
           {workspace === "mind" && (
