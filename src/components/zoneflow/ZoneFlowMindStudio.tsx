@@ -42,6 +42,7 @@ import { ZoneFlowMindUnfreeze } from "./ZoneFlowMindUnfreeze";
 
 type MindTab = "home" | "journeys" | "coach" | "progress" | "numbers" | "birthchart" | "stars";
 type CoachIntensity = 1 | 2 | 3 | 4 | 5;
+type MapProfile = { birthDate: string; birthTime: string; birthPlace: string; birthCountry: string; keepMasterNumbers: boolean };
 
 interface JourneyDay {
   day: number;
@@ -284,12 +285,12 @@ const CHECKIN_COPY = {
 } as const;
 
 const MAP_COPY = {
-  he: { birthTime: "שעת לידה (אופציונלי)", birthPlace: "מקום לידה", birthCountry: "מדינת לידה", method: "הצגת 11/22/33 כמספרי מאסטר", mode: "סגנון התוכן", reflection: "רפלקציה סמלית", science: "מדע והקשר", faith: "אמונה אישית", astrology: "שעה ומקום משמשים רק למפת לידה אסטרולוגית; נומרולוגיה מסתמכת על תאריך לידה.", questions: "מה תרצה לקבל? בחר נושא לשיחה עם ה־AI.", topic: "נושא להתבוננות", chartTitle: "מפת לידה אסטרולוגית", engineNote: "מפה מלאה של כוכבי לכת, אופק ובתים דורשת מנוע אפמריס אמיתי. עד אז נציג רק נתונים מחושבים בבירור ולא נמציא מיקומים.", aiPrompt: "עזור לי להתבונן במפת הלידה שלי באופן סמלי ולתרגם אותה לצעד מעשי, בלי להציג אותה כחיזוי.", aiButton: "התייעץ עם AI על המפה", notReady: "הזן תאריך לידה כדי להתחיל", notReadyHint: "שעת לידה ומקום לידה יאפשרו בעתיד חישוב מדויק יותר של המפה.", sunSign: "מזל שמש", disclaimer: "זהו תוכן סמלי ורפלקטיבי בלבד, לא מדע ולא תחזית. אין להשתמש בו במקום ייעוץ מקצועי." },
-  en: { birthTime: "Birth time (optional)", birthPlace: "Birth place", birthCountry: "Birth country", method: "Keep 11/22/33 as master numbers", mode: "Content style", reflection: "Symbolic reflection", science: "Science and context", faith: "Personal belief", astrology: "Time and birthplace are only for a birth-chart reading; numerology uses the birth date.", questions: "What would you like to explore with AI?", topic: "Reflection topic", chartTitle: "Astrological birth chart", engineNote: "A full chart with planets, ascendant, and houses requires a real ephemeris engine. Until then, we show only clearly calculated data and never invent placements.", aiPrompt: "Help me reflect on my birth chart symbolically and turn it into a practical step, without presenting it as prediction.", aiButton: "Discuss the chart with AI", notReady: "Enter a birth date to begin", notReadyHint: "Birth time and place will enable a more precise chart calculation later.", sunSign: "Sun sign", disclaimer: "This is symbolic and reflective content, not science or prediction. Do not use it instead of professional advice." },
-  es: { birthTime: "Hora de nacimiento (opcional)", birthPlace: "Lugar de nacimiento", birthCountry: "Pais de nacimiento", method: "Mantener 11/22/33 como maestros", mode: "Estilo", reflection: "Reflexion simbolica", science: "Ciencia y contexto", faith: "Creencia personal", astrology: "La hora y el lugar solo sirven para una carta natal; la numerologia usa la fecha.", questions: "Que quieres explorar con la IA?", topic: "Tema de reflexion", chartTitle: "Carta natal astrologica", engineNote: "Una carta completa con planetas, ascendente y casas requiere un motor de efemerides real. No inventaremos posiciones.", aiPrompt: "Ayudame a reflexionar sobre mi carta natal de forma simbolica y convertirla en un paso practico, sin presentarla como prediccion.", aiButton: "Consultar la carta con IA", notReady: "Introduce una fecha de nacimiento", notReadyHint: "La hora y el lugar permitiran un calculo mas preciso mas adelante.", sunSign: "Signo solar", disclaimer: "Contenido simbolico y reflexivo, no ciencia ni prediccion. No sustituye consejo profesional." },
-  zh: { birthTime: "出生时间（可选）", birthPlace: "出生地", birthCountry: "出生国家", method: "保留11/22/33大师数", mode: "内容风格", reflection: "象征性反思", science: "科学与背景", faith: "个人信念", astrology: "时间和出生地只用于星盘；数字命理使用出生日期。", questions: "你想和AI探索什么？", topic: "反思主题", chartTitle: "占星出生星盘", engineNote: "完整星盘需要真实的星历引擎来计算行星、上升点和宫位。我们不会编造位置。", aiPrompt: "请帮助我以象征方式反思出生星盘，并转化为实际行动，不要把它说成预测。", aiButton: "与AI讨论星盘", notReady: "输入出生日期开始", notReadyHint: "出生时间和地点将帮助之后进行更精确的计算。", sunSign: "太阳星座", disclaimer: "这是象征性反思内容，不是科学或预测，也不能替代专业建议。" },
-  ar: { birthTime: "وقت الميلاد (اختياري)", birthPlace: "مكان الميلاد", birthCountry: "دولة الميلاد", method: "إبقاء 11/22/33 كأرقام رئيسية", mode: "أسلوب المحتوى", reflection: "تأمل رمزي", science: "علم وسياق", faith: "معتقد شخصي", astrology: "الوقت ومكان الميلاد يستخدمان لخريطة الميلاد فقط؛ علم الأرقام يستخدم التاريخ.", questions: "ما الذي تريد استكشافه مع AI؟", topic: "موضوع التأمل", chartTitle: "خريطة الميلاد الفلكية", engineNote: "الخريطة الكاملة للكواكب والطالع والبيوت تحتاج إلى محرك فلكي حقيقي. لن نخترع مواقع.", aiPrompt: "ساعدني على التأمل في خريطة ميلادي بشكل رمزي وتحويلها إلى خطوة عملية دون تقديمها كتنبؤ.", aiButton: "استشر AI حول الخريطة", notReady: "أدخل تاريخ الميلاد للبدء", notReadyHint: "سيساعد وقت ومكان الميلاد على حساب أدق لاحقا.", sunSign: "برج الشمس", disclaimer: "هذا محتوى رمزي وتأملي وليس علما أو تنبؤا ولا يغني عن المشورة المهنية." },
-  ru: { birthTime: "Время рождения (необязательно)", birthPlace: "Место рождения", birthCountry: "Страна рождения", method: "Сохранять 11/22/33 как мастер-числа", mode: "Стиль контента", reflection: "Символическая рефлексия", science: "Наука и контекст", faith: "Личная вера", astrology: "Время и место нужны только для натальной карты; нумерология использует дату.", questions: "Что вы хотите исследовать с AI?", topic: "Тема рефлексии", chartTitle: "Астрологическая натальная карта", engineNote: "Полная карта с планетами, асцендентом и домами требует настоящего эфемеридного движка. Мы не будем выдумывать положения.", aiPrompt: "Помоги мне символически осмыслить натальную карту и превратить ее в практический шаг, не выдавая это за прогноз.", aiButton: "Обсудить карту с AI", notReady: "Введите дату рождения", notReadyHint: "Время и место рождения позже позволят рассчитать карту точнее.", sunSign: "Солнечный знак", disclaimer: "Это символический и рефлексивный контент, не наука и не прогноз. Он не заменяет профессиональную помощь." },
+  he: { birthTime: "שעת לידה (אופציונלי)", birthPlace: "מקום לידה", birthCountry: "מדינת לידה", method: "הצגת 11/22/33 כמספרי מאסטר", mode: "סגנון התוכן", reflection: "רפלקציה סמלית", science: "מדע והקשר", faith: "אמונה אישית", astrology: "שעה ומקום משמשים רק למפת לידה אסטרולוגית; נומרולוגיה מסתמכת על תאריך לידה.", questions: "מה תרצה לקבל? בחר נושא לשיחה עם ה־AI.", topic: "נושא להתבוננות", chartTitle: "מפת לידה אסטרולוגית", engineNote: "מפה מלאה של כוכבי לכת, אופק ובתים דורשת מנוע אפמריס אמיתי. עד אז נציג רק נתונים מחושבים בבירור ולא נמציא מיקומים.", aiPrompt: "עזור לי להתבונן במפת הלידה שלי באופן סמלי ולתרגם אותה לצעד מעשי, בלי להציג אותה כחיזוי.", aiButton: "התייעץ עם AI על המפה", notReady: "הזן תאריך לידה כדי להתחיל", notReadyHint: "שעת לידה ומקום לידה יאפשרו בעתיד חישוב מדויק יותר של המפה.", sunSign: "מזל שמש", disclaimer: "זהו תוכן סמלי ורפלקטיבי בלבד, לא מדע ולא תחזית. אין להשתמש בו במקום ייעוץ מקצועי.", saveMap: "שמור ועדכן מפה", mapSaved: "המפה עודכנה לפי הפרטים ששמרת" },
+  en: { birthTime: "Birth time (optional)", birthPlace: "Birth place", birthCountry: "Birth country", method: "Keep 11/22/33 as master numbers", mode: "Content style", reflection: "Symbolic reflection", science: "Science and context", faith: "Personal belief", astrology: "Time and birthplace are only for a birth-chart reading; numerology uses the birth date.", questions: "What would you like to explore with AI?", topic: "Reflection topic", chartTitle: "Astrological birth chart", engineNote: "A full chart with planets, ascendant, and houses requires a real ephemeris engine. Until then, we show only clearly calculated data and never invent placements.", aiPrompt: "Help me reflect on my birth chart symbolically and turn it into a practical step, without presenting it as prediction.", aiButton: "Discuss the chart with AI", notReady: "Enter a birth date to begin", notReadyHint: "Birth time and place will enable a more precise chart calculation later.", sunSign: "Sun sign", disclaimer: "This is symbolic and reflective content, not science or prediction. Do not use it instead of professional advice.", saveMap: "Save and update chart", mapSaved: "The chart was updated with your saved details" },
+  es: { birthTime: "Hora de nacimiento (opcional)", birthPlace: "Lugar de nacimiento", birthCountry: "Pais de nacimiento", method: "Mantener 11/22/33 como maestros", mode: "Estilo", reflection: "Reflexion simbolica", science: "Ciencia y contexto", faith: "Creencia personal", astrology: "La hora y el lugar solo sirven para una carta natal; la numerologia usa la fecha.", questions: "Que quieres explorar con la IA?", topic: "Tema de reflexion", chartTitle: "Carta natal astrologica", engineNote: "Una carta completa con planetas, ascendente y casas requiere un motor de efemerides real. No inventaremos posiciones.", aiPrompt: "Ayudame a reflexionar sobre mi carta natal de forma simbolica y convertirla en un paso practico, sin presentarla como prediccion.", aiButton: "Consultar la carta con IA", notReady: "Introduce una fecha de nacimiento", notReadyHint: "La hora y el lugar permitiran un calculo mas preciso mas adelante.", sunSign: "Signo solar", disclaimer: "Contenido simbolico y reflexivo, no ciencia ni prediccion. No sustituye consejo profesional.", saveMap: "Guardar y actualizar", mapSaved: "La carta se actualizo con tus datos guardados" },
+  zh: { birthTime: "出生时间（可选）", birthPlace: "出生地", birthCountry: "出生国家", method: "保留11/22/33大师数", mode: "内容风格", reflection: "象征性反思", science: "科学与背景", faith: "个人信念", astrology: "时间和出生地只用于星盘；数字命理使用出生日期。", questions: "你想和AI探索什么？", topic: "反思主题", chartTitle: "占星出生星盘", engineNote: "完整星盘需要真实的星历引擎来计算行星、上升点和宫位。我们不会编造位置。", aiPrompt: "请帮助我以象征方式反思出生星盘，并转化为实际行动，不要把它说成预测。", aiButton: "与AI讨论星盘", notReady: "输入出生日期开始", notReadyHint: "出生时间和地点将帮助之后进行更精确的计算。", sunSign: "太阳星座", disclaimer: "这是象征性反思内容，不是科学或预测，也不能替代专业建议。", saveMap: "保存并更新星盘", mapSaved: "已按保存的信息更新星盘" },
+  ar: { birthTime: "وقت الميلاد (اختياري)", birthPlace: "مكان الميلاد", birthCountry: "دولة الميلاد", method: "إبقاء 11/22/33 كأرقام رئيسية", mode: "أسلوب المحتوى", reflection: "تأمل رمزي", science: "علم وسياق", faith: "معتقد شخصي", astrology: "الوقت ومكان الميلاد يستخدمان لخريطة الميلاد فقط؛ علم الأرقام يستخدم التاريخ.", questions: "ما الذي تريد استكشافه مع AI؟", topic: "موضوع التأمل", chartTitle: "خريطة الميلاد الفلكية", engineNote: "الخريطة الكاملة للكواكب والطالع والبيوت تحتاج إلى محرك فلكي حقيقي. لن نخترع مواقع.", aiPrompt: "ساعدني على التأمل في خريطة ميلادي بشكل رمزي وتحويلها إلى خطوة عملية دون تقديمها كتنبؤ.", aiButton: "استشر AI حول الخريطة", notReady: "أدخل تاريخ الميلاد للبدء", notReadyHint: "سيساعد وقت ومكان الميلاد على حساب أدق لاحقا.", sunSign: "برج الشمس", disclaimer: "هذا محتوى رمزي وتأملي وليس علما أو تنبؤا ولا يغني عن المشورة المهنية.", saveMap: "حفظ وتحديث الخريطة", mapSaved: "تم تحديث الخريطة بالبيانات المحفوظة" },
+  ru: { birthTime: "Время рождения (необязательно)", birthPlace: "Место рождения", birthCountry: "Страна рождения", method: "Сохранять 11/22/33 как мастер-числа", mode: "Стиль контента", reflection: "Символическая рефлексия", science: "Наука и контекст", faith: "Личная вера", astrology: "Время и место нужны только для натальной карты; нумерология использует дату.", questions: "Что вы хотите исследовать с AI?", topic: "Тема рефлексии", chartTitle: "Астрологическая натальная карта", engineNote: "Полная карта с планетами, асцендентом и домами требует настоящего эфемеридного движка. Мы не будем выдумывать положения.", aiPrompt: "Помоги мне символически осмыслить натальную карту и превратить ее в практический шаг, не выдавая это за прогноз.", aiButton: "Обсудить карту с AI", notReady: "Введите дату рождения", notReadyHint: "Время и место рождения позже позволят рассчитать карту точнее.", sunSign: "Солнечный знак", disclaimer: "Это символический и рефлексивный контент, не наука и не прогноз. Он не заменяет профессиональную помощь.", saveMap: "Сохранить и обновить карту", mapSaved: "Карта обновлена по сохраненным данным" },
 } as const;
 const BIRTH_CHART_LABEL = { he: "מפת לידה", en: "Birth chart", es: "Carta natal", zh: "星盘", ar: "خريطة الميلاد", ru: "Натальная карта" } as const;
 
@@ -422,6 +423,13 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [birthPlace, setBirthPlace] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "");
   const [birthCountry, setBirthCountry] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "");
   const [keepMasterNumbers, setKeepMasterNumbers] = useState(() => safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true));
+  const [appliedMapProfile, setAppliedMapProfile] = useState<MapProfile>(() => safeLocalStorage.getJSON("zoneflow-mind-applied-map-profile", {
+    birthDate: safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "",
+    birthTime: safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "",
+    birthPlace: safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "",
+    birthCountry: safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "",
+    keepMasterNumbers: safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true),
+  }));
   const [contentMode, setContentMode] = useState<"reflection" | "science" | "faith">(() => (safeLocalStorage.getString("zoneflow-mind-content-mode", "reflection") as "reflection" | "science" | "faith") || "reflection");
   const [reflectionTopic, setReflectionTopic] = useState("");
   const [checkinAnxiety, setCheckinAnxiety] = useState(0);
@@ -520,21 +528,21 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   }, [totalCompletedCount]);
 
   const numerology = useMemo(() => {
-    if (!birthDate) return null;
+    if (!appliedMapProfile.birthDate) return null;
     const now = new Date();
-    const lifePath = collapseMasterNumber(getLifePathNumber(birthDate), keepMasterNumbers);
-    const attitude = collapseMasterNumber(getAttitudeNumber(birthDate), keepMasterNumbers);
-    const personalYear = collapseMasterNumber(getPersonalYearNumber(birthDate, now), keepMasterNumbers);
-    const personalMonth = collapseMasterNumber(getPersonalMonthNumber(personalYear, now), keepMasterNumbers);
-    const personalDay = collapseMasterNumber(getPersonalDayNumber(personalMonth, now), keepMasterNumbers);
+    const lifePath = collapseMasterNumber(getLifePathNumber(appliedMapProfile.birthDate), appliedMapProfile.keepMasterNumbers);
+    const attitude = collapseMasterNumber(getAttitudeNumber(appliedMapProfile.birthDate), appliedMapProfile.keepMasterNumbers);
+    const personalYear = collapseMasterNumber(getPersonalYearNumber(appliedMapProfile.birthDate, now), appliedMapProfile.keepMasterNumbers);
+    const personalMonth = collapseMasterNumber(getPersonalMonthNumber(personalYear, now), appliedMapProfile.keepMasterNumbers);
+    const personalDay = collapseMasterNumber(getPersonalDayNumber(personalMonth, now), appliedMapProfile.keepMasterNumbers);
 
     return { lifePath, attitude, personalYear, personalMonth, personalDay };
-  }, [birthDate, keepMasterNumbers]);
+  }, [appliedMapProfile]);
 
   const zodiac = useMemo(() => {
-    if (!birthDate) return null;
-    return getZodiacSign(birthDate);
-  }, [birthDate]);
+    if (!appliedMapProfile.birthDate) return null;
+    return getZodiacSign(appliedMapProfile.birthDate);
+  }, [appliedMapProfile.birthDate]);
 
   const horoscope = useMemo(() => {
     if (!zodiac) return null;
@@ -551,6 +559,13 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
       ][seed % 4],
     };
   }, [zodiac]);
+
+  const saveMapProfile = () => {
+    const nextProfile: MapProfile = { birthDate, birthTime, birthPlace, birthCountry, keepMasterNumbers };
+    setAppliedMapProfile(nextProfile);
+    safeLocalStorage.setJSON("zoneflow-mind-applied-map-profile", nextProfile);
+    toast.success(mapUi.mapSaved);
+  };
 
   const toggleDayCompletion = (day: number) => {
     const key = `${selectedJourney.id}:${day}`;
@@ -1293,6 +1308,9 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
               <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-xs leading-6 text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-100" role="note">
                 {mapUi.astrology}
               </div>
+              <Button type="button" className="w-full rounded-full bg-[#4530ff] hover:bg-[#3421d9]" onClick={saveMapProfile}>
+                {mapUi.saveMap}
+              </Button>
 
               <div className={cn("rounded-3xl border p-4", softPanel)}>
                 <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1411,6 +1429,9 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                   <Input id="zoneflow-birthchart-country" value={birthCountry} onChange={(event) => setBirthCountry(event.target.value)} placeholder={mapUi.birthCountry} className={inputClass} />
                 </div>
               </div>
+              <Button type="button" className="w-full rounded-full bg-[#4530ff] hover:bg-[#3421d9]" onClick={saveMapProfile}>
+                {mapUi.saveMap}
+              </Button>
               <div className={cn("rounded-3xl border p-4", softPanel)}>
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Star className="h-4 w-4 text-[#4530ff]" />
@@ -1476,6 +1497,9 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                 <label htmlFor="zoneflow-mind-city-stars" className="mb-2 block text-sm font-medium">{ui.city}</label>
                 <Input id="zoneflow-mind-city-stars" value={birthCity} onChange={(event) => setBirthCity(event.target.value)} placeholder="Tel Aviv" className={inputClass} />
               </div>
+              <Button type="button" className="w-full rounded-full bg-[#4530ff] hover:bg-[#3421d9]" onClick={saveMapProfile}>
+                {mapUi.saveMap}
+              </Button>
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100" role="note">
                 {ui.symbolic}
               </div>
