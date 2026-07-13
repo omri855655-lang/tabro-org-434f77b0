@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { BookOpen, Share2, Trophy, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen, CheckCircle2, Trophy, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLanguage } from "@/hooks/useLanguage";
-import { safeLocalStorage } from "@/lib/safeLocalStorage";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const COPY = {
   he: { title: "תחרות ספרים", subtitle: "הצטרפות ושיתוף רק לפי הבחירה שלך", open: "פתח תחרות", pages: "עמודים שנקראו", books: "ספרים שהושלמו", update: "עדכן", join: "הצטרף לתחרות", joined: "אתה משתתף", rank: "מקום בדירוג", recommendation: "המלצה לקהילה", details: "פרטי התחרות", private: "הנתונים נשארים פרטיים עד שתבחר לשתף סיכום.", summary: "סיכום הספר שתרצה לשתף", summaryPlaceholder: "מה אהבת, למי תמליץ, ומה לקחת מהספר?", share: "שתף סיכום", shareUnavailable: "השיתוף לא נתמך בדפדפן הזה", close: "סגור", save: "שמור התקדמות" },
@@ -20,23 +22,46 @@ const COPY = {
 
 export function BookCompetitionPanel({ readCount }: { readCount: number }) {
   const { lang, dir } = useLanguage();
+  const { user } = useAuth();
   const copy = COPY[lang] ?? COPY.en;
-  const [pages, setPages] = useState(() => safeLocalStorage.getJSON("book-competition-pages", 0));
-  const [joined, setJoined] = useState(() => safeLocalStorage.getJSON("book-competition-joined", false));
   const [open, setOpen] = useState(false);
-  const [summary, setSummary] = useState(() => safeLocalStorage.getString("book-competition-summary", "") || "");
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [pages, setPages] = useState(0);
+  const [languageCode, setLanguageCode] = useState(lang || "he");
+  const [summary, setSummary] = useState("");
+  const [joinCompetition, setJoinCompetition] = useState(false);
+  const [addToCatalog, setAddToCatalog] = useState(false);
+  const [shareSummary, setShareSummary] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<Array<{ display_name: string; books_completed: number; pages_read: number }>>([]);
 
-  const saveProgress = () => {
-    safeLocalStorage.setJSON("book-competition-pages", pages);
-    safeLocalStorage.setJSON("book-competition-joined", joined);
+  const fetchLeaderboard = async () => {
+    const client = supabase as unknown as { rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> };
+    const { data, error } = await client.rpc("book_competition_leaderboard");
+    if (!error && Array.isArray(data)) setLeaderboard(data as Array<{ display_name: string; books_completed: number; pages_read: number }>);
   };
 
-  const shareSummary = async () => {
-    if (!summary.trim()) return;
-    const payload = { title: copy.title, text: summary.trim() };
-    if (navigator.share) await navigator.share(payload);
-    else await navigator.clipboard?.writeText(summary.trim());
-    safeLocalStorage.setString("book-competition-summary", summary.trim());
+  useEffect(() => {
+    if (open && user) void fetchLeaderboard();
+  }, [open, user]);
+
+  const completeBook = async () => {
+    if (!user) return toast.error("צריך להתחבר כדי להשתתף בתחרות");
+    if (!title.trim() || pages <= 0) return toast.error("צריך להזין שם ספר ומספר עמודים חיובי");
+
+    setSaving(true);
+    const client = supabase as unknown as { rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> };
+    const { error } = await client.rpc("record_book_competition_completion", {
+      p_title: title.trim(), p_author: author.trim() || null, p_page_count: pages,
+      p_language_code: languageCode, p_private_reflection: summary.trim() || null,
+      p_share_reflection: shareSummary, p_joins_competition: joinCompetition, p_add_to_catalog: addToCatalog,
+    });
+    setSaving(false);
+    if (error) return toast.error("לא הצלחתי לשמור את סיום הספר: " + error.message);
+    toast.success("סיום הספר נשמר");
+    setTitle(""); setAuthor(""); setPages(0); setSummary("");
+    void fetchLeaderboard();
   };
 
   return <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-4" dir={dir}>
@@ -45,12 +70,15 @@ export function BookCompetitionPanel({ readCount }: { readCount: number }) {
       <DialogContent dir={dir} className="max-w-lg">
         <DialogHeader><DialogTitle>{copy.details}</DialogTitle><DialogDescription>{copy.private}</DialogDescription></DialogHeader>
         <div className="grid gap-4 py-2">
-          <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{pages}</div><div className="text-xs text-muted-foreground">{copy.pages}</div></div><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{readCount}</div><div className="text-xs text-muted-foreground">{copy.books}</div></div></div>
-          <div className="flex flex-wrap gap-2"><Input type="number" min="0" value={pages} onChange={(event) => setPages(Math.max(0, Number(event.target.value)))} className="h-9 flex-1" placeholder={copy.pages} /><Button variant="outline" onClick={saveProgress}>{copy.save}</Button><Button onClick={() => { setJoined(true); saveProgress(); }}>{joined ? copy.joined : copy.join}</Button></div>
+          <div className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{leaderboard.reduce((sum, entry) => sum + Number(entry.pages_read || 0), 0)}</div><div className="text-xs text-muted-foreground">{copy.pages} בקהילה</div></div><div className="rounded-xl bg-muted p-3 text-center"><div className="text-xl font-bold">{readCount}</div><div className="text-xs text-muted-foreground">{copy.books} ברשימה שלך</div></div></div>
+          <div className="grid gap-3 sm:grid-cols-2"><Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.title} /><Input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="מחבר/ת (אופציונלי)" /><Input type="number" min="1" value={pages || ""} onChange={(event) => setPages(Math.max(0, Number(event.target.value)))} placeholder={copy.pages} /><Input value={languageCode} onChange={(event) => setLanguageCode(event.target.value.slice(0, 10))} placeholder="שפת הספר, למשל he / en" /></div>
           <div className="grid gap-2"><Label htmlFor="book-competition-summary">{copy.summary}</Label><Textarea id="book-competition-summary" value={summary} onChange={(event) => setSummary(event.target.value)} placeholder={copy.summaryPlaceholder} className="min-h-28" /></div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-3.5 w-3.5" />{joined ? `${copy.rank}: #12` : copy.private}</div>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={joinCompetition} onChange={(event) => setJoinCompetition(event.target.checked)} className="mt-1" />הצטרף לדירוג עם שם התצוגה, מספר הספרים והעמודים בלבד.</label>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={addToCatalog} onChange={(event) => setAddToCatalog(event.target.checked)} className="mt-1" />הוסף את פרטי הספר לקטלוג המשותף, כדי שאחרים יוכלו למצוא אותו.</label>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={shareSummary} onChange={(event) => setShareSummary(event.target.checked)} className="mt-1" />אני מסכים לפרסם את הסיכום לקהילה. ללא סימון הוא נשאר פרטי.</label>
+          <div className="rounded-xl border bg-muted/40 p-3 text-sm"><div className="flex items-center gap-2 font-medium"><Users className="h-4 w-4" />{copy.rank}</div>{leaderboard.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">עדיין אין משתתפים, או שהמיגרציה עדיין לא הופעלה.</p> : <div className="mt-2 space-y-1">{leaderboard.slice(0, 5).map((entry, index) => <div key={`${entry.display_name}-${index}`} className="flex justify-between gap-3 text-xs"><span>{index + 1}. {entry.display_name}</span><span>{entry.books_completed} ספרים · {entry.pages_read} עמודים</span></div>)}</div>}</div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>{copy.close}</Button><Button disabled={!summary.trim()} onClick={shareSummary}><Share2 className="h-4 w-4" />{copy.share}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>{copy.close}</Button><Button disabled={saving} onClick={completeBook}><CheckCircle2 className="h-4 w-4" />{saving ? "שומר..." : "סיימתי ספר"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </div>;
