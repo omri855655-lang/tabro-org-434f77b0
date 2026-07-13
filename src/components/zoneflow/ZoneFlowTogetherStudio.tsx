@@ -8,10 +8,13 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { supabase } from "@/integrations/supabase/client";
+import { applyBlockingPolicy, getBlockingAuthorization, stopBlockingPolicy } from "@/lib/appBlocking";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { FocusRoomInterior } from "./FocusRoomInterior";
 
 type TogetherTab = "rooms" | "competitions" | "progress";
 type CompetitionKind = "focus" | "books" | "distractions";
@@ -95,6 +98,7 @@ const makeInviteCode = () => `TABRO-${crypto.randomUUID().slice(0, 6).toUpperCas
 export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const { lang, dir } = useLanguage();
   const { user } = useAuth();
+  const { balance, award } = useZoneFlowRewards();
   const copy = COPY[lang] ?? COPY.en;
   const roomCopy = ROOM_COPY[lang] ?? ROOM_COPY.en;
   const [tab, setTab] = useState<TogetherTab>("rooms");
@@ -156,19 +160,26 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   }, [fetchLiveRooms, user]);
 
   const recordCompletedSession = useCallback(async () => {
-    if (!user || !sessionStartedAt.current) return;
+    if (!sessionStartedAt.current) return;
     const startedAt = sessionStartedAt.current;
     sessionStartedAt.current = null;
-    const client = supabase as unknown as FocusRoomClient;
-    await client.from("zoneflow_focus_sessions").insert({
-      user_id: user.id,
-      room_id: selectedRoom && isUuid(selectedRoom.id) ? selectedRoom.id : null,
-      started_at: startedAt,
-      ended_at: new Date().toISOString(),
-      duration_seconds: sessionDuration * 60,
-      completed: true,
-    });
-  }, [selectedRoom, sessionDuration, user]);
+    if (user) {
+      const client = supabase as unknown as FocusRoomClient;
+      await client.from("zoneflow_focus_sessions").insert({
+        user_id: user.id,
+        room_id: selectedRoom && isUuid(selectedRoom.id) ? selectedRoom.id : null,
+        started_at: startedAt,
+        ended_at: new Date().toISOString(),
+        duration_seconds: sessionDuration * 60,
+        completed: true,
+      });
+    }
+    const earned = Math.max(1, Math.round(sessionDuration / 3));
+    if (award(`focus:${startedAt}`, "focus", earned, `${selectedRoom?.name || "Focus room"} · ${sessionDuration} min`)) {
+      toast.success(`הרווחת ${earned} דקות פתיחה`);
+    }
+    try { await stopBlockingPolicy(); } catch { /* Web sessions have no native policy to stop. */ }
+  }, [award, selectedRoom, sessionDuration, user]);
 
   useEffect(() => {
     if (!focusActive) return;
@@ -189,8 +200,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   }, [selectedRoomId]);
 
   const totalPages = books.reduce((sum, book) => sum + book.pages, 0);
-  const points = focusMinutes + totalPages * 2 + books.length * 25;
-  const unlockMinutes = Math.floor(focusMinutes / 30) * 10;
+  const points = balance;
+  const unlockMinutes = balance;
   const panel = isLight ? "border-slate-200 bg-white" : "border-white/10 bg-white/5";
   const muted = isLight ? "text-slate-500" : "text-white/60";
   const competitionCards = useMemo(() => COMPETITIONS.map((item) => ({ ...item, icon: item.icon })), []);
@@ -285,17 +296,37 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     if (room) void joinRoom(room, normalized);
   };
 
-  const startTimer = () => {
+  const startTimer = async () => {
     if (!selectedRoom) return;
     if (remainingSeconds === 0) setRemainingSeconds(sessionDuration * 60);
     if (!sessionStartedAt.current) sessionStartedAt.current = new Date().toISOString();
     setFocusActive(true);
+    if (await getBlockingAuthorization() === "granted") {
+      const blockedApps = safeLocalStorage.getJSON<Array<{ name?: string }>>("zoneflow-wellbeing-blocked", []);
+      try {
+        await applyBlockingPolicy({
+          appIds: blockedApps.flatMap((item) => item.name && !item.name.includes(".") ? [item.name] : []),
+          websiteHosts: blockedApps.flatMap((item) => item.name?.includes(".") ? [item.name] : []),
+          endsAt: new Date(Date.now() + remainingSeconds * 1000).toISOString(),
+        });
+        toast.success("החסימה הופעלה למשך חדר הריכוז");
+      } catch { toast.info("הטיימר התחיל. חסימה מלאה דורשת את רכיב Tabro במכשיר."); }
+    }
   };
 
   const resetTimer = () => {
     setFocusActive(false);
     sessionStartedAt.current = null;
     setRemainingSeconds(sessionDuration * 60);
+    void stopBlockingPolicy().catch(() => undefined);
+  };
+
+  const leaveRoom = () => {
+    setFocusActive(false);
+    sessionStartedAt.current = null;
+    setSelectedRoomId("");
+    setRemainingSeconds(sessionDuration * 60);
+    void stopBlockingPolicy().catch(() => undefined);
   };
 
   return <div className="space-y-4" dir={dir}>
@@ -310,31 +341,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        <Card className={cn("overflow-hidden border", panel)}>
-          <CardContent className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 className="h-4 w-4 text-cyan-600" />{roomCopy.activeRoom}</div>
-              {selectedRoom ? (
-                <div className="mt-2">
-                  <div className="text-xl font-bold">{selectedRoom.name}</div>
-                  <div className={cn("text-sm", muted)}>{selectedRoom.topic} · {selectedRoom.access === "friends" ? roomCopy.friendsRoom : roomCopy.publicRoom}</div>
-                  {selectedRoom.inviteCode && <div className="mt-2 inline-flex rounded-full bg-cyan-500/10 px-3 py-1 font-mono text-xs">{selectedRoom.inviteCode}</div>}
-                </div>
-              ) : <p className={cn("mt-2 text-sm", muted)}>{roomCopy.noRoom}</p>}
-            </div>
-            <div className="min-w-[260px] rounded-3xl bg-slate-950 p-5 text-center text-white">
-              <div className="text-xs text-white/60">{roomCopy.timer}</div>
-              <div className="mt-1 font-mono text-5xl font-bold tracking-tight">{formatTimer(remainingSeconds)}</div>
-              <div className="mt-4 flex justify-center gap-2">
-                <Button size="sm" disabled={!selectedRoom} onClick={focusActive ? () => setFocusActive(false) : startTimer}>
-                  {focusActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {focusActive ? roomCopy.pause : remainingSeconds < sessionDuration * 60 ? roomCopy.resume : copy.start}
-                </Button>
-                <Button size="icon" variant="secondary" onClick={resetTimer} aria-label={roomCopy.reset}><RotateCcw className="h-4 w-4" /></Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {selectedRoom ? <FocusRoomInterior scene={selectedRoom.scene} name={selectedRoom.name} topic={selectedRoom.topic} username={username} people={selectedRoom.users} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? () => setFocusActive(false) : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} /> : <Card className={cn("border border-dashed", panel)}><CardContent className="p-8 text-center"><Clock3 className="mx-auto h-9 w-9 text-cyan-600" /><h3 className="mt-3 text-lg font-bold">{roomCopy.noRoom}</h3><p className={cn("mt-2 text-sm", muted)}>בחר ספרייה, טיסה, בית קפה או חלל עבודה מהרשימה למטה.</p></CardContent></Card>}
 
         <div className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
           <Card className={cn("border", panel)}>

@@ -15,6 +15,7 @@ interface NativeAppBlockerPlugin {
   requestAuthorization(): Promise<{ status: BlockingAuthorization }>;
   applyPolicy(options: BlockingPolicy): Promise<void>;
   stopPolicy(): Promise<void>;
+  allowTemporarily(options: { appId?: string; websiteHost?: string; minutes: number }): Promise<void>;
 }
 
 const NativeAppBlocker = registerPlugin<NativeAppBlockerPlugin>("TabroAppBlocker");
@@ -50,4 +51,9 @@ export const applyBlockingPolicy = async (policy: BlockingPolicy) => {
 export const stopBlockingPolicy = async () => {
   if (!Capacitor.isNativePlatform()) throw new Error("native-blocker-required");
   await NativeAppBlocker.stopPolicy();
+};
+
+export const temporarilyAllowBlockedItem = async (item: { appId?: string; websiteHost?: string; minutes: number }) => {
+  if (!Capacitor.isNativePlatform()) throw new Error("native-blocker-required");
+  await NativeAppBlocker.allowTemporarily(item);
 };

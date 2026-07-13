@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useLanguage } from "@/hooks/useLanguage";
-import { applyBlockingPolicy, getBlockingAuthorization, getBlockingPlatform, requestBlockingAuthorization, stopBlockingPolicy, type BlockingAuthorization } from "@/lib/appBlocking";
+import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
+import { applyBlockingPolicy, getBlockingAuthorization, getBlockingPlatform, requestBlockingAuthorization, stopBlockingPolicy, temporarilyAllowBlockedItem, type BlockingAuthorization } from "@/lib/appBlocking";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -43,11 +44,22 @@ const BLOCKER_COPY = {
   ru: { systemTitle: "Системная блокировка", platform: "Платформа", permission: "Разрешение", granted: "Разрешено", denied: "Отклонено", install: "Нужен компонент Tabro", unavailable: "Недоступно", request: "Проверить разрешение", localOnly: "Локальный Focus запущен. Для блокировки приложений нужен компонент устройства.", policyStarted: "Блокировка запущена", policyStopped: "Блокировка остановлена" },
 } as const;
 
+const UNLOCK_COPY = {
+  he: { wallet: "ארנק דקות פתיחה", onePoint: "נקודה אחת = דקת פתיחה אחת", earned: "הנקודות מתקבלות מסיום חדר ריכוז, יום במסלול או ספר.", unlock: "פתח זמנית", choose: "כמה דקות?", insufficient: "אין מספיק נקודות", native: "פתיחה של אפליקציה דורשת עדכון של רכיב Tabro במכשיר והרשאת מערכת.", opened: "האפליקציה נפתחה זמנית" },
+  en: { wallet: "Unlock-minute wallet", onePoint: "One point = one unlock minute", earned: "Earn points by completing a focus room, journey day, or book.", unlock: "Unlock temporarily", choose: "How many minutes?", insufficient: "Not enough points", native: "App unlock requires the Tabro device component and system permission.", opened: "Temporarily unlocked" },
+  es: { wallet: "Cartera de minutos", onePoint: "Un punto = un minuto", earned: "Gana puntos al completar una sala, un dia o un libro.", unlock: "Abrir temporalmente", choose: "Cuantos minutos?", insufficient: "No hay puntos suficientes", native: "Se requiere el componente Tabro y permiso del sistema.", opened: "Desbloqueado temporalmente" },
+  zh: { wallet: "解锁分钟钱包", onePoint: "1积分 = 1分钟", earned: "完成专注房间、训练日或书籍可获得积分。", unlock: "临时解锁", choose: "多少分钟？", insufficient: "积分不足", native: "应用解锁需要Tabro设备组件和系统权限。", opened: "已临时解锁" },
+  ar: { wallet: "محفظة دقائق الفتح", onePoint: "نقطة واحدة = دقيقة", earned: "اكسب النقاط من غرفة تركيز أو يوم تدريب أو كتاب.", unlock: "فتح مؤقت", choose: "كم دقيقة؟", insufficient: "النقاط غير كافية", native: "يتطلب فتح التطبيق مكون Tabro وإذن النظام.", opened: "تم الفتح مؤقتا" },
+  ru: { wallet: "Кошелек минут", onePoint: "Один балл = одна минута", earned: "Баллы начисляются за фокус-комнаты, дни маршрута и книги.", unlock: "Открыть временно", choose: "Сколько минут?", insufficient: "Недостаточно баллов", native: "Для разблокировки нужен компонент Tabro и системное разрешение.", opened: "Временно разблокировано" },
+} as const;
+
 export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boolean; onOpenCoach: () => void }) {
   const { lang, dir } = useLanguage();
   const copy = COPY[lang] ?? COPY.en;
   const permissionCopy = PERMISSION_COPY[lang] ?? PERMISSION_COPY.en;
   const blockerCopy = BLOCKER_COPY[lang] ?? BLOCKER_COPY.en;
+  const unlockCopy = UNLOCK_COPY[lang] ?? UNLOCK_COPY.en;
+  const { balance, spend, events } = useZoneFlowRewards();
   const [devices, setDevices] = useState<Device[]>(() => safeLocalStorage.getJSON("zoneflow-wellbeing-devices", [
     { id: "computer", kind: "computer", name: copy.computer, minutes: 0, connected: true },
     { id: "iphone", kind: "iphone", name: copy.iphone, minutes: 0, connected: false },
@@ -60,6 +72,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const [joined, setJoined] = useState(false);
   const [consentGranted, setConsentGranted] = useState(() => safeLocalStorage.getJSON("zoneflow-wellbeing-consent", false));
   const [blockingAuthorization, setBlockingAuthorization] = useState<BlockingAuthorization>("unavailable");
+  const [unlockMinutes, setUnlockMinutes] = useState(5);
   const blockingPlatform = getBlockingPlatform();
 
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-devices", devices), [devices]);
@@ -124,6 +137,18 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
 
   const authorizationLabel = blockingAuthorization === "granted" ? blockerCopy.granted : blockingAuthorization === "denied" ? blockerCopy.denied : blockingAuthorization === "needs-install" ? blockerCopy.install : blockerCopy.unavailable;
 
+  const unlockItem = async (app: BlockedApp) => {
+    if (balance < unlockMinutes) return toast.error(unlockCopy.insufficient);
+    if (blockingAuthorization !== "granted") return toast.info(unlockCopy.native);
+    try {
+      await temporarilyAllowBlockedItem(app.name.includes(".")
+        ? { websiteHost: app.name, minutes: unlockMinutes }
+        : { appId: app.name, minutes: unlockMinutes });
+      const id = `unlock:${app.id}:${Date.now()}`;
+      if (spend(id, unlockMinutes, `${app.name} · ${unlockMinutes} min`)) toast.success(unlockCopy.opened);
+    } catch { toast.error(unlockCopy.native); }
+  };
+
   return (
     <div className="space-y-4" dir={dir}>
       <Card className={cn("overflow-hidden border", panel)}>
@@ -141,6 +166,14 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
             <div className="rounded-2xl bg-white/12 p-3"><div className="text-xs text-white/70">{copy.saved}</div><div className="mt-1 text-2xl font-bold">{savedMinutes}</div></div>
             <div className="rounded-2xl bg-white/12 p-3"><div className="text-xs text-white/70">{copy.blocked}</div><div className="mt-1 text-2xl font-bold">{blockedApps.length}</div></div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className={cn("overflow-hidden border", panel)}>
+        <CardContent className="grid gap-4 bg-gradient-to-r from-amber-50 to-orange-50 p-5 text-slate-950 sm:grid-cols-[auto_1fr_auto] sm:items-center dark:from-amber-500/10 dark:to-orange-500/10 dark:text-white">
+          <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-400 text-2xl font-black text-slate-950">{balance}</div>
+          <div><h3 className="text-lg font-black">{unlockCopy.wallet}</h3><p className="text-sm text-slate-600 dark:text-white/65">{unlockCopy.onePoint}. {unlockCopy.earned}</p><p className="mt-1 text-xs text-slate-500 dark:text-white/50">{events.filter((event) => event.points > 0).length} פעולות מזכות נשמרו</p></div>
+          <div className="flex items-center gap-2"><span className="text-xs">{unlockCopy.choose}</span><Input type="number" min="1" max="120" value={unlockMinutes} onChange={(event) => setUnlockMinutes(Math.max(1, Math.min(120, Number(event.target.value) || 1)))} className="w-20 bg-white dark:bg-black/20" /></div>
         </CardContent>
       </Card>
 
@@ -183,7 +216,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
           <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Ban className="h-5 w-5 text-rose-500" />{copy.blocked}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2"><Input value={appName} onChange={(event) => setAppName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addBlockedApp()} placeholder={copy.app} /><Button onClick={addBlockedApp}>{copy.addBlock}</Button></div>
-            {blockedApps.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noApps}</p> : blockedApps.map((app) => <div key={app.id} className={cn("flex items-center gap-3 rounded-2xl border p-3", panel)}><Ban className="h-4 w-4 text-rose-500" /><span className="flex-1 font-medium">{app.name}</span><span className={cn("text-xs", muted)}>{app.minutesSaved} {copy.saved}</span></div>)}
+            {blockedApps.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noApps}</p> : blockedApps.map((app) => <div key={app.id} className={cn("flex flex-wrap items-center gap-3 rounded-2xl border p-3", panel)}><Ban className="h-4 w-4 text-rose-500" /><span className="min-w-[120px] flex-1 font-medium">{app.name}</span><span className={cn("text-xs", muted)}>{app.minutesSaved} {copy.saved}</span><Button size="sm" variant="outline" disabled={balance < unlockMinutes} onClick={() => void unlockItem(app)}><Clock3 className="h-4 w-4" />{unlockCopy.unlock} · {unlockMinutes}</Button></div>)}
             <Button className="w-full rounded-full" disabled={!consentGranted} onClick={() => void toggleFocusPolicy()} variant={focusActive ? "destructive" : "default"}>{focusActive ? copy.stop : copy.focus}</Button>
             {focusActive && <div className="rounded-2xl bg-emerald-50 p-3 text-center text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200">{copy.active}</div>}
             <p className={cn("text-xs leading-6", muted)}>{copy.limitations}</p>

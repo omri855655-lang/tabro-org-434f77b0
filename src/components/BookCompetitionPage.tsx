@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ReadBook { id: string; title: string; author: string | null }
@@ -35,6 +36,7 @@ const COPY = {
 export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook[]; onBack: () => void }) {
   const { lang, dir } = useLanguage();
   const { user } = useAuth();
+  const { award } = useZoneFlowRewards();
   const copy = COPY[lang as keyof typeof COPY] ?? COPY.en;
   const [joined, setJoined] = useState(false);
   const [goal, setGoal] = useState(1000);
@@ -131,14 +133,17 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
     if (!user) return toast.error(copy.auth);
     if (!title.trim() || pages <= 0) return toast.error("צריך להזין שם ספר ומספר עמודים חיובי");
     setSaving(true);
-    const { error } = await competitionClient.rpc("record_book_competition_completion", {
+    const { data, error } = await competitionClient.rpc("record_book_competition_completion", {
       p_title: title.trim(), p_author: author.trim() || null, p_page_count: pages, p_language_code: languageCode,
       p_private_reflection: summary.trim() || null, p_share_reflection: shareSummary,
       p_joins_competition: joined, p_add_to_catalog: addToCatalog,
     });
     setSaving(false);
     if (error) return toast.error(error.message);
-    toast.success("הספר נוסף לנתוני הקריאה שלך");
+    const completionId = typeof data === "string" ? data : `${user.id}:${title.trim()}:${new Date().toISOString().slice(0, 10)}`;
+    const earned = Math.max(10, Math.min(60, Math.ceil(pages / 10)));
+    award(`book:${completionId}`, "book", earned, `${title.trim()} · ${pages} pages`);
+    toast.success(`הספר נוסף והרווחת ${earned} דקות פתיחה`);
     setTitle(""); setAuthor(""); setPages(0); setSummary(""); setSelectedBookId(""); setShareSummary(false); setAddToCatalog(false);
     void loadCompetition();
   };

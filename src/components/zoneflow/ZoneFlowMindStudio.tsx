@@ -37,9 +37,11 @@ import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { calculateBirthChart } from "@/lib/astrology";
 import { useTabroAiHistory } from "@/hooks/useTabroAiHistory";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ZoneFlowMindUnfreeze } from "./ZoneFlowMindUnfreeze";
+import { ProcrastinationAssessment } from "./ProcrastinationAssessment";
 
 type MindTab = "home" | "journeys" | "coach" | "progress" | "numbers" | "birthchart" | "stars";
 type CoachIntensity = 1 | 2 | 3 | 4 | 5;
@@ -173,7 +175,7 @@ const JOURNEYS: MindJourney[] = [
     title: "להפשיר תקיעות מול משימות",
     subtitle: "מסלול עדין להתחלה מחדש בלי אלימות עצמית",
     summary: "כשיש עומס, מוח מוצף, או פחד להתחיל, אנחנו מחזירים תנועה דרך צעדים קטנים ובטוחים.",
-    duration: 7,
+    duration: 28,
     minutes: 9,
     questions: 3,
     accent: "from-[#2b1cff] via-[#4530ff] to-[#6d73ff]",
@@ -188,6 +190,27 @@ const JOURNEYS: MindJourney[] = [
       { day: 5, title: "להפריד בין ערך לביצוע", body: "המשימה לא מגדירה אותך. היא רק פעולה אחת בתוך יום אחד.", prompt: "איזה משפט היית רוצה לשמוע ממישהו שמאמין בך?" },
       { day: 6, title: "לייצר ניצחון נראה לעין", body: "סגור משהו קטן באמת. תגובה, תיוק, טיוטה, הודעה, או בדיקה אחת.", prompt: "מה אפשר לסיים היום כדי שהמוח ירגיש תזוזה?" },
       { day: 7, title: "לייצב שגרה", body: "בחר טקס פתיחה קבוע למשימות קשות: מים, נשימה, טיימר, מסך נקי, והתחלה.", prompt: "איזה טקס קצר אתה רוצה לאמץ מעכשיו?" },
+      { day: 8, title: "כוונת אם-אז", body: "כתוב מראש: אם השעה מגיעה, אז אני פותח את הקובץ ומתחיל שתי דקות.", prompt: "מה יהיה סימן ההתחלה הקבוע שלך?" },
+      { day: 9, title: "ספירה לתנועה", body: "כשאתה מזהה היסוס, ספור 5-4-3-2-1 ובצע פעולה פיזית ראשונה לפני הוויכוח הפנימי.", prompt: "איזו פעולה תבצע מיד בסוף הספירה?" },
+      { day: 10, title: "אדם נוסף בחדר", body: "היכנס לחדר ריכוז שקט. נוכחות משותפת יכולה להקטין בריחה בלי צורך לדבר.", prompt: "עם איזו סביבה או אדם קל לך יותר להתמיד?" },
+      { day: 11, title: "להסיר פיתוי אחד", body: "אל תבנה כוח רצון. הרחיק היום רק הסחה אחת מהמסלול שלך.", prompt: "איזו הסחה אחת תוציא מהישג יד?" },
+      { day: 12, title: "טיוטה לא מושלמת", body: "הגדר הצלחה כיצירת גרסה ראשונה גרועה אך קיימת.", prompt: "מהי הגרסה המכוערת אך שימושית של המשימה?" },
+      { day: 13, title: "מפת אנרגיה", body: "סמן מתי היום יש לך אנרגיה גבוהה, בינונית ונמוכה והתאם משימות לכל חלון.", prompt: "באיזו שעה מתאים לך לבצע עבודה שדורשת חשיבה?" },
+      { day: 14, title: "בדיקת שבוע", body: "בדוק מה עזר בפועל ומה רק נשמע טוב. שמור כלי אחד לשבוע הבא.", prompt: "איזה כלי עבד גם ביום לא מושלם?" },
+      { day: 15, title: "הערכת זמן כפולה", body: "הערך כמה זמן ייקח ואז פצל את המשימה ליחידות קטנות בחצי מהזמן הזה.", prompt: "מהו החלק הראשון שאפשר לסיים בבלוק אחד?" },
+      { day: 16, title: "לתת שם לרגש", body: "לפני התחלה כתוב מילה אחת למה שאתה מרגיש. רגש מזוהה פחות מנהל אותך מאחורי הקלעים.", prompt: "איזה רגש נמצא ליד המשימה היום?" },
+      { day: 17, title: "שאלת אי-הוודאות", body: "אם חסר מידע, נסח שאלה אחת שאפשר להפנות לאדם או לחיפוש ממוקד.", prompt: "איזו תשובה חסרה כדי להתקדם?" },
+      { day: 18, title: "חסימת הסחות קצרה", body: "הפעל חסימה ל-20 דקות בלבד והתחייב רק להישאר עם המשימה עד סוף הטיימר.", prompt: "מה ייחסם בזמן הבלוק שלך?" },
+      { day: 19, title: "פרס שסוגר מעגל", body: "בחר תגמול קטן שמגיע רק אחרי ביצוע הבלוק, לא לפניו.", prompt: "איזה פרס קטן באמת מעודד אותך?" },
+      { day: 20, title: "חזרה אחרי הפרעה", body: "בנה משפט חזרה: נעצרתי כאן, והפעולה הבאה שלי היא...", prompt: "מה תכתוב לעצמך לפני כל הפסקה?" },
+      { day: 21, title: "חמלה במקום נזיפה", body: "דבר לעצמך כמו למישהו שאתה רוצה לעזור לו לחזור לפעולה.", prompt: "איזה משפט מחזיר אותך בלי להעניש?" },
+      { day: 22, title: "סביבת התחלה", body: "סדר את שולחן העבודה כך שהדבר הראשון שרואים הוא המשימה ולא ההסחה.", prompt: "מה צריך להיעלם ומה צריך להישאר פתוח?" },
+      { day: 23, title: "מגע אחד", body: "כשמשימה קצרה מגיעה, החלט: לבצע, לתזמן, להעביר או למחוק, במקום לבדוק שוב ושוב.", prompt: "איזו משימה פתוחה אפשר להכריע היום?" },
+      { day: 24, title: "לסיים באמצע", body: "עצור בלוק עבודה כשהצעד הבא כבר ברור. כך קל יותר לחזור מחר.", prompt: "איזה סימן תשאיר לעצמך להמשך?" },
+      { day: 25, title: "זהות של חוזר", body: "המטרה אינה לעולם לא ליפול, אלא להפוך לאדם שחוזר מהר.", prompt: "מה יעזור לך לחזור בתוך עשר דקות?" },
+      { day: 26, title: "תוכנית ליום קשה", body: "הגדר גרסת מינימום ליום של עייפות: חמש דקות או פעולה אחת בלבד.", prompt: "מהו המינימום ששומר על הרצף שלך?" },
+      { day: 27, title: "אתגר עצמאי", body: "בחר משימה אחת והפעל לבד את רצף הכלים: פירוק, חסימה, טיימר ותגמול.", prompt: "איזו משימה תוכיח לך שהשיטה כבר שלך?" },
+      { day: 28, title: "תוכנית המשך", body: "סכם את שלושת הכלים הטובים ביותר וקבע מתי תשתמש בכל אחד.", prompt: "מהי תוכנית החזרה שלך לפעם הבאה שהדחיינות מופיעה?" },
     ],
   },
   {
@@ -651,6 +674,7 @@ const resetZoneFlowMindStorage = () => {
 
 function ZoneFlowMindStudioContent({ isLight }: ZoneFlowMindStudioProps) {
   const { lang, dir } = useLanguage();
+  const { award } = useZoneFlowRewards();
   const ui = MIND_UI[lang] ?? MIND_UI.en;
   const checkinUi = CHECKIN_COPY[lang] ?? CHECKIN_COPY.en;
   const mapUi = MAP_COPY[lang] ?? MAP_COPY.en;
@@ -773,6 +797,13 @@ function ZoneFlowMindStudioContent({ isLight }: ZoneFlowMindStudioProps) {
     ];
   }, [totalCompletedCount]);
 
+  useEffect(() => {
+    const milestonePoints: Record<string, number> = { "first-step": 10, motion: 15, week: 25, builder: 40 };
+    achievements.forEach((achievement) => {
+      if (achievement.unlocked) award(`achievement:${achievement.id}`, "achievement", milestonePoints[achievement.id] || 10, achievement.title);
+    });
+  }, [achievements, award]);
+
   const numerology = useMemo(() => {
     if (!appliedMapProfile.birthDate) return null;
     const now = new Date();
@@ -844,7 +875,11 @@ function ZoneFlowMindStudioContent({ isLight }: ZoneFlowMindStudioProps) {
 
   const toggleDayCompletion = (day: number) => {
     const key = `${selectedJourney.id}:${day}`;
-    setCompletedDays((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
+    setCompletedDays((prev) => {
+      if (prev.includes(key)) return prev.filter((item) => item !== key);
+      award(`journey:${key}`, "journey", 5, `${selectedJourney.title} · day ${day}`);
+      return [...prev, key];
+    });
   };
 
   const saveCheckin = () => {
@@ -1262,6 +1297,7 @@ function ZoneFlowMindStudioContent({ isLight }: ZoneFlowMindStudioProps) {
               </div>
             </CardHeader>
             <CardContent className="p-5">
+              {selectedJourney.id === "task-paralysis" && <ProcrastinationAssessment />}
               <div className="mb-4 rounded-3xl border border-[#dfe5ff] bg-[#f5f6ff] p-4 dark:border-white/10 dark:bg-white/5">
                 <div className="flex items-center justify-between">
                   <div>
