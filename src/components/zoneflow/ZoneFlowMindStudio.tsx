@@ -436,6 +436,8 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [checkinEnergy, setCheckinEnergy] = useState(5);
   const [checkinNeed, setCheckinNeed] = useState<"calm" | "action" | "clarity">("action");
   const [checkinSaved, setCheckinSaved] = useState(false);
+  const [horoscopeOffset, setHoroscopeOffset] = useState(0);
+  const [horoscopeNotes, setHoroscopeNotes] = useState<Record<string, string>>(() => safeLocalStorage.getJSON("zoneflow-mind-horoscope-notes", {}));
   const [coachInput, setCoachInput] = useState("");
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachIntensity, setCoachIntensity] = useState<CoachIntensity>(3);
@@ -483,6 +485,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   useEffect(() => safeLocalStorage.setString("zoneflow-mind-birthcountry", birthCountry), [birthCountry]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-mind-master-numbers", keepMasterNumbers), [keepMasterNumbers]);
   useEffect(() => safeLocalStorage.setString("zoneflow-mind-content-mode", contentMode), [contentMode]);
+  useEffect(() => safeLocalStorage.setJSON("zoneflow-mind-horoscope-notes", horoscopeNotes), [horoscopeNotes]);
 
   useEffect(() => {
     if (coachScrollRef.current) {
@@ -546,9 +549,12 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
 
   const horoscope = useMemo(() => {
     if (!zodiac) return null;
-    const todayKey = new Intl.DateTimeFormat("en-CA").format(new Date());
-    const seed = hashString(`${zodiac.id}:${todayKey}`);
+    const date = new Date();
+    date.setDate(date.getDate() + horoscopeOffset);
+    const dateKey = new Intl.DateTimeFormat("en-CA").format(date);
+    const seed = hashString(`${zodiac.id}:${dateKey}`);
     return {
+      date,
       focus: HOROSCOPE_FOCUS[seed % HOROSCOPE_FOCUS.length],
       action: HOROSCOPE_ACTIONS[seed % HOROSCOPE_ACTIONS.length],
       mood: [
@@ -558,7 +564,14 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
         "זה יום טוב לרכך שיפוט עצמי ולחזור לקצב נכון.",
       ][seed % 4],
     };
-  }, [zodiac]);
+  }, [horoscopeOffset, zodiac]);
+
+  const horoscopeDateKey = useMemo(() => horoscope ? new Intl.DateTimeFormat("en-CA").format(horoscope.date) : "", [horoscope]);
+  const birthChartDataQuality = !appliedMapProfile.birthDate
+    ? "אין עדיין תאריך לידה שמור"
+    : !appliedMapProfile.birthTime || !appliedMapProfile.birthPlace || !appliedMapProfile.birthCountry
+      ? "יש תאריך לידה. כדי לחשב בעתיד אופק ובתים נדרשים גם שעת לידה ומקום לידה מלאים."
+      : "פרטי הלידה המלאים נשמרו. ניתן יהיה לחבר אליהם מנוע אפמריס לחישוב מפת כוכבים מלאה.";
 
   const saveMapProfile = () => {
     const nextProfile: MapProfile = { birthDate, birthTime, birthPlace, birthCountry, keepMasterNumbers };
@@ -1472,6 +1485,15 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                     <div className="mt-2 text-4xl font-bold">{zodiac.name}</div>
                     <p className="mt-3 text-sm leading-7 text-white/85">{zodiac.vibe}</p>
                   </div>
+                  <div className={cn("grid gap-3 sm:grid-cols-3", softPanel)}>
+                    <div className="rounded-2xl border p-3 text-sm"><div className={subtleText}>{ui.birthDate}</div><div className="mt-1 font-semibold">{appliedMapProfile.birthDate}</div></div>
+                    <div className="rounded-2xl border p-3 text-sm"><div className={subtleText}>{mapUi.birthTime}</div><div className="mt-1 font-semibold">{appliedMapProfile.birthTime || "לא ידוע"}</div></div>
+                    <div className="rounded-2xl border p-3 text-sm"><div className={subtleText}>{mapUi.birthPlace}</div><div className="mt-1 font-semibold">{[appliedMapProfile.birthPlace, appliedMapProfile.birthCountry].filter(Boolean).join(", ") || "לא ידוע"}</div></div>
+                  </div>
+                  <div className={cn("rounded-3xl border p-4 text-sm leading-7", softPanel)}>
+                    <div className="font-semibold">איכות נתוני המפה</div>
+                    <p className={cn("mt-2", subtleText)}>{birthChartDataQuality}</p>
+                  </div>
                   <div className={cn("rounded-3xl border p-4 text-sm leading-7", softPanel)}>
                     {mapUi.disclaimer}
                   </div>
@@ -1540,7 +1562,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                   <div className="bg-gradient-to-br from-[#1613a8] via-[#3f33ff] to-[#90a3ff] px-6 py-8 text-white">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <div className="text-sm text-white/75">היום של {zodiac.name}</div>
+                        <div className="text-sm text-white/75">{new Intl.DateTimeFormat(LOCALES[lang] || "en-US", { weekday: "long", day: "numeric", month: "long" }).format(horoscope.date)} · {zodiac.name}</div>
                         <h3 className="mt-2 text-4xl font-bold">{zodiac.vibe}</h3>
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-white/15 px-3 py-1">מתעדכן כל יום</span>
@@ -1556,6 +1578,11 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                         <div className="text-xs text-white/70">מזל</div>
                         <div className="text-2xl font-bold">{zodiac.name}</div>
                       </div>
+                    </div>
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setHoroscopeOffset((offset) => offset - 1)}>← אתמול</Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setHoroscopeOffset(0)}>היום</Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setHoroscopeOffset((offset) => Math.min(0, offset + 1))}>מחר →</Button>
                     </div>
                   </div>
 
@@ -1585,6 +1612,20 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                           פעולה מומלצת להיום
                         </div>
                         <p className={cn("mt-3 text-sm leading-7", titleText)}>{horoscope.action}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className={cn("border md:col-span-2", softPanel)}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <CalendarDays className="h-4 w-4 text-[#4530ff]" />
+                          מה אני לוקח מהיום?
+                        </div>
+                        <Textarea
+                          value={horoscopeNotes[horoscopeDateKey] || ""}
+                          onChange={(event) => setHoroscopeNotes((notes) => ({ ...notes, [horoscopeDateKey]: event.target.value }))}
+                          placeholder="הערה פרטית שנשמרת לקריאה של תאריך זה..."
+                          className={cn("mt-3 min-h-[96px] resize-none", inputClass)}
+                        />
                       </CardContent>
                     </Card>
                   </div>
