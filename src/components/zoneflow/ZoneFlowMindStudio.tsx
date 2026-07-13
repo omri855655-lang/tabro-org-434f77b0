@@ -419,6 +419,45 @@ const hashString = (value: string) => {
   return Math.abs(hash);
 };
 
+const getStoredFiniteNumber = (key: string, fallback: number) => {
+  const value = safeLocalStorage.getJSON<unknown>(key, fallback);
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+};
+
+const getStoredStringRecord = (key: string): Record<string, string> => {
+  const value = safeLocalStorage.getJSON<unknown>(key, {});
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => typeof entry === "string"),
+  ) as Record<string, string>;
+};
+
+const getStoredMapProfile = (): MapProfile => {
+  const fallback: MapProfile = {
+    birthDate: safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "",
+    birthTime: safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "",
+    birthPlace: safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "",
+    birthCountry: safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "",
+    utcOffsetMinutes: getStoredFiniteNumber("zoneflow-mind-birth-utc-offset", 180),
+    keepMasterNumbers: safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true),
+  };
+  const saved = safeLocalStorage.getJSON<unknown>("zoneflow-mind-applied-map-profile", null);
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) return fallback;
+
+  const profile = saved as Partial<MapProfile>;
+  return {
+    birthDate: typeof profile.birthDate === "string" ? profile.birthDate : fallback.birthDate,
+    birthTime: typeof profile.birthTime === "string" ? profile.birthTime : fallback.birthTime,
+    birthPlace: typeof profile.birthPlace === "string" ? profile.birthPlace : fallback.birthPlace,
+    birthCountry: typeof profile.birthCountry === "string" ? profile.birthCountry : fallback.birthCountry,
+    utcOffsetMinutes: typeof profile.utcOffsetMinutes === "number" && Number.isFinite(profile.utcOffsetMinutes)
+      ? profile.utcOffsetMinutes
+      : fallback.utcOffsetMinutes,
+    keepMasterNumbers: typeof profile.keepMasterNumbers === "boolean" ? profile.keepMasterNumbers : fallback.keepMasterNumbers,
+  };
+};
+
 interface ZoneFlowMindStudioProps {
   isLight: boolean;
 }
@@ -443,16 +482,9 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [birthTime, setBirthTime] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "");
   const [birthPlace, setBirthPlace] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "");
   const [birthCountry, setBirthCountry] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "");
-  const [birthUtcOffsetMinutes, setBirthUtcOffsetMinutes] = useState(() => safeLocalStorage.getJSON("zoneflow-mind-birth-utc-offset", 180));
+  const [birthUtcOffsetMinutes, setBirthUtcOffsetMinutes] = useState(() => getStoredFiniteNumber("zoneflow-mind-birth-utc-offset", 180));
   const [keepMasterNumbers, setKeepMasterNumbers] = useState(() => safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true));
-  const [appliedMapProfile, setAppliedMapProfile] = useState<MapProfile>(() => safeLocalStorage.getJSON("zoneflow-mind-applied-map-profile", {
-    birthDate: safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "",
-    birthTime: safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "",
-    birthPlace: safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "",
-    birthCountry: safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "",
-    utcOffsetMinutes: safeLocalStorage.getJSON("zoneflow-mind-birth-utc-offset", 180),
-    keepMasterNumbers: safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true),
-  }));
+  const [appliedMapProfile, setAppliedMapProfile] = useState<MapProfile>(getStoredMapProfile);
   const [contentMode, setContentMode] = useState<"reflection" | "science" | "faith">(() => (safeLocalStorage.getString("zoneflow-mind-content-mode", "reflection") as "reflection" | "science" | "faith") || "reflection");
   const [reflectionTopic, setReflectionTopic] = useState("");
   const [checkinAnxiety, setCheckinAnxiety] = useState(0);
@@ -460,7 +492,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [checkinNeed, setCheckinNeed] = useState<"calm" | "action" | "clarity">("action");
   const [checkinSaved, setCheckinSaved] = useState(false);
   const [horoscopeOffset, setHoroscopeOffset] = useState(0);
-  const [horoscopeNotes, setHoroscopeNotes] = useState<Record<string, string>>(() => safeLocalStorage.getJSON("zoneflow-mind-horoscope-notes", {}));
+  const [horoscopeNotes, setHoroscopeNotes] = useState<Record<string, string>>(() => getStoredStringRecord("zoneflow-mind-horoscope-notes"));
   const [coachInput, setCoachInput] = useState("");
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachIntensity, setCoachIntensity] = useState<CoachIntensity>(3);
