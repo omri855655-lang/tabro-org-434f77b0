@@ -40,7 +40,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ZoneFlowMindUnfreeze } from "./ZoneFlowMindUnfreeze";
 
-type MindTab = "home" | "journeys" | "coach" | "progress" | "numbers" | "stars";
+type MindTab = "home" | "journeys" | "coach" | "progress" | "numbers" | "birthchart" | "stars";
 type CoachIntensity = 1 | 2 | 3 | 4 | 5;
 
 interface JourneyDay {
@@ -284,13 +284,14 @@ const CHECKIN_COPY = {
 } as const;
 
 const MAP_COPY = {
-  he: { birthTime: "שעת לידה (אופציונלי)", birthPlace: "מקום לידה", birthCountry: "מדינת לידה", method: "הצגת 11/22/33 כמספרי מאסטר", mode: "סגנון התוכן", reflection: "רפלקציה סמלית", science: "מדע והקשר", faith: "אמונה אישית", astrology: "שעה ומקום משמשים רק למפת לידה אסטרולוגית; נומרולוגיה מסתמכת על תאריך לידה.", questions: "מה תרצה לקבל? בחר נושא לשיחה עם ה־AI.", topic: "נושא להתבוננות" },
-  en: { birthTime: "Birth time (optional)", birthPlace: "Birth place", birthCountry: "Birth country", method: "Keep 11/22/33 as master numbers", mode: "Content style", reflection: "Symbolic reflection", science: "Science and context", faith: "Personal belief", astrology: "Time and birthplace are only for a birth-chart reading; numerology uses the birth date.", questions: "What would you like to explore with AI?", topic: "Reflection topic" },
-  es: { birthTime: "Hora de nacimiento (opcional)", birthPlace: "Lugar de nacimiento", birthCountry: "Pais de nacimiento", method: "Mantener 11/22/33 como maestros", mode: "Estilo", reflection: "Reflexion simbolica", science: "Ciencia y contexto", faith: "Creencia personal", astrology: "La hora y el lugar solo sirven para una carta natal; la numerologia usa la fecha.", questions: "Que quieres explorar con la IA?", topic: "Tema de reflexion" },
-  zh: { birthTime: "出生时间（可选）", birthPlace: "出生地", birthCountry: "出生国家", method: "保留11/22/33大师数", mode: "内容风格", reflection: "象征性反思", science: "科学与背景", faith: "个人信念", astrology: "时间和出生地只用于星盘；数字命理使用出生日期。", questions: "你想和AI探索什么？", topic: "反思主题" },
-  ar: { birthTime: "وقت الميلاد (اختياري)", birthPlace: "مكان الميلاد", birthCountry: "دولة الميلاد", method: "إبقاء 11/22/33 كأرقام رئيسية", mode: "أسلوب المحتوى", reflection: "تأمل رمزي", science: "علم وسياق", faith: "معتقد شخصي", astrology: "الوقت ومكان الميلاد يستخدمان لخريطة الميلاد فقط؛ علم الأرقام يستخدم التاريخ.", questions: "ما الذي تريد استكشافه مع AI؟", topic: "موضوع التأمل" },
-  ru: { birthTime: "Время рождения (необязательно)", birthPlace: "Место рождения", birthCountry: "Страна рождения", method: "Сохранять 11/22/33 как мастер-числа", mode: "Стиль контента", reflection: "Символическая рефлексия", science: "Наука и контекст", faith: "Личная вера", astrology: "Время и место нужны только для натальной карты; нумерология использует дату.", questions: "Что вы хотите исследовать с AI?", topic: "Тема рефлексии" },
+  he: { birthTime: "שעת לידה (אופציונלי)", birthPlace: "מקום לידה", birthCountry: "מדינת לידה", method: "הצגת 11/22/33 כמספרי מאסטר", mode: "סגנון התוכן", reflection: "רפלקציה סמלית", science: "מדע והקשר", faith: "אמונה אישית", astrology: "שעה ומקום משמשים רק למפת לידה אסטרולוגית; נומרולוגיה מסתמכת על תאריך לידה.", questions: "מה תרצה לקבל? בחר נושא לשיחה עם ה־AI.", topic: "נושא להתבוננות", chartTitle: "מפת לידה אסטרולוגית", engineNote: "מפה מלאה של כוכבי לכת, אופק ובתים דורשת מנוע אפמריס אמיתי. עד אז נציג רק נתונים מחושבים בבירור ולא נמציא מיקומים.", aiPrompt: "עזור לי להתבונן במפת הלידה שלי באופן סמלי ולתרגם אותה לצעד מעשי, בלי להציג אותה כחיזוי.", aiButton: "התייעץ עם AI על המפה", notReady: "הזן תאריך לידה כדי להתחיל", notReadyHint: "שעת לידה ומקום לידה יאפשרו בעתיד חישוב מדויק יותר של המפה.", sunSign: "מזל שמש", disclaimer: "זהו תוכן סמלי ורפלקטיבי בלבד, לא מדע ולא תחזית. אין להשתמש בו במקום ייעוץ מקצועי." },
+  en: { birthTime: "Birth time (optional)", birthPlace: "Birth place", birthCountry: "Birth country", method: "Keep 11/22/33 as master numbers", mode: "Content style", reflection: "Symbolic reflection", science: "Science and context", faith: "Personal belief", astrology: "Time and birthplace are only for a birth-chart reading; numerology uses the birth date.", questions: "What would you like to explore with AI?", topic: "Reflection topic", chartTitle: "Astrological birth chart", engineNote: "A full chart with planets, ascendant, and houses requires a real ephemeris engine. Until then, we show only clearly calculated data and never invent placements.", aiPrompt: "Help me reflect on my birth chart symbolically and turn it into a practical step, without presenting it as prediction.", aiButton: "Discuss the chart with AI", notReady: "Enter a birth date to begin", notReadyHint: "Birth time and place will enable a more precise chart calculation later.", sunSign: "Sun sign", disclaimer: "This is symbolic and reflective content, not science or prediction. Do not use it instead of professional advice." },
+  es: { birthTime: "Hora de nacimiento (opcional)", birthPlace: "Lugar de nacimiento", birthCountry: "Pais de nacimiento", method: "Mantener 11/22/33 como maestros", mode: "Estilo", reflection: "Reflexion simbolica", science: "Ciencia y contexto", faith: "Creencia personal", astrology: "La hora y el lugar solo sirven para una carta natal; la numerologia usa la fecha.", questions: "Que quieres explorar con la IA?", topic: "Tema de reflexion", chartTitle: "Carta natal astrologica", engineNote: "Una carta completa con planetas, ascendente y casas requiere un motor de efemerides real. No inventaremos posiciones.", aiPrompt: "Ayudame a reflexionar sobre mi carta natal de forma simbolica y convertirla en un paso practico, sin presentarla como prediccion.", aiButton: "Consultar la carta con IA", notReady: "Introduce una fecha de nacimiento", notReadyHint: "La hora y el lugar permitiran un calculo mas preciso mas adelante.", sunSign: "Signo solar", disclaimer: "Contenido simbolico y reflexivo, no ciencia ni prediccion. No sustituye consejo profesional." },
+  zh: { birthTime: "出生时间（可选）", birthPlace: "出生地", birthCountry: "出生国家", method: "保留11/22/33大师数", mode: "内容风格", reflection: "象征性反思", science: "科学与背景", faith: "个人信念", astrology: "时间和出生地只用于星盘；数字命理使用出生日期。", questions: "你想和AI探索什么？", topic: "反思主题", chartTitle: "占星出生星盘", engineNote: "完整星盘需要真实的星历引擎来计算行星、上升点和宫位。我们不会编造位置。", aiPrompt: "请帮助我以象征方式反思出生星盘，并转化为实际行动，不要把它说成预测。", aiButton: "与AI讨论星盘", notReady: "输入出生日期开始", notReadyHint: "出生时间和地点将帮助之后进行更精确的计算。", sunSign: "太阳星座", disclaimer: "这是象征性反思内容，不是科学或预测，也不能替代专业建议。" },
+  ar: { birthTime: "وقت الميلاد (اختياري)", birthPlace: "مكان الميلاد", birthCountry: "دولة الميلاد", method: "إبقاء 11/22/33 كأرقام رئيسية", mode: "أسلوب المحتوى", reflection: "تأمل رمزي", science: "علم وسياق", faith: "معتقد شخصي", astrology: "الوقت ومكان الميلاد يستخدمان لخريطة الميلاد فقط؛ علم الأرقام يستخدم التاريخ.", questions: "ما الذي تريد استكشافه مع AI؟", topic: "موضوع التأمل", chartTitle: "خريطة الميلاد الفلكية", engineNote: "الخريطة الكاملة للكواكب والطالع والبيوت تحتاج إلى محرك فلكي حقيقي. لن نخترع مواقع.", aiPrompt: "ساعدني على التأمل في خريطة ميلادي بشكل رمزي وتحويلها إلى خطوة عملية دون تقديمها كتنبؤ.", aiButton: "استشر AI حول الخريطة", notReady: "أدخل تاريخ الميلاد للبدء", notReadyHint: "سيساعد وقت ومكان الميلاد على حساب أدق لاحقا.", sunSign: "برج الشمس", disclaimer: "هذا محتوى رمزي وتأملي وليس علما أو تنبؤا ولا يغني عن المشورة المهنية." },
+  ru: { birthTime: "Время рождения (необязательно)", birthPlace: "Место рождения", birthCountry: "Страна рождения", method: "Сохранять 11/22/33 как мастер-числа", mode: "Стиль контента", reflection: "Символическая рефлексия", science: "Наука и контекст", faith: "Личная вера", astrology: "Время и место нужны только для натальной карты; нумерология использует дату.", questions: "Что вы хотите исследовать с AI?", topic: "Тема рефлексии", chartTitle: "Астрологическая натальная карта", engineNote: "Полная карта с планетами, асцендентом и домами требует настоящего эфемеридного движка. Мы не будем выдумывать положения.", aiPrompt: "Помоги мне символически осмыслить натальную карту и превратить ее в практический шаг, не выдавая это за прогноз.", aiButton: "Обсудить карту с AI", notReady: "Введите дату рождения", notReadyHint: "Время и место рождения позже позволят рассчитать карту точнее.", sunSign: "Солнечный знак", disclaimer: "Это символический и рефлексивный контент, не наука и не прогноз. Он не заменяет профессиональную помощь." },
 } as const;
+const BIRTH_CHART_LABEL = { he: "מפת לידה", en: "Birth chart", es: "Carta natal", zh: "星盘", ar: "خريطة الميلاد", ru: "Натальная карта" } as const;
 
 const CRISIS_COPY: Record<string, string> = {
   he: "אני מצטער שאתה עובר את זה. אני לא שירות חירום ולא רוצה שתישאר עם זה לבד. אם יש סכנה מיידית, התקשר עכשיו ל-100 או 101 בישראל, או למספר החירום המקומי. אפשר גם לפנות לער\"ן 1201 ולשתף אדם קרוב שנמצא לידך.",
@@ -407,7 +408,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const mapUi = MAP_COPY[lang] ?? MAP_COPY.en;
   const [activeTab, setActiveTab] = useState<MindTab>(() => {
     const saved = safeLocalStorage.getString("zoneflow-mind-tab", "home");
-    return ["home", "journeys", "coach", "progress", "numbers", "stars"].includes(saved || "") ? (saved as MindTab) : "home";
+    return ["home", "journeys", "coach", "progress", "numbers", "birthchart", "stars"].includes(saved || "") ? (saved as MindTab) : "home";
   });
   const [selectedOffset, setSelectedOffset] = useState(0);
   const [selectedJourneyId, setSelectedJourneyId] = useState(() => {
@@ -721,12 +722,13 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
       </Card>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as MindTab)}>
-        <TabsList className={cn("flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl p-1 sm:grid sm:grid-cols-6", isLight ? "bg-[#ecefff]" : "bg-white/5")}>
+        <TabsList className={cn("flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl p-1 sm:grid sm:grid-cols-7", isLight ? "bg-[#ecefff]" : "bg-white/5")}>
           <TabsTrigger className="min-w-max flex-1" value="home">{ui.home}</TabsTrigger>
           <TabsTrigger className="min-w-max flex-1" value="journeys">{ui.journeys}</TabsTrigger>
           <TabsTrigger className="min-w-max flex-1" value="coach">{ui.coach}</TabsTrigger>
           <TabsTrigger className="min-w-max flex-1" value="progress">{ui.progress}</TabsTrigger>
           <TabsTrigger className="min-w-max flex-1" value="numbers">{ui.numbers}</TabsTrigger>
+          <TabsTrigger className="min-w-max flex-1" value="birthchart">{BIRTH_CHART_LABEL[lang] ?? BIRTH_CHART_LABEL.en}</TabsTrigger>
           <TabsTrigger className="min-w-max flex-1" value="stars">{ui.stars}</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -1373,6 +1375,84 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                         </Card>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "birthchart" && (
+        <div className="grid gap-4 xl:grid-cols-[0.86fr_1.44fr]">
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl">{BIRTH_CHART_LABEL[lang] ?? BIRTH_CHART_LABEL.en}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5">
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-xs leading-6 text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-100" role="note">
+                {mapUi.astrology}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="zoneflow-birthchart-date" className="mb-2 block text-sm font-medium">{ui.birthDate}</label>
+                  <Input id="zoneflow-birthchart-date" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label htmlFor="zoneflow-birthchart-time" className="mb-2 block text-sm font-medium">{mapUi.birthTime}</label>
+                  <Input id="zoneflow-birthchart-time" type="time" value={birthTime} onChange={(event) => setBirthTime(event.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label htmlFor="zoneflow-birthchart-place" className="mb-2 block text-sm font-medium">{mapUi.birthPlace}</label>
+                  <Input id="zoneflow-birthchart-place" value={birthPlace} onChange={(event) => setBirthPlace(event.target.value)} placeholder={mapUi.birthPlace} className={inputClass} />
+                </div>
+                <div>
+                  <label htmlFor="zoneflow-birthchart-country" className="mb-2 block text-sm font-medium">{mapUi.birthCountry}</label>
+                  <Input id="zoneflow-birthchart-country" value={birthCountry} onChange={(event) => setBirthCountry(event.target.value)} placeholder={mapUi.birthCountry} className={inputClass} />
+                </div>
+              </div>
+              <div className={cn("rounded-3xl border p-4", softPanel)}>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Star className="h-4 w-4 text-[#4530ff]" />
+                  {BIRTH_CHART_LABEL[lang] ?? BIRTH_CHART_LABEL.en}
+                </div>
+                <p className={cn("mt-2 text-sm leading-7", subtleText)}>{mapUi.engineNote}</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-full"
+                onClick={() => {
+                  setActiveTab("coach");
+                  setCoachInput(mapUi.aiPrompt);
+                }}
+              >
+                <BrainCircuit className="h-4 w-4 ml-1" />
+                {mapUi.aiButton}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className={cn("border", shellCard)}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-2xl">{BIRTH_CHART_LABEL[lang] ?? BIRTH_CHART_LABEL.en}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              {!zodiac ? (
+                <div className={cn("rounded-3xl border border-dashed p-10 text-center", softPanel)}>
+                  <Star className="mx-auto mb-3 h-8 w-8 text-[#4530ff]" />
+                  <div className="text-lg font-semibold">{mapUi.notReady}</div>
+                  <p className={cn("mt-2 text-sm", subtleText)}>{mapUi.notReadyHint}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-[32px] bg-gradient-to-br from-[#171b58] via-[#4530ff] to-[#b18cff] p-6 text-white">
+                    <div className="text-sm text-white/75">{mapUi.sunSign}</div>
+                    <div className="mt-2 text-4xl font-bold">{zodiac.name}</div>
+                    <p className="mt-3 text-sm leading-7 text-white/85">{zodiac.vibe}</p>
+                  </div>
+                  <div className={cn("rounded-3xl border p-4 text-sm leading-7", softPanel)}>
+                    {mapUi.disclaimer}
                   </div>
                 </div>
               )}

@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { BookCompetitionPanel } from '@/components/BookCompetitionPanel';
 
 interface Book {
   id: string;
@@ -347,6 +348,7 @@ const BooksManager = () => {
           <div className="text-sm text-muted-foreground">לקרוא</div>
         </div>
       </div>
+      <BookCompetitionPanel readCount={readCount} />
 
       {/* Header with count */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">
