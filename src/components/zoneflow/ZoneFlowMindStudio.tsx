@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/carousel";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
+import { calculateBirthChart } from "@/lib/astrology";
 import { useTabroAiHistory } from "@/hooks/useTabroAiHistory";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,7 +43,7 @@ import { ZoneFlowMindUnfreeze } from "./ZoneFlowMindUnfreeze";
 
 type MindTab = "home" | "journeys" | "coach" | "progress" | "numbers" | "birthchart" | "stars";
 type CoachIntensity = 1 | 2 | 3 | 4 | 5;
-type MapProfile = { birthDate: string; birthTime: string; birthPlace: string; birthCountry: string; keepMasterNumbers: boolean };
+type MapProfile = { birthDate: string; birthTime: string; birthPlace: string; birthCountry: string; utcOffsetMinutes: number; keepMasterNumbers: boolean };
 
 interface JourneyDay {
   day: number;
@@ -293,6 +294,26 @@ const MAP_COPY = {
   ru: { birthTime: "Время рождения (необязательно)", birthPlace: "Место рождения", birthCountry: "Страна рождения", method: "Сохранять 11/22/33 как мастер-числа", mode: "Стиль контента", reflection: "Символическая рефлексия", science: "Наука и контекст", faith: "Личная вера", astrology: "Время и место нужны только для натальной карты; нумерология использует дату.", questions: "Что вы хотите исследовать с AI?", topic: "Тема рефлексии", chartTitle: "Астрологическая натальная карта", engineNote: "Полная карта с планетами, асцендентом и домами требует настоящего эфемеридного движка. Мы не будем выдумывать положения.", aiPrompt: "Помоги мне символически осмыслить натальную карту и превратить ее в практический шаг, не выдавая это за прогноз.", aiButton: "Обсудить карту с AI", notReady: "Введите дату рождения", notReadyHint: "Время и место рождения позже позволят рассчитать карту точнее.", sunSign: "Солнечный знак", disclaimer: "Это символический и рефлексивный контент, не наука и не прогноз. Он не заменяет профессиональную помощь.", saveMap: "Сохранить и обновить карту", mapSaved: "Карта обновлена по сохраненным данным" },
 } as const;
 const BIRTH_CHART_LABEL = { he: "מפת לידה", en: "Birth chart", es: "Carta natal", zh: "星盘", ar: "خريطة الميلاد", ru: "Натальная карта" } as const;
+const CHART_ENGINE_COPY: Record<string, {
+  utcOffset: string;
+  utcHint: string;
+  calculated: string;
+  positions: string;
+  aspects: string;
+  noAspects: string;
+  timeEstimated: string;
+  locationPending: string;
+}> = {
+  he: { utcOffset: "הפרש UTC בזמן הלידה (בדקות)", utcHint: "לדוגמה: ישראל בקיץ היא בדרך כלל 180, ובחורף 120. בדוק לפי שנת הלידה.", calculated: "מחושב מקומית על המכשיר", positions: "מיקומי כוכבי הלכת", aspects: "היבטים מרכזיים", noAspects: "לא נמצאו היבטים מרכזיים בטווח שנבחר.", timeEstimated: "לא הוזנה שעת לידה, ולכן החישוב משתמש ב־12:00 כהערכה. מיקומי הירח וההיבטים עשויים להשתנות.", locationPending: "מקום הלידה נשמר. אופק ובתים יתווספו לאחר חיבור המרה בטוחה של מקום לקואורדינטות.", },
+  en: { utcOffset: "UTC offset at birth (minutes)", utcHint: "For example: Israel is usually 180 in summer and 120 in winter. Check the birth year.", calculated: "Calculated locally on this device", positions: "Planetary positions", aspects: "Key aspects", noAspects: "No major aspects were found in the selected orb.", timeEstimated: "No birth time was entered, so noon is used as an estimate. Moon placement and aspects can change.", locationPending: "Birthplace is saved. Ascendant and houses will require a safe place-to-coordinates step.", },
+  es: { utcOffset: "Diferencia UTC al nacer (minutos)", utcHint: "Ejemplo: Israel suele ser 180 en verano y 120 en invierno. Comprueba el ano de nacimiento.", calculated: "Calculado localmente en este dispositivo", positions: "Posiciones planetarias", aspects: "Aspectos principales", noAspects: "No se encontraron aspectos principales en el orbe seleccionado.", timeEstimated: "No se indico hora de nacimiento; se usa el mediodia como estimacion. La Luna y los aspectos pueden variar.", locationPending: "El lugar de nacimiento esta guardado. Ascendente y casas requeriran convertir el lugar a coordenadas.", },
+  zh: { utcOffset: "出生时 UTC 偏移（分钟）", utcHint: "例如：以色列夏季通常为 180，冬季为 120。请按出生年份核对。", calculated: "在此设备本地计算", positions: "行星位置", aspects: "主要相位", noAspects: "所选容许度内没有主要相位。", timeEstimated: "未填写出生时间，因此以中午作为估算。月亮位置和相位可能变化。", locationPending: "出生地已保存。上升点与宫位仍需要安全地将地点转换为坐标。", },
+  ar: { utcOffset: "فرق UTC وقت الميلاد (بالدقائق)", utcHint: "مثال: إسرائيل عادة 180 صيفا و120 شتاء. تحقق من سنة الميلاد.", calculated: "محسوب محليا على هذا الجهاز", positions: "مواقع الكواكب", aspects: "الجوانب الرئيسية", noAspects: "لم يتم العثور على جوانب رئيسية ضمن الهامش المحدد.", timeEstimated: "لم يتم إدخال وقت الميلاد، لذلك يستخدم الظهر كتقدير. قد يتغير موضع القمر والجوانب.", locationPending: "تم حفظ مكان الميلاد. يحتاج الطالع والبيوت إلى تحويل آمن للمكان إلى إحداثيات.", },
+  ru: { utcOffset: "Смещение UTC при рождении (минуты)", utcHint: "Например: в Израиле обычно 180 летом и 120 зимой. Проверьте год рождения.", calculated: "Рассчитано локально на этом устройстве", positions: "Положения планет", aspects: "Основные аспекты", noAspects: "В выбранном орбисе не найдено основных аспектов.", timeEstimated: "Время рождения не указано, поэтому используется полдень как оценка. Положение Луны и аспекты могут меняться.", locationPending: "Место рождения сохранено. Для асцендента и домов потребуется безопасно преобразовать место в координаты.", },
+};
+const CHART_PLANET_LABELS: Record<string, string> = { sun: "שמש", moon: "ירח", mercury: "מרקורי", venus: "ונוס", mars: "מאדים", jupiter: "צדק", saturn: "שבתאי", uranus: "אורנוס", neptune: "נפטון", pluto: "פלוטו" };
+const CHART_SIGN_LABELS: Record<string, string> = { Aries: "טלה", Taurus: "שור", Gemini: "תאומים", Cancer: "סרטן", Leo: "אריה", Virgo: "בתולה", Libra: "מאזניים", Scorpio: "עקרב", Sagittarius: "קשת", Capricorn: "גדי", Aquarius: "דלי", Pisces: "דגים" };
+const CHART_ASPECT_LABELS: Record<string, string> = { Conjunction: "צמידות", Sextile: "סקסטיל", Square: "ריבוע", Trine: "משולש", Opposition: "מולות" };
 
 const CRISIS_COPY: Record<string, string> = {
   he: "אני מצטער שאתה עובר את זה. אני לא שירות חירום ולא רוצה שתישאר עם זה לבד. אם יש סכנה מיידית, התקשר עכשיו ל-100 או 101 בישראל, או למספר החירום המקומי. אפשר גם לפנות לער\"ן 1201 ולשתף אדם קרוב שנמצא לידך.",
@@ -422,12 +443,14 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const [birthTime, setBirthTime] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "");
   const [birthPlace, setBirthPlace] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "");
   const [birthCountry, setBirthCountry] = useState(() => safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "");
+  const [birthUtcOffsetMinutes, setBirthUtcOffsetMinutes] = useState(() => safeLocalStorage.getJSON("zoneflow-mind-birth-utc-offset", 180));
   const [keepMasterNumbers, setKeepMasterNumbers] = useState(() => safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true));
   const [appliedMapProfile, setAppliedMapProfile] = useState<MapProfile>(() => safeLocalStorage.getJSON("zoneflow-mind-applied-map-profile", {
     birthDate: safeLocalStorage.getString("zoneflow-mind-birthdate", "") || "",
     birthTime: safeLocalStorage.getString("zoneflow-mind-birthtime", "") || "",
     birthPlace: safeLocalStorage.getString("zoneflow-mind-birthplace", "") || "",
     birthCountry: safeLocalStorage.getString("zoneflow-mind-birthcountry", "") || "",
+    utcOffsetMinutes: safeLocalStorage.getJSON("zoneflow-mind-birth-utc-offset", 180),
     keepMasterNumbers: safeLocalStorage.getJSON("zoneflow-mind-master-numbers", true),
   }));
   const [contentMode, setContentMode] = useState<"reflection" | "science" | "faith">(() => (safeLocalStorage.getString("zoneflow-mind-content-mode", "reflection") as "reflection" | "science" | "faith") || "reflection");
@@ -483,6 +506,7 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   useEffect(() => safeLocalStorage.setString("zoneflow-mind-birthtime", birthTime), [birthTime]);
   useEffect(() => safeLocalStorage.setString("zoneflow-mind-birthplace", birthPlace), [birthPlace]);
   useEffect(() => safeLocalStorage.setString("zoneflow-mind-birthcountry", birthCountry), [birthCountry]);
+  useEffect(() => safeLocalStorage.setJSON("zoneflow-mind-birth-utc-offset", birthUtcOffsetMinutes), [birthUtcOffsetMinutes]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-mind-master-numbers", keepMasterNumbers), [keepMasterNumbers]);
   useEffect(() => safeLocalStorage.setString("zoneflow-mind-content-mode", contentMode), [contentMode]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-mind-horoscope-notes", horoscopeNotes), [horoscopeNotes]);
@@ -547,6 +571,13 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
     return getZodiacSign(appliedMapProfile.birthDate);
   }, [appliedMapProfile.birthDate]);
 
+  const calculatedBirthChart = useMemo(() => calculateBirthChart({
+    birthDate: appliedMapProfile.birthDate,
+    birthTime: appliedMapProfile.birthTime,
+    utcOffsetMinutes: Number.isFinite(appliedMapProfile.utcOffsetMinutes) ? appliedMapProfile.utcOffsetMinutes : 180,
+  }), [appliedMapProfile]);
+  const chartCopy = CHART_ENGINE_COPY[lang] ?? CHART_ENGINE_COPY.en;
+
   const horoscope = useMemo(() => {
     if (!zodiac) return null;
     const date = new Date();
@@ -569,12 +600,14 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
   const horoscopeDateKey = useMemo(() => horoscope ? new Intl.DateTimeFormat("en-CA").format(horoscope.date) : "", [horoscope]);
   const birthChartDataQuality = !appliedMapProfile.birthDate
     ? "אין עדיין תאריך לידה שמור"
-    : !appliedMapProfile.birthTime || !appliedMapProfile.birthPlace || !appliedMapProfile.birthCountry
-      ? "יש תאריך לידה. כדי לחשב בעתיד אופק ובתים נדרשים גם שעת לידה ומקום לידה מלאים."
-      : "פרטי הלידה המלאים נשמרו. ניתן יהיה לחבר אליהם מנוע אפמריס לחישוב מפת כוכבים מלאה.";
+    : !appliedMapProfile.birthTime
+      ? chartCopy.timeEstimated
+      : !appliedMapProfile.birthPlace || !appliedMapProfile.birthCountry
+        ? "מיקומי הכוכבים מחושבים לפי הזמן ששמרת. להוספת אופק ובתים נדרש גם מקום לידה מלא."
+        : chartCopy.locationPending;
 
   const saveMapProfile = () => {
-    const nextProfile: MapProfile = { birthDate, birthTime, birthPlace, birthCountry, keepMasterNumbers };
+    const nextProfile: MapProfile = { birthDate, birthTime, birthPlace, birthCountry, utcOffsetMinutes: birthUtcOffsetMinutes, keepMasterNumbers };
     setAppliedMapProfile(nextProfile);
     safeLocalStorage.setJSON("zoneflow-mind-applied-map-profile", nextProfile);
     toast.success(mapUi.mapSaved);
@@ -1312,6 +1345,11 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                 <div><label htmlFor="zoneflow-mind-birthcountry" className="mb-2 block text-sm font-medium">{mapUi.birthCountry}</label><Input id="zoneflow-mind-birthcountry" value={birthCountry} onChange={(event) => setBirthCountry(event.target.value)} placeholder="Israel" className={inputClass} /></div>
               </div>
               <div><label htmlFor="zoneflow-mind-birthtime" className="mb-2 block text-sm font-medium">{mapUi.birthTime}</label><Input id="zoneflow-mind-birthtime" type="time" value={birthTime} onChange={(event) => setBirthTime(event.target.value)} className={inputClass} /></div>
+              <div>
+                <label htmlFor="zoneflow-mind-birth-utc" className="mb-2 block text-sm font-medium">{chartCopy.utcOffset}</label>
+                <Input id="zoneflow-mind-birth-utc" type="number" step="30" min="-720" max="840" value={birthUtcOffsetMinutes} onChange={(event) => setBirthUtcOffsetMinutes(Number(event.target.value) || 0)} className={inputClass} />
+                <p className={cn("mt-1 text-xs leading-5", subtleText)}>{chartCopy.utcHint}</p>
+              </div>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={keepMasterNumbers} onChange={(event) => setKeepMasterNumbers(event.target.checked)} />{mapUi.method}</label>
               <div><label htmlFor="zoneflow-mind-content-mode" className="mb-2 block text-sm font-medium">{mapUi.mode}</label><select id="zoneflow-mind-content-mode" value={contentMode} onChange={(event) => setContentMode(event.target.value as typeof contentMode)} className={cn("h-10 w-full rounded-xl border px-3 text-sm", inputClass)}><option value="reflection">{mapUi.reflection}</option><option value="science">{mapUi.science}</option><option value="faith">{mapUi.faith}</option></select></div>
               <div><label htmlFor="zoneflow-mind-topic" className="mb-2 block text-sm font-medium">{mapUi.topic}</label><Input id="zoneflow-mind-topic" value={reflectionTopic} onChange={(event) => setReflectionTopic(event.target.value)} placeholder={mapUi.questions} className={inputClass} /></div>
@@ -1434,6 +1472,10 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                   <Input id="zoneflow-birthchart-time" type="time" value={birthTime} onChange={(event) => setBirthTime(event.target.value)} className={inputClass} />
                 </div>
                 <div>
+                  <label htmlFor="zoneflow-birthchart-utc" className="mb-2 block text-sm font-medium">{chartCopy.utcOffset}</label>
+                  <Input id="zoneflow-birthchart-utc" type="number" step="30" min="-720" max="840" value={birthUtcOffsetMinutes} onChange={(event) => setBirthUtcOffsetMinutes(Number(event.target.value) || 0)} className={inputClass} />
+                </div>
+                <div>
                   <label htmlFor="zoneflow-birthchart-place" className="mb-2 block text-sm font-medium">{mapUi.birthPlace}</label>
                   <Input id="zoneflow-birthchart-place" value={birthPlace} onChange={(event) => setBirthPlace(event.target.value)} placeholder={mapUi.birthPlace} className={inputClass} />
                 </div>
@@ -1494,6 +1536,39 @@ export function ZoneFlowMindStudio({ isLight }: ZoneFlowMindStudioProps) {
                     <div className="font-semibold">איכות נתוני המפה</div>
                     <p className={cn("mt-2", subtleText)}>{birthChartDataQuality}</p>
                   </div>
+                  {calculatedBirthChart && (
+                    <>
+                      <div className={cn("rounded-3xl border p-4", softPanel)}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-semibold">{chartCopy.positions}</div>
+                          <span className="rounded-full bg-[#4530ff]/10 px-3 py-1 text-xs font-medium text-[#4530ff]">{chartCopy.calculated}</span>
+                        </div>
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          {calculatedBirthChart.planets.map((planet) => (
+                            <div key={planet.id} className="rounded-2xl border bg-white/70 p-3 text-sm dark:bg-black/10">
+                              <div className={cn("text-xs", subtleText)}>{lang === "he" ? CHART_PLANET_LABELS[planet.id] : planet.name}</div>
+                              <div className="mt-1 font-semibold">{lang === "he" ? CHART_SIGN_LABELS[planet.sign] : planet.sign} {planet.degree.toFixed(1)}°</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className={cn("rounded-3xl border p-4", softPanel)}>
+                        <div className="font-semibold">{chartCopy.aspects}</div>
+                        {calculatedBirthChart.aspects.length === 0 ? (
+                          <p className={cn("mt-2 text-sm", subtleText)}>{chartCopy.noAspects}</p>
+                        ) : (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {calculatedBirthChart.aspects.map((aspect) => (
+                              <div key={`${aspect.left}-${aspect.right}-${aspect.type}`} className="rounded-2xl border bg-white/70 p-3 text-sm dark:bg-black/10">
+                                <div className="font-medium">{aspect.left} · {aspect.right}</div>
+                                <div className={cn("mt-1 text-xs", subtleText)}>{lang === "he" ? CHART_ASPECT_LABELS[aspect.type] : aspect.type} · {aspect.orb}°</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                   <div className={cn("rounded-3xl border p-4 text-sm leading-7", softPanel)}>
                     {mapUi.disclaimer}
                   </div>
