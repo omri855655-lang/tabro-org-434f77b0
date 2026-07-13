@@ -23,6 +23,7 @@ import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { ZoneFlowMindStudio } from "./ZoneFlowMindStudio";
 import { ZoneFlowWellbeingStudio } from "./ZoneFlowWellbeingStudio";
 import { ZoneFlowTogetherStudio } from "./ZoneFlowTogetherStudio";
+import { ZoneFlowWorkspaceBoundary } from "./ZoneFlowWorkspaceBoundary";
 
 // Background themes
 const BG_THEMES = [
@@ -584,6 +585,7 @@ const ZoneFlowDashboard = () => {
           )}
         </div>
 
+        <ZoneFlowWorkspaceBoundary key={workspace} name={workspaceLabels[workspace]} onBack={() => setWorkspace("core")}>
         {workspace === "mind" ? (
           <ZoneFlowMindStudio isLight={isLight} />
         ) : workspace === "wellbeing" ? (
@@ -656,7 +658,6 @@ const ZoneFlowDashboard = () => {
             </CardContent>
           </Card>
         )}
-
         {/* Upcoming calendar task banner */}
         {upcomingTask && (
           <Card className="bg-gradient-to-r from-violet-500/10 to-cyan-500/10 border-violet-500/20">
@@ -2213,6 +2214,7 @@ const ZoneFlowDashboard = () => {
         </Card>
           </>
         )}
+        </ZoneFlowWorkspaceBoundary>
 
       </div>
     </div>

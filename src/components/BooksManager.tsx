@@ -27,6 +27,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { BookCompetitionPanel } from '@/components/BookCompetitionPanel';
+import { BookCompetitionPage } from '@/components/BookCompetitionPage';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface Book {
@@ -106,6 +107,7 @@ const BooksManager = () => {
   const [newBook, setNewBook] = useState({ title: '', author: '' });
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [bookDetail, setBookDetail] = useState<ParsedBookNotes>({ plainNotes: "", longSummary: "", chapterSummaries: [] });
+  const [competitionOpen, setCompetitionOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -351,6 +353,10 @@ const BooksManager = () => {
   const readingCount = books.filter(b => b.status === 'בקריאה').length;
   const toReadCount = books.filter(b => b.status === 'לקרוא').length;
 
+  if (competitionOpen) {
+    return <BookCompetitionPage readBooks={readBooks} onBack={() => setCompetitionOpen(false)} />;
+  }
+
   return (
     <div className="h-full flex flex-col p-4 overflow-hidden" dir={dir}>
       {/* Stats Dashboard */}
@@ -368,7 +374,7 @@ const BooksManager = () => {
           <div className="text-sm text-muted-foreground">{t('toRead')}</div>
         </div>
       </div>
-      <BookCompetitionPanel readBooks={readBooks} />
+      <BookCompetitionPanel onOpen={() => setCompetitionOpen(true)} />
 
       {/* Header with count */}
       <div className="flex items-center gap-2 mb-4 flex-shrink-0">
