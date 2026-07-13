@@ -1,4 +1,4 @@
-import { Body, EclipticLongitude } from "astronomy-engine";
+import { Body, Ecliptic, GeoVector } from "astronomy-engine";
 
 export const ZODIAC_SIGNS = [
   "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -53,16 +53,22 @@ export const calculateBirthChart = (input: BirthChartInput) => {
 
   const instant = localBirthToUtc(input);
   if (Number.isNaN(instant.getTime())) return null;
-  const planets: BirthChartPlanet[] = PLANETS.map((planet) => {
-    const longitude = normalizeDegrees(EclipticLongitude(planet.body, instant));
-    const signIndex = Math.floor(longitude / 30);
-    return {
-      id: planet.id,
-      name: planet.name,
-      longitude,
-      sign: ZODIAC_SIGNS[signIndex],
-      degree: longitude % 30,
-    };
+  const planets: BirthChartPlanet[] = PLANETS.flatMap((planet) => {
+    try {
+      // Birth charts use the apparent geocentric position as seen from Earth.
+      const longitude = normalizeDegrees(Ecliptic(GeoVector(planet.body, instant, true)).elon);
+      const signIndex = Math.floor(longitude / 30);
+      return [{
+        id: planet.id,
+        name: planet.name,
+        longitude,
+        sign: ZODIAC_SIGNS[signIndex],
+        degree: longitude % 30,
+      }];
+    } catch (error) {
+      console.warn(`Could not calculate ${planet.name} position`, error);
+      return [];
+    }
   });
 
   const aspectDefinitions = [
