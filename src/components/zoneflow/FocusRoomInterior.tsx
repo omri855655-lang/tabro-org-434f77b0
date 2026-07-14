@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type MouseEvent } from "react";
-import { Coffee, Library, LogOut, MicOff, Pause, Plane, Play, RotateCcw, Users } from "lucide-react";
+import { Coffee, Headphones, Library, LogOut, MicOff, Pause, Plane, Play, Radio, RotateCcw, Sparkles, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -63,25 +63,29 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
 
   return (
     <section
-      className={cn("relative isolate min-h-[540px] overflow-hidden rounded-[2rem] bg-gradient-to-br text-white shadow-xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky)}
+      className={cn("relative isolate min-h-[640px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br text-white shadow-2xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky)}
       aria-label={name}
       tabIndex={0}
       onKeyDown={moveFromKeyboard}
     >
       <div className={cn("absolute -start-24 -top-24 h-72 w-72 rounded-full blur-3xl", config.glow)} />
-      <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-      {scene === "library" && <div className="absolute inset-x-6 top-24 grid grid-cols-2 gap-8 opacity-70"><div className="h-40 rounded-xl border-[12px] border-[#512d18] bg-[repeating-linear-gradient(0deg,#b56c35_0_12px,#f2bd6e_12px_19px)]" /><div className="h-40 rounded-xl border-[12px] border-[#512d18] bg-[repeating-linear-gradient(0deg,#6d3728_0_13px,#d7924d_13px_20px)]" /></div>}
-      {scene === "plane" && <div className="absolute inset-x-10 top-24 flex justify-around">{[0, 1, 2, 3].map((item) => <div key={item} className="h-20 w-28 rounded-[45%] border-8 border-white/25 bg-sky-100/70 shadow-inner" />)}</div>}
-      {(scene === "cafe" || scene === "office") && <div className="absolute inset-x-10 top-20 grid grid-cols-4 gap-5">{[0, 1, 2, 3].map((item) => <div key={item} className="h-28 rounded-t-[3rem] border-4 border-white/15 bg-black/15" />)}</div>}
+      <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+      {scene === "library" && <div className="absolute inset-x-5 top-24 grid grid-cols-2 gap-20 opacity-90"><div className="h-72 rounded-2xl border-[14px] border-[#3d2114] bg-[repeating-linear-gradient(0deg,#7f3f26_0_12px,#e9b35f_12px_18px,#2f1c18_18px_23px)] shadow-2xl" /><div className="h-72 rounded-2xl border-[14px] border-[#3d2114] bg-[repeating-linear-gradient(0deg,#6d3728_0_13px,#d7924d_13px_20px,#2f1c18_20px_25px)] shadow-2xl" /></div>}
+      {scene === "plane" && <><div className="absolute inset-x-6 top-24 flex justify-around">{[0, 1, 2, 3, 4].map((item) => <div key={item} className="h-20 w-24 overflow-hidden rounded-[45%] border-8 border-slate-200/70 bg-gradient-to-b from-sky-100 to-sky-400 shadow-[inset_0_0_25px_rgba(255,255,255,.8)]"><div className="mt-9 h-1 bg-white/70" /></div>)}</div><div className="absolute inset-x-[18%] bottom-28 top-52 rounded-t-[45%] border-x-8 border-white/10 bg-slate-900/25" /></>}
+      {scene === "cafe" && <><div className="absolute inset-x-10 top-24 grid grid-cols-4 gap-5">{[0, 1, 2, 3].map((item) => <div key={item} className="h-32 rounded-t-[3rem] border-4 border-amber-100/20 bg-black/20 shadow-inner" />)}</div><div className="absolute end-8 top-52 h-40 w-36 rounded-2xl border border-white/10 bg-[#2a1714]/80 shadow-2xl"><div className="m-4 h-8 rounded bg-amber-300/60" /><div className="mx-4 mt-3 grid grid-cols-3 gap-2">{[0,1,2,3,4,5].map(i => <div key={i} className="h-5 rounded bg-white/15" />)}</div></div></>}
+      {scene === "office" && <><div className="absolute inset-x-8 top-24 grid grid-cols-5 gap-4">{[0, 1, 2, 3, 4].map((item) => <div key={item} className="h-36 rounded-t-3xl border border-white/15 bg-gradient-to-b from-cyan-100/20 to-slate-950/10" />)}</div><div className="absolute start-10 top-44 h-48 w-20 rounded-full bg-emerald-300/20 blur-xl" /></>}
 
       <div className="relative z-20 flex flex-wrap items-start justify-between gap-3 p-5 sm:p-6">
         <div><div className="inline-flex items-center gap-2 rounded-full bg-black/25 px-3 py-1 text-xs backdrop-blur"><span className="h-2 w-2 animate-pulse rounded-full bg-rose-400" /> LIVE · {config.label}</div><h2 className="mt-3 text-2xl font-black sm:text-3xl">{name}</h2><p className="mt-1 text-sm text-white/75">{topic}</p></div>
-        <div className="flex gap-2"><Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" title="חדר שקט. קול יתווסף רק בחדרים ייעודיים"><MicOff className="h-4 w-4" /></Button><Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" onClick={onLeave} aria-label="צא מהחדר"><LogOut className="h-4 w-4" /></Button></div>
+        <div className="flex flex-wrap gap-2"><div className="hidden items-center gap-2 rounded-full bg-black/25 px-3 py-2 text-xs backdrop-blur sm:flex"><Radio className="h-4 w-4 text-amber-300" />Ambient focus</div><Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" title="חדר שקט. קול יתווסף רק בחדרים ייעודיים"><MicOff className="h-4 w-4" /></Button><Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" onClick={onLeave} aria-label="צא מהחדר"><LogOut className="h-4 w-4" /></Button></div>
       </div>
 
-      <div className="absolute inset-x-4 bottom-28 top-24 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem]" onClick={moveFromPointer} aria-label="מרחב החדר. לחץ כדי להזיז את הדמות">
-        <div className="absolute inset-x-[4%] bottom-[4%] top-[42%] rounded-[45%] border border-white/10 bg-black/15 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]" />
-        {[18, 38, 58, 78].map((x) => <div key={x} className="absolute top-[59%] h-3 w-20 -translate-x-1/2 rounded-full bg-black/25" style={{ left: `${x}%` }} />)}
+      <div className="absolute bottom-28 end-3 top-28 z-30 hidden w-52 rounded-3xl border border-white/15 bg-slate-950/65 p-3 backdrop-blur-xl lg:block"><div className="flex items-center justify-between text-xs font-bold"><span className="flex items-center gap-2"><Users className="h-4 w-4 text-cyan-300" />בחדר עכשיו</span><span>{participants.length}</span></div><div className="mt-3 space-y-2">{participants.map((participant) => <div key={participant.userId} className="flex items-center gap-2 rounded-xl bg-white/8 p-2"><div className={cn("h-8 w-8 rounded-full border-2 border-white/30", participant.color || "bg-sky-300")} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{participant.displayName}</div><div className="text-[9px] text-white/55">{STATUS_LABELS[participant.status]}</div></div>{participant.status === "focusing" && <Headphones className="h-3.5 w-3.5 text-emerald-300" />}</div>)}</div><div className="mt-4 rounded-2xl bg-white/8 p-3 text-[10px] leading-5 text-white/60"><Sparkles className="mb-1 h-4 w-4 text-amber-300" />עובדים יחד בשקט. אפשר לזוז לשולחן אחר בלי להפריע לאחרים.</div></div>
+
+      <div className="absolute bottom-28 end-4 start-4 top-24 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem] lg:end-60" onClick={moveFromPointer} aria-label="מרחב החדר. לחץ כדי להזיז את הדמות">
+        <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 bg-black/15 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%]" : "rounded-[42%]")} />
+        {scene !== "plane" && [18, 40, 62, 82].map((x, index) => <div key={x} className="absolute h-12 w-24 -translate-x-1/2 rounded-md border-t-4 border-amber-100/25 bg-[#3b241d]/80 shadow-xl" style={{ left: `${x}%`, top: `${55 + (index % 2) * 16}%` }}><div className="mx-auto -mt-5 h-8 w-14 rounded-t-lg bg-slate-900/80" /></div>)}
+        {scene === "plane" && [25, 42, 58, 75].flatMap((y) => [30, 70].map((x) => <div key={`${x}-${y}`} className="absolute h-11 w-16 -translate-x-1/2 rounded-t-2xl border border-white/15 bg-slate-800/85 shadow-lg" style={{ left: `${x}%`, top: `${y}%` }} />))}
         {participants.map((participant) => (
           <div
             key={participant.userId}
@@ -89,7 +93,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
             style={{ left: `${participant.x}%`, top: `${participant.y}%` }}
           >
             <div className="mb-1 max-w-24 truncate rounded-full bg-black/55 px-2 py-0.5 text-[10px] backdrop-blur">{participant.displayName}</div>
-            <div className={cn("relative h-12 w-12 rounded-full border-4 shadow-xl", participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/60", participant.color || "bg-sky-300")}><div className="absolute inset-x-2 top-3.5 h-2 rounded-full bg-slate-800/75" /><div className="absolute -bottom-5 left-1/2 h-8 w-14 -translate-x-1/2 rounded-t-[2rem] bg-slate-900" /></div>
+            <div className={cn("relative h-12 w-12 rounded-full border-4 shadow-xl", participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/60", participant.color || "bg-sky-300")}><div className="absolute start-2.5 top-3 h-1.5 w-1.5 rounded-full bg-slate-900" /><div className="absolute end-2.5 top-3 h-1.5 w-1.5 rounded-full bg-slate-900" /><div className="absolute inset-x-3 top-7 h-1 rounded-full bg-slate-800/65" /><div className="absolute -bottom-5 left-1/2 h-8 w-14 -translate-x-1/2 rounded-t-[2rem] bg-slate-900" /></div>
             <div className={cn("mt-5 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{STATUS_LABELS[participant.status]}</div>
           </div>
         ))}

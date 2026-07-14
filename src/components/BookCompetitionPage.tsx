@@ -12,11 +12,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { supabase } from "@/integrations/supabase/client";
+import { mergeCatalogBooks, searchGoogleBooks, searchOpenLibraryBooks, type CatalogBook } from "@/lib/bookCatalog";
 
 interface ReadBook { id: string; title: string; author: string | null }
 interface LeaderboardEntry { display_name: string; books_completed: number; pages_read: number }
 interface Completion { id: string; title: string; author: string | null; page_count: number; completed_on: string; language_code: string }
-interface CatalogBook { key: string; title: string; author: string; year?: number; pages?: number; language?: string; coverId?: number; isbn?: string }
 
 type CompetitionClient = {
   rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
@@ -29,8 +29,8 @@ type CompetitionClient = {
 const competitionClient = supabase as unknown as CompetitionClient;
 
 const COPY = {
-  he: { back: "חזרה לספרים", title: "אתגר הקריאה של Tabro", subtitle: "קוראים בקצב שלך. משתפים רק מה שבוחרים.", join: "הצטרף לתחרות", joined: "אתה משתתף בתחרות", privacy: "הצטרפות מפרסמת בדירוג רק שם תצוגה, מספר ספרים ועמודים. סיכומים נשארים פרטיים כברירת מחדל.", myStats: "הנתונים שלי", pages: "עמודים", books: "ספרים", rank: "מקום", goal: "יעד עמודים אישי", leaderboard: "טבלת המובילים", report: "סיימתי ספר", chooseRead: "בחר ספר שכבר סימנת כנקרא", catalog: "חיפוש ספרים בעולם", searchPlaceholder: "שם ספר, מחבר או ISBN", search: "חיפוש", all: "כל השפות", hebrew: "ספרים בעברית", useBook: "בחר ספר", noResults: "לא נמצאו תוצאות. אפשר להזין את הספר ידנית.", pageCount: "מספר עמודים", language: "שפת הספר", summary: "סיכום פרטי או המלצה", summaryHint: "מה לקחת מהספר? הסיכום לא יפורסם ללא אישור.", joinRank: "כלול את הספר בדירוג", catalogOpt: "הוסף את פרטי הספר לקטלוג הקהילתי", shareOpt: "פרסם את הסיכום לקהילה", save: "שמור סיום ספר", history: "הספרים שדיווחתי", emptyHistory: "עדיין לא דיווחת על ספר בתחרות.", source: "החיפוש משתמש בקטלוג Open Library. נתונים חסרים אפשר להשלים ידנית.", auth: "צריך להתחבר כדי להשתתף." },
-  en: { back: "Back to books", title: "Tabro reading challenge", subtitle: "Read at your pace. Share only what you choose.", join: "Join challenge", joined: "You are participating", privacy: "Joining publishes only your display name, book count, and page count. Reviews stay private by default.", myStats: "My stats", pages: "Pages", books: "Books", rank: "Rank", goal: "Personal page goal", leaderboard: "Leaderboard", report: "I finished a book", chooseRead: "Choose a book already marked read", catalog: "Search the global catalog", searchPlaceholder: "Title, author, or ISBN", search: "Search", all: "All languages", hebrew: "Hebrew books", useBook: "Use book", noResults: "No results. You can enter the book manually.", pageCount: "Page count", language: "Book language", summary: "Private notes or recommendation", summaryHint: "What stayed with you? This is not published without consent.", joinRank: "Count this book in the leaderboard", catalogOpt: "Add book details to the community catalog", shareOpt: "Publish my review to the community", save: "Save finished book", history: "Books I reported", emptyHistory: "You have not reported a book yet.", source: "Search uses the Open Library catalog. Missing details can be completed manually.", auth: "Sign in to participate." },
+  he: { back: "חזרה לספרים", title: "אתגר הקריאה של Tabro", subtitle: "קוראים בקצב שלך. משתפים רק מה שבוחרים.", join: "הצטרף לתחרות", joined: "אתה משתתף בתחרות", privacy: "הצטרפות מפרסמת בדירוג רק שם תצוגה, מספר ספרים ועמודים. סיכומים נשארים פרטיים כברירת מחדל.", myStats: "הנתונים שלי", pages: "עמודים", books: "ספרים", rank: "מקום", goal: "יעד עמודים אישי", leaderboard: "טבלת המובילים", report: "סיימתי ספר", chooseRead: "בחר ספר שכבר סימנת כנקרא", catalog: "חיפוש ספרים בעולם", searchPlaceholder: "שם ספר, מחבר או ISBN", search: "חיפוש", all: "כל השפות", hebrew: "ספרים בעברית", useBook: "בחר ספר", noResults: "לא נמצאו תוצאות. אפשר להזין את הספר ידנית.", pageCount: "מספר עמודים", language: "שפת הספר", summary: "סיכום פרטי או המלצה", summaryHint: "מה לקחת מהספר? הסיכום לא יפורסם ללא אישור.", joinRank: "כלול את הספר בדירוג", catalogOpt: "הוסף את פרטי הספר לקטלוג הקהילתי", shareOpt: "פרסם את הסיכום לקהילה", save: "שמור סיום ספר", history: "הספרים שדיווחתי", emptyHistory: "עדיין לא דיווחת על ספר בתחרות.", source: "החיפוש משלב Open Library ו-Google Books. פרויקט בן־יהודה והספרייה הלאומית יחוברו באמצעות מפתחות API מורשים.", auth: "צריך להתחבר כדי להשתתף.", titlePlaceholder: "התחל להקליד שם ספר...", suggestions: "הצעות לספרים" },
+  en: { back: "Back to books", title: "Tabro reading challenge", subtitle: "Read at your pace. Share only what you choose.", join: "Join challenge", joined: "You are participating", privacy: "Joining publishes only your display name, book count, and page count. Reviews stay private by default.", myStats: "My stats", pages: "Pages", books: "Books", rank: "Rank", goal: "Personal page goal", leaderboard: "Leaderboard", report: "I finished a book", chooseRead: "Choose a book already marked read", catalog: "Search the global catalog", searchPlaceholder: "Title, author, or ISBN", search: "Search", all: "All languages", hebrew: "Hebrew books", useBook: "Use book", noResults: "No results. You can enter the book manually.", pageCount: "Page count", language: "Book language", summary: "Private notes or recommendation", summaryHint: "What stayed with you? This is not published without consent.", joinRank: "Count this book in the leaderboard", catalogOpt: "Add book details to the community catalog", shareOpt: "Publish my review to the community", save: "Save finished book", history: "Books I reported", emptyHistory: "You have not reported a book yet.", source: "Search combines Open Library and Google Books. The National Library of Israel and Project Ben-Yehuda require authorized API keys.", auth: "Sign in to participate.", titlePlaceholder: "Start typing a book title...", suggestions: "Book suggestions" },
 } as const;
 
 export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook[]; onBack: () => void }) {
@@ -56,6 +56,9 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
   const [catalogResults, setCatalogResults] = useState<CatalogBook[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogSearched, setCatalogSearched] = useState(false);
+  const [titleSuggestions, setTitleSuggestions] = useState<CatalogBook[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const loadCompetition = useCallback(async () => {
     if (!user) return;
@@ -74,6 +77,38 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
   }, [user]);
 
   useEffect(() => { void loadCompetition(); }, [loadCompetition]);
+
+  useEffect(() => {
+    const query = title.trim();
+    if (query.length < 2 || !showSuggestions) {
+      setTitleSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setSuggestionsLoading(true);
+      const localBooks: CatalogBook[] = [
+        ...readBooks.map((book) => ({ key: `read:${book.id}`, title: book.title, author: book.author || "", source: "Tabro" as const })),
+        ...history.map((book) => ({ key: `history:${book.id}`, title: book.title, author: book.author || "", pages: book.page_count, language: book.language_code, source: "Tabro" as const })),
+      ].filter((book) => `${book.title} ${book.author}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+      const language = languageCode || (lang === "he" ? "he" : "all");
+      const [openLibrary, googleBooks] = await Promise.allSettled([
+        searchOpenLibraryBooks(query, language, 7),
+        searchGoogleBooks(query, language, 7),
+      ]);
+      if (controller.signal.aborted) return;
+      setTitleSuggestions(mergeCatalogBooks(
+        localBooks,
+        openLibrary.status === "fulfilled" ? openLibrary.value : [],
+        googleBooks.status === "fulfilled" ? googleBooks.value : [],
+      ).slice(0, 10));
+      setSuggestionsLoading(false);
+    }, 400);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [history, lang, languageCode, readBooks, showSuggestions, title]);
 
   const pagesRead = useMemo(() => history.reduce((sum, item) => sum + Number(item.page_count || 0), 0), [history]);
   const myRank = useMemo(() => {
@@ -103,19 +138,15 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
     if (!query) return;
     setCatalogLoading(true); setCatalogSearched(true);
     try {
-      const params = new URLSearchParams({ q: catalogLanguage === "he" ? `${query} language:heb` : query, limit: "12", fields: "key,title,author_name,first_publish_year,cover_i,isbn,number_of_pages_median,language" });
-      const response = await fetch(`https://openlibrary.org/search.json?${params.toString()}`);
-      if (!response.ok) throw new Error(`Open Library ${response.status}`);
-      const data = await response.json() as { docs?: Array<Record<string, unknown>> };
-      const results = (data.docs || []).map((doc, index) => ({
-        key: String(doc.key || `${index}-${doc.title}`), title: String(doc.title || ""),
-        author: Array.isArray(doc.author_name) ? String(doc.author_name[0] || "") : "",
-        year: typeof doc.first_publish_year === "number" ? doc.first_publish_year : undefined,
-        pages: typeof doc.number_of_pages_median === "number" ? doc.number_of_pages_median : undefined,
-        language: Array.isArray(doc.language) ? String(doc.language[0] || "") : undefined,
-        coverId: typeof doc.cover_i === "number" ? doc.cover_i : undefined,
-        isbn: Array.isArray(doc.isbn) ? String(doc.isbn[0] || "") : undefined,
-      })).filter((book) => book.title);
+      const [openLibrary, googleBooks] = await Promise.allSettled([
+        searchOpenLibraryBooks(query, catalogLanguage, 12),
+        searchGoogleBooks(query, catalogLanguage, 12),
+      ]);
+      const results = mergeCatalogBooks(
+        openLibrary.status === "fulfilled" ? openLibrary.value : [],
+        googleBooks.status === "fulfilled" ? googleBooks.value : [],
+      ).slice(0, 20);
+      if (!results.length && openLibrary.status === "rejected" && googleBooks.status === "rejected") throw new Error("Catalog providers unavailable");
       setCatalogResults(results);
     } catch (error) {
       console.error("Open Library search failed", error);
@@ -126,6 +157,7 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
 
   const selectCatalogBook = (book: CatalogBook) => {
     setTitle(book.title); setAuthor(book.author); setPages(book.pages || 0); setLanguageCode(catalogLanguage === "he" ? "he" : book.language || lang);
+    setShowSuggestions(false);
     document.getElementById("competition-report")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -170,11 +202,11 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
         </section>
 
         <section className="rounded-3xl border bg-white p-5 shadow-sm"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[220px] flex-1"><Label>{copy.catalog}</Label><Input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void searchCatalog(); }} placeholder={copy.searchPlaceholder} className="mt-2" /></div><Select value={catalogLanguage} onValueChange={(value: "all" | "he") => setCatalogLanguage(value)}><SelectTrigger className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{copy.all}</SelectItem><SelectItem value="he">{copy.hebrew}</SelectItem></SelectContent></Select><Button onClick={() => void searchCatalog()} disabled={catalogLoading}>{catalogLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}{copy.search}</Button></div><p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Globe2 className="h-3.5 w-3.5" />{copy.source}</p>
-          {catalogSearched && <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{catalogResults.length === 0 && !catalogLoading ? <p className="col-span-full text-sm text-muted-foreground">{copy.noResults}</p> : catalogResults.map((book) => <article key={book.key} className="flex gap-3 rounded-2xl border p-3">{book.coverId ? <img src={`https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`} alt="" className="h-28 w-20 rounded-lg object-cover" loading="lazy" /> : <div className="flex h-28 w-20 items-center justify-center rounded-lg bg-slate-100"><Library className="h-6 w-6 text-slate-400" /></div>}<div className="min-w-0 flex-1"><h3 className="line-clamp-2 text-sm font-bold">{book.title}</h3><p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{book.author || "מחבר לא ידוע"}</p><p className="mt-1 text-[11px] text-muted-foreground">{[book.year, book.pages ? `${book.pages} עמ'` : null].filter(Boolean).join(" · ")}</p><Button size="sm" variant="outline" className="mt-3 h-8" onClick={() => selectCatalogBook(book)}>{copy.useBook}</Button></div></article>)}</div>}
+          {catalogSearched && <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{catalogResults.length === 0 && !catalogLoading ? <p className="col-span-full text-sm text-muted-foreground">{copy.noResults}</p> : catalogResults.map((book) => <article key={book.key} className="flex gap-3 rounded-2xl border p-3">{book.coverUrl || book.coverId ? <img src={book.coverUrl || `https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`} alt="" className="h-28 w-20 rounded-lg object-cover" loading="lazy" /> : <div className="flex h-28 w-20 items-center justify-center rounded-lg bg-slate-100"><Library className="h-6 w-6 text-slate-400" /></div>}<div className="min-w-0 flex-1"><h3 className="line-clamp-2 text-sm font-bold">{book.title}</h3><p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{book.author || "מחבר לא ידוע"}</p><p className="mt-1 text-[11px] text-muted-foreground">{[book.year, book.pages ? `${book.pages} עמ'` : null, book.source].filter(Boolean).join(" · ")}</p><Button size="sm" variant="outline" className="mt-3 h-8" onClick={() => selectCatalogBook(book)}>{copy.useBook}</Button></div></article>)}</div>}
         </section>
 
         <section id="competition-report" className="grid gap-5 lg:grid-cols-[1fr_.8fr]">
-          <div className="rounded-3xl border bg-white p-5 shadow-sm"><h2 className="flex items-center gap-2 text-xl font-bold"><CheckCircle2 className="h-5 w-5 text-emerald-600" />{copy.report}</h2><div className="mt-5 grid gap-4"><div><Label>{copy.chooseRead}</Label><Select value={selectedBookId} onValueChange={chooseReadBook}><SelectTrigger className="mt-2"><SelectValue placeholder={copy.chooseRead} /></SelectTrigger><SelectContent>{readBooks.map((book) => <SelectItem key={book.id} value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-3 sm:grid-cols-2"><Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="שם הספר" /><Input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="מחבר/ת" /><Input type="number" min="1" value={pages || ""} onChange={(event) => setPages(Math.max(0, Number(event.target.value)))} placeholder={copy.pageCount} /><Input value={languageCode} onChange={(event) => setLanguageCode(event.target.value.slice(0, 10))} placeholder={copy.language} /></div><div><Label>{copy.summary}</Label><Textarea value={summary} onChange={(event) => setSummary(event.target.value)} placeholder={copy.summaryHint} className="mt-2 min-h-28" /></div><CheckRow checked={joined} disabled label={copy.joinRank} /><CheckRow checked={addToCatalog} onChange={setAddToCatalog} label={copy.catalogOpt} /><CheckRow checked={shareSummary} onChange={setShareSummary} label={copy.shareOpt} /><Button onClick={() => void completeBook()} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{copy.save}</Button></div></div>
+          <div className="rounded-3xl border bg-white p-5 shadow-sm"><h2 className="flex items-center gap-2 text-xl font-bold"><CheckCircle2 className="h-5 w-5 text-emerald-600" />{copy.report}</h2><div className="mt-5 grid gap-4"><div><Label>{copy.chooseRead}</Label><Select value={selectedBookId} onValueChange={chooseReadBook}><SelectTrigger className="mt-2"><SelectValue placeholder={copy.chooseRead} /></SelectTrigger><SelectContent>{readBooks.map((book) => <SelectItem key={book.id} value={book.id}>{book.title}{book.author ? ` · ${book.author}` : ""}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-3 sm:grid-cols-2"><div className="relative"><Input value={title} onFocus={() => setShowSuggestions(true)} onChange={(event) => { setTitle(event.target.value); setShowSuggestions(true); }} placeholder={copy.titlePlaceholder} autoComplete="off" />{showSuggestions && title.trim().length >= 2 && <div className="absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-auto rounded-2xl border bg-white p-2 shadow-2xl"><div className="mb-1 flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-slate-500"><span>{copy.suggestions}</span>{suggestionsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}</div>{titleSuggestions.map((book) => <button key={book.key} type="button" className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-start hover:bg-slate-100" onMouseDown={(event) => event.preventDefault()} onClick={() => selectCatalogBook(book)}>{book.coverUrl || book.coverId ? <img src={book.coverUrl || `https://covers.openlibrary.org/b/id/${book.coverId}-S.jpg`} alt="" className="h-12 w-8 rounded object-cover" /> : <Library className="h-5 w-5 shrink-0 text-slate-400" />}<span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{book.title}</span><span className="block truncate text-[11px] text-slate-500">{[book.author, book.source].filter(Boolean).join(" · ")}</span></span></button>)}{!suggestionsLoading && titleSuggestions.length === 0 && <p className="px-2 py-3 text-xs text-slate-500">{copy.noResults}</p>}</div>}</div><Input value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="מחבר/ת" /><Input type="number" min="1" value={pages || ""} onChange={(event) => setPages(Math.max(0, Number(event.target.value)))} placeholder={copy.pageCount} /><Input value={languageCode} onChange={(event) => setLanguageCode(event.target.value.slice(0, 10))} placeholder={copy.language} /></div><div><Label>{copy.summary}</Label><Textarea value={summary} onChange={(event) => setSummary(event.target.value)} placeholder={copy.summaryHint} className="mt-2 min-h-28" /></div><CheckRow checked={joined} disabled label={copy.joinRank} /><CheckRow checked={addToCatalog} onChange={setAddToCatalog} label={copy.catalogOpt} /><CheckRow checked={shareSummary} onChange={setShareSummary} label={copy.shareOpt} /><Button onClick={() => void completeBook()} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{copy.save}</Button></div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><h2 className="text-xl font-bold">{copy.history}</h2><div className="mt-4 space-y-2">{history.length === 0 ? <p className="text-sm text-muted-foreground">{copy.emptyHistory}</p> : history.map((book) => <div key={book.id} className="rounded-2xl bg-slate-50 p-3"><div className="font-semibold">{book.title}</div><div className="mt-1 text-xs text-muted-foreground">{book.author || ""}{book.author ? " · " : ""}{book.page_count} {copy.pages} · {book.completed_on}</div></div>)}</div></div>
         </section>
       </div>

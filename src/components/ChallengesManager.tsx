@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import SessionHistory from "./challenges/SessionHistory";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
+import { ZoneFlowRewardHistory } from "./zoneflow/ZoneFlowRewardHistory";
 
 interface DailyStats {
   tasksCompleted: number;
@@ -353,6 +354,8 @@ const ChallengesManager = () => {
           </CardContent>
         </Card>
       </div>
+
+      <ZoneFlowRewardHistory limit={16} />
 
       {/* Today's Stats */}
       <Card>

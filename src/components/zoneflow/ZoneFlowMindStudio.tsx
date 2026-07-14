@@ -1297,7 +1297,7 @@ function ZoneFlowMindStudioContent({ isLight }: ZoneFlowMindStudioProps) {
               </div>
             </CardHeader>
             <CardContent className="p-5">
-              {selectedJourney.id === "task-paralysis" && <ProcrastinationAssessment />}
+              <ProcrastinationAssessment journeyId={selectedJourney.id} journeyTitle={selectedJourney.title} />
               <div className="mb-4 rounded-3xl border border-[#dfe5ff] bg-[#f5f6ff] p-4 dark:border-white/10 dark:bg-white/5">
                 <div className="flex items-center justify-between">
                   <div>

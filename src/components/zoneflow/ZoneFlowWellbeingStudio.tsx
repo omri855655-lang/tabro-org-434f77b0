@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Ban, Bot, Check, Clock3, Laptop, LockKeyhole, Medal, ShieldCheck, Smartphone, Trophy, Users, Wifi } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { applyBlockingPolicy, getBlockingAuthorization, getBlockingPlatform, req
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ZoneFlowRewardHistory } from "./ZoneFlowRewardHistory";
 
 type DeviceKind = "computer" | "iphone" | "android";
 interface Device { id: string; kind: DeviceKind; name: string; minutes: number; connected: boolean; }
@@ -59,7 +60,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const permissionCopy = PERMISSION_COPY[lang] ?? PERMISSION_COPY.en;
   const blockerCopy = BLOCKER_COPY[lang] ?? BLOCKER_COPY.en;
   const unlockCopy = UNLOCK_COPY[lang] ?? UNLOCK_COPY.en;
-  const { balance, spend, events } = useZoneFlowRewards();
+  const { balance, award, spend, events } = useZoneFlowRewards();
   const [devices, setDevices] = useState<Device[]>(() => safeLocalStorage.getJSON("zoneflow-wellbeing-devices", [
     { id: "computer", kind: "computer", name: copy.computer, minutes: 0, connected: true },
     { id: "iphone", kind: "iphone", name: copy.iphone, minutes: 0, connected: false },
@@ -73,6 +74,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const [consentGranted, setConsentGranted] = useState(() => safeLocalStorage.getJSON("zoneflow-wellbeing-consent", false));
   const [blockingAuthorization, setBlockingAuthorization] = useState<BlockingAuthorization>("unavailable");
   const [unlockMinutes, setUnlockMinutes] = useState(5);
+  const focusStartedAt = useRef<number | null>(null);
   const blockingPlatform = getBlockingPlatform();
 
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-devices", devices), [devices]);
@@ -112,6 +114,22 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const toggleFocusPolicy = async () => {
     if (focusActive) {
       setFocusActive(false);
+      const startedAt = focusStartedAt.current;
+      focusStartedAt.current = null;
+      if (startedAt) {
+        const elapsedMinutes = Math.max(0, Math.floor((Date.now() - startedAt) / 60_000));
+        if (elapsedMinutes >= 1) {
+          const earned = Math.max(1, Math.round(elapsedMinutes / 3));
+          const eventId = `focus:wellbeing:${new Date(startedAt).toISOString()}`;
+          if (award(eventId, "focus", earned, `Digital Wellbeing · ${elapsedMinutes} min`)) {
+            toast.success(`הרווחת ${earned} דקות פתיחה`);
+          }
+          if (blockedApps.length > 0) {
+            const perItem = elapsedMinutes / blockedApps.length;
+            setBlockedApps((items) => items.map((item) => ({ ...item, minutesSaved: Math.round((item.minutesSaved + perItem) * 10) / 10 })));
+          }
+        }
+      }
       if (blockingAuthorization === "granted") {
         try { await stopBlockingPolicy(); toast.success(blockerCopy.policyStopped); } catch { /* Local focus still stops safely. */ }
       }
@@ -119,6 +137,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
     }
 
     setFocusActive(true);
+    focusStartedAt.current = Date.now();
     if (blockingAuthorization !== "granted") {
       toast.info(blockerCopy.localOnly);
       return;
@@ -176,6 +195,8 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
           <div className="flex items-center gap-2"><span className="text-xs">{unlockCopy.choose}</span><Input type="number" min="1" max="120" value={unlockMinutes} onChange={(event) => setUnlockMinutes(Math.max(1, Math.min(120, Number(event.target.value) || 1)))} className="w-20 bg-white dark:bg-black/20" /></div>
         </CardContent>
       </Card>
+
+      <ZoneFlowRewardHistory limit={20} className={panel} />
 
       <Card className={cn("border", panel)}>
         <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><ShieldCheck className="h-5 w-5 text-emerald-600" />{permissionCopy.title}</CardTitle></CardHeader>

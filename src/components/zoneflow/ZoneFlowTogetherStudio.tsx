@@ -115,6 +115,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [roomAccess, setRoomAccess] = useState<RoomAccess>("public");
   const [friendCode, setFriendCode] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState(() => safeLocalStorage.getString("zoneflow-together-active-room", ""));
+  const [activeRoomSnapshot, setActiveRoomSnapshot] = useState<Room | null>(() => safeLocalStorage.getJSON("zoneflow-together-active-room-snapshot", null));
   const [pendingRoom, setPendingRoom] = useState<Room | null>(null);
   const [sessionGoal, setSessionGoal] = useState("");
   const [sessionDuration, setSessionDuration] = useState(25);
@@ -127,15 +128,15 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const sessionStartedAt = useRef<string | null>(null);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
+  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? (activeRoomSnapshot?.id === selectedRoomId ? activeRoomSnapshot : null);
 
   const fetchLiveRooms = useCallback(async () => {
-    if (!user) return;
+    if (!user) return [];
     const client = supabase as unknown as FocusRoomClient;
     const { data, error } = await client.rpc("zoneflow_focus_room_directory");
     if (error || !Array.isArray(data)) {
       setLiveRoomsAvailable(false);
-      return;
+      return [];
     }
     const liveRooms = (data as RoomDirectoryRow[]).map((room): Room => ({
       id: room.id,
@@ -148,7 +149,10 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       inviteCode: room.invite_code || undefined,
     }));
     setLiveRoomsAvailable(true);
-    setRooms(liveRooms.length ? liveRooms : INITIAL_ROOMS);
+    const merged = new Map(INITIAL_ROOMS.map((room) => [room.id, room]));
+    liveRooms.forEach((room) => merged.set(room.id, room));
+    setRooms(Array.from(merged.values()));
+    return liveRooms;
   }, [user]);
 
   useEffect(() => {
@@ -283,6 +287,10 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   useEffect(() => {
     safeLocalStorage.setString("zoneflow-together-active-room", selectedRoomId);
   }, [selectedRoomId]);
+  useEffect(() => {
+    if (activeRoomSnapshot) safeLocalStorage.setJSON("zoneflow-together-active-room-snapshot", activeRoomSnapshot);
+    else safeLocalStorage.remove("zoneflow-together-active-room-snapshot");
+  }, [activeRoomSnapshot]);
 
   const totalPages = books.reduce((sum, book) => sum + book.pages, 0);
   const points = balance;
@@ -311,6 +319,11 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       void fetchLiveRooms();
     }
     setSelectedRoomId(room.id);
+    setActiveRoomSnapshot(room);
+    const entryPositions: Record<RoomScene, { x: number; y: number }> = {
+      library: { x: 50, y: 74 }, plane: { x: 50, y: 70 }, cafe: { x: 44, y: 72 }, office: { x: 56, y: 70 },
+    };
+    setMyPosition(entryPositions[room.scene]);
     setPendingRoom(null);
     setRemainingSeconds(sessionDuration * 60);
     if (!joinedRooms.includes(room.id)) {
@@ -378,8 +391,10 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
         toast.error(error?.message || "Room code not found");
         return;
       }
-      await fetchLiveRooms();
+      const liveRooms = await fetchLiveRooms();
+      const matchedRoom = liveRooms.find((room) => room.id === data);
       setSelectedRoomId(data);
+      if (matchedRoom) setActiveRoomSnapshot(matchedRoom);
       setFriendCode("");
       return;
     }
@@ -435,6 +450,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     setFocusActive(false);
     sessionStartedAt.current = null;
     setSelectedRoomId("");
+    setActiveRoomSnapshot(null);
     setRoomParticipants([]);
     setRemainingSeconds(sessionDuration * 60);
     void stopBlockingPolicy().catch(() => undefined);
@@ -452,7 +468,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        {selectedRoom ? <FocusRoomInterior scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? () => setFocusActive(false) : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} /> : pendingRoom ? (
+        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? () => setFocusActive(false) : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} /> : pendingRoom ? (
           <Card className={cn("overflow-hidden border", panel)}>
             <CardContent className="grid gap-6 bg-gradient-to-br from-cyan-500/10 via-transparent to-amber-500/10 p-6 md:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[2rem] bg-gradient-to-br from-[#172554] to-[#0f766e] p-6 text-white">
