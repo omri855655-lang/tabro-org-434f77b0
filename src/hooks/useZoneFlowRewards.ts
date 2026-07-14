@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 
-export type ZoneFlowRewardSource = "focus" | "book" | "journey" | "achievement" | "unlock";
+export type ZoneFlowRewardSource = "focus" | "book" | "journey" | "achievement" | "challenge" | "unlock";
 
 export interface ZoneFlowRewardEvent {
   id: string;

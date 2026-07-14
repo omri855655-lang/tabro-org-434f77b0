@@ -19,11 +19,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { ZoneFlowMusicPlayer } from "./ZoneFlowMusicPlayer";
 import { useDailyStopwatch } from "@/hooks/useDailyStopwatch";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { ZoneFlowMindStudio } from "./ZoneFlowMindStudio";
 import { ZoneFlowWellbeingStudio } from "./ZoneFlowWellbeingStudio";
 import { ZoneFlowTogetherStudio } from "./ZoneFlowTogetherStudio";
 import { ZoneFlowWorkspaceBoundary } from "./ZoneFlowWorkspaceBoundary";
+import { toast } from "sonner";
 
 // Background themes
 const BG_THEMES = [
@@ -131,6 +133,7 @@ const ZoneFlowDashboard = () => {
   const { user } = useAuth();
   const { t, lang, dir } = useLanguage();
   const { stopwatchTime, isStopwatchRunning, toggleStopwatch, resetStopwatch } = useDailyStopwatch();
+  const { award } = useZoneFlowRewards();
 
   // Sound category
   const [activeCategory, setActiveCategory] = useState<string>("focus");
@@ -335,7 +338,9 @@ const ZoneFlowDashboard = () => {
       gain.gain.setValueAtTime(0.3, ctx.currentTime + 0.5);
       gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.2);
       osc.stop(ctx.currentTime + 1.2);
-    } catch {}
+    } catch {
+      // Audio feedback is optional on browsers that block an AudioContext.
+    }
   };
 
   // Timer logic
@@ -353,6 +358,10 @@ const ZoneFlowDashboard = () => {
           timestamp: new Date(),
         };
         setSessions(prev => [log, ...prev]);
+        const earned = Math.max(1, Math.round(log.duration / 3));
+        if (award(`focus:classic:${log.id}`, "focus", earned, `${timerPreset.name} · ${log.duration} min`)) {
+          toast.success(`הרווחת ${earned} דקות פתיחה`);
+        }
         setIsBreak(true);
         setTimeLeft(timerPreset.break * 60);
       } else {
@@ -362,7 +371,7 @@ const ZoneFlowDashboard = () => {
       }
     }
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [isTimerRunning, timeLeft, isBreak, timerPreset, activePresetId]);
+  }, [isTimerRunning, timeLeft, isBreak, timerPreset, activePresetId, award]);
 
   // Stopwatch logic now handled by useDailyStopwatch hook
 
@@ -1909,6 +1918,10 @@ const ZoneFlowDashboard = () => {
                           timestamp: new Date(),
                         };
                         setSessions(prev => [log, ...prev]);
+                        const earned = Math.max(1, Math.round(log.duration / 3));
+                        if (award(`focus:stopwatch:${log.id}`, "focus", earned, `ZoneFlow stopwatch · ${log.duration} min`)) {
+                          toast.success(`הרווחת ${earned} דקות פתיחה`);
+                        }
                       }
                     }}
                     className="opacity-40 hover:opacity-100"

@@ -14,7 +14,7 @@ import { applyBlockingPolicy, getBlockingAuthorization, stopBlockingPolicy } fro
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { FocusRoomInterior } from "./FocusRoomInterior";
+import { FocusRoomInterior, type FocusRoomParticipant } from "./FocusRoomInterior";
 
 type TogetherTab = "rooms" | "competitions" | "progress";
 type CompetitionKind = "focus" | "books" | "distractions";
@@ -23,6 +23,7 @@ type RoomAccess = "public" | "friends";
 interface Room { id: string; name: string; topic: string; users: number; country: string; scene: RoomScene; access: RoomAccess; inviteCode?: string; }
 interface BookProgress { title: string; pages: number; total: number; }
 interface RoomDirectoryRow { id: string; name: string; topic: string; scene: string; access: string; invite_code: string | null; users: number | string; country: string | null; }
+interface RoomPresencePayload extends FocusRoomParticipant { onlineAt: string; }
 
 type FocusRoomClient = {
   rpc: (name: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
@@ -114,12 +115,17 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [roomAccess, setRoomAccess] = useState<RoomAccess>("public");
   const [friendCode, setFriendCode] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState(() => safeLocalStorage.getString("zoneflow-together-active-room", ""));
+  const [pendingRoom, setPendingRoom] = useState<Room | null>(null);
+  const [sessionGoal, setSessionGoal] = useState("");
   const [sessionDuration, setSessionDuration] = useState(25);
   const [remainingSeconds, setRemainingSeconds] = useState(25 * 60);
   const [focusMinutes, setFocusMinutes] = useState(90);
   const [focusActive, setFocusActive] = useState(false);
   const [liveRoomsAvailable, setLiveRoomsAvailable] = useState(false);
+  const [roomParticipants, setRoomParticipants] = useState<FocusRoomParticipant[]>([]);
+  const [myPosition, setMyPosition] = useState(() => safeLocalStorage.getJSON("zoneflow-together-avatar-position", { x: 50, y: 62 }));
   const sessionStartedAt = useRef<string | null>(null);
+  const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
 
@@ -159,23 +165,102 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     };
   }, [fetchLiveRooms, user]);
 
+  useEffect(() => {
+    if (!selectedRoom) {
+      setRoomParticipants([]);
+      return;
+    }
+    const localParticipant: FocusRoomParticipant = {
+      userId: user?.id || "local-user",
+      displayName: username.trim() || "Tabro learner",
+      x: myPosition.x,
+      y: myPosition.y,
+      status: focusActive ? "focusing" : "setting-up",
+      color: "bg-cyan-300",
+      isMe: true,
+    };
+    if (!user || !isUuid(selectedRoom.id)) {
+      setRoomParticipants([localParticipant]);
+      return;
+    }
+
+    const channel = supabase.channel(`zoneflow-room-${selectedRoom.id}`, { config: { presence: { key: user.id } } });
+    roomChannelRef.current = channel;
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState<RoomPresencePayload>();
+        const people = Object.values(state).flat().map((participant) => ({
+          userId: participant.userId,
+          displayName: participant.displayName,
+          x: Number.isFinite(participant.x) ? participant.x : 50,
+          y: Number.isFinite(participant.y) ? participant.y : 62,
+          status: participant.status || "setting-up",
+          color: participant.color || "bg-sky-300",
+          isMe: participant.userId === user.id,
+        } satisfies FocusRoomParticipant));
+        setRoomParticipants(people);
+      })
+      .on("broadcast", { event: "avatar_move" }, ({ payload }) => {
+        const moved = payload as RoomPresencePayload;
+        if (!moved?.userId || moved.userId === user.id) return;
+        setRoomParticipants((people) => people.map((person) => person.userId === moved.userId ? { ...person, x: moved.x, y: moved.y, status: moved.status } : person));
+      })
+      .subscribe(async (status) => {
+        if (status !== "SUBSCRIBED") return;
+        await channel.track({ ...localParticipant, onlineAt: new Date().toISOString() } satisfies RoomPresencePayload);
+      });
+
+    return () => {
+      roomChannelRef.current = null;
+      void channel.untrack();
+      void supabase.removeChannel(channel);
+    };
+    // Position and focus status are updated through the lightweight effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoom?.id, user?.id, username]);
+
+  useEffect(() => {
+    if (!selectedRoom) return;
+    const participant: RoomPresencePayload = {
+      userId: user?.id || "local-user",
+      displayName: username.trim() || "Tabro learner",
+      x: myPosition.x,
+      y: myPosition.y,
+      status: focusActive ? "focusing" : "setting-up",
+      color: "bg-cyan-300",
+      isMe: true,
+      onlineAt: new Date().toISOString(),
+    };
+    setRoomParticipants((people) => {
+      const withoutMe = people.filter((person) => person.userId !== participant.userId);
+      return [...withoutMe, participant];
+    });
+    if (roomChannelRef.current) void roomChannelRef.current.track(participant);
+  }, [focusActive, myPosition, selectedRoom, user?.id, username]);
+
   const recordCompletedSession = useCallback(async () => {
     if (!sessionStartedAt.current) return;
     const startedAt = sessionStartedAt.current;
     sessionStartedAt.current = null;
+    let rewardEventId = startedAt;
     if (user) {
       const client = supabase as unknown as FocusRoomClient;
-      await client.from("zoneflow_focus_sessions").insert({
+      const { data, error } = await client.from("zoneflow_focus_sessions").insert({
         user_id: user.id,
         room_id: selectedRoom && isUuid(selectedRoom.id) ? selectedRoom.id : null,
         started_at: startedAt,
         ended_at: new Date().toISOString(),
         duration_seconds: sessionDuration * 60,
         completed: true,
-      });
+      }).select("id").single();
+      if (error || !data) {
+        toast.error(error?.message || "הסשן הסתיים אך לא נשמר. לא ניתנו נקודות כפולות.");
+        return;
+      }
+      rewardEventId = data.id;
     }
     const earned = Math.max(1, Math.round(sessionDuration / 3));
-    if (award(`focus:${startedAt}`, "focus", earned, `${selectedRoom?.name || "Focus room"} · ${sessionDuration} min`)) {
+    if (award(`focus:together:${rewardEventId}`, "focus", earned, `${selectedRoom?.name || "Focus room"} · ${sessionDuration} min`)) {
       toast.success(`הרווחת ${earned} דקות פתיחה`);
     }
     try { await stopBlockingPolicy(); } catch { /* Web sessions have no native policy to stop. */ }
@@ -207,6 +292,10 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const competitionCards = useMemo(() => COMPETITIONS.map((item) => ({ ...item, icon: item.icon })), []);
 
   const persistRooms = (next: Room[]) => { setRooms(next); safeLocalStorage.setJSON("zoneflow-together-rooms", next); };
+  const requestJoinRoom = (room: Room) => {
+    setPendingRoom(room);
+    setSessionGoal(room.topic === "Focus" ? "" : room.topic);
+  };
   const joinRoom = async (room: Room, inviteCode?: string) => {
     if (user && isUuid(room.id)) {
       const client = supabase as unknown as FocusRoomClient;
@@ -222,6 +311,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       void fetchLiveRooms();
     }
     setSelectedRoomId(room.id);
+    setPendingRoom(null);
+    setRemainingSeconds(sessionDuration * 60);
     if (!joinedRooms.includes(room.id)) {
       const next = [...joinedRooms, room.id];
       setJoinedRooms(next);
@@ -274,7 +365,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const joinRandomRoom = () => {
     const publicRooms = rooms.filter((room) => room.access === "public");
     if (!publicRooms.length) return;
-    void joinRoom(publicRooms[Math.floor(Math.random() * publicRooms.length)]);
+    requestJoinRoom(publicRooms[Math.floor(Math.random() * publicRooms.length)]);
   };
 
   const joinByCode = async () => {
@@ -321,10 +412,30 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     void stopBlockingPolicy().catch(() => undefined);
   };
 
+  const moveAvatar = (position: { x: number; y: number }) => {
+    setMyPosition(position);
+    safeLocalStorage.setJSON("zoneflow-together-avatar-position", position);
+    const channel = roomChannelRef.current;
+    if (!channel || !user) return;
+    void channel.send({
+      type: "broadcast",
+      event: "avatar_move",
+      payload: {
+        userId: user.id,
+        displayName: username.trim() || "Tabro learner",
+        ...position,
+        status: focusActive ? "focusing" : "setting-up",
+        color: "bg-cyan-300",
+        onlineAt: new Date().toISOString(),
+      } satisfies RoomPresencePayload,
+    });
+  };
+
   const leaveRoom = () => {
     setFocusActive(false);
     sessionStartedAt.current = null;
     setSelectedRoomId("");
+    setRoomParticipants([]);
     setRemainingSeconds(sessionDuration * 60);
     void stopBlockingPolicy().catch(() => undefined);
   };
@@ -341,7 +452,25 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        {selectedRoom ? <FocusRoomInterior scene={selectedRoom.scene} name={selectedRoom.name} topic={selectedRoom.topic} username={username} people={selectedRoom.users} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? () => setFocusActive(false) : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} /> : <Card className={cn("border border-dashed", panel)}><CardContent className="p-8 text-center"><Clock3 className="mx-auto h-9 w-9 text-cyan-600" /><h3 className="mt-3 text-lg font-bold">{roomCopy.noRoom}</h3><p className={cn("mt-2 text-sm", muted)}>בחר ספרייה, טיסה, בית קפה או חלל עבודה מהרשימה למטה.</p></CardContent></Card>}
+        {selectedRoom ? <FocusRoomInterior scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? () => setFocusActive(false) : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} /> : pendingRoom ? (
+          <Card className={cn("overflow-hidden border", panel)}>
+            <CardContent className="grid gap-6 bg-gradient-to-br from-cyan-500/10 via-transparent to-amber-500/10 p-6 md:grid-cols-[0.8fr_1.2fr]">
+              <div className="rounded-[2rem] bg-gradient-to-br from-[#172554] to-[#0f766e] p-6 text-white">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">לובי לפני כניסה</div>
+                <h3 className="mt-3 text-2xl font-black">{pendingRoom.name}</h3>
+                <p className="mt-2 text-sm text-white/70">{pendingRoom.topic}</p>
+                <div className="mt-6 flex items-center gap-2 text-sm"><Users className="h-4 w-4" />{pendingRoom.users} מחוברים</div>
+                <div className="mt-2 text-xs text-white/60">הכניסה שקטה. המיקרופון כבוי כברירת מחדל.</div>
+              </div>
+              <div className="space-y-4">
+                <div><div className="mb-2 text-sm font-semibold">כמה זמן תרצה להתרכז?</div><div className="grid grid-cols-4 gap-2">{[25, 50, 75, 90].map((minutes) => <Button key={minutes} type="button" variant={sessionDuration === minutes ? "default" : "outline"} onClick={() => { setSessionDuration(minutes); setRemainingSeconds(minutes * 60); }}>{minutes}</Button>)}</div></div>
+                <div><label className="mb-2 block text-sm font-semibold" htmlFor="zoneflow-session-goal">מה המטרה שלך בסשן?</label><Input id="zoneflow-session-goal" value={sessionGoal} onChange={(event) => setSessionGoal(event.target.value)} placeholder="למשל: לסיים פרק, ללמוד למבחן או לעבוד על מצגת" /></div>
+                <div className="flex items-center gap-2"><Input aria-label="משך מותאם בדקות" type="number" min="5" max="180" value={sessionDuration} onChange={(event) => { const minutes = Math.min(180, Math.max(5, Number(event.target.value) || 25)); setSessionDuration(minutes); setRemainingSeconds(minutes * 60); }} /><span className={cn("whitespace-nowrap text-xs", muted)}>דקות</span></div>
+                <div className="flex gap-2"><Button className="flex-1" onClick={() => void joinRoom(pendingRoom)}>היכנס בשקט</Button><Button variant="outline" onClick={() => setPendingRoom(null)}>ביטול</Button></div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : <Card className={cn("border border-dashed", panel)}><CardContent className="p-8 text-center"><Clock3 className="mx-auto h-9 w-9 text-cyan-600" /><h3 className="mt-3 text-lg font-bold">{roomCopy.noRoom}</h3><p className={cn("mt-2 text-sm", muted)}>בחר ספרייה, טיסה, בית קפה או חלל עבודה מהרשימה למטה.</p></CardContent></Card>}
 
         <div className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
           <Card className={cn("border", panel)}>
@@ -357,7 +486,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15"><SceneIcon className="h-6 w-6 text-cyan-600" /></div>
                     <div className="min-w-0 flex-1"><div className="font-semibold">{room.name}</div><div className={cn("text-sm", muted)}>{room.topic}</div><div className={cn("mt-1 flex flex-wrap items-center gap-2 text-xs", muted)}><span>{room.access === "friends" ? roomCopy.friendsRoom : roomCopy.publicRoom}</span><span>·</span><span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{room.users} {copy.people}</span></div></div>
                   </div>
-                  <Button className="mt-4 w-full" onClick={() => void joinRoom(room)} variant={selectedRoomId === room.id ? "outline" : "default"}>{selectedRoomId === room.id ? copy.joined : copy.join}</Button>
+                  <Button className="mt-4 w-full" onClick={() => requestJoinRoom(room)} variant={selectedRoomId === room.id ? "outline" : "default"}>{selectedRoomId === room.id ? copy.joined : copy.join}</Button>
                 </div>;
               })}
             </CardContent>

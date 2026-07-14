@@ -8,6 +8,7 @@ import { Trophy, Target, Flame, Star, Zap, TrendingUp, Award, CheckCircle2, Cloc
 import { toast } from "sonner";
 import SessionHistory from "./challenges/SessionHistory";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 
 interface DailyStats {
   tasksCompleted: number;
@@ -40,9 +41,23 @@ interface Challenge {
   expiresLabel: string;
 }
 
+interface StoredFocusSession { timestamp: string; }
+
+const parseStoredFocusSessions = (value: string | null): StoredFocusSession[] => {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is StoredFocusSession => Boolean(item) && typeof item === "object" && typeof (item as StoredFocusSession).timestamp === "string");
+  } catch {
+    return [];
+  }
+};
+
 const ChallengesManager = () => {
   const { user } = useAuth();
   const { lang, dir } = useLanguage();
+  const { award, balance, events: rewardEvents } = useZoneFlowRewards();
   const isHebrew = lang === "he";
   const copy = isHebrew
     ? {
@@ -118,14 +133,15 @@ const ChallengesManager = () => {
 
       // Pomodoro sessions from localStorage
       const savedSessions = localStorage.getItem("zoneflow-sessions") || localStorage.getItem("deeply-sessions");
-      const sessions = savedSessions ? JSON.parse(savedSessions) : [];
-      const todaySessions = sessions.filter((s: any) => new Date(s.timestamp).toDateString() === today.toDateString());
+      const sessions = parseStoredFocusSessions(savedSessions);
+      const todaySessions = sessions.filter((session) => new Date(session.timestamp).toDateString() === today.toDateString());
+      const rewardedFocusSessions = rewardEvents.filter((event) => event.source === "focus" && new Date(event.createdAt).toDateString() === today.toDateString());
 
       setStats({
         tasksCompleted: tasksRes.count || 0,
         tasksCreated: createdCount || 0,
         routineCompleted: routineRes.count || 0,
-        pomodoroSessions: todaySessions.length,
+        pomodoroSessions: Math.max(todaySessions.length, rewardedFocusSessions.length),
         booksActive: booksRes.count || 0,
         projectsActive: projectsRes.count || 0,
       });
@@ -133,7 +149,7 @@ const ChallengesManager = () => {
       setWeeklyStats({
         tasksCompleted: weekTasksRes.count || 0,
         routineCompleted: weekRoutineRes.count || 0,
-        daysActive: Math.min(7, new Set(sessions.filter((s: any) => new Date(s.timestamp) >= new Date(startOfWeek)).map((s: any) => new Date(s.timestamp).toDateString())).size),
+        daysActive: Math.min(7, new Set(sessions.filter((session) => new Date(session.timestamp) >= new Date(startOfWeek)).map((session) => new Date(session.timestamp).toDateString())).size),
       });
 
       setAllTimeStats({
@@ -163,7 +179,7 @@ const ChallengesManager = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [rewardEvents, user]);
 
   useEffect(() => { fetchAnalytics(); }, [fetchAnalytics]);
 
@@ -187,17 +203,16 @@ const ChallengesManager = () => {
     { id: "focus-25", icon: "🧘", title: "זן מאסטר", description: "25 סשנים ב-ZoneFlow", unlocked: (() => { try { const s = JSON.parse(localStorage.getItem("zoneflow-sessions") || localStorage.getItem("deeply-sessions") || "[]"); return s.length >= 25; } catch { return false; } })(), progress: Math.min((() => { try { return JSON.parse(localStorage.getItem("zoneflow-sessions") || localStorage.getItem("deeply-sessions") || "[]").length; } catch { return 0; } })(), 25), target: 25, category: "focus" },
   ], [allTimeStats, streak]);
 
-  // Generate challenges based on yesterday's performance
+  // Fixed period targets can be completed; moving targets made progress chase itself.
   const challenges: Challenge[] = useMemo(() => {
-    const yesterday = stats; // Use today's stats as baseline for challenges
     const result: Challenge[] = [];
 
     // Daily challenges
     result.push({
       id: "daily-tasks",
-      title: `השלם ${Math.max(2, (yesterday.tasksCompleted || 0) + 1)} משימות היום`,
-      description: yesterday.tasksCompleted > 0 ? `אתמול השלמת ${yesterday.tasksCompleted}, היום תעלה רמה!` : "בוא נתחיל עם משימות היום!",
-      target: Math.max(2, (yesterday.tasksCompleted || 0) + 1),
+      title: "השלם 2 משימות היום",
+      description: "שתי סגירות ברורות עדיפות על רשימה אינסופית.",
+      target: 2,
       current: stats.tasksCompleted,
       icon: "🎯",
       type: "daily",
@@ -206,9 +221,9 @@ const ChallengesManager = () => {
 
     result.push({
       id: "daily-routine",
-      title: `בצע ${Math.max(3, (yesterday.routineCompleted || 0) + 1)} פעולות שגרה`,
+      title: "בצע 3 פעולות שגרה",
       description: "שמור על השגרה שלך!",
-      target: Math.max(3, (yesterday.routineCompleted || 0) + 1),
+      target: 3,
       current: stats.routineCompleted,
       icon: "📋",
       type: "daily",
@@ -217,9 +232,9 @@ const ChallengesManager = () => {
 
     result.push({
       id: "daily-pomodoro",
-      title: `עשה ${Math.max(2, stats.pomodoroSessions + 1)} סשני פומודורו`,
+      title: "עשה 2 סשני פוקוס",
       description: "ריכוז עמוק עם טיימר",
-      target: Math.max(2, stats.pomodoroSessions + 1),
+      target: 2,
       current: stats.pomodoroSessions,
       icon: "🍅",
       type: "daily",
@@ -228,9 +243,9 @@ const ChallengesManager = () => {
 
     result.push({
       id: "daily-create",
-      title: `צור ${Math.max(1, (yesterday.tasksCreated || 0))} משימות חדשות`,
+      title: "צור משימה אחת חדשה",
       description: "תכנן את היום שלך",
-      target: Math.max(1, yesterday.tasksCreated || 1),
+      target: 1,
       current: stats.tasksCreated,
       icon: "✏️",
       type: "daily",
@@ -240,9 +255,9 @@ const ChallengesManager = () => {
     // Weekly challenges
     result.push({
       id: "weekly-tasks",
-      title: `השלם ${Math.max(10, weeklyStats.tasksCompleted + 5)} משימות השבוע`,
+      title: "השלם 10 משימות השבוע",
       description: `עד כה: ${weeklyStats.tasksCompleted} משימות`,
-      target: Math.max(10, weeklyStats.tasksCompleted + 5),
+      target: 10,
       current: weeklyStats.tasksCompleted,
       icon: "🏅",
       type: "weekly",
@@ -251,9 +266,9 @@ const ChallengesManager = () => {
 
     result.push({
       id: "weekly-streak",
-      title: `שמור על רצף של ${Math.max(3, streak + 1)} ימים`,
+      title: "שמור על רצף של 3 ימים",
       description: `רצף נוכחי: ${streak} ימים`,
-      target: Math.max(3, streak + 1),
+      target: 3,
       current: streak,
       icon: "🔥",
       type: "weekly",
@@ -262,9 +277,9 @@ const ChallengesManager = () => {
 
     result.push({
       id: "weekly-active",
-      title: `היה פעיל ${Math.max(5, weeklyStats.daysActive + 1)} ימים השבוע`,
+      title: "היה פעיל 5 ימים השבוע",
       description: `עד כה: ${weeklyStats.daysActive} ימים`,
-      target: Math.max(5, weeklyStats.daysActive + 1),
+      target: 5,
       current: weeklyStats.daysActive,
       icon: "⚡",
       type: "weekly",
@@ -273,6 +288,25 @@ const ChallengesManager = () => {
 
     return result;
   }, [stats, weeklyStats, streak]);
+
+  useEffect(() => {
+    if (loading) return;
+    const now = new Date();
+    const dayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    const weekKey = `${weekStart.getFullYear()}-${weekStart.getMonth() + 1}-${weekStart.getDate()}`;
+    let earned = 0;
+    achievements.forEach((achievement) => {
+      if (achievement.unlocked && award(`challenge-achievement:${achievement.id}`, "challenge", 5, achievement.title)) earned += 5;
+    });
+    challenges.forEach((challenge) => {
+      if (challenge.current < challenge.target) return;
+      const points = challenge.type === "weekly" ? 10 : 3;
+      const period = challenge.type === "weekly" ? weekKey : dayKey;
+      if (award(`challenge:${challenge.id}:${period}`, "challenge", points, challenge.title)) earned += points;
+    });
+    if (earned > 0) toast.success(`הרווחת ${earned} דקות פתיחה מהאתגרים`);
+  }, [achievements, award, challenges, loading]);
 
   const unlockedCount = achievements.filter(a => a.unlocked).length;
   const completedChallenges = challenges.filter(c => c.current >= c.target).length;
@@ -289,6 +323,7 @@ const ChallengesManager = () => {
     <div className="h-full overflow-auto p-4 space-y-6" dir={dir}>
       {/* Header Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="col-span-2 sm:col-span-4 border-cyan-500/20 bg-cyan-500/5"><CardContent className="flex items-center justify-between gap-3 p-4"><div><p className="text-sm font-semibold">ארנק זמן פתיחה</p><p className="text-xs text-muted-foreground">אתגרים, הישגים וחדרי ריכוז מזכים בנקודות. נקודה אחת שווה דקת פתיחה.</p></div><div className="text-3xl font-black text-cyan-500">{balance}</div></CardContent></Card>
         <Card className="bg-gradient-to-br from-violet-500/10 to-violet-600/5 border-violet-500/20">
           <CardContent className="p-4 text-center">
             <Trophy className="h-6 w-6 text-violet-400 mx-auto mb-1" />
