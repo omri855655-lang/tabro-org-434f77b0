@@ -63,7 +63,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
 
   return (
     <section
-      className={cn("relative isolate min-h-[640px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br text-white shadow-2xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky)}
+      className={cn("relative isolate min-h-[640px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br text-white shadow-2xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky, scene === "plane" && "zoneflow-flight-cabin")}
       aria-label={name}
       tabIndex={0}
       onKeyDown={moveFromKeyboard}
@@ -71,7 +71,19 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       <div className={cn("absolute -start-24 -top-24 h-72 w-72 rounded-full blur-3xl", config.glow)} />
       <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
       {scene === "library" && <div className="absolute inset-x-5 top-24 grid grid-cols-2 gap-20 opacity-90"><div className="h-72 rounded-2xl border-[14px] border-[#3d2114] bg-[repeating-linear-gradient(0deg,#7f3f26_0_12px,#e9b35f_12px_18px,#2f1c18_18px_23px)] shadow-2xl" /><div className="h-72 rounded-2xl border-[14px] border-[#3d2114] bg-[repeating-linear-gradient(0deg,#6d3728_0_13px,#d7924d_13px_20px,#2f1c18_20px_25px)] shadow-2xl" /></div>}
-      {scene === "plane" && <><div className="absolute inset-x-6 top-24 flex justify-around">{[0, 1, 2, 3, 4].map((item) => <div key={item} className="h-20 w-24 overflow-hidden rounded-[45%] border-8 border-slate-200/70 bg-gradient-to-b from-sky-100 to-sky-400 shadow-[inset_0_0_25px_rgba(255,255,255,.8)]"><div className="mt-9 h-1 bg-white/70" /></div>)}</div><div className="absolute inset-x-[18%] bottom-28 top-52 rounded-t-[45%] border-x-8 border-white/10 bg-slate-900/25" /></>}
+      {scene === "plane" && <>
+        <div className="absolute inset-x-6 top-24 flex justify-around">
+          {[0, 1, 2, 3, 4].map((item) => <div key={item} className="relative h-20 w-24 overflow-hidden rounded-[45%] border-8 border-slate-200/75 bg-gradient-to-b from-sky-100 via-sky-300 to-sky-500 shadow-[inset_0_0_25px_rgba(255,255,255,.8)]">
+            <div className="zoneflow-flight-cloud absolute top-5 h-5 w-14 rounded-full bg-white/90 blur-[1px]" style={{ animationDelay: `${item * -1.8}s` }}><span className="absolute -top-2 start-3 h-6 w-7 rounded-full bg-white" /></div>
+            <div className="absolute inset-x-0 bottom-3 h-px bg-white/70" />
+          </div>)}
+        </div>
+        <div className="absolute left-1/2 top-24 z-10 -translate-x-1/2 rounded-2xl border border-cyan-100/20 bg-slate-950/55 px-4 py-2 text-center text-[10px] font-bold tracking-[0.18em] text-cyan-100 shadow-xl backdrop-blur-md">
+          TABRO 270 · FOCUS FLIGHT<br /><span className="text-white/55">35,000 FT · DEEP WORK MODE</span>
+        </div>
+        <div className="absolute inset-x-[18%] bottom-28 top-52 rounded-t-[45%] border-x-8 border-white/10 bg-gradient-to-b from-slate-700/20 to-slate-950/45 shadow-[inset_0_30px_80px_rgba(125,211,252,.09)]" />
+        <div className="zoneflow-flight-route absolute bottom-32 left-1/2 top-56 w-1 -translate-x-1/2 bg-gradient-to-b from-cyan-200/10 via-cyan-200/65 to-cyan-200/10 shadow-[0_0_20px_rgba(103,232,249,.55)]" />
+      </>}
       {scene === "cafe" && <><div className="absolute inset-x-10 top-24 grid grid-cols-4 gap-5">{[0, 1, 2, 3].map((item) => <div key={item} className="h-32 rounded-t-[3rem] border-4 border-amber-100/20 bg-black/20 shadow-inner" />)}</div><div className="absolute end-8 top-52 h-40 w-36 rounded-2xl border border-white/10 bg-[#2a1714]/80 shadow-2xl"><div className="m-4 h-8 rounded bg-amber-300/60" /><div className="mx-4 mt-3 grid grid-cols-3 gap-2">{[0,1,2,3,4,5].map(i => <div key={i} className="h-5 rounded bg-white/15" />)}</div></div></>}
       {scene === "office" && <><div className="absolute inset-x-8 top-24 grid grid-cols-5 gap-4">{[0, 1, 2, 3, 4].map((item) => <div key={item} className="h-36 rounded-t-3xl border border-white/15 bg-gradient-to-b from-cyan-100/20 to-slate-950/10" />)}</div><div className="absolute start-10 top-44 h-48 w-20 rounded-full bg-emerald-300/20 blur-xl" /></>}
 
@@ -85,7 +97,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       <div className="absolute bottom-28 end-4 start-4 top-24 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem] lg:end-60" onClick={moveFromPointer} aria-label="מרחב החדר. לחץ כדי להזיז את הדמות">
         <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 bg-black/15 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%]" : "rounded-[42%]")} />
         {scene !== "plane" && [18, 40, 62, 82].map((x, index) => <div key={x} className="absolute h-12 w-24 -translate-x-1/2 rounded-md border-t-4 border-amber-100/25 bg-[#3b241d]/80 shadow-xl" style={{ left: `${x}%`, top: `${55 + (index % 2) * 16}%` }}><div className="mx-auto -mt-5 h-8 w-14 rounded-t-lg bg-slate-900/80" /></div>)}
-        {scene === "plane" && [25, 42, 58, 75].flatMap((y) => [30, 70].map((x) => <div key={`${x}-${y}`} className="absolute h-11 w-16 -translate-x-1/2 rounded-t-2xl border border-white/15 bg-slate-800/85 shadow-lg" style={{ left: `${x}%`, top: `${y}%` }} />))}
+        {scene === "plane" && [25, 42, 58, 75].flatMap((y) => [28, 72].map((x) => <div key={`${x}-${y}`} className="absolute h-12 w-16 -translate-x-1/2 rounded-t-2xl border border-cyan-100/20 bg-gradient-to-b from-slate-600 to-slate-900 shadow-[0_8px_18px_rgba(0,0,0,.4)]" style={{ left: `${x}%`, top: `${y}%` }}><div className="mx-auto mt-2 h-5 w-10 rounded-t-xl border border-white/10 bg-slate-800" /></div>))}
         {participants.map((participant) => (
           <div
             key={participant.userId}
@@ -98,7 +110,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
           </div>
         ))}
         {participants.length <= 1 && <div className="absolute inset-x-0 top-[46%] text-center text-xs text-white/55">החדר פתוח. משתתפים אמיתיים יופיעו כאן כשהם יצטרפו.</div>}
-        <div className="absolute bottom-2 start-3 rounded-full bg-black/35 px-3 py-1 text-[10px] text-white/65">לחץ במרחב או השתמש בחצים כדי לזוז</div>
+        <div className="absolute bottom-2 start-3 rounded-full bg-black/35 px-3 py-1 text-[10px] text-white/65">{scene === "plane" ? "הטיסה בעיצומה · בחר מושב והתחל פוקוס" : "לחץ במרחב או השתמש בחצים כדי לזוז"}</div>
       </div>
 
       <div className="absolute inset-x-0 bottom-4 z-30 mx-auto flex w-[min(92%,620px)] flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/15 bg-slate-950/80 p-4 backdrop-blur-xl">

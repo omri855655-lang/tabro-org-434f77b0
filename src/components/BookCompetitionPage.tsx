@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BookCheck, BookOpen, CheckCircle2, Globe2, Library, Loader2, Search, ShieldCheck, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -59,6 +59,7 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
   const [titleSuggestions, setTitleSuggestions] = useState<CatalogBook[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const catalogRequestId = useRef(0);
 
   const loadCompetition = useCallback(async () => {
     if (!user) return;
@@ -133,9 +134,10 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
     setTitle(book.title); setAuthor(book.author || "");
   };
 
-  const searchCatalog = async () => {
-    const query = catalogQuery.trim();
+  const searchCatalog = useCallback(async (queryOverride?: string, notifyOnFailure = true) => {
+    const query = (queryOverride ?? catalogQuery).trim();
     if (!query) return;
+    const requestId = ++catalogRequestId.current;
     setCatalogLoading(true); setCatalogSearched(true);
     try {
       const [openLibrary, googleBooks] = await Promise.allSettled([
@@ -147,13 +149,28 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
         googleBooks.status === "fulfilled" ? googleBooks.value : [],
       ).slice(0, 20);
       if (!results.length && openLibrary.status === "rejected" && googleBooks.status === "rejected") throw new Error("Catalog providers unavailable");
-      setCatalogResults(results);
+      if (requestId === catalogRequestId.current) setCatalogResults(results);
     } catch (error) {
       console.error("Open Library search failed", error);
-      toast.error("לא הצלחתי לחפש בקטלוג כרגע");
+      if (notifyOnFailure) toast.error("לא הצלחתי לחפש בקטלוג כרגע");
+      if (requestId === catalogRequestId.current) setCatalogResults([]);
+    } finally {
+      if (requestId === catalogRequestId.current) setCatalogLoading(false);
+    }
+  }, [catalogLanguage, catalogQuery]);
+
+  useEffect(() => {
+    const query = catalogQuery.trim();
+    if (query.length < 2) {
+      catalogRequestId.current += 1;
       setCatalogResults([]);
-    } finally { setCatalogLoading(false); }
-  };
+      setCatalogSearched(false);
+      setCatalogLoading(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => void searchCatalog(query, false), 400);
+    return () => window.clearTimeout(timeout);
+  }, [catalogLanguage, catalogQuery, searchCatalog]);
 
   const selectCatalogBook = (book: CatalogBook) => {
     setTitle(book.title); setAuthor(book.author); setPages(book.pages || 0); setLanguageCode(catalogLanguage === "he" ? "he" : book.language || lang);

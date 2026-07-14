@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Clock3, Coffee, Flame, Globe2, Library, LockKeyhole, Medal, Pause, Plane, Play, Plus, RotateCcw, Shuffle, Trophy, Users } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Clock3, Coffee, Flame, Globe2, Library, LockKeyhole, Medal, Pause, Plane, Play, Plus, RotateCcw, Shuffle, Trophy, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,11 +17,10 @@ import { toast } from "sonner";
 import { FocusRoomInterior, type FocusRoomParticipant } from "./FocusRoomInterior";
 
 type TogetherTab = "rooms" | "competitions" | "progress";
-type CompetitionKind = "focus" | "books" | "distractions";
+type CompetitionKind = "focus" | "distractions";
 type RoomScene = "library" | "plane" | "cafe" | "office";
 type RoomAccess = "public" | "friends";
 interface Room { id: string; name: string; topic: string; users: number; country: string; scene: RoomScene; access: RoomAccess; inviteCode?: string; }
-interface BookProgress { title: string; pages: number; total: number; }
 interface RoomDirectoryRow { id: string; name: string; topic: string; scene: string; access: string; invite_code: string | null; users: number | string; country: string | null; }
 interface RoomPresencePayload extends FocusRoomParticipant { onlineAt: string; }
 
@@ -55,7 +54,6 @@ const ROOM_COPY = {
 
 const COMPETITIONS: { id: CompetitionKind; icon: typeof Trophy; title: string; detail: string; value: string }[] = [
   { id: "focus", icon: Clock3, title: "מרתון ריכוז", detail: "השבוע מודדים דקות ריכוז מאומתות", value: "1,284 דק׳" },
-  { id: "books", icon: BookOpen, title: "אתגר הספרים", detail: "עמודים וספרים שנקראו החודש", value: "12,450 עמ׳" },
   { id: "distractions", icon: LockKeyhole, title: "פחות הסחות", detail: "זמן שנחסך מהסחות ברשימה", value: "684 שעות" },
 ];
 
@@ -105,10 +103,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [tab, setTab] = useState<TogetherTab>("rooms");
   const [rooms, setRooms] = useState<Room[]>(getStoredRooms);
   const [joinedRooms, setJoinedRooms] = useState<string[]>(() => safeLocalStorage.getJSON("zoneflow-together-joined", []));
-  const [books, setBooks] = useState<BookProgress[]>(() => safeLocalStorage.getJSON("zoneflow-together-books", []));
   const [username, setUsername] = useState(() => safeLocalStorage.getString("zoneflow-together-username", "Tabro learner"));
-  const [bookName, setBookName] = useState("");
-  const [bookPages, setBookPages] = useState("");
   const [roomName, setRoomName] = useState("");
   const [roomTopic, setRoomTopic] = useState("");
   const [roomScene, setRoomScene] = useState<RoomScene>("library");
@@ -292,12 +287,11 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     else safeLocalStorage.remove("zoneflow-together-active-room-snapshot");
   }, [activeRoomSnapshot]);
 
-  const totalPages = books.reduce((sum, book) => sum + book.pages, 0);
   const points = balance;
   const unlockMinutes = balance;
   const panel = isLight ? "border-slate-200 bg-white" : "border-white/10 bg-white/5";
   const muted = isLight ? "text-slate-500" : "text-white/60";
-  const competitionCards = useMemo(() => COMPETITIONS.map((item) => ({ ...item, icon: item.icon })), []);
+  const competitionCards = COMPETITIONS;
 
   const persistRooms = (next: Room[]) => { setRooms(next); safeLocalStorage.setJSON("zoneflow-together-rooms", next); };
   const requestJoinRoom = (room: Room) => {
@@ -331,13 +325,6 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       setJoinedRooms(next);
       safeLocalStorage.setJSON("zoneflow-together-joined", next);
     }
-  };
-  const addBook = () => {
-    const title = bookName.trim();
-    const pages = Number(bookPages);
-    if (!title || !Number.isFinite(pages) || pages < 1) return;
-    const next = [{ title, pages, total: Math.max(pages, 300) }, ...books];
-    setBooks(next); safeLocalStorage.setJSON("zoneflow-together-books", next); setBookName(""); setBookPages("");
   };
   const createRoom = async () => {
     if (!roomName.trim()) return;
@@ -532,8 +519,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       </div>
     )}
 
-    {tab === "competitions" && <div className="grid gap-4 xl:grid-cols-3">{competitionCards.map((competition) => { const Icon = competition.icon; return <Card key={competition.id} className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-amber-500" />{competition.title}</CardTitle></CardHeader><CardContent><p className={cn("text-sm leading-6", muted)}>{competition.detail}</p><div className="mt-5 text-2xl font-bold">{competition.value}</div><div className={cn("mt-1 text-xs", muted)}>{competition.id === "books" ? "הדירוג מופיע בדשבורד הספרים לאחר הצטרפות מפורשת." : "דירוג ציבורי יוצג רק לאחר חיבור נתוני המשתתפים."}</div><Progress value={competition.id === "books" ? Math.min(100, totalPages / 5) : competition.id === "focus" ? Math.min(100, focusMinutes / 3) : Math.min(100, unlockMinutes)} className="mt-4 h-2" /></CardContent></Card> })}</div>}
+    {tab === "competitions" && <div className="grid gap-4 xl:grid-cols-2">{competitionCards.map((competition) => { const Icon = competition.icon; return <Card key={competition.id} className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-amber-500" />{competition.title}</CardTitle></CardHeader><CardContent><p className={cn("text-sm leading-6", muted)}>{competition.detail}</p><div className="mt-5 text-2xl font-bold">{competition.value}</div><div className={cn("mt-1 text-xs", muted)}>הניקוד מחובר ליומן האתגרים ולזמן הפתיחה שנצבר.</div><Progress value={competition.id === "focus" ? Math.min(100, focusMinutes / 3) : Math.min(100, unlockMinutes)} className="mt-4 h-2" /></CardContent></Card> })}</div>}
 
-    {tab === "progress" && <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]"><Card className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-rose-500" />{copy.books}</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex flex-wrap gap-2"><Input value={bookName} onChange={(event) => setBookName(event.target.value)} placeholder={copy.bookName} /><Input value={bookPages} onChange={(event) => setBookPages(event.target.value)} type="number" min="1" placeholder={copy.bookPages} className="sm:max-w-[180px]" /><Button onClick={addBook}><Plus className="h-4 w-4" />{copy.addBook}</Button></div>{books.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noBooks}</p> : books.map((book) => <div key={book.title} className={cn("rounded-2xl border p-3", panel)}><div className="flex justify-between gap-3"><span className="font-semibold">{book.title}</span><span className={cn("text-sm", muted)}>{book.pages} {copy.pages}</span></div><Progress value={Math.min(100, (book.pages / book.total) * 100)} className="mt-2 h-2" /></div>)}<div className={cn("text-sm", muted)}>{copy.recommendation}: {books.length ? "The next chapter" : "The book club will suggest one after you join."}</div></CardContent></Card><Card className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-orange-500" />{copy.focus}</CardTitle></CardHeader><CardContent className="space-y-4"><div className="text-3xl font-bold">{focusMinutes} {copy.minutes}</div><Input type="number" min="0" value={focusMinutes} onChange={(event) => setFocusMinutes(Math.max(0, Number(event.target.value)))} /><Button className="w-full" variant={focusActive ? "destructive" : "default"} onClick={() => setFocusActive((value) => !value)}>{focusActive ? copy.joined : copy.start}</Button><div className={cn("rounded-2xl bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100", muted)}><Medal className="mr-1 inline h-4 w-4" />{copy.unlockText}</div></CardContent></Card></div>}
+    {tab === "progress" && <Card className={cn("mx-auto max-w-3xl border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-orange-500" />{copy.focus}</CardTitle></CardHeader><CardContent className="space-y-4"><div className="text-3xl font-bold">{focusMinutes} {copy.minutes}</div><Input type="number" min="0" value={focusMinutes} onChange={(event) => setFocusMinutes(Math.max(0, Number(event.target.value)))} /><Button className="w-full" variant={focusActive ? "destructive" : "default"} onClick={() => setFocusActive((value) => !value)}>{focusActive ? copy.joined : copy.start}</Button><div className={cn("rounded-2xl bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100", muted)}><Medal className="mr-1 inline h-4 w-4" />{copy.unlockText}</div><p className={cn("text-xs", muted)}>תחרות הספרים והדיווחים על ספרים נמצאים רק בדשבורד הספרים.</p></CardContent></Card>}
   </div>;
 }

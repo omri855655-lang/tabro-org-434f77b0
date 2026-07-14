@@ -1225,3 +1225,33 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
   box-shadow: var(--shadow-ambient);
   border: none;
 }
+
+@keyframes zoneflow-cloud-drift {
+  from { transform: translateX(-170%); opacity: 0; }
+  15% { opacity: 0.95; }
+  85% { opacity: 0.95; }
+  to { transform: translateX(220%); opacity: 0; }
+}
+
+@keyframes zoneflow-cabin-float {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes zoneflow-route-pulse {
+  0%, 100% { opacity: 0.35; transform: translateX(-50%) scaleY(0.92); }
+  50% { opacity: 0.9; transform: translateX(-50%) scaleY(1); }
+}
+
+.zoneflow-flight-cloud {
+  animation: zoneflow-cloud-drift 9s linear infinite;
+}
+
+.zoneflow-flight-cabin {
+  background-size: 180% 180%;
+  animation: zoneflow-cabin-float 14s ease-in-out infinite;
+}
+
+.zoneflow-flight-route {
+  animation: zoneflow-route-pulse 2.8s ease-in-out infinite;
+}
