@@ -7,16 +7,29 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useActivityEvents } from "@/hooks/useActivityEvents";
+import { useAuth } from "@/hooks/useAuth";
 import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { applyBlockingPolicy, getBlockingAuthorization, getBlockingPlatform, requestBlockingAuthorization, stopBlockingPolicy, temporarilyAllowBlockedItem, type BlockingAuthorization } from "@/lib/appBlocking";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { ZoneFlowRewardHistory } from "./ZoneFlowRewardHistory";
 
 type DeviceKind = "computer" | "iphone" | "android";
 interface Device { id: string; kind: DeviceKind; name: string; minutes: number; connected: boolean; }
 interface BlockedApp { id: string; name: string; minutesSaved: number; }
+
+type WellbeingClient = {
+  from: (table: string) => {
+    select: (columns: string) => { eq: (column: string, value: string) => Promise<{ data: unknown; error: { message: string } | null }> };
+    insert: (values: Record<string, unknown>) => {
+      select: (columns: string) => { single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }> };
+      then: PromiseLike<{ data: unknown; error: { message: string } | null }>['then'];
+    };
+    update: (values: Record<string, unknown>) => { eq: (column: string, value: string) => Promise<{ data: unknown; error: { message: string } | null }> };
+  };
+};
 
 const COPY = {
   he: { title: "Digital Wellbeing", subtitle: "תמונה רגועה של הזמן שלך, פחות הסחות ויותר בחירה.", devices: "המכשירים שלי", computer: "מחשב", iphone: "iPhone", android: "Android", connected: "מחובר", planned: "חיבור עתידי", screenTime: "זמן מסך היום", add: "הוסף מכשיר", app: "שם אפליקציה או אתר", addBlock: "הוסף לחסימה", blocked: "הסחות שאני מצמצם", focus: "הפעל Focus באתר", stop: "סיים Focus", score: "ניקוד היום", minutes: "דקות", saved: "דקות שנחסכו", challenge: "אתגרים", challengeTitle: "פוקוס ראשון", challengeText: "20 נקודות כשמסיימים סשן ראשון באתר", friends: "חברים", invite: "קוד הצטרפות", invitePlaceholder: "למשל TABRO-2026", join: "הצטרף", noApps: "עדיין אין אפליקציות ברשימה.", limitations: "באתר אפשר למדוד פעילות בתוך Tabro ולנהל רשימת חסימות. חסימה אמיתית של אפליקציות בכל המכשירים תדרוש אפליקציית מובייל והרשאות מערכת.", coach: "התייעץ עם AI על הזמן שלי", active: "Focus פעיל", sample: "הוסף נתוני מכשיר ידנית עד שנחבר אפליקציית מובייל." },
@@ -56,6 +69,7 @@ const UNLOCK_COPY = {
 } as const;
 
 export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boolean; onOpenCoach: () => void }) {
+  const { user } = useAuth();
   const { lang, dir } = useLanguage();
   const copy = COPY[lang] ?? COPY.en;
   const permissionCopy = PERMISSION_COPY[lang] ?? PERMISSION_COPY.en;
@@ -77,12 +91,28 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const [blockingAuthorization, setBlockingAuthorization] = useState<BlockingAuthorization>("unavailable");
   const [unlockMinutes, setUnlockMinutes] = useState(5);
   const focusStartedAt = useRef<number | null>(null);
+  const wellbeingSessionId = useRef<string | null>(null);
   const blockingPlatform = getBlockingPlatform();
 
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-devices", devices), [devices]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-blocked", blockedApps), [blockedApps]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-consent", consentGranted), [consentGranted]);
   useEffect(() => { void getBlockingAuthorization().then(setBlockingAuthorization); }, []);
+  useEffect(() => {
+    if (!user) return;
+    const client = supabase as unknown as WellbeingClient;
+    void Promise.all([
+      client.from("wellbeing_devices").select("id,kind,name,connected,screen_minutes_today").eq("user_id", user.id),
+      client.from("wellbeing_blocked_items").select("id,display_name,minutes_saved").eq("user_id", user.id),
+    ]).then(([deviceResult, blockedResult]) => {
+      if (!deviceResult.error && Array.isArray(deviceResult.data) && deviceResult.data.length > 0) {
+        setDevices((deviceResult.data as Array<{ id: string; kind: DeviceKind; name: string; connected: boolean; screen_minutes_today: number }>).map((item) => ({ id: item.id, kind: item.kind, name: item.name, connected: item.connected, minutes: item.screen_minutes_today })));
+      }
+      if (!blockedResult.error && Array.isArray(blockedResult.data)) {
+        setBlockedApps((blockedResult.data as Array<{ id: string; display_name: string; minutes_saved: number }>).map((item) => ({ id: item.id, name: item.display_name, minutesSaved: Number(item.minutes_saved) || 0 })));
+      }
+    });
+  }, [user]);
 
   const totalMinutes = devices.reduce((sum, device) => sum + device.minutes, 0);
   const savedMinutes = blockedApps.reduce((sum, app) => sum + app.minutesSaved, 0);
@@ -91,20 +121,36 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const muted = isLight ? "text-slate-500" : "text-white/60";
   const deviceLabel = (kind: DeviceKind) => kind === "computer" ? copy.computer : kind === "iphone" ? copy.iphone : copy.android;
 
-  const addBlockedApp = () => {
+  const addBlockedApp = async () => {
     const name = appName.trim();
     if (!name) return;
-    setBlockedApps((items) => [{ id: `${Date.now()}-${name}`, name, minutesSaved: 0 }, ...items]);
+    let id = `${Date.now()}-${name}`;
+    if (user) {
+      const client = supabase as unknown as WellbeingClient;
+      const { data } = await client.from("wellbeing_blocked_items").insert({ user_id: user.id, item_type: name.includes(".") ? "website" : "app", identifier: name.toLocaleLowerCase(), display_name: name }).select("id").single();
+      if (data) id = data.id;
+    }
+    setBlockedApps((items) => items.some((item) => item.name.toLocaleLowerCase() === name.toLocaleLowerCase()) ? items : [{ id, name, minutesSaved: 0 }, ...items]);
     setAppName("");
   };
 
-  const addDevice = () => {
-    const id = `device-${Date.now()}`;
+  const addDevice = async () => {
+    let id = `device-${Date.now()}`;
+    if (user) {
+      const client = supabase as unknown as WellbeingClient;
+      const { data } = await client.from("wellbeing_devices").insert({ user_id: user.id, kind: "computer", name: copy.computer, connected: false, permission_status: blockingAuthorization }).select("id").single();
+      if (data) id = data.id;
+    }
     setDevices((items) => [...items, { id, kind: "computer", name: copy.computer, minutes: 0, connected: false }]);
   };
 
   const updateMinutes = (id: string, value: number) => {
-    setDevices((items) => items.map((device) => device.id === id ? { ...device, minutes: Math.max(0, value) } : device));
+    const minutes = Math.max(0, value);
+    setDevices((items) => items.map((device) => device.id === id ? { ...device, minutes } : device));
+    if (user && /^[0-9a-f-]{36}$/i.test(id)) {
+      const client = supabase as unknown as WellbeingClient;
+      void client.from("wellbeing_devices").update({ screen_minutes_today: minutes, last_synced_at: new Date().toISOString() }).eq("id", id);
+    }
   };
 
   const requestSystemPermission = async () => {
@@ -120,6 +166,10 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
       focusStartedAt.current = null;
       if (startedAt) {
         const elapsedMinutes = Math.max(0, Math.floor((Date.now() - startedAt) / 60_000));
+        if (user && wellbeingSessionId.current) {
+          const client = supabase as unknown as WellbeingClient;
+          await client.from("wellbeing_sessions").update({ status: "completed", ended_at: new Date().toISOString(), duration_minutes: elapsedMinutes }).eq("id", wellbeingSessionId.current);
+        }
         if (elapsedMinutes >= 1) {
           const eventId = `focus:wellbeing:${new Date(startedAt).toISOString()}`;
           const reward = await reportActivity({
@@ -139,6 +189,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
           }
         }
       }
+      wellbeingSessionId.current = null;
       if (blockingAuthorization === "granted") {
         try { await stopBlockingPolicy(); toast.success(blockerCopy.policyStopped); } catch { /* Local focus still stops safely. */ }
       }
@@ -147,6 +198,17 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
 
     setFocusActive(true);
     focusStartedAt.current = Date.now();
+    if (user) {
+      const client = supabase as unknown as WellbeingClient;
+      const { data } = await client.from("wellbeing_sessions").insert({
+        user_id: user.id,
+        mode: "focus",
+        started_at: new Date().toISOString(),
+        status: "running",
+        policy_snapshot: { blockedItems: blockedApps.map((item) => item.name), authorization: blockingAuthorization },
+      }).select("id").single();
+      if (data) wellbeingSessionId.current = data.id;
+    }
     if (blockingAuthorization !== "granted") {
       toast.info(blockerCopy.localOnly);
       return;
@@ -245,7 +307,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
         <Card className={cn("border", panel)}>
           <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Ban className="h-5 w-5 text-rose-500" />{copy.blocked}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex gap-2"><Input value={appName} onChange={(event) => setAppName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addBlockedApp()} placeholder={copy.app} /><Button onClick={addBlockedApp}>{copy.addBlock}</Button></div>
+            <div className="flex gap-2"><Input value={appName} onChange={(event) => setAppName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void addBlockedApp(); }} placeholder={copy.app} /><Button onClick={() => void addBlockedApp()}>{copy.addBlock}</Button></div>
             {blockedApps.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noApps}</p> : blockedApps.map((app) => <div key={app.id} className={cn("flex flex-wrap items-center gap-3 rounded-2xl border p-3", panel)}><Ban className="h-4 w-4 text-rose-500" /><span className="min-w-[120px] flex-1 font-medium">{app.name}</span><span className={cn("text-xs", muted)}>{app.minutesSaved} {copy.saved}</span><Button size="sm" variant="outline" disabled={balance < unlockMinutes} onClick={() => void unlockItem(app)}><Clock3 className="h-4 w-4" />{unlockCopy.unlock} · {unlockMinutes}</Button></div>)}
             <Button className="w-full rounded-full" disabled={!consentGranted} onClick={() => void toggleFocusPolicy()} variant={focusActive ? "destructive" : "default"}>{focusActive ? copy.stop : copy.focus}</Button>
             {focusActive && <div className="rounded-2xl bg-emerald-50 p-3 text-center text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200">{copy.active}</div>}

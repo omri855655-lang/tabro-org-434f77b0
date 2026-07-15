@@ -45,6 +45,31 @@ interface Challenge {
 
 interface StoredFocusSession { timestamp: string; }
 
+interface CrossChallengeRow {
+  challenge_id: string;
+  slug: string;
+  title_he: string;
+  title_en: string;
+  description_he: string;
+  description_en: string;
+  cadence: "daily" | "weekly" | "monthly" | "once";
+  reward_points: number;
+  period_key: string;
+  condition_id: string;
+  event_type: string;
+  label_he: string;
+  label_en: string;
+  destination: string | null;
+  target: number;
+  current_value: number;
+  condition_completed: boolean;
+  challenge_completed: boolean;
+}
+
+type ChallengeDashboardClient = {
+  rpc: (name: "tabro_challenge_dashboard") => Promise<{ data: unknown; error: { message: string } | null }>;
+};
+
 const parseStoredFocusSessions = (value: string | null): StoredFocusSession[] => {
   if (!value) return [];
   try {
@@ -56,7 +81,7 @@ const parseStoredFocusSessions = (value: string | null): StoredFocusSession[] =>
   }
 };
 
-const ChallengesManager = () => {
+const ChallengesManager = ({ onNavigate }: { onNavigate?: (destination: string) => void }) => {
   const { user } = useAuth();
   const { lang, dir } = useLanguage();
   const { balance, events: rewardEvents } = useZoneFlowRewards();
@@ -97,6 +122,7 @@ const ChallengesManager = () => {
   const [weeklyStats, setWeeklyStats] = useState<{ tasksCompleted: number; routineCompleted: number; daysActive: number }>({ tasksCompleted: 0, routineCompleted: 0, daysActive: 0 });
   const [allTimeStats, setAllTimeStats] = useState<{ totalTasks: number; totalRoutine: number; totalBooks: number; totalProjects: number }>({ totalTasks: 0, totalRoutine: 0, totalBooks: 0, totalProjects: 0 });
   const [streak, setStreak] = useState(0);
+  const [crossChallengeRows, setCrossChallengeRows] = useState<CrossChallengeRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAnalytics = useCallback(async () => {
@@ -108,7 +134,8 @@ const ChallengesManager = () => {
       const startOfWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay()).toISOString();
       
       // Parallel fetches
-      const [tasksRes, routineRes, booksRes, projectsRes, weekTasksRes, weekRoutineRes, allTasksRes, allRoutineRes, allBooksRes, allProjectsRes] = await Promise.all([
+      const challengeClient = supabase as unknown as ChallengeDashboardClient;
+      const [tasksRes, routineRes, booksRes, projectsRes, weekTasksRes, weekRoutineRes, allTasksRes, allRoutineRes, allBooksRes, allProjectsRes, crossChallengesRes] = await Promise.all([
         // Today's tasks completed
         supabase.from("tasks").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "הושלם").gte("updated_at", startOfDay),
         // Today's routine
@@ -129,7 +156,12 @@ const ChallengesManager = () => {
         supabase.from("books").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         // All projects
         supabase.from("projects").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        challengeClient.rpc("tabro_challenge_dashboard"),
       ]);
+
+      if (!crossChallengesRes.error && Array.isArray(crossChallengesRes.data)) {
+        setCrossChallengeRows(crossChallengesRes.data as CrossChallengeRow[]);
+      }
 
       // Today's created tasks
       const { count: createdCount } = await supabase.from("tasks").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", startOfDay);
@@ -329,6 +361,15 @@ const ChallengesManager = () => {
 
   const unlockedCount = achievements.filter(a => a.unlocked).length;
   const completedChallenges = challenges.filter(c => c.current >= c.target).length;
+  const crossChallenges = useMemo(() => {
+    const grouped = new Map<string, { challenge: CrossChallengeRow; conditions: CrossChallengeRow[] }>();
+    for (const row of crossChallengeRows) {
+      const existing = grouped.get(row.challenge_id);
+      if (existing) existing.conditions.push(row);
+      else grouped.set(row.challenge_id, { challenge: row, conditions: [row] });
+    }
+    return Array.from(grouped.values());
+  }, [crossChallengeRows]);
 
   if (loading) {
     return (
@@ -374,6 +415,52 @@ const ChallengesManager = () => {
       </div>
 
       <ZoneFlowRewardHistory limit={16} />
+
+      {crossChallenges.length > 0 && (
+        <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 via-background to-amber-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Target className="h-5 w-5 text-cyan-500" />
+              {isHebrew ? "אתגרים משולבים" : "Cross-product challenges"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 lg:grid-cols-3">
+            {crossChallenges.map(({ challenge, conditions }) => {
+              const totalTarget = conditions.reduce((sum, item) => sum + Number(item.target || 0), 0);
+              const totalCurrent = conditions.reduce((sum, item) => sum + Math.min(Number(item.current_value || 0), Number(item.target || 0)), 0);
+              const progress = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
+              return (
+                <div key={challenge.challenge_id} className={`rounded-2xl border p-4 ${challenge.challenge_completed ? "border-emerald-500/30 bg-emerald-500/10" : "bg-background/80"}`}>
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold">{isHebrew ? challenge.title_he : challenge.title_en}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{isHebrew ? challenge.description_he : challenge.description_en}</p>
+                    </div>
+                    <span className="whitespace-nowrap rounded-full bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-600">+{challenge.reward_points}</span>
+                  </div>
+                  <Progress value={progress} className="mb-3 h-2" />
+                  <div className="space-y-2">
+                    {conditions.map((condition) => (
+                      <button
+                        type="button"
+                        key={condition.condition_id}
+                        disabled={!condition.destination || !onNavigate}
+                        onClick={() => condition.destination && onNavigate?.(condition.destination === "personalTasks" ? "tasks" : condition.destination)}
+                        className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1 text-xs transition hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent"
+                      >
+                        <span className={condition.condition_completed ? "text-emerald-600" : "text-muted-foreground"}>
+                          {condition.condition_completed ? "✓ " : ""}{isHebrew ? condition.label_he : condition.label_en}
+                        </span>
+                        <span className="font-semibold">{Number(condition.current_value)}/{Number(condition.target)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Today's Stats */}
       <Card>

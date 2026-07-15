@@ -32,6 +32,9 @@ type FocusRoomClient = {
       select: (columns: string) => { single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }> };
       then: PromiseLike<{ data: unknown; error: { message: string } | null }>['then'];
     };
+    update: (values: Record<string, unknown>) => {
+      eq: (column: string, value: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+    };
   };
 };
 
@@ -123,6 +126,10 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [roomParticipants, setRoomParticipants] = useState<FocusRoomParticipant[]>([]);
   const [myPosition, setMyPosition] = useState(() => safeLocalStorage.getJSON("zoneflow-together-avatar-position", { x: 50, y: 62 }));
   const sessionStartedAt = useRef<string | null>(null);
+  const focusSessionId = useRef<string | null>(null);
+  const plannedEndAt = useRef<number | null>(null);
+  const pausedAt = useRef<number | null>(null);
+  const accumulatedPauseSeconds = useRef(0);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? (activeRoomSnapshot?.id === selectedRoomId ? activeRoomSnapshot : null);
@@ -244,21 +251,23 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     const startedAt = sessionStartedAt.current;
     sessionStartedAt.current = null;
     let rewardEventId = startedAt;
-    if (user) {
+    if (user && focusSessionId.current) {
       const client = supabase as unknown as FocusRoomClient;
-      const { data, error } = await client.from("zoneflow_focus_sessions").insert({
-        user_id: user.id,
-        room_id: selectedRoom && isUuid(selectedRoom.id) ? selectedRoom.id : null,
-        started_at: startedAt,
+      const savedSessionId = focusSessionId.current;
+      const { error } = await client.from("zoneflow_focus_sessions").update({
         ended_at: new Date().toISOString(),
         duration_seconds: sessionDuration * 60,
         completed: true,
-      }).select("id").single();
-      if (error || !data) {
+        completed_at: new Date().toISOString(),
+        status: "completed",
+        paused_at: null,
+        accumulated_pause_seconds: accumulatedPauseSeconds.current,
+      }).eq("id", savedSessionId);
+      if (error) {
         toast.error(error?.message || "הסשן הסתיים אך לא נשמר. לא ניתנו נקודות כפולות.");
         return;
       }
-      rewardEventId = data.id;
+      rewardEventId = savedSessionId;
     }
     const reward = await reportActivity({
       eventType: "focus_session_completed",
@@ -272,14 +281,19 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       rewardSource: "focus",
     });
     if (reward.awardedPoints > 0) toast.success(`הרווחת ${reward.awardedPoints} דקות פתיחה`);
+    focusSessionId.current = null;
+    plannedEndAt.current = null;
+    pausedAt.current = null;
+    accumulatedPauseSeconds.current = 0;
     try { await stopBlockingPolicy(); } catch { /* Web sessions have no native policy to stop. */ }
   }, [reportActivity, selectedRoom, sessionDuration, user]);
 
   useEffect(() => {
     if (!focusActive) return;
     const interval = window.setInterval(() => {
-      setRemainingSeconds((seconds) => {
-        if (seconds > 1) return seconds - 1;
+      setRemainingSeconds(() => {
+        const seconds = plannedEndAt.current ? Math.max(0, Math.ceil((plannedEndAt.current - Date.now()) / 1000)) : 0;
+        if (seconds > 0) return seconds;
         setFocusActive(false);
         setFocusMinutes((minutes) => minutes + sessionDuration);
         void recordCompletedSession();
@@ -401,8 +415,51 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
   const startTimer = async () => {
     if (!selectedRoom) return;
-    if (remainingSeconds === 0) setRemainingSeconds(sessionDuration * 60);
-    if (!sessionStartedAt.current) sessionStartedAt.current = new Date().toISOString();
+    const nextSeconds = remainingSeconds === 0 ? sessionDuration * 60 : remainingSeconds;
+    if (remainingSeconds === 0) setRemainingSeconds(nextSeconds);
+    if (pausedAt.current) {
+      accumulatedPauseSeconds.current += Math.max(0, Math.round((Date.now() - pausedAt.current) / 1000));
+      pausedAt.current = null;
+    }
+    plannedEndAt.current = Date.now() + nextSeconds * 1000;
+    if (!sessionStartedAt.current) {
+      const startedAt = new Date().toISOString();
+      sessionStartedAt.current = startedAt;
+      if (user) {
+        const client = supabase as unknown as FocusRoomClient;
+        const { data, error } = await client.from("zoneflow_focus_sessions").insert({
+          user_id: user.id,
+          room_id: isUuid(selectedRoom.id) ? selectedRoom.id : null,
+          started_at: startedAt,
+          ended_at: new Date(plannedEndAt.current).toISOString(),
+          planned_end_at: new Date(plannedEndAt.current).toISOString(),
+          duration_seconds: sessionDuration * 60,
+          completed: false,
+          status: "running",
+          goal_text: sessionGoal.trim() || null,
+        }).select("id").single();
+        if (!error && data) focusSessionId.current = data.id;
+      }
+      void reportActivity({
+        eventType: "focus_session_started",
+        source: "zoneflow_together",
+        idempotencyKey: `focus-started:${focusSessionId.current || startedAt}`,
+        referenceId: focusSessionId.current || undefined,
+        occurredAt: startedAt,
+        durationMinutes: sessionDuration,
+        metadata: { roomId: selectedRoom.id, scene: selectedRoom.scene, goal: sessionGoal.trim() },
+        label: `${selectedRoom.name} · started`,
+        rewardSource: "focus",
+      });
+    } else if (user && focusSessionId.current) {
+      const client = supabase as unknown as FocusRoomClient;
+      void client.from("zoneflow_focus_sessions").update({
+        status: "running",
+        paused_at: null,
+        planned_end_at: new Date(plannedEndAt.current).toISOString(),
+        accumulated_pause_seconds: accumulatedPauseSeconds.current,
+      }).eq("id", focusSessionId.current);
+    }
     setFocusActive(true);
     if (await getBlockingAuthorization() === "granted") {
       const blockedApps = safeLocalStorage.getJSON<Array<{ name?: string }>>("zoneflow-wellbeing-blocked", []);
@@ -417,9 +474,50 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     }
   };
 
+  const pauseTimer = () => {
+    if (!focusActive) return;
+    const seconds = plannedEndAt.current ? Math.max(0, Math.ceil((plannedEndAt.current - Date.now()) / 1000)) : remainingSeconds;
+    setRemainingSeconds(seconds);
+    setFocusActive(false);
+    pausedAt.current = Date.now();
+    if (user && focusSessionId.current) {
+      const client = supabase as unknown as FocusRoomClient;
+      void client.from("zoneflow_focus_sessions").update({ status: "paused", paused_at: new Date().toISOString() }).eq("id", focusSessionId.current);
+    }
+  };
+
+  const cancelSession = useCallback(async () => {
+    const startedAt = sessionStartedAt.current;
+    const sessionId = focusSessionId.current;
+    if (user && sessionId) {
+      const client = supabase as unknown as FocusRoomClient;
+      await client.from("zoneflow_focus_sessions").update({
+        status: "cancelled",
+        ended_at: new Date().toISOString(),
+        completed: false,
+        accumulated_pause_seconds: accumulatedPauseSeconds.current,
+      }).eq("id", sessionId);
+    }
+    if (startedAt) void reportActivity({
+      eventType: "focus_session_cancelled",
+      source: "zoneflow_together",
+      idempotencyKey: `focus-cancelled:${sessionId || startedAt}`,
+      referenceId: sessionId || undefined,
+      occurredAt: new Date().toISOString(),
+      metadata: { roomId: selectedRoom?.id || null, elapsedSeconds: sessionDuration * 60 - remainingSeconds },
+      label: `${selectedRoom?.name || "Focus room"} · cancelled`,
+      rewardSource: "focus",
+    });
+    sessionStartedAt.current = null;
+    focusSessionId.current = null;
+    plannedEndAt.current = null;
+    pausedAt.current = null;
+    accumulatedPauseSeconds.current = 0;
+  }, [remainingSeconds, reportActivity, selectedRoom, sessionDuration, user]);
+
   const resetTimer = () => {
     setFocusActive(false);
-    sessionStartedAt.current = null;
+    void cancelSession();
     setRemainingSeconds(sessionDuration * 60);
     void stopBlockingPolicy().catch(() => undefined);
   };
@@ -445,7 +543,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
   const leaveRoom = () => {
     setFocusActive(false);
-    sessionStartedAt.current = null;
+    void cancelSession();
     setSelectedRoomId("");
     setActiveRoomSnapshot(null);
     setRoomParticipants([]);
@@ -465,7 +563,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? () => setFocusActive(false) : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} /> : pendingRoom ? (
+        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} /> : pendingRoom ? (
           <Card className={cn("overflow-hidden border", panel)}>
             <CardContent className="grid gap-6 bg-gradient-to-br from-cyan-500/10 via-transparent to-amber-500/10 p-6 md:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[2rem] bg-gradient-to-br from-[#172554] to-[#0f766e] p-6 text-white">

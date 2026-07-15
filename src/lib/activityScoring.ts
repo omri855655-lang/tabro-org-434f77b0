@@ -2,8 +2,9 @@ export type ActivitySource = "zoneflow_core" | "zoneflow_together" | "digital_we
 export type ActivityEventType =
   | "focus_session_started" | "focus_session_completed" | "focus_session_cancelled"
   | "wellbeing_session_completed" | "pomodoro_completed" | "book_completed"
-  | "task_completed" | "goal_progress_recorded" | "mind_exercise_completed"
-  | "journey_day_completed" | "challenge_completed" | "achievement_unlocked";
+  | "task_created" | "task_completed" | "important_task_completed"
+  | "goal_created" | "goal_progress_recorded" | "goal_completed" | "mind_exercise_completed"
+  | "mind_assessment_completed" | "journey_day_completed" | "challenge_completed" | "achievement_unlocked";
 
 interface FallbackRule {
   base: number;
@@ -19,7 +20,9 @@ const FALLBACK_RULES: Partial<Record<ActivityEventType, FallbackRule>> = {
   pomodoro_completed: { base: 2, pointsPerUnit: 1, unitMinutes: 5, minimumMinutes: 10, maximumMinutes: 120 },
   book_completed: { base: 5, pointsPerUnit: 1, unitMinutes: 25 },
   task_completed: { base: 2 },
+  important_task_completed: { base: 3 },
   goal_progress_recorded: { base: 1 },
+  goal_completed: { base: 15 },
   mind_exercise_completed: { base: 5 },
   journey_day_completed: { base: 5 },
   challenge_completed: { base: 5 },

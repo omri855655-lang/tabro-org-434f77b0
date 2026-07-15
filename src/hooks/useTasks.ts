@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useActivityEvents } from "@/hooks/useActivityEvents";
 import { toast } from "sonner";
 
 const getPreferredDisplayName = (
@@ -117,6 +118,7 @@ export function useTasks(
   ownerId?: string
 ) {
   const { user } = useAuth();
+  const { reportActivity } = useActivityEvents();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -217,6 +219,16 @@ export function useTasks(
         const newTask = mapDbTaskToTask(data as unknown as DbTask);
         setTasks((prev) => [...prev, newTask]);
 
+        void reportActivity({
+          eventType: "task_created",
+          source: "tasks",
+          idempotencyKey: `task-created:${newTask.id}`,
+          referenceId: newTask.id,
+          metadata: { taskType, sheetName: newTask.sheetName, urgent: newTask.urgent },
+          label: newTask.description.trim() || "Task created",
+          rewardSource: "challenge",
+        });
+
         return newTask;
       } catch (error: any) {
         console.error("Error adding task:", error);
@@ -224,7 +236,7 @@ export function useTasks(
         return null;
       }
     },
-    [user, taskType, sheetName, ownerId]
+    [user, taskType, sheetName, ownerId, reportActivity]
   );
 
   const updateTask = useCallback(
@@ -280,6 +292,21 @@ export function useTasks(
 
         setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task)));
 
+        const becameCompleted = currentTask?.status !== "בוצע" && updates.status === "בוצע";
+        if (becameCompleted) {
+          const completedAt = new Date().toISOString();
+          const baseInput = {
+            source: "tasks" as const,
+            referenceId: taskId,
+            occurredAt: completedAt,
+            metadata: { taskType, sheetName: currentTask?.sheetName || sheetName, urgent: Boolean(currentTask?.urgent), ownerId: ownerId || user.id },
+            label: currentTask?.description.trim() || "Task completed",
+            rewardSource: "challenge" as const,
+          };
+          void reportActivity({ ...baseInput, eventType: "task_completed", idempotencyKey: `task-completed:${taskId}` });
+          if (currentTask?.urgent) void reportActivity({ ...baseInput, eventType: "important_task_completed", idempotencyKey: `important-task-completed:${taskId}` });
+        }
+
         if (shouldNotifySharedOwner) {
           try {
             const { data: profile } = await supabase
@@ -307,7 +334,7 @@ export function useTasks(
         toast.error("שגיאה בעדכון משימה");
       }
     },
-    [user, tasks, ownerId, sheetName]
+    [user, tasks, ownerId, sheetName, taskType, reportActivity]
   );
 
   const deleteTask = useCallback(

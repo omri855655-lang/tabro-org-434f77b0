@@ -490,7 +490,7 @@ const Personal = () => {
       case "courses": return <CoursesManager />;
       case "zoneflow": return <ZoneFlowDashboard />;
       case "settings": return <SettingsPanel />;
-      case "challenges": return <ChallengesManager />;
+      case "challenges": return <ChallengesManager onNavigate={setActiveTab} />;
       case "nutrition": return <NutritionDashboard />;
       case "dreams": return <DreamRoadmapDashboard />;
       case "shopping": return <ShoppingDashboard />;

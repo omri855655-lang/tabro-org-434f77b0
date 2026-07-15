@@ -24,3 +24,11 @@ test("book points use page count rather than client-provided points", () => {
 test("events without a scoring rule do not produce points", () => {
   assert.equal(calculateFallbackPoints("focus_session_started"), 0);
 });
+
+test("important tasks receive the configured bonus", () => {
+  assert.equal(calculateFallbackPoints("important_task_completed"), 3);
+});
+
+test("completed goals receive a meaningful milestone reward", () => {
+  assert.equal(calculateFallbackPoints("goal_completed"), 15);
+});

@@ -1,15 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BrainCircuit, CalendarDays, CheckCircle2, Clock3, RotateCcw, Target } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useAuth } from "@/hooks/useAuth";
+import { useActivityEvents } from "@/hooks/useActivityEvents";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
+import { supabase } from "@/integrations/supabase/client";
 
 type Pattern = "clarity" | "fear" | "energy" | "overload" | "distraction";
 type Answers = Record<string, number>;
 interface Profile { goal: string; dailyMinutes: number; currentTasks: number; desiredTasks: number; daysPerWeek: number; }
+
+type MindAssessmentClient = {
+  from: (table: string) => {
+    upsert: (values: Record<string, unknown>, options: { onConflict: string }) => Promise<{ data: unknown; error: { message: string } | null }>;
+  };
+};
 
 const QUESTIONS: Array<{ id: string; he: string; en: string; pattern: Pattern }> = [
   { id: "q1", he: "לא ברור לי מהו הצעד הראשון.", en: "I often cannot identify the first step.", pattern: "clarity" },
@@ -35,6 +44,8 @@ const RESULTS: Record<Pattern, { he: [string, string, string]; en: [string, stri
 const DEFAULT_PROFILE: Profile = { goal: "", dailyMinutes: 15, currentTasks: 1, desiredTasks: 3, daysPerWeek: 5 };
 
 export function ProcrastinationAssessment({ journeyId, journeyTitle }: { journeyId: string; journeyTitle: string }) {
+  const { user } = useAuth();
+  const { reportActivity } = useActivityEvents();
   const { lang, dir } = useLanguage();
   const isHe = lang === "he";
   const key = `zoneflow-assessment-${journeyId}`;
@@ -53,8 +64,37 @@ export function ProcrastinationAssessment({ journeyId, journeyTitle }: { journey
     const text = RESULTS[pattern][isHe ? "he" : "en"];
     const weeklyCapacity = profile.dailyMinutes * profile.daysPerWeek;
     const block = profile.dailyMinutes <= 10 ? 5 : profile.dailyMinutes <= 25 ? 10 : 25;
-    return { pattern, title: text[0], detail: text[1], first: text[2], weeklyCapacity, block };
+    return { pattern, scores, title: text[0], detail: text[1], first: text[2], weeklyCapacity, block };
   }, [answers, completed, isHe, profile]);
+
+  useEffect(() => {
+    if (phase !== "plan" || !result || !user) return;
+    const completedAt = new Date().toISOString();
+    const plan = { title: result.title, detail: result.detail, firstAction: result.first, weeklyCapacity: result.weeklyCapacity, blockMinutes: result.block };
+    const client = supabase as unknown as MindAssessmentClient;
+    void client.from("zoneflow_mind_assessments").upsert({
+      user_id: user.id,
+      journey_id: journeyId,
+      journey_title: journeyTitle,
+      profile,
+      answers,
+      primary_pattern: result.pattern,
+      scores: result.scores,
+      plan,
+      completed_at: completedAt,
+      updated_at: completedAt,
+    }, { onConflict: "user_id,journey_id" });
+    void reportActivity({
+      eventType: "mind_assessment_completed",
+      source: "zoneflow_mind",
+      idempotencyKey: `mind-assessment:${journeyId}:${JSON.stringify(answers)}`,
+      referenceId: journeyId,
+      occurredAt: completedAt,
+      metadata: { journeyTitle, pattern: result.pattern, profile, scores: result.scores },
+      label: `${journeyTitle} · assessment`,
+      rewardSource: "journey",
+    });
+  }, [answers, journeyId, journeyTitle, phase, profile, reportActivity, result, user]);
 
   const saveProfile = () => {
     const normalized = { ...profile, dailyMinutes: Math.max(5, profile.dailyMinutes), currentTasks: Math.max(0, profile.currentTasks), desiredTasks: Math.max(1, profile.desiredTasks), daysPerWeek: Math.min(7, Math.max(1, profile.daysPerWeek)) };

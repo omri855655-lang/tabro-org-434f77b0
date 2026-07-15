@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useActivityEvents } from "@/hooks/useActivityEvents";
 
 interface DreamMilestone {
   id: string;
@@ -59,6 +60,7 @@ const DreamRoadmapDashboard = () => {
   const { lang, dir } = useLanguage();
   const isHebrew = lang === "he";
   const { user } = useAuth();
+  const { reportActivity } = useActivityEvents();
   const [goals, setGoals] = useState<DreamGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
@@ -164,12 +166,21 @@ const DreamRoadmapDashboard = () => {
 
   const addGoal = async () => {
     if (!user || !newTitle.trim()) return;
-    const { error } = await supabase.from("dream_goals").insert({
+    const { data, error } = await supabase.from("dream_goals").insert({
       user_id: user.id,
       title: newTitle.trim(),
       description: newDescription.trim() || null,
-    });
+    }).select("id").single();
     if (error) { toast.error(copy.genericError); return; }
+    void reportActivity({
+      eventType: "goal_created",
+      source: "goals",
+      idempotencyKey: `goal-created:${data.id}`,
+      referenceId: data.id,
+      metadata: { title: newTitle.trim() },
+      label: newTitle.trim(),
+      rewardSource: "challenge",
+    });
     setNewTitle("");
     setNewDescription("");
     toast.success(copy.dreamAdded);
@@ -252,10 +263,22 @@ const DreamRoadmapDashboard = () => {
   const toggleMilestone = async (goalId: string, milestoneId: string) => {
     const goal = goals.find((item) => item.id === goalId);
     if (!goal) return;
+    const milestone = goal.milestones.find((item) => item.id === milestoneId);
     const updatedMilestones = goal.milestones.map((m) => m.id === milestoneId ? { ...m, done: !m.done } : m);
     const progress = Math.round((updatedMilestones.filter((m) => m.done).length / updatedMilestones.length) * 100);
     await supabase.from("dream_goals").update({ milestones: updatedMilestones as any, progress }).eq("id", goalId);
     setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, milestones: updatedMilestones, progress } : g)));
+    if (milestone && !milestone.done) {
+      const baseInput = {
+        source: "goals" as const,
+        referenceId: goalId,
+        metadata: { goalTitle: goal.title, milestoneId, milestoneTitle: milestone.title, progress },
+        label: `${goal.title} · ${milestone.title}`,
+        rewardSource: "challenge" as const,
+      };
+      void reportActivity({ ...baseInput, eventType: "goal_progress_recorded", idempotencyKey: `goal-progress:${goalId}:${milestoneId}` });
+      if (progress >= 100) void reportActivity({ ...baseInput, eventType: "goal_completed", idempotencyKey: `goal-completed:${goalId}` });
+    }
   };
 
   const addMilestoneToCalendar = async (goal: DreamGoal, milestone: DreamMilestone) => {
