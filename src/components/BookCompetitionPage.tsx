@@ -26,10 +26,43 @@ type CompetitionClient = {
   };
 };
 
+type CatalogClient = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      or: (filters: string) => {
+        limit: (count: number) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
+    };
+  };
+};
+
 const competitionClient = supabase as unknown as CompetitionClient;
+const catalogClient = supabase as unknown as CatalogClient;
+
+async function searchTabroCatalog(query: string, limit = 20): Promise<CatalogBook[]> {
+  const safeQuery = query.replace(/[^\p{L}\p{N}\s'״"-]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!safeQuery) return [];
+  const { data, error } = await catalogClient.from("book_catalog_entries")
+    .select("id,title,author,page_count,language_code")
+    .or(`title.ilike.%${safeQuery}%,author.ilike.%${safeQuery}%`)
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  if (!Array.isArray(data)) return [];
+  return data.map((entry) => {
+    const book = entry as { id: string; title: string; author?: string | null; page_count?: number | null; language_code?: string | null };
+    return {
+      key: `tabro:${book.id}`,
+      title: book.title,
+      author: book.author || "",
+      pages: book.page_count || undefined,
+      language: book.language_code || undefined,
+      source: "Tabro" as const,
+    };
+  });
+}
 
 const COPY = {
-  he: { back: "חזרה לספרים", title: "אתגר הקריאה של Tabro", subtitle: "קוראים בקצב שלך. משתפים רק מה שבוחרים.", join: "הצטרף לתחרות", joined: "אתה משתתף בתחרות", privacy: "הצטרפות מפרסמת בדירוג רק שם תצוגה, מספר ספרים ועמודים. סיכומים נשארים פרטיים כברירת מחדל.", myStats: "הנתונים שלי", pages: "עמודים", books: "ספרים", rank: "מקום", goal: "יעד עמודים אישי", leaderboard: "טבלת המובילים", report: "סיימתי ספר", chooseRead: "בחר ספר שכבר סימנת כנקרא", catalog: "חיפוש ספרים בעולם", searchPlaceholder: "שם ספר, מחבר או ISBN", search: "חיפוש", all: "כל השפות", hebrew: "ספרים בעברית", useBook: "בחר ספר", noResults: "לא נמצאו תוצאות. אפשר להזין את הספר ידנית.", pageCount: "מספר עמודים", language: "שפת הספר", summary: "סיכום פרטי או המלצה", summaryHint: "מה לקחת מהספר? הסיכום לא יפורסם ללא אישור.", joinRank: "כלול את הספר בדירוג", catalogOpt: "הוסף את פרטי הספר לקטלוג הקהילתי", shareOpt: "פרסם את הסיכום לקהילה", save: "שמור סיום ספר", history: "הספרים שדיווחתי", emptyHistory: "עדיין לא דיווחת על ספר בתחרות.", source: "חיפוש חי ב־Open Library, Internet Archive ופרויקט גוטנברג. Google Books מופעל כאשר מוגדר מפתח API.", auth: "צריך להתחבר כדי להשתתף.", titlePlaceholder: "התחל להקליד שם ספר...", suggestions: "הצעות לספרים", simania: "חפש גם בסימניה", nli: "הספרייה הלאומית", benYehuda: "פרויקט בן־יהודה" },
+  he: { back: "חזרה לספרים", title: "אתגר הקריאה של Tabro", subtitle: "קוראים בקצב שלך. משתפים רק מה שבוחרים.", join: "הצטרף לתחרות", joined: "אתה משתתף בתחרות", privacy: "הצטרפות מפרסמת בדירוג רק שם תצוגה, מספר ספרים ועמודים. סיכומים נשארים פרטיים כברירת מחדל.", myStats: "הנתונים שלי", pages: "עמודים", books: "ספרים", rank: "מקום", goal: "יעד עמודים אישי", leaderboard: "טבלת המובילים", report: "סיימתי ספר", chooseRead: "בחר ספר שכבר סימנת כנקרא", catalog: "חיפוש ספרים בעולם", searchPlaceholder: "שם ספר, מחבר או ISBN", search: "חיפוש", all: "כל השפות", hebrew: "העדפת ספרים בעברית", useBook: "בחר ספר", noResults: "לא נמצאו תוצאות. אפשר להזין את הספר ידנית.", pageCount: "מספר עמודים", language: "שפת הספר", summary: "סיכום פרטי או המלצה", summaryHint: "מה לקחת מהספר? הסיכום לא יפורסם ללא אישור.", joinRank: "כלול את הספר בדירוג", catalogOpt: "הוסף את פרטי הספר לקטלוג הקהילתי", shareOpt: "פרסם את הסיכום לקהילה", save: "שמור סיום ספר", history: "הספרים שדיווחתי", emptyHistory: "עדיין לא דיווחת על ספר בתחרות.", source: "חיפוש חי בקטלוג Tabro, Open Library, Internet Archive ופרויקט גוטנברג. Google Books מופעל כאשר מוגדר מפתח API.", auth: "צריך להתחבר כדי להשתתף.", titlePlaceholder: "התחל להקליד שם ספר...", suggestions: "הצעות לספרים", simania: "חפש גם בסימניה", nli: "הספרייה הלאומית", benYehuda: "פרויקט בן־יהודה" },
   en: { back: "Back to books", title: "Tabro reading challenge", subtitle: "Read at your pace. Share only what you choose.", join: "Join challenge", joined: "You are participating", privacy: "Joining publishes only your display name, book count, and page count. Reviews stay private by default.", myStats: "My stats", pages: "Pages", books: "Books", rank: "Rank", goal: "Personal page goal", leaderboard: "Leaderboard", report: "I finished a book", chooseRead: "Choose a book already marked read", catalog: "Search the global catalog", searchPlaceholder: "Title, author, or ISBN", search: "Search", all: "All languages", hebrew: "Hebrew books", useBook: "Use book", noResults: "No results. You can enter the book manually.", pageCount: "Page count", language: "Book language", summary: "Private notes or recommendation", summaryHint: "What stayed with you? This is not published without consent.", joinRank: "Count this book in the leaderboard", catalogOpt: "Add book details to the community catalog", shareOpt: "Publish my review to the community", save: "Save finished book", history: "Books I reported", emptyHistory: "You have not reported a book yet.", source: "Live search uses Open Library, Internet Archive, and Project Gutenberg. Google Books is enabled when an API key is configured.", auth: "Sign in to participate.", titlePlaceholder: "Start typing a book title...", suggestions: "Book suggestions", simania: "Search Simania", nli: "National Library of Israel", benYehuda: "Project Ben-Yehuda" },
 } as const;
 
@@ -93,20 +126,22 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
         ...history.map((book) => ({ key: `history:${book.id}`, title: book.title, author: book.author || "", pages: book.page_count, language: book.language_code, source: "Tabro" as const })),
       ].filter((book) => `${book.title} ${book.author}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
       const language = languageCode || (lang === "he" ? "he" : "all");
-      const [openLibrary, googleBooks, internetArchive, projectGutenberg] = await Promise.allSettled([
-        searchOpenLibraryBooks(query, language, 7),
-        searchGoogleBooks(query, language, 7),
-        searchInternetArchiveBooks(query, language, 7),
-        searchProjectGutenbergBooks(query, language, 7),
+      const [tabroCatalog, openLibrary, googleBooks, internetArchive, projectGutenberg] = await Promise.allSettled([
+        searchTabroCatalog(query, 8),
+        searchOpenLibraryBooks(query, language, 12),
+        searchGoogleBooks(query, language, 10),
+        searchInternetArchiveBooks(query, language, 10),
+        searchProjectGutenbergBooks(query, language, 8),
       ]);
       if (controller.signal.aborted) return;
       setTitleSuggestions(mergeCatalogBooks(
         localBooks,
+        tabroCatalog.status === "fulfilled" ? tabroCatalog.value : [],
         openLibrary.status === "fulfilled" ? openLibrary.value : [],
         googleBooks.status === "fulfilled" ? googleBooks.value : [],
         internetArchive.status === "fulfilled" ? internetArchive.value : [],
         projectGutenberg.status === "fulfilled" ? projectGutenberg.value : [],
-      ).slice(0, 10));
+      ).slice(0, 16));
       setSuggestionsLoading(false);
     }, 400);
     return () => {
@@ -144,19 +179,21 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
     const requestId = ++catalogRequestId.current;
     setCatalogLoading(true); setCatalogSearched(true);
     try {
-      const [openLibrary, googleBooks, internetArchive, projectGutenberg] = await Promise.allSettled([
-        searchOpenLibraryBooks(query, catalogLanguage, 12),
-        searchGoogleBooks(query, catalogLanguage, 12),
-        searchInternetArchiveBooks(query, catalogLanguage, 12),
-        searchProjectGutenbergBooks(query, catalogLanguage, 12),
+      const [tabroCatalog, openLibrary, googleBooks, internetArchive, projectGutenberg] = await Promise.allSettled([
+        searchTabroCatalog(query, 20),
+        searchOpenLibraryBooks(query, catalogLanguage, 30),
+        searchGoogleBooks(query, catalogLanguage, 20),
+        searchInternetArchiveBooks(query, catalogLanguage, 20),
+        searchProjectGutenbergBooks(query, catalogLanguage, 15),
       ]);
       const results = mergeCatalogBooks(
+        tabroCatalog.status === "fulfilled" ? tabroCatalog.value : [],
         openLibrary.status === "fulfilled" ? openLibrary.value : [],
         googleBooks.status === "fulfilled" ? googleBooks.value : [],
         internetArchive.status === "fulfilled" ? internetArchive.value : [],
         projectGutenberg.status === "fulfilled" ? projectGutenberg.value : [],
-      ).slice(0, 24);
-      if (!results.length && [openLibrary, googleBooks, internetArchive, projectGutenberg].every((result) => result.status === "rejected")) throw new Error("Catalog providers unavailable");
+      ).slice(0, 60);
+      if (!results.length && [tabroCatalog, openLibrary, googleBooks, internetArchive, projectGutenberg].every((result) => result.status === "rejected")) throw new Error("Catalog providers unavailable");
       if (requestId === catalogRequestId.current) setCatalogResults(results);
     } catch (error) {
       console.error("Open Library search failed", error);

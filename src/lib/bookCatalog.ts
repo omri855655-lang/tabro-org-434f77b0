@@ -18,15 +18,22 @@ export interface CatalogBook {
 const cleanImageUrl = (value: unknown) => typeof value === "string" ? value.replace(/^http:/, "https:") : undefined;
 
 export async function searchOpenLibraryBooks(query: string, language: string, limit = 10): Promise<CatalogBook[]> {
-  const params = new URLSearchParams({
-    q: language === "he" ? `${query} language:heb` : query,
-    limit: String(limit),
-    fields: "key,title,author_name,first_publish_year,cover_i,isbn,number_of_pages_median,language",
+  const fields = "key,title,author_name,first_publish_year,cover_i,isbn,number_of_pages_median,language";
+  const makeParams = (field: "q" | "title") => {
+    const params = new URLSearchParams({ [field]: query, limit: String(limit), fields });
+    if (language === "he") params.set("lang", "he");
+    return params;
+  };
+  const requests = [makeParams("q"), makeParams("title")].map(async (params) => {
+    const response = await fetch(`https://openlibrary.org/search.json?${params.toString()}`);
+    if (!response.ok) throw new Error(`Open Library ${response.status}`);
+    const data = await response.json() as { docs?: Array<Record<string, unknown>> };
+    return data.docs || [];
   });
-  const response = await fetch(`https://openlibrary.org/search.json?${params.toString()}`);
-  if (!response.ok) throw new Error(`Open Library ${response.status}`);
-  const data = await response.json() as { docs?: Array<Record<string, unknown>> };
-  return (data.docs || []).map((doc, index) => ({
+  const settled = await Promise.allSettled(requests);
+  const docs = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  if (!docs.length && settled.every((result) => result.status === "rejected")) throw new Error("Open Library unavailable");
+  const books = docs.map((doc, index) => ({
     key: `ol:${String(doc.key || `${index}-${doc.title}`)}`,
     title: String(doc.title || ""),
     author: Array.isArray(doc.author_name) ? String(doc.author_name[0] || "") : "",
@@ -37,6 +44,9 @@ export async function searchOpenLibraryBooks(query: string, language: string, li
     isbn: Array.isArray(doc.isbn) ? String(doc.isbn[0] || "") : undefined,
     source: "Open Library" as const,
   })).filter((book) => book.title);
+  const merged = mergeCatalogBooks(books);
+  if (language !== "he") return merged;
+  return merged.sort((a, b) => Number((b.language || "").split(",").some((code) => /^(heb|he)$/i.test(code))) - Number((a.language || "").split(",").some((code) => /^(heb|he)$/i.test(code))));
 }
 
 export async function searchGoogleBooks(query: string, language: string, limit = 10): Promise<CatalogBook[]> {
