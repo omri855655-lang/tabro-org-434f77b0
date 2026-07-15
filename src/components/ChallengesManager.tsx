@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useActivityEvents } from "@/hooks/useActivityEvents";
 import { Trophy, Target, Flame, Star, Zap, TrendingUp, Award, CheckCircle2, Clock, BookOpen, Briefcase, CalendarCheck, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import SessionHistory from "./challenges/SessionHistory";
@@ -58,7 +59,8 @@ const parseStoredFocusSessions = (value: string | null): StoredFocusSession[] =>
 const ChallengesManager = () => {
   const { user } = useAuth();
   const { lang, dir } = useLanguage();
-  const { award, balance, events: rewardEvents } = useZoneFlowRewards();
+  const { balance, events: rewardEvents } = useZoneFlowRewards();
+  const { reportActivity } = useActivityEvents();
   const isHebrew = lang === "he";
   const copy = isHebrew
     ? {
@@ -296,18 +298,34 @@ const ChallengesManager = () => {
     const dayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
     const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
     const weekKey = `${weekStart.getFullYear()}-${weekStart.getMonth() + 1}-${weekStart.getDate()}`;
-    let earned = 0;
-    achievements.forEach((achievement) => {
-      if (achievement.unlocked && award(`challenge-achievement:${achievement.id}`, "challenge", 5, achievement.title)) earned += 5;
-    });
-    challenges.forEach((challenge) => {
-      if (challenge.current < challenge.target) return;
-      const points = challenge.type === "weekly" ? 10 : 3;
-      const period = challenge.type === "weekly" ? weekKey : dayKey;
-      if (award(`challenge:${challenge.id}:${period}`, "challenge", points, challenge.title)) earned += points;
-    });
-    if (earned > 0) toast.success(`הרווחת ${earned} דקות פתיחה מהאתגרים`);
-  }, [achievements, award, challenges, loading]);
+    const reportCompletedChallenges = async () => {
+      const achievementReports = achievements.filter((achievement) => achievement.unlocked).map((achievement) => reportActivity({
+        eventType: "achievement_unlocked",
+        source: "challenges",
+        idempotencyKey: `challenge-achievement:${achievement.id}`,
+        referenceId: achievement.id,
+        metadata: { title: achievement.title },
+        label: achievement.title,
+        rewardSource: "challenge",
+      }));
+      const challengeReports = challenges.filter((challenge) => challenge.current >= challenge.target).map((challenge) => {
+        const period = challenge.type === "weekly" ? weekKey : dayKey;
+        return reportActivity({
+          eventType: "challenge_completed",
+          source: "challenges",
+          idempotencyKey: `challenge:${challenge.id}:${period}`,
+          referenceId: challenge.id,
+          metadata: { title: challenge.title, period, challengeType: challenge.type, target: challenge.target },
+          label: challenge.title,
+          rewardSource: "challenge",
+        });
+      });
+      const results = await Promise.all([...achievementReports, ...challengeReports]);
+      const earned = results.reduce((sum, result) => sum + result.awardedPoints, 0);
+      if (earned > 0) toast.success(`הרווחת ${earned} דקות פתיחה מהאתגרים`);
+    };
+    void reportCompletedChallenges();
+  }, [achievements, challenges, loading, reportActivity]);
 
   const unlockedCount = achievements.filter(a => a.unlocked).length;
   const completedChallenges = challenges.filter(c => c.current >= c.target).length;

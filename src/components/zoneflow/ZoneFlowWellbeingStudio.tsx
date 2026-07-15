@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useActivityEvents } from "@/hooks/useActivityEvents";
 import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { applyBlockingPolicy, getBlockingAuthorization, getBlockingPlatform, requestBlockingAuthorization, stopBlockingPolicy, temporarilyAllowBlockedItem, type BlockingAuthorization } from "@/lib/appBlocking";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
@@ -60,7 +61,8 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const permissionCopy = PERMISSION_COPY[lang] ?? PERMISSION_COPY.en;
   const blockerCopy = BLOCKER_COPY[lang] ?? BLOCKER_COPY.en;
   const unlockCopy = UNLOCK_COPY[lang] ?? UNLOCK_COPY.en;
-  const { balance, award, spend, events } = useZoneFlowRewards();
+  const { balance, events } = useZoneFlowRewards();
+  const { reportActivity, spendRewardPoints } = useActivityEvents();
   const [devices, setDevices] = useState<Device[]>(() => safeLocalStorage.getJSON("zoneflow-wellbeing-devices", [
     { id: "computer", kind: "computer", name: copy.computer, minutes: 0, connected: true },
     { id: "iphone", kind: "iphone", name: copy.iphone, minutes: 0, connected: false },
@@ -119,11 +121,18 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
       if (startedAt) {
         const elapsedMinutes = Math.max(0, Math.floor((Date.now() - startedAt) / 60_000));
         if (elapsedMinutes >= 1) {
-          const earned = Math.max(1, Math.round(elapsedMinutes / 3));
           const eventId = `focus:wellbeing:${new Date(startedAt).toISOString()}`;
-          if (award(eventId, "focus", earned, `Digital Wellbeing · ${elapsedMinutes} min`)) {
-            toast.success(`הרווחת ${earned} דקות פתיחה`);
-          }
+          const reward = await reportActivity({
+            eventType: "wellbeing_session_completed",
+            source: "digital_wellbeing",
+            idempotencyKey: eventId,
+            occurredAt: new Date(startedAt).toISOString(),
+            durationMinutes: elapsedMinutes,
+            metadata: { blockedItems: blockedApps.map((item) => item.name) },
+            label: `Digital Wellbeing · ${elapsedMinutes} min`,
+            rewardSource: "focus",
+          });
+          if (reward.awardedPoints > 0) toast.success(`הרווחת ${reward.awardedPoints} דקות פתיחה`);
           if (blockedApps.length > 0) {
             const perItem = elapsedMinutes / blockedApps.length;
             setBlockedApps((items) => items.map((item) => ({ ...item, minutesSaved: Math.round((item.minutesSaved + perItem) * 10) / 10 })));
@@ -164,7 +173,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
         ? { websiteHost: app.name, minutes: unlockMinutes }
         : { appId: app.name, minutes: unlockMinutes });
       const id = `unlock:${app.id}:${Date.now()}`;
-      if (spend(id, unlockMinutes, `${app.name} · ${unlockMinutes} min`)) toast.success(unlockCopy.opened);
+      if (await spendRewardPoints({ idempotencyKey: id, points: unlockMinutes, reason: `${app.name} · ${unlockMinutes} min`, metadata: { blockedItemId: app.id, blockedItemName: app.name } })) toast.success(unlockCopy.opened);
     } catch { toast.error(unlockCopy.native); }
   };
 

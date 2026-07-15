@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useActivityEvents } from "@/hooks/useActivityEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
-import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { supabase } from "@/integrations/supabase/client";
 import { mergeCatalogBooks, searchGoogleBooks, searchInternetArchiveBooks, searchOpenLibraryBooks, searchProjectGutenbergBooks, type CatalogBook } from "@/lib/bookCatalog";
 
@@ -69,7 +69,7 @@ const COPY = {
 export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook[]; onBack: () => void }) {
   const { lang, dir } = useLanguage();
   const { user } = useAuth();
-  const { award } = useZoneFlowRewards();
+  const { reportActivity } = useActivityEvents();
   const copy = COPY[lang as keyof typeof COPY] ?? COPY.en;
   const [joined, setJoined] = useState(false);
   const [goal, setGoal] = useState(1000);
@@ -238,9 +238,17 @@ export function BookCompetitionPage({ readBooks, onBack }: { readBooks: ReadBook
     setSaving(false);
     if (error) return toast.error(error.message);
     const completionId = typeof data === "string" ? data : `${user.id}:${title.trim()}:${new Date().toISOString().slice(0, 10)}`;
-    const earned = Math.max(10, Math.min(60, Math.ceil(pages / 10)));
-    award(`book:${completionId}`, "book", earned, `${title.trim()} · ${pages} pages`);
-    toast.success(`הספר נוסף והרווחת ${earned} דקות פתיחה`);
+    const reward = await reportActivity({
+      eventType: "book_completed",
+      source: "books",
+      idempotencyKey: `book:${completionId}`,
+      referenceId: completionId,
+      amount: pages,
+      metadata: { title: title.trim(), author: author.trim() || null, languageCode },
+      label: `${title.trim()} · ${pages} pages`,
+      rewardSource: "book",
+    });
+    toast.success(reward.awardedPoints > 0 ? `הספר נוסף והרווחת ${reward.awardedPoints} דקות פתיחה` : "הספר נוסף בהצלחה");
     setTitle(""); setAuthor(""); setPages(0); setSummary(""); setSelectedBookId(""); setShareSummary(false); setAddToCatalog(false);
     void loadCompetition();
   };

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useActivityEvents } from "@/hooks/useActivityEvents";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { supabase } from "@/integrations/supabase/client";
@@ -97,7 +98,8 @@ const makeInviteCode = () => `TABRO-${crypto.randomUUID().slice(0, 6).toUpperCas
 export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const { lang, dir } = useLanguage();
   const { user } = useAuth();
-  const { balance, award } = useZoneFlowRewards();
+  const { balance } = useZoneFlowRewards();
+  const { reportActivity } = useActivityEvents();
   const copy = COPY[lang] ?? COPY.en;
   const roomCopy = ROOM_COPY[lang] ?? ROOM_COPY.en;
   const [tab, setTab] = useState<TogetherTab>("rooms");
@@ -258,12 +260,20 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       }
       rewardEventId = data.id;
     }
-    const earned = Math.max(1, Math.round(sessionDuration / 3));
-    if (award(`focus:together:${rewardEventId}`, "focus", earned, `${selectedRoom?.name || "Focus room"} · ${sessionDuration} min`)) {
-      toast.success(`הרווחת ${earned} דקות פתיחה`);
-    }
+    const reward = await reportActivity({
+      eventType: "focus_session_completed",
+      source: "zoneflow_together",
+      idempotencyKey: `focus:together:${rewardEventId}`,
+      referenceId: rewardEventId,
+      occurredAt: startedAt,
+      durationMinutes: sessionDuration,
+      metadata: { roomId: selectedRoom?.id || null, roomName: selectedRoom?.name || "Focus room", scene: selectedRoom?.scene || "library" },
+      label: `${selectedRoom?.name || "Focus room"} · ${sessionDuration} min`,
+      rewardSource: "focus",
+    });
+    if (reward.awardedPoints > 0) toast.success(`הרווחת ${reward.awardedPoints} דקות פתיחה`);
     try { await stopBlockingPolicy(); } catch { /* Web sessions have no native policy to stop. */ }
-  }, [award, selectedRoom, sessionDuration, user]);
+  }, [reportActivity, selectedRoom, sessionDuration, user]);
 
   useEffect(() => {
     if (!focusActive) return;
