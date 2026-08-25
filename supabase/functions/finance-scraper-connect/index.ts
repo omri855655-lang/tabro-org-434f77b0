@@ -20,6 +20,7 @@ const providers = {
   visaCal: { name: "Visa Cal", fields: ["username", "password"] },
   isracard: { name: "Isracard", fields: ["id", "card6Digits", "password"] },
   amex: { name: "American Express", fields: ["id", "card6Digits", "password"] },
+  union: { name: "Union Bank", fields: ["username", "password"] },
   beyahadBishvilha: { name: "Beyahad Bishvilha", fields: ["id", "password"] },
   behatsdaa: { name: "Behatsdaa", fields: ["id", "password"] },
 } as const;

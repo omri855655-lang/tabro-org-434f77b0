@@ -17,3 +17,9 @@ Build the included Dockerfile on a service that supports long-running HTTP reque
 The service exposes `GET /health`, `POST /sync`, and `POST /sync-due`. Protect both POST routes with the `x-worker-secret` header. For automatic updates without a home computer, configure the hosting platform's scheduler to call `POST /sync-due` every hour. Each connection is synced only when its interval is due (six hours by default).
 
 The worker does not initiate payments. It signs into supported institutions with credentials supplied by the user and stores those credentials encrypted at rest. This is scraper-based access, not regulated Open Banking consent.
+
+## Supported institutions
+
+The Edge Function exposes the banks, card companies, and clubs supported by the installed `israeli-bank-scrapers` release, including Hapoalim, Leumi, Mizrahi, Discount, Mercantile, Otsar Hahayal, Beinleumi, Massad, Yahav, Pagi, Union, MAX, Visa Cal, Isracard, Amex, Beyahad Bishvilha, and Behatsdaa.
+
+One Zero is intentionally not exposed by the regular credentials form. Its scraper requires an interactive SMS OTP exchange before a long-term token can be issued. Add it only through a dedicated two-step endpoint that encrypts the resulting long-term token; never ask users to reverse-engineer or paste browser session data.
