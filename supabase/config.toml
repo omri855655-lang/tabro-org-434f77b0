@@ -39,6 +39,8 @@ project_id = "isnhgyycowmnlxtmbmwm"
     verify_jwt = false
   [functions.finance-local-connector]
     verify_jwt = false
+  [functions.finance-scraper-connect]
+    verify_jwt = false
   [functions.handle-email-unsubscribe]
     verify_jwt = false
   [functions.handle-email-suppression]

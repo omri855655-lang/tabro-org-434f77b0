@@ -1,0 +1,177 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const providers = {
+  hapoalim: { name: "Bank Hapoalim", fields: ["userCode", "password"] },
+  leumi: { name: "Bank Leumi", fields: ["username", "password"] },
+  mizrahi: { name: "Mizrahi-Tefahot", fields: ["username", "password"] },
+  discount: { name: "Discount Bank", fields: ["id", "password", "num"] },
+  mercantile: { name: "Mercantile", fields: ["id", "password", "num"] },
+  otsarHahayal: { name: "Otsar Hahayal", fields: ["username", "password"] },
+  beinleumi: { name: "First International Bank", fields: ["username", "password"] },
+  massad: { name: "Massad", fields: ["username", "password"] },
+  yahav: { name: "Bank Yahav", fields: ["username", "nationalID", "password"] },
+  pagi: { name: "Pagi", fields: ["username", "password"] },
+  max: { name: "MAX", fields: ["username", "password"] },
+  visaCal: { name: "Visa Cal", fields: ["username", "password"] },
+  isracard: { name: "Isracard", fields: ["id", "card6Digits", "password"] },
+  amex: { name: "American Express", fields: ["id", "card6Digits", "password"] },
+  beyahadBishvilha: { name: "Beyahad Bishvilha", fields: ["id", "password"] },
+  behatsdaa: { name: "Behatsdaa", fields: ["id", "password"] },
+} as const;
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function env(name: string) {
+  const value = Deno.env.get(name);
+  if (!value) throw new Error(`${name} is not configured`);
+  return value;
+}
+
+function clean(value: unknown, max = 240) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+async function callWorker(payload: Record<string, unknown>) {
+  const response = await fetch(`${env("FINANCE_WORKER_URL").replace(/\/$/, "")}/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-worker-secret": env("FINANCE_WORKER_SECRET"),
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(180_000),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Finance worker returned HTTP ${response.status}`);
+  return body;
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const authHeader = request.headers.get("Authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (!token) return json({ error: "Authentication required" }, 401);
+
+    const supabaseUrl = env("SUPABASE_URL");
+    const authClient = createClient(supabaseUrl, env("SUPABASE_ANON_KEY"), {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token);
+    if (userError || !user) return json({ error: "Invalid session" }, 401);
+
+    const service = createClient(supabaseUrl, env("SUPABASE_SERVICE_ROLE_KEY"));
+    const body = await request.json().catch(() => ({}));
+    const action = clean(body.action, 40);
+
+    if (action === "providers") {
+      return json({ providers });
+    }
+
+    if (action === "list") {
+      const { data: connections, error } = await service.from("bank_connections")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("integration_provider", "cloud_scraper")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      const connectionIds = (connections || []).map((item) => item.id);
+      const accounts = connectionIds.length
+        ? (await service.from("financial_accounts").select("*").eq("user_id", user.id).in("connection_id", connectionIds)).data || []
+        : [];
+      return json({ connections: connections || [], accounts });
+    }
+
+    if (action === "connect") {
+      const companyId = clean(body.companyId, 50) as keyof typeof providers;
+      const provider = providers[companyId];
+      if (!provider) return json({ error: "Unsupported financial institution" }, 400);
+
+      const submitted = body.credentials && typeof body.credentials === "object"
+        ? body.credentials as Record<string, unknown>
+        : {};
+      const credentials: Record<string, string> = {};
+      for (const field of provider.fields) {
+        const value = clean(submitted[field], 180);
+        if (!value) return json({ error: `Missing credential field: ${field}` }, 400);
+        credentials[field] = value;
+      }
+
+      const externalId = `${companyId}:${crypto.randomUUID()}`;
+      const { data: connection, error } = await service.from("bank_connections").insert({
+        user_id: user.id,
+        integration_provider: "cloud_scraper",
+        external_connection_id: externalId,
+        provider_name: provider.name,
+        status: "syncing",
+        metadata: {
+          company_id: companyId,
+          read_only_behavior: true,
+          hosted_worker: true,
+          sync_interval_minutes: 360,
+        },
+      }).select("*").single();
+      if (error) throw error;
+
+      try {
+        const result = await callWorker({
+          userId: user.id,
+          connectionId: connection.id,
+          companyId,
+          credentials,
+        });
+        return json({ success: true, connection, ...result });
+      } catch (error) {
+        await service.from("bank_connections").update({
+          status: "error",
+          last_error: (error as Error).message.slice(0, 500),
+        }).eq("id", connection.id).eq("user_id", user.id);
+        throw error;
+      }
+    }
+
+    if (action === "sync") {
+      const connectionId = clean(body.connectionId, 80);
+      const { data: connection, error } = await service.from("bank_connections")
+        .select("*")
+        .eq("id", connectionId)
+        .eq("user_id", user.id)
+        .eq("integration_provider", "cloud_scraper")
+        .single();
+      if (error || !connection) return json({ error: "Connection not found" }, 404);
+      const companyId = clean(connection.metadata?.company_id, 50);
+      if (!companyId) return json({ error: "Connection provider is missing" }, 409);
+      await service.from("bank_connections").update({ status: "syncing", last_error: null }).eq("id", connection.id);
+      return json(await callWorker({ userId: user.id, connectionId: connection.id, companyId }));
+    }
+
+    if (action === "delete") {
+      const connectionId = clean(body.connectionId, 80);
+      const { error } = await service.from("bank_connections").delete()
+        .eq("id", connectionId)
+        .eq("user_id", user.id)
+        .eq("integration_provider", "cloud_scraper");
+      if (error) throw error;
+      return json({ success: true });
+    }
+
+    return json({ error: "Unknown action" }, 400);
+  } catch (error) {
+    console.error("finance-scraper-connect", error);
+    const message = (error as Error).message || "Finance connection failed";
+    const configurationError = message.includes("FINANCE_WORKER_");
+    return json({ error: message }, configurationError ? 503 : 500);
+  }
+});

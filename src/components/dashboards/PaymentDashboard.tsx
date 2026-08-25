@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import BankConnect from "@/components/dashboards/BankConnect";
+import { CloudFinanceConnector } from "@/components/dashboards/CloudFinanceConnector";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
@@ -998,6 +999,9 @@ ${context}
         </TabsContent>
 
         <TabsContent value="credit-cards" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <CloudFinanceConnector onChanged={fetchFinanceData} />
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <BankConnect onChanged={fetchFinanceData} />
             <CreditCardConnect onChanged={fetchFinanceData} />
