@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Clipboard, Download, Laptop, Loader2, RefreshCw, ShieldCheck, Trash2, Wifi, WifiOff } from "lucide-react";
+import { Check, Clipboard, Download, KeyRound, Laptop, Loader2, RefreshCw, ShieldCheck, Terminal, Trash2, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface ConnectorDevice {
@@ -48,8 +48,8 @@ const copy = {
     download: "הורד את המחבר",
     pair: "צור קוד צימוד",
     setupTitle: "התקנת המחבר",
-    setupDescription: "הקוד מוצג פעם אחת. אין לשלוח אותו לאדם אחר.",
-    copy: "העתק פקודת התקנה",
+    setupDescription: "הפקודה מוצגת פעם אחת ומחברת את המחשב לחשבון שלך. אין לשלוח אותה לאדם אחר.",
+    copy: "העתק התקנה אוטומטית למק",
     copied: "הועתק",
     waiting: "ממתין לחיבור מהמחשב",
     noDevices: "עדיין לא חובר מחשב. לאחר ההתקנה ניתן לבחור מקורות ולהפעיל סנכרון מחזורי.",
@@ -57,6 +57,11 @@ const copy = {
     lastSync: "סנכרון אחרון",
     never: "טרם סונכרן",
     supported: "מקורות שהמחבר מכיר",
+    stepOne: "פתח את Terminal במק",
+    stepTwo: "הדבק את הפקודה ולחץ Enter",
+    stepThree: "בחר בנק, אשראי או מועדון והזן את פרטי הכניסה בחלון המקומי",
+    stepFour: "המחבר יפעל ברקע ויסנכרן אוטומטית לפי התדירות שבחרת",
+    localCredentials: "Tabro לא מקבל את הסיסמה. היא נשמרת בכספת הסיסמאות של macOS.",
   },
   en: {
     title: "Tabro Finance Connector",
@@ -69,8 +74,8 @@ const copy = {
     download: "Download connector",
     pair: "Create pairing code",
     setupTitle: "Install the connector",
-    setupDescription: "This code is shown once. Do not share it with anyone.",
-    copy: "Copy setup command",
+    setupDescription: "This one-time command pairs this computer with your account. Do not share it.",
+    copy: "Copy automatic Mac install",
     copied: "Copied",
     waiting: "Waiting for this computer",
     noDevices: "No computer is connected yet. Install the connector, choose sources and enable scheduled sync.",
@@ -78,6 +83,11 @@ const copy = {
     lastSync: "Last sync",
     never: "Not synced yet",
     supported: "Supported connector sources",
+    stepOne: "Open Terminal on your Mac",
+    stepTwo: "Paste the command and press Enter",
+    stepThree: "Choose a bank, card or club and enter the login details locally",
+    stepFour: "The connector runs in the background and syncs automatically",
+    localCredentials: "Tabro never receives the password. It is stored in the macOS credential vault.",
   },
 };
 
@@ -114,7 +124,20 @@ export function LocalFinanceConnector({ onChanged }: { onChanged?: () => void | 
 
   const setupCommand = useMemo(() => {
     if (!pairingToken) return "";
-    return `npm run setup -- --url ${SUPABASE_URL} --key ${SUPABASE_PUBLISHABLE_KEY} --token ${pairingToken}`;
+    const archiveUrl = `${window.location.origin}/downloads/tabro-finance-connector.zip`;
+    const installDir = "$HOME/Tabro-Finance-Connector";
+    return [
+      "set -e",
+      `mkdir -p "${installDir}"`,
+      `curl -fsSL "${archiveUrl}" -o /tmp/tabro-finance-connector.zip`,
+      `unzip -oq /tmp/tabro-finance-connector.zip -d "${installDir}"`,
+      `cd "${installDir}"`,
+      "npm install",
+      `npm run setup -- --url "${SUPABASE_URL}" --key "${SUPABASE_PUBLISHABLE_KEY}" --token "${pairingToken}"`,
+      "npm run add-source",
+      "npm run sync",
+      "npm run install-service",
+    ].join(" && ");
   }, [pairingToken]);
 
   const createPairing = async () => {
@@ -242,13 +265,27 @@ export function LocalFinanceConnector({ onChanged }: { onChanged?: () => void | 
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>{labels.setupTitle}</DialogTitle><DialogDescription>{labels.setupDescription}</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <Button asChild variant="outline" className="w-full gap-2"><a href="/downloads/tabro-finance-connector.zip" download><Download className="h-4 w-4" />{labels.download}</a></Button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[labels.stepOne, labels.stepTwo, labels.stepThree, labels.stepFour].map((step, index) => (
+                <div key={step} className="flex gap-3 rounded-xl border bg-muted/25 p-3 text-sm">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</span>
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+            <Alert className="border-sky-200 bg-sky-50/60 dark:border-sky-900 dark:bg-sky-950/20">
+              <KeyRound className="h-4 w-4 text-sky-600" />
+              <AlertDescription>{labels.localCredentials}</AlertDescription>
+            </Alert>
             <div className="space-y-2">
-              <Label>{lang === "he" ? "לאחר חילוץ הקובץ והרצת npm install:" : "After extracting the ZIP and running npm install:"}</Label>
-              <div dir="ltr" className="rounded-xl border bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-100 break-all">{setupCommand}</div>
+              <Label className="flex items-center gap-2"><Terminal className="h-4 w-4" />{lang === "he" ? "פקודת התקנה מלאה:" : "Complete installation command:"}</Label>
+              <div dir="ltr" className="max-h-28 overflow-auto rounded-xl border bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-100 break-all">{setupCommand}</div>
               <Button onClick={copyCommand} className="w-full gap-2">{copied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{copied ? labels.copied : labels.copy}</Button>
             </div>
-            <p className="text-xs text-muted-foreground">{lang === "he" ? "לאחר הצימוד הרץ npm run add-source, בחר בנק או מועדון, ולאחר מכן npm run daemon לסנכרון אוטומטי." : "After pairing, run npm run add-source, choose a bank or club, then run npm run daemon for scheduled sync."}</p>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed p-3">
+              <p className="text-xs text-muted-foreground">{lang === "he" ? "להתקנה ידנית או במערכת אחרת אפשר להוריד את קובצי המחבר." : "For manual installation or another OS, download the connector files."}</p>
+              <Button asChild size="sm" variant="outline" className="shrink-0 gap-2"><a href="/downloads/tabro-finance-connector.zip" download><Download className="h-4 w-4" />{labels.download}</a></Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
