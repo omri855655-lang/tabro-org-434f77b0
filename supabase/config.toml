@@ -35,6 +35,8 @@ project_id = "isnhgyycowmnlxtmbmwm"
     verify_jwt = false
   [functions.open-finance-connect]
     verify_jwt = true
+  [functions.finance-local-connector]
+    verify_jwt = false
   [functions.handle-email-unsubscribe]
     verify_jwt = false
   [functions.handle-email-suppression]

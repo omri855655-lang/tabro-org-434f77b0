@@ -1,0 +1,20 @@
+{
+  "name": "tabro-finance-connector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.22.2" },
+  "scripts": {
+    "setup": "node src/index.mjs setup",
+    "add-source": "node src/index.mjs add-source",
+    "list": "node src/index.mjs list",
+    "sync": "node src/index.mjs sync",
+    "daemon": "node src/index.mjs daemon",
+    "remove-source": "node src/index.mjs remove-source",
+    "install-service": "node src/install-service.mjs"
+  },
+  "dependencies": {
+    "israeli-bank-scrapers": "^6.7.4",
+    "keytar": "^7.9.0"
+  }
+}
