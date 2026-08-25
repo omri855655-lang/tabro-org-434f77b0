@@ -51,13 +51,13 @@ function getSecureConnectionErrorMessage(
   }
 
   if (
-    normalized.includes("salt_edge_app_id") ||
-    normalized.includes("salt_edge_secret") ||
+    normalized.includes("open_finance_client_id") ||
+    normalized.includes("open_finance_client_secret") ||
     normalized.includes("not configured on the server")
   ) {
     return isHe
-      ? "החיבור המאובטח לאשראי עדיין לא מוגדר בשרת. צריך להגדיר מפתחות Salt Edge."
-      : "The secure card connection is not configured on the server yet. Salt Edge credentials are missing.";
+      ? "חיבור Open Finance עדיין לא מוגדר בשרת. צריך להגדיר את מפתחות הארגון המאובטחים."
+      : "Open Finance is not configured on the server yet. Secure organization credentials are missing.";
   }
 
   if (normalized.includes("unauthorized")) {
@@ -115,14 +115,14 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       if (SUPABASE_FUNCTIONS_ORIGIN && event.origin !== SUPABASE_FUNCTIONS_ORIGIN) return;
-      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "bank") return;
+      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "open-finance") return;
 
       if (event.data?.type === "bank-connected") {
         await onChanged?.();
         toast.success(
           isHe
-            ? `החיבור המאובטח הופעל. המקור יופיע באזור Open Banking${event.data?.providerName ? `: ${event.data.providerName}` : ""}`
-            : `Secure read-only connection enabled. It now appears under Open Banking${event.data?.providerName ? `: ${event.data.providerName}` : ""}`,
+            ? "החיבור המאובטח הופעל ויופיע באזור Open Finance."
+            : "The secure connection is active and will appear under Open Finance.",
         );
       }
 
@@ -139,8 +139,8 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
     setSecureConnecting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("salt-edge-connect", {
-        body: { action: "create_connect_session", origin: window.location.origin },
+      const { data, error } = await supabase.functions.invoke("open-finance-connect", {
+        body: { action: "create_connect_session", origin: window.location.origin, language: lang === "en" ? "en" : "he" },
       });
 
       if (error || !data?.connect_url) {
@@ -278,8 +278,8 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
           <AlertTitle>{isHe ? "מה זמין עכשיו" : "Available now"}</AlertTitle>
           <AlertDescription>
             {isHe
-              ? "כרטיסים ישראליים נתמכים בייבוא CSV / Excel. כרטיסים עולמיים יכולים להגיע דרך Open Banking למעלה או דרך פירוט קובץ. הסוכן שומר כאן רק הוצאות, כדי לעזור לך לחסוך."
-              : "Israeli cards are supported through CSV / Excel import. Global cards can come through the Open Banking connection above or through statement files. Only expense rows are kept here for savings analysis."}
+              ? "כרטיסים נתמכים יכולים להגיע דרך Open Finance למעלה. אפשר להמשיך להשתמש גם בייבוא CSV / Excel כשספק אינו זמין בחיבור הישיר."
+              : "Supported cards can sync through Open Finance above. CSV / Excel import remains available when a provider is not supported directly."}
           </AlertDescription>
         </Alert>
 
@@ -303,8 +303,8 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
 
           <p className="text-xs text-muted-foreground">
             {isHe
-              ? "אחרי החיבור, המקור יופיע ברשימת Open Banking למעלה וייסונכרנו ממנו רק הוצאות."
-              : "After connection, the source appears in the Open Banking list above and only expense transactions are synced."}
+                ? "אחרי החיבור, המקור יופיע ברשימת Open Finance למעלה ויסונכרנו ממנו הכנסות והוצאות זמינות."
+                : "After connection, the source appears in the Open Finance list above and available income and expenses are synced."}
           </p>
         </div>
 

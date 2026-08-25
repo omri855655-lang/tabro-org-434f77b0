@@ -70,9 +70,16 @@ export type Database = {
       }
       bank_connections: {
         Row: {
+          callback_state_hash: string | null
+          consent_expires_at: string | null
           created_at: string
+          external_connection_id: string | null
+          external_user_id: string | null
           id: string
+          integration_provider: string
+          last_error: string | null
           last_sync: string | null
+          metadata: Json
           provider_name: string | null
           salt_edge_connection_id: string | null
           salt_edge_customer_id: string | null
@@ -81,9 +88,16 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          callback_state_hash?: string | null
+          consent_expires_at?: string | null
           created_at?: string
+          external_connection_id?: string | null
+          external_user_id?: string | null
           id?: string
+          integration_provider?: string
+          last_error?: string | null
           last_sync?: string | null
+          metadata?: Json
           provider_name?: string | null
           salt_edge_connection_id?: string | null
           salt_edge_customer_id?: string | null
@@ -92,9 +106,16 @@ export type Database = {
           user_id: string
         }
         Update: {
+          callback_state_hash?: string | null
+          consent_expires_at?: string | null
           created_at?: string
+          external_connection_id?: string | null
+          external_user_id?: string | null
           id?: string
+          integration_provider?: string
+          last_error?: string | null
           last_sync?: string | null
+          metadata?: Json
           provider_name?: string | null
           salt_edge_connection_id?: string | null
           salt_edge_customer_id?: string | null
@@ -795,6 +816,74 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_accounts: {
+        Row: {
+          account_type: string
+          available_balance: number | null
+          balance_type: string | null
+          connection_id: string
+          created_at: string
+          currency: string
+          current_balance: number | null
+          display_name: string | null
+          external_account_id: string
+          id: string
+          last_synced_at: string
+          masked_number: string | null
+          provider_id: string | null
+          provider_name: string | null
+          raw_data: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type?: string
+          available_balance?: number | null
+          balance_type?: string | null
+          connection_id: string
+          created_at?: string
+          currency?: string
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id: string
+          id?: string
+          last_synced_at?: string
+          masked_number?: string | null
+          provider_id?: string | null
+          provider_name?: string | null
+          raw_data?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string
+          available_balance?: number | null
+          balance_type?: string | null
+          connection_id?: string
+          created_at?: string
+          currency?: string
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id?: string
+          id?: string
+          last_synced_at?: string
+          masked_number?: string | null
+          provider_id?: string | null
+          provider_name?: string | null
+          raw_data?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_accounts_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_connections"
             referencedColumns: ["id"]
           },
         ]
