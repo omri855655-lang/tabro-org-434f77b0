@@ -8,6 +8,13 @@ const corsH = {
 const SALT_EDGE_BASE = "https://www.saltedge.com/api/v5";
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsH, "Content-Type": "application/json" },
+  });
+}
+
 function requireEnv(name: string) {
   const value = Deno.env.get(name);
   if (!value) {
@@ -118,6 +125,86 @@ function buildFinancialTransactionRow(userId: string, connectionId: string, prov
   };
 }
 
+function accountType(account: Record<string, any>) {
+  const value = String(account.nature || account.type || "account").toLowerCase();
+  if (value.includes("card")) return "CARD";
+  if (value.includes("loan") || value.includes("credit")) return "LOAN";
+  if (value.includes("saving") || value.includes("deposit")) return "SAVINGS";
+  if (value.includes("investment") || value.includes("security")) return "SECURITIES";
+  return "CHECKING";
+}
+
+function buildFinancialAccountRow(userId: string, connectionId: string, providerName: string | null, account: Record<string, any>) {
+  const number = String(account.extra?.masked_pan || account.extra?.account_number || account.extra?.iban || account.number || "");
+  return {
+    user_id: userId,
+    connection_id: connectionId,
+    external_account_id: String(account.id),
+    provider_id: account.connection_id ? String(account.connection_id) : null,
+    provider_name: providerName || "Salt Edge",
+    account_type: accountType(account),
+    display_name: account.name || account.extra?.account_name || providerName || "Financial account",
+    masked_number: number ? `•••• ${number.replace(/\s/g, "").slice(-4)}` : null,
+    currency: account.currency_code || "ILS",
+    current_balance: Number(account.balance || 0),
+    available_balance: account.extra?.available_amount == null ? null : Number(account.extra.available_amount),
+    balance_type: "current",
+    raw_data: account,
+    last_synced_at: new Date().toISOString(),
+  };
+}
+
+async function syncConnection(serviceClient: any, userId: string, connection: Record<string, any>) {
+  const remoteId = connection.salt_edge_connection_id || connection.external_connection_id;
+  if (!remoteId) throw new Error("Connection is not active");
+  const fromDate = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+  const [accountResult, transactionResult] = await Promise.all([
+    saltEdgeRequest(`/accounts?connection_id=${encodeURIComponent(remoteId)}`, "GET"),
+    saltEdgeRequest(`/transactions?connection_id=${encodeURIComponent(remoteId)}&from_date=${fromDate}`, "GET"),
+  ]);
+
+  const accounts = Array.isArray(accountResult.data) ? accountResult.data : [];
+  const accountRows = accounts.map((account: Record<string, any>) =>
+    buildFinancialAccountRow(userId, connection.id, connection.provider_name, account)
+  );
+  if (accountRows.length > 0) {
+    const { error } = await serviceClient.from("financial_accounts")
+      .upsert(accountRows, { onConflict: "user_id,connection_id,external_account_id" });
+    if (error) throw error;
+  }
+
+  const transactions = Array.isArray(transactionResult.data) ? transactionResult.data : [];
+  const transactionRows = transactions
+    .map((transaction: Record<string, any>) => buildFinancialTransactionRow(userId, connection.id, connection.provider_name, transaction))
+    .filter((row: Record<string, any>) => row.amount > 0);
+  let inserted = 0;
+  for (let index = 0; index < transactionRows.length; index += 200) {
+    const batch = transactionRows.slice(index, index + 200);
+    const externalIds = batch.map((row: Record<string, any>) => row.external_transaction_id);
+    const { data: existing, error: existingError } = await serviceClient.from("financial_transactions")
+      .select("external_transaction_id")
+      .eq("user_id", userId)
+      .eq("source_type", "bank_open_banking")
+      .eq("source_connection_id", connection.id)
+      .in("external_transaction_id", externalIds);
+    if (existingError) throw existingError;
+    const existingIds = new Set((existing || []).map((row: Record<string, any>) => row.external_transaction_id));
+    const newRows = batch.filter((row: Record<string, any>) => !existingIds.has(row.external_transaction_id));
+    if (newRows.length > 0) {
+      const { error } = await serviceClient.from("financial_transactions").insert(newRows);
+      if (error) throw error;
+      inserted += newRows.length;
+    }
+  }
+
+  await serviceClient.from("bank_connections").update({
+    status: "active",
+    last_sync: new Date().toISOString(),
+    last_error: null,
+  }).eq("id", connection.id).eq("user_id", userId);
+  return { accounts: accountRows.length, transactions: inserted };
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const urlAction = url.searchParams.get("action");
@@ -125,7 +212,7 @@ Deno.serve(async (req) => {
   // Handle GET callback from Salt Edge (user returns after connecting)
   if (req.method === "GET" && urlAction === "callback") {
     const connectionId = url.searchParams.get("connection_id");
-    const customerId = url.searchParams.get("customer_id");
+    const pendingId = url.searchParams.get("pending_id");
     const origin = url.searchParams.get("origin");
 
     const serviceClient = createClient(
@@ -133,62 +220,60 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    if (connectionId && customerId) {
-      // Fetch connection details from Salt Edge
-      let providerName = "Bank";
+    if (connectionId && pendingId) {
       try {
         const connResult = await saltEdgeRequest(`/connections/${connectionId}`, "GET");
-        if (connResult.data?.provider_name) {
-          providerName = connResult.data.provider_name;
+        const remoteConnection = connResult.data || {};
+        const customerId = String(remoteConnection.customer_id || "");
+        const providerName = remoteConnection.provider_name || "Bank";
+        const { data: pending, error: pendingError } = await serviceClient
+          .from("bank_connections")
+          .select("id,user_id,salt_edge_customer_id")
+          .eq("id", pendingId)
+          .eq("integration_provider", "salt_edge")
+          .eq("status", "pending")
+          .single();
+
+        if (pendingError || !pending || !customerId || pending.salt_edge_customer_id !== customerId) {
+          throw new Error("The returned bank connection could not be matched securely");
         }
-      } catch (e) {
-        console.error("Failed to fetch connection details:", e);
-      }
 
-      // Update the pending bank_connection record
-      const { error } = await serviceClient
-        .from("bank_connections")
-        .update({
-          salt_edge_connection_id: connectionId,
-          provider_name: providerName,
-          status: "active",
-          last_sync: new Date().toISOString(),
-        })
-        .eq("salt_edge_customer_id", customerId)
-        .eq("status", "pending");
+        const { data: savedConnection, error: updateError } = await serviceClient
+          .from("bank_connections")
+          .update({
+            salt_edge_connection_id: connectionId,
+            external_connection_id: connectionId,
+            provider_name: providerName,
+            status: "active",
+            last_error: null,
+          })
+          .eq("id", pending.id)
+          .eq("user_id", pending.user_id)
+          .select("*")
+          .single();
+        if (updateError || !savedConnection) throw updateError || new Error("Failed to save connection");
 
-      if (error) {
-        // Maybe no pending row — insert a new one
-        // Find user_id from customer identifier
+        // Salt Edge may still be finishing the initial fetch. A later dashboard sync
+        // safely picks up any accounts or transactions that are not available yet.
         try {
-          const custResult = await saltEdgeRequest(`/customers/${customerId}`, "GET");
-          const identifier = custResult.data?.identifier || "";
-          const userId = identifier.replace("user_", "");
-          if (userId) {
-            await serviceClient.from("bank_connections").upsert({
-              user_id: userId,
-              salt_edge_customer_id: customerId,
-              salt_edge_connection_id: connectionId,
-              provider_name: providerName,
-              status: "active",
-              last_sync: new Date().toISOString(),
-            } as any);
-          }
-        } catch (e2) {
-          console.error("Fallback insert failed:", e2);
+          await syncConnection(serviceClient, pending.user_id, savedConnection);
+        } catch (syncError) {
+          console.warn("Initial Salt Edge sync is not ready yet:", syncError);
         }
-      }
 
-      return buildPopupResponse(
-        { source: "tabro-oauth", provider: "bank", type: "bank-connected", providerName },
-        "Connected! You can close this window.",
-        origin,
-      );
+        return buildPopupResponse(
+          { source: "tabro-oauth", provider: "salt-edge", type: "bank-connected", providerName },
+          "Connected! You can close this window.",
+          origin,
+        );
+      } catch (error) {
+        console.error("Salt Edge callback failed:", error);
+      }
     }
 
     // Error or cancelled
     return buildPopupResponse(
-      { source: "tabro-oauth", provider: "bank", type: "bank-error" },
+      { source: "tabro-oauth", provider: "salt-edge", type: "bank-error" },
       "Connection was not completed. You can close this window.",
       origin,
     );
@@ -209,7 +294,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
 
-    const { action, connectionId, origin } = await req.json();
+    const { action, connectionId, origin, language } = await req.json();
 
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -221,6 +306,7 @@ Deno.serve(async (req) => {
         .from("bank_connections")
         .select("salt_edge_customer_id")
         .eq("user_id", user.id)
+        .eq("integration_provider", "salt_edge")
         .not("salt_edge_customer_id", "is", null)
         .limit(1);
 
@@ -244,6 +330,7 @@ Deno.serve(async (req) => {
         .from("bank_connections")
         .select("salt_edge_customer_id")
         .eq("user_id", user.id)
+        .eq("integration_provider", "salt_edge")
         .not("salt_edge_customer_id", "is", null)
         .limit(1);
 
@@ -257,29 +344,47 @@ Deno.serve(async (req) => {
         customerId = custResult.data.id;
       }
 
+      const { data: pending, error: pendingError } = await serviceClient.from("bank_connections").insert({
+        user_id: user.id,
+        integration_provider: "salt_edge",
+        external_user_id: customerId,
+        salt_edge_customer_id: customerId,
+        status: "pending",
+        metadata: { readOnly: true, transport: "salt_edge_account_information" },
+      } as any).select("id").single();
+      if (pendingError || !pending) throw pendingError || new Error("Failed to prepare secure connection");
+
       const returnUrl = new URL(`${Deno.env.get("SUPABASE_URL")}/functions/v1/salt-edge-connect`);
       returnUrl.searchParams.set("action", "callback");
+      returnUrl.searchParams.set("pending_id", pending.id);
       const normalizedOrigin = normalizeOrigin(typeof origin === "string" ? origin : req.headers.get("origin"));
       if (normalizedOrigin) {
         returnUrl.searchParams.set("origin", normalizedOrigin);
       }
 
-      const result = await saltEdgeRequest("/connect_sessions/create", "POST", {
-        data: {
-          customer_id: customerId,
-          consent: { scopes: ["account_details", "transactions_details"] },
-          attempt: { return_to: returnUrl.toString() },
-        },
-      });
+      let result: Record<string, any>;
+      try {
+        result = await saltEdgeRequest("/connect_sessions/create", "POST", {
+          data: {
+            customer_id: customerId,
+            consent: { scopes: ["account_details", "transactions_details"] },
+            attempt: { return_to: returnUrl.toString() },
+            return_connection_id: true,
+            daily_refresh: true,
+            categorization: "personal",
+            locale: language === "en" ? "en" : "he",
+            custom_fields: { tabro_connection_id: pending.id },
+          },
+        });
+      } catch (error) {
+        await serviceClient.from("bank_connections").delete().eq("id", pending.id).eq("user_id", user.id);
+        throw error;
+      }
 
-      if (result.error) throw new Error(result.error.message || "Failed to create connect session");
-
-      // Save pending connection
-      await serviceClient.from("bank_connections").insert({
-        user_id: user.id,
-        salt_edge_customer_id: customerId,
-        status: "pending",
-      } as any);
+      if (!result.data?.connect_url) {
+        await serviceClient.from("bank_connections").delete().eq("id", pending.id).eq("user_id", user.id);
+        throw new Error("Salt Edge did not return a connection URL");
+      }
 
       return new Response(JSON.stringify({ success: true, connect_url: result.data.connect_url }), {
         headers: { ...corsH, "Content-Type": "application/json" },
@@ -291,90 +396,38 @@ Deno.serve(async (req) => {
         .from("bank_connections")
         .select("*")
         .eq("user_id", user.id)
+        .eq("integration_provider", "salt_edge")
         .neq("status", "pending")
         .order("created_at", { ascending: false });
 
-      return new Response(JSON.stringify({ success: true, connections: bankConns || [] }), {
+      const { data: accounts } = await serviceClient
+        .from("financial_accounts")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true });
+
+      return new Response(JSON.stringify({ success: true, connections: bankConns || [], accounts: accounts || [] }), {
         headers: { ...corsH, "Content-Type": "application/json" },
       });
     }
 
-    if (action === "refresh_connection" && connectionId) {
-      const { data: conn } = await serviceClient
-        .from("bank_connections")
-        .select("*")
-        .eq("id", connectionId)
-        .eq("user_id", user.id)
-        .single();
-
-      if (!conn || !conn.salt_edge_connection_id) {
-        return new Response(JSON.stringify({ error: "Connection not found or not active" }), { status: 404, headers: corsH });
+    if ((action === "refresh_connection" && connectionId) || action === "sync_all") {
+      const connectionQuery = action === "sync_all"
+        ? serviceClient.from("bank_connections").select("*")
+          .eq("user_id", user.id).eq("integration_provider", "salt_edge").eq("status", "active")
+        : serviceClient.from("bank_connections").select("*")
+          .eq("id", connectionId).eq("user_id", user.id).eq("integration_provider", "salt_edge");
+      const { data: connections, error: connectionError } = await connectionQuery;
+      if (connectionError) throw connectionError;
+      if (!connections?.length) return json({ error: "Connection not found or not active" }, 404);
+      let accountsCount = 0;
+      let transactionCount = 0;
+      for (const connection of connections) {
+        const result = await syncConnection(serviceClient, user.id, connection);
+        accountsCount += result.accounts;
+        transactionCount += result.transactions;
       }
-
-      // Fetch transactions
-      const txResult = await saltEdgeRequest(
-        `/transactions?connection_id=${conn.salt_edge_connection_id}&from_date=${new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)}`,
-        "GET"
-      );
-
-      let txCount = 0;
-      if (txResult.data && Array.isArray(txResult.data)) {
-        const expenseRows = txResult.data
-          .map((tx: Record<string, any>) => buildFinancialTransactionRow(user.id, conn.id, conn.provider_name, tx))
-          .filter((row: Record<string, any>) => row.direction === "expense" && row.amount > 0);
-
-        if (expenseRows.length > 0) {
-          const externalIds = expenseRows
-            .map((row: Record<string, any>) => row.external_transaction_id)
-            .filter((value: string | null) => Boolean(value));
-
-          const { data: existingRows, error: existingError } = await serviceClient
-            .from("financial_transactions")
-            .select("external_transaction_id")
-            .eq("user_id", user.id)
-            .eq("source_type", "bank_open_banking")
-            .eq("source_connection_id", conn.id)
-            .in("external_transaction_id", externalIds);
-
-          if (existingError) {
-            throw existingError;
-          }
-
-          const existingIds = new Set(
-            (existingRows || [])
-              .map((row: Record<string, any>) => row.external_transaction_id)
-              .filter((value: string | null) => Boolean(value)),
-          );
-
-          const rowsToInsert = expenseRows.filter(
-            (row: Record<string, any>) => !existingIds.has(row.external_transaction_id),
-          );
-
-          if (rowsToInsert.length > 0) {
-            const { error: insertError } = await serviceClient
-              .from("financial_transactions")
-              .insert(rowsToInsert as any);
-
-            if (insertError) {
-              throw insertError;
-            }
-          }
-
-          txCount = rowsToInsert.length;
-        }
-      }
-
-      await serviceClient.from("bank_connections").update({
-        last_sync: new Date().toISOString(),
-        status: "active",
-      }).eq("id", connectionId);
-
-      return new Response(JSON.stringify({
-        success: true,
-        transactions_count: txCount,
-      }), {
-        headers: { ...corsH, "Content-Type": "application/json" },
-      });
+      return json({ success: true, accounts_count: accountsCount, transactions_count: transactionCount });
     }
 
     if (action === "delete_connection" && connectionId) {
@@ -383,6 +436,7 @@ Deno.serve(async (req) => {
         .select("salt_edge_connection_id")
         .eq("id", connectionId)
         .eq("user_id", user.id)
+        .eq("integration_provider", "salt_edge")
         .single();
 
       if (conn?.salt_edge_connection_id) {
@@ -391,7 +445,10 @@ Deno.serve(async (req) => {
         } catch {}
       }
 
-      await serviceClient.from("bank_connections").delete().eq("id", connectionId);
+      await serviceClient.from("bank_connections").delete()
+        .eq("id", connectionId)
+        .eq("user_id", user.id)
+        .eq("integration_provider", "salt_edge");
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsH, "Content-Type": "application/json" },
@@ -406,9 +463,7 @@ Deno.serve(async (req) => {
         success: false,
         error: e instanceof Error ? e.message : "Unknown secure connection error",
       }),
-      {
-        headers: { ...corsH, "Content-Type": "application/json" },
-      },
+      { status: 500, headers: { ...corsH, "Content-Type": "application/json" } },
     );
   }
 });

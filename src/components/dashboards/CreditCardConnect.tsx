@@ -51,13 +51,13 @@ function getSecureConnectionErrorMessage(
   }
 
   if (
-    normalized.includes("open_finance_client_id") ||
-    normalized.includes("open_finance_client_secret") ||
+    normalized.includes("salt_edge_app_id") ||
+    normalized.includes("salt_edge_secret") ||
     normalized.includes("not configured on the server")
   ) {
     return isHe
-      ? "חיבור Open Finance עדיין לא מוגדר בשרת. צריך להגדיר את מפתחות הארגון המאובטחים."
-      : "Open Finance is not configured on the server yet. Secure organization credentials are missing.";
+      ? "חיבור הבנקאות הפתוחה עדיין לא מוגדר בשרת. צריך להגדיר את מפתחות Salt Edge המאובטחים."
+      : "Open Banking is not configured on the server yet. Secure Salt Edge credentials are missing.";
   }
 
   if (normalized.includes("unauthorized")) {
@@ -115,14 +115,14 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       if (SUPABASE_FUNCTIONS_ORIGIN && event.origin !== SUPABASE_FUNCTIONS_ORIGIN) return;
-      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "open-finance") return;
+      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "salt-edge") return;
 
       if (event.data?.type === "bank-connected") {
         await onChanged?.();
         toast.success(
           isHe
-            ? "החיבור המאובטח הופעל ויופיע באזור Open Finance."
-            : "The secure connection is active and will appear under Open Finance.",
+            ? "החיבור המאובטח הופעל ויופיע באזור הבנקאות הפתוחה."
+            : "The secure connection is active and will appear under Open Banking.",
         );
       }
 
@@ -139,7 +139,7 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
     setSecureConnecting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("open-finance-connect", {
+      const { data, error } = await supabase.functions.invoke("salt-edge-connect", {
         body: { action: "create_connect_session", origin: window.location.origin, language: lang === "en" ? "en" : "he" },
       });
 

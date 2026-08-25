@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,13 +38,13 @@ function getBankConnectionErrorMessage(
   }
 
   if (
-    normalized.includes("open_finance_client_id") ||
-    normalized.includes("open_finance_client_secret") ||
+    normalized.includes("salt_edge_app_id") ||
+    normalized.includes("salt_edge_secret") ||
     normalized.includes("not configured on the server")
   ) {
     return isHe
-      ? "חיבור Open Finance עדיין לא מוגדר בשרת. צריך להגדיר את מפתחות הארגון המאובטחים."
-      : "Open Finance is not configured on the server yet. Secure organization credentials are missing.";
+      ? "חיבור הבנקאות הפתוחה עדיין לא הופעל בשרת. צריך להגדיר את מפתחות Salt Edge המאובטחים."
+      : "Open Banking is not configured on the server yet. Secure Salt Edge credentials are missing.";
   }
 
   return isHe ? `שגיאת חיבור בנק: ${rawMessage}` : `Secure bank connection error: ${rawMessage}`;
@@ -58,6 +58,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const autoSyncStarted = useRef(false);
   const isHe = lang === "he" || lang === "ar";
 
   const loadConnections = useCallback(async () => {
@@ -69,7 +70,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
     }
 
     setLoading(true);
-    const { data, error } = await supabase.functions.invoke("open-finance-connect", {
+    const { data, error } = await supabase.functions.invoke("salt-edge-connect", {
       body: { action: "list_connections" },
     });
 
@@ -77,12 +78,30 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
       console.error("Failed to load bank connections:", error);
       toast.error(t("bankConnectError" as any));
     } else {
-      setConnections(data?.connections || []);
+      const nextConnections = data?.connections || [];
+      setConnections(nextConnections);
       setAccounts(data?.accounts || []);
+      const stale = nextConnections.some((connection: BankConnection) =>
+        !connection.last_sync || Date.now() - new Date(connection.last_sync).getTime() > 15 * 60 * 1000
+      );
+      if (!autoSyncStarted.current && stale) {
+        autoSyncStarted.current = true;
+        const { data: syncData, error: syncError } = await supabase.functions.invoke("salt-edge-connect", {
+          body: { action: "sync_all" },
+        });
+        if (!syncError && syncData?.success) {
+          const { data: refreshed } = await supabase.functions.invoke("salt-edge-connect", {
+            body: { action: "list_connections" },
+          });
+          setConnections(refreshed?.connections || nextConnections);
+          setAccounts(refreshed?.accounts || data?.accounts || []);
+          await onChanged?.();
+        }
+      }
     }
 
     setLoading(false);
-  }, [t, user]);
+  }, [onChanged, t, user]);
 
   useEffect(() => {
     loadConnections();
@@ -91,7 +110,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       if (SUPABASE_FUNCTIONS_ORIGIN && event.origin !== SUPABASE_FUNCTIONS_ORIGIN) return;
-      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "open-finance") return;
+      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "salt-edge") return;
 
       if (event.data?.type === "bank-connected") {
         await loadConnections();
@@ -116,7 +135,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
     setConnecting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("open-finance-connect", {
+      const { data, error } = await supabase.functions.invoke("salt-edge-connect", {
         body: { action: "create_connect_session", origin: window.location.origin, language: lang === "en" ? "en" : "he" },
       });
 
@@ -144,7 +163,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
     setBusyId(connectionId);
 
     try {
-      const { data, error } = await supabase.functions.invoke("open-finance-connect", {
+      const { data, error } = await supabase.functions.invoke("salt-edge-connect", {
         body: { action: "refresh_connection", connectionId },
       });
 
@@ -174,7 +193,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
     setBusyId(connectionId);
 
     try {
-      const { error } = await supabase.functions.invoke("open-finance-connect", {
+      const { error } = await supabase.functions.invoke("salt-edge-connect", {
         body: { action: "delete_connection", connectionId },
       });
 
@@ -201,7 +220,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
           <div className="space-y-1">
             <CardTitle className="text-sm flex items-center gap-2">
               <Landmark className="h-4 w-4" />
-              {isHe ? "Open Finance — כל התמונה הפיננסית" : "Open Finance — your financial picture"}
+              {isHe ? "בנקאות פתוחה — כל התמונה הפיננסית" : "Open Banking — your financial picture"}
             </CardTitle>
             <CardDescription>
               {isHe
@@ -209,7 +228,7 @@ const BankConnect = ({ onChanged }: BankConnectProps) => {
                 : "Secure read-only access to banks, cards, savings, loans and securities."}
             </CardDescription>
           </div>
-          <Badge variant="secondary">Open Finance</Badge>
+          <Badge variant="secondary">Salt Edge API</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
