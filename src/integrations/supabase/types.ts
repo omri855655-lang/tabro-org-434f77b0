@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -70,16 +70,9 @@ export type Database = {
       }
       bank_connections: {
         Row: {
-          callback_state_hash: string | null
-          consent_expires_at: string | null
           created_at: string
-          external_connection_id: string | null
-          external_user_id: string | null
           id: string
-          integration_provider: string
-          last_error: string | null
           last_sync: string | null
-          metadata: Json
           provider_name: string | null
           salt_edge_connection_id: string | null
           salt_edge_customer_id: string | null
@@ -88,16 +81,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          callback_state_hash?: string | null
-          consent_expires_at?: string | null
           created_at?: string
-          external_connection_id?: string | null
-          external_user_id?: string | null
           id?: string
-          integration_provider?: string
-          last_error?: string | null
           last_sync?: string | null
-          metadata?: Json
           provider_name?: string | null
           salt_edge_connection_id?: string | null
           salt_edge_customer_id?: string | null
@@ -106,16 +92,9 @@ export type Database = {
           user_id: string
         }
         Update: {
-          callback_state_hash?: string | null
-          consent_expires_at?: string | null
           created_at?: string
-          external_connection_id?: string | null
-          external_user_id?: string | null
           id?: string
-          integration_provider?: string
-          last_error?: string | null
           last_sync?: string | null
-          metadata?: Json
           provider_name?: string | null
           salt_edge_connection_id?: string | null
           salt_edge_customer_id?: string | null
@@ -816,74 +795,6 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "calendar_events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      financial_accounts: {
-        Row: {
-          account_type: string
-          available_balance: number | null
-          balance_type: string | null
-          connection_id: string
-          created_at: string
-          currency: string
-          current_balance: number | null
-          display_name: string | null
-          external_account_id: string
-          id: string
-          last_synced_at: string
-          masked_number: string | null
-          provider_id: string | null
-          provider_name: string | null
-          raw_data: Json
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          account_type?: string
-          available_balance?: number | null
-          balance_type?: string | null
-          connection_id: string
-          created_at?: string
-          currency?: string
-          current_balance?: number | null
-          display_name?: string | null
-          external_account_id: string
-          id?: string
-          last_synced_at?: string
-          masked_number?: string | null
-          provider_id?: string | null
-          provider_name?: string | null
-          raw_data?: Json
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          account_type?: string
-          available_balance?: number | null
-          balance_type?: string | null
-          connection_id?: string
-          created_at?: string
-          currency?: string
-          current_balance?: number | null
-          display_name?: string | null
-          external_account_id?: string
-          id?: string
-          last_synced_at?: string
-          masked_number?: string | null
-          provider_id?: string | null
-          provider_name?: string | null
-          raw_data?: Json
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "financial_accounts_connection_id_fkey"
-            columns: ["connection_id"]
-            isOneToOne: false
-            referencedRelation: "bank_connections"
             referencedColumns: ["id"]
           },
         ]
@@ -2299,6 +2210,7 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
