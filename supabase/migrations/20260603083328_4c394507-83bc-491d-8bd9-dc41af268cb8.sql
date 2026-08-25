@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Migrate existing 4-digit plain PINs to bcrypt hashes (idempotent: skip already-hashed values)
 UPDATE public.profiles
-SET pin_code = crypt(pin_code, gen_salt('bf'))
+SET pin_code = extensions.crypt(pin_code, extensions.gen_salt('bf'))
 WHERE pin_code IS NOT NULL
   AND pin_code !~ '^\$2[aby]\$';
 
@@ -26,7 +26,7 @@ BEGIN
   IF stored IS NULL THEN
     RETURN false;
   END IF;
-  RETURN stored = crypt(input_pin, stored);
+  RETURN stored = extensions.crypt(input_pin, stored);
 END;
 $$;
 
@@ -48,7 +48,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid PIN';
   END IF;
   UPDATE public.profiles
-  SET pin_code = crypt(input_pin, gen_salt('bf')),
+  SET pin_code = extensions.crypt(input_pin, extensions.gen_salt('bf')),
       pin_enabled = true,
       updated_at = now()
   WHERE user_id = auth.uid();
