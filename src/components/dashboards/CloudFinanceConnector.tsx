@@ -98,7 +98,11 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [providerData, connectionData] = await Promise.all([invoke("providers"), invoke("list")]);
+      const [providerData, connectionData] = await Promise.all([
+        invoke("providers"),
+        invoke("list"),
+        invoke("worker_status"),
+      ]);
       setProviders(providerData.providers || {});
       setConnections(connectionData.connections || []);
       setServiceUnavailable(false);

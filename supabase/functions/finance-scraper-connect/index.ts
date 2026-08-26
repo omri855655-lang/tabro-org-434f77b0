@@ -42,10 +42,68 @@ function clean(value: unknown, max = 240) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+function base64Url(value: string | Uint8Array) {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function pemBytes(pem: string) {
+  const binary = atob(pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, ""));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+async function workerIdentityToken(audience: string) {
+  const credentials = JSON.parse(env("FINANCE_WORKER_GOOGLE_SERVICE_ACCOUNT")) as {
+    client_email: string;
+    private_key: string;
+    private_key_id: string;
+  };
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT", kid: credentials.private_key_id }));
+  const claims = base64Url(JSON.stringify({
+    iss: credentials.client_email,
+    sub: credentials.client_email,
+    aud: "https://oauth2.googleapis.com/token",
+    iat: issuedAt,
+    exp: issuedAt + 3600,
+    target_audience: audience,
+  }));
+  const signingInput = `${header}.${claims}`;
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemBytes(credentials.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(signingInput),
+  );
+  const assertion = `${signingInput}.${base64Url(new Uint8Array(signature))}`;
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.id_token) throw new Error("Could not authorize the private finance worker");
+  return body.id_token as string;
+}
+
 async function callWorker(payload: Record<string, unknown>) {
-  const response = await fetch(`${env("FINANCE_WORKER_URL").replace(/\/$/, "")}/sync`, {
+  const workerUrl = env("FINANCE_WORKER_URL").replace(/\/$/, "");
+  const identityToken = await workerIdentityToken(workerUrl);
+  const response = await fetch(`${workerUrl}/sync`, {
     method: "POST",
     headers: {
+      Authorization: `Bearer ${identityToken}`,
       "Content-Type": "application/json",
       "x-worker-secret": env("FINANCE_WORKER_SECRET"),
     },
@@ -54,6 +112,18 @@ async function callWorker(payload: Record<string, unknown>) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Finance worker returned HTTP ${response.status}`);
+  return body;
+}
+
+async function workerHealth() {
+  const workerUrl = env("FINANCE_WORKER_URL").replace(/\/$/, "");
+  const identityToken = await workerIdentityToken(workerUrl);
+  const response = await fetch(`${workerUrl}/health`, {
+    headers: { Authorization: `Bearer ${identityToken}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.ok !== true) throw new Error("Finance worker is not ready");
   return body;
 }
 
@@ -77,6 +147,11 @@ Deno.serve(async (request) => {
     const service = createClient(supabaseUrl, env("SUPABASE_SERVICE_ROLE_KEY"));
     const body = await request.json().catch(() => ({}));
     const action = clean(body.action, 40);
+
+    if (action === "worker_status") {
+      await workerHealth();
+      return json({ ready: true });
+    }
 
     if (action === "providers") {
       return json({ providers });
