@@ -21,6 +21,10 @@ function requireEnv(name: string) {
   return value;
 }
 
+function openFinanceConfigured() {
+  return Boolean(Deno.env.get("OPEN_FINANCE_CLIENT_ID") && Deno.env.get("OPEN_FINANCE_CLIENT_SECRET"));
+}
+
 function normalizeOrigin(value: unknown) {
   if (typeof value !== "string" || !value) return null;
   try {
@@ -237,18 +241,32 @@ Deno.serve(async (request) => {
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
-    const client = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_ANON_KEY"), {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const client = createClient(
+      Deno.env.get("SOURCE_SUPABASE_URL") || requireEnv("SUPABASE_URL"),
+      Deno.env.get("SOURCE_SUPABASE_ANON_KEY") || requireEnv("SUPABASE_ANON_KEY"),
+      { global: { headers: { Authorization: authHeader } } },
+    );
     const { data: { user }, error: authError } = await client.auth.getUser();
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
     const body = await request.json();
     const action = body.action;
 
+    if (action === "status") {
+      return json({
+        success: true,
+        configured: openFinanceConfigured(),
+        mode: "read_only",
+        provider: "open-finance.ai",
+      });
+    }
+
     if (action === "list_connections") {
       const [{ data: connections, error }, { data: accounts }] = await Promise.all([
         service.from("bank_connections").select("*").eq("user_id", user.id).eq("integration_provider", "open_finance").order("created_at", { ascending: false }),
-        service.from("financial_accounts").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
+        service.from("financial_accounts").select("*, bank_connections!inner(integration_provider)")
+          .eq("user_id", user.id)
+          .eq("bank_connections.integration_provider", "open_finance")
+          .order("created_at", { ascending: true }),
       ]);
       if (error) throw error;
       return json({ success: true, connections: connections || [], accounts: accounts || [] });
