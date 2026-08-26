@@ -218,7 +218,7 @@ function authorized(request) {
 
 app.get("/health", (_request, response) => response.json({ ok: true, service: "tabro-finance-worker" }));
 
-async function syncConnection({ userId, connectionId, companyId, credentials }) {
+async function syncConnection({ userId, connectionId, companyId, credentials: submittedCredentials }) {
   const metadata = SCRAPERS[companyId];
   if (!userId || !connectionId || !metadata) throw new Error("Invalid sync request");
 
@@ -245,7 +245,7 @@ async function syncConnection({ userId, connectionId, companyId, credentials }) 
       connectionId,
       userId,
       companyId,
-      credentials,
+      credentials: submittedCredentials,
     });
     const scraper = createScraper({
       companyId,
