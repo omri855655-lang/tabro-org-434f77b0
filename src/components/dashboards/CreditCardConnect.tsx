@@ -10,23 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CreditCard, Info, Landmark, Loader2, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { CreditCard, Info, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type CreditCardConnection = Database["public"]["Tables"]["credit_card_connections"]["Row"];
 const CREDIT_CARD_CONNECTIONS_EVENT = "tabro-credit-card-connections-changed";
-
-interface CreditCardConnectProps {
-  onChanged?: () => void | Promise<void>;
-}
-
-const SUPABASE_FUNCTIONS_ORIGIN = (() => {
-  try {
-    return new URL(import.meta.env.VITE_SUPABASE_URL).origin;
-  } catch {
-    return null;
-  }
-})();
 
 const CARD_PROVIDERS = [
   { id: "isracard", labelHe: "ישראכרט", labelEn: "Isracard", region: "IL" },
@@ -38,46 +26,12 @@ const CARD_PROVIDERS = [
   { id: "other-card", labelHe: "כרטיס אחר", labelEn: "Other card", region: "GLOBAL" },
 ] as const;
 
-function getSecureConnectionErrorMessage(
-  error: { message?: string } | null,
-  data: { error?: string; message?: string } | null | undefined,
-  isHe: boolean,
-) {
-  const rawMessage = data?.error || data?.message || error?.message || "";
-  const normalized = rawMessage.toLowerCase();
-
-  if (!rawMessage) {
-    return isHe ? "לא הצלחתי לפתוח חיבור מאובטח לאשראי" : "Could not open a secure card connection";
-  }
-
-  if (
-    normalized.includes("salt_edge_app_id") ||
-    normalized.includes("salt_edge_secret") ||
-    normalized.includes("not configured on the server")
-  ) {
-    return isHe
-      ? "חיבור הבנקאות הפתוחה עדיין לא מוגדר בשרת. צריך להגדיר את מפתחות Salt Edge המאובטחים."
-      : "Open Banking is not configured on the server yet. Secure Salt Edge credentials are missing.";
-  }
-
-  if (normalized.includes("unauthorized")) {
-    return isHe ? "החיבור המאובטח נדחה בגלל הרשאה או טוקן לא תקין." : "The secure connection was rejected due to an authorization issue.";
-  }
-
-  if (normalized.includes("provider") && normalized.includes("not found")) {
-    return isHe ? "ספק האשראי לא זמין כרגע דרך החיבור המאובטח." : "This card provider is not currently available through the secure connector.";
-  }
-
-  return isHe ? `שגיאת חיבור מאובטח: ${rawMessage}` : `Secure connection error: ${rawMessage}`;
-}
-
-const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
+const CreditCardConnect = () => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const [connections, setConnections] = useState<CreditCardConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [secureConnecting, setSecureConnecting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [provider, setProvider] = useState<string>("isracard");
   const [displayName, setDisplayName] = useState("");
@@ -111,61 +65,6 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
   useEffect(() => {
     loadConnections();
   }, [loadConnections]);
-
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (SUPABASE_FUNCTIONS_ORIGIN && event.origin !== SUPABASE_FUNCTIONS_ORIGIN) return;
-      if (event.data?.source !== "tabro-oauth" || event.data?.provider !== "salt-edge") return;
-
-      if (event.data?.type === "bank-connected") {
-        await onChanged?.();
-        toast.success(
-          isHe
-            ? "החיבור המאובטח הופעל ויופיע באזור הבנקאות הפתוחה."
-            : "The secure connection is active and will appear under Open Banking.",
-        );
-      }
-
-      if (event.data?.type === "bank-error") {
-        toast.error(isHe ? "שגיאה בחיבור המאובטח" : "Error opening the secure connection");
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [isHe, onChanged]);
-
-  const handleSecureConnect = async () => {
-    setSecureConnecting(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("salt-edge-connect", {
-        body: { action: "create_connect_session", origin: window.location.origin, language: lang === "en" ? "en" : "he" },
-      });
-
-      if (error || !data?.connect_url) {
-        toast.error(getSecureConnectionErrorMessage(error, data, isHe));
-        return;
-      }
-
-      const popup = window.open(data.connect_url, "tabro-card-connect", "width=720,height=820");
-      if (!popup) {
-        toast.error(isHe ? "הדפדפן חסם את חלון החיבור" : "The browser blocked the connection popup");
-        return;
-      }
-
-      toast.success(
-        isHe
-          ? "נפתח מסך חיבור מאובטח. אם ספק האשראי נתמך, אפשר להתחבר שם בקריאה בלבד."
-          : "Secure connection opened. If the card provider is supported, you can connect there in read-only mode.",
-      );
-    } catch (error) {
-      console.error("Failed to start secure credit card connection:", error);
-      toast.error(isHe ? "שגיאה בחיבור המאובטח" : "Error opening the secure connection");
-    } finally {
-      setSecureConnecting(false);
-    }
-  };
 
   const handleCreate = async () => {
     if (!user) return;
@@ -278,35 +177,10 @@ const CreditCardConnect = ({ onChanged }: CreditCardConnectProps) => {
           <AlertTitle>{isHe ? "מה זמין עכשיו" : "Available now"}</AlertTitle>
           <AlertDescription>
             {isHe
-              ? "כרטיסים נתמכים יכולים להגיע דרך Open Finance למעלה. אפשר להמשיך להשתמש גם בייבוא CSV / Excel כשספק אינו זמין בחיבור הישיר."
-              : "Supported cards can sync through Open Finance above. CSV / Excel import remains available when a provider is not supported directly."}
+              ? "כרטיסים ישראליים נתמכים מתחברים דרך החיבור הישיר של Tabro למעלה. אם ספק מסוים דורש אימות שלא נתמך, אפשר להשתמש גם בייבוא CSV / Excel."
+              : "Supported Israeli cards connect through Tabro's direct connector above. CSV / Excel import remains available when a provider requires unsupported verification."}
           </AlertDescription>
         </Alert>
-
-        <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
-          <div className="space-y-1">
-            <h4 className="text-sm font-semibold flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" />
-              {isHe ? "חיבור מאובטח לקריאה בלבד" : "Secure read-only connection"}
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              {isHe
-                ? "זה המסלול הישיר למשיכת הוצאות מאפליקציית אשראי או מספק תומך. אם הספק לא מופיע בווידג'ט, נשארים עם CSV / Excel."
-                : "This is the direct path for pulling expenses from a supported card app or provider. If it does not appear in the widget, use CSV / Excel."}
-            </p>
-          </div>
-
-          <Button onClick={handleSecureConnect} disabled={secureConnecting} className="w-full sm:w-auto">
-            {secureConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Landmark className="mr-2 h-4 w-4" />}
-            {isHe ? "חבר אשראי מאובטח" : "Connect card securely"}
-          </Button>
-
-          <p className="text-xs text-muted-foreground">
-            {isHe
-                ? "אחרי החיבור, המקור יופיע ברשימת Open Finance למעלה ויסונכרנו ממנו הכנסות והוצאות זמינות."
-                : "After connection, the source appears in the Open Finance list above and available income and expenses are synced."}
-          </p>
-        </div>
 
         <div className="rounded-lg border p-3 space-y-3">
           <div className="grid gap-3 md:grid-cols-2">

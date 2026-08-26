@@ -62,15 +62,21 @@ function safeDate(value) {
 function category(description) {
   const value = description.toLowerCase();
   const groups = [
-    ["groceries", ["שופרסל", "רמי לוי", "יוחננוף", "סופר", "market"]],
-    ["food", ["מסעד", "קפה", "ארומה", "פיצה", "restaurant"]],
-    ["transport", ["רכבת", "אגד", "חניה", "פנגו", "gett", "uber"]],
-    ["bills", ["חשמל", "ארנונה", "בזק", "סלקום", "פרטנר", "hot"]],
-    ["shopping", ["amazon", "אמזון", "aliexpress", "zara", "קניון"]],
-    ["health", ["סופר-פארם", "בית מרקחת", "מכבי", "כללית"]],
-    ["entertainment", ["netflix", "spotify", "נטפליקס", "ספוטיפיי", "קולנוע"]],
+    ["סופר", ["שופרסל", "רמי לוי", "יוחננוף", "ויקטורי", "אושר עד", "קרפור", "סופר", "market", "grocery"]],
+    ["אוכל", ["מסעד", "קפה", "ארומה", "מקדונלד", "וולט", "תן ביס", "פיצה", "restaurant", "wolt"]],
+    ["דלק", ["פז", "סונול", "דור אלון", "דלק", "yellow", "fuel"]],
+    ["תחבורה", ["רכבת", "אגד", "רב קו", "חניה", "פנגו", "כביש 6", "gett", "uber", "parking"]],
+    ["דיור", ["שכר דירה", "ועד בית", "ארנונה", "משכנת", "rent", "mortgage"]],
+    ["חשבונות", ["חשמל", "מים", "בזק", "סלקום", "פרטנר", "hot", "electric", "telecom"]],
+    ["ביטוחים", ["ביטוח", "הראל", "מגדל", "הפניקס", "מנורה", "insurance"]],
+    ["קניות", ["amazon", "אמזון", "aliexpress", "איקאה", "zara", "קניון", "terminal x", "ebay", "shein"]],
+    ["בריאות", ["סופר פארם", "סופר-פארם", "בית מרקחת", "מכבי", "כללית", "מאוחדת", "pharm"]],
+    ["בילויים", ["netflix", "spotify", "נטפליקס", "ספוטיפיי", "קולנוע", "סינמה", "תיאטרון"]],
+    ["נסיעות", ["אל על", "ישראייר", "ארקיע", "בוקינג", "איירבנב", "מלון", "booking", "airbnb", "hotel"]],
+    ["עמלות ומסים", ["עמלה", "ריבית", "מס הכנסה", "ביטוח לאומי", "commission", "fee", "interest", "tax"]],
+    ["העברות", ["העברה", "פייבוקס", "paybox", "transfer", "atm"]],
   ];
-  return groups.find(([, words]) => words.some((word) => value.includes(word)))?.[0] || null;
+  return groups.find(([, words]) => words.some((word) => value.includes(word)))?.[0] || "אחר";
 }
 
 function transactionId(companyId, accountNumber, transaction, index) {

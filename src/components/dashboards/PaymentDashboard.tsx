@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import BankConnect from "@/components/dashboards/BankConnect";
 import { CloudFinanceConnector } from "@/components/dashboards/CloudFinanceConnector";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -26,6 +25,8 @@ import FinancialCsvImport from "@/components/FinancialCsvImport";
 import ManualTransactionForm from "@/components/ManualTransactionForm";
 import CreditCardConnect from "@/components/dashboards/CreditCardConnect";
 import CreditCardImport from "@/components/dashboards/CreditCardImport";
+import FinanceInsights from "@/components/dashboards/FinanceInsights";
+import { normalizeFinanceCategory } from "@/lib/financeCategorization";
 
 interface Payment {
   id: string;
@@ -335,7 +336,11 @@ const PaymentDashboard = () => {
       source: transaction.backend === "cloud" ? "cloud_financial_transactions" : "financial_transactions",
       title: transaction.description || transaction.merchant || (transaction.direction === "income" ? t("incomeType" as any) : t("expenseType" as any)),
       amount: transaction.amount,
-      category: transaction.category,
+      category: normalizeFinanceCategory(
+        transaction.category,
+        transaction.description || transaction.merchant,
+        transaction.direction,
+      ),
       payment_type: transaction.direction,
       payment_method: transaction.provider || transaction.source_type,
       due_date: transaction.transaction_date,
@@ -679,6 +684,8 @@ ${context}
             </div>
           </CardContent>
         </Card>
+
+        <FinanceInsights entries={dashboardEntries} isRtl={isRtl} />
 
         {/* Budget Target */}
         <Card className="border-primary/20">
@@ -1032,8 +1039,7 @@ ${context}
             <CloudFinanceConnector onChanged={fetchFinanceData} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <BankConnect onChanged={fetchFinanceData} />
-            <CreditCardConnect onChanged={fetchFinanceData} />
+            <CreditCardConnect />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <FinancialCsvImport onImported={fetchFinanceData} />
