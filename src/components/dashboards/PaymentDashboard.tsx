@@ -4,6 +4,7 @@ import { CloudFinanceConnector } from "@/components/dashboards/CloudFinanceConne
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeFinanceBackend } from "@/lib/financeBackend";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,11 +56,12 @@ interface FinancialTransaction {
   created_at: string;
   provider: string | null;
   source_type: string;
+  backend?: "legacy" | "cloud";
 }
 
 interface DashboardEntry {
   id: string;
-  source: "payment_tracking" | "financial_transactions";
+  source: "payment_tracking" | "financial_transactions" | "cloud_financial_transactions";
   title: string;
   amount: number;
   category: string | null;
@@ -176,7 +178,7 @@ const PaymentDashboard = () => {
     if (!user) return;
     setLoading(true);
 
-    const [paymentsResult, transactionsResult] = await Promise.all([
+    const [paymentsResult, transactionsResult, cloudFinanceResult] = await Promise.all([
       supabase
         .from("payment_tracking")
         .select("*")
@@ -188,6 +190,7 @@ const PaymentDashboard = () => {
         .select("id, amount, category, direction, description, merchant, transaction_date, created_at, provider, source_type")
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false }),
+      invokeFinanceBackend<{ transactions?: FinancialTransaction[] }>("list").catch(() => ({ transactions: [] })),
     ]);
 
     if (paymentsResult.error || transactionsResult.error) {
@@ -197,7 +200,16 @@ const PaymentDashboard = () => {
     }
 
     setPayments((paymentsResult.data as any[]) || []);
-    setTransactions((transactionsResult.data as any[]) || []);
+    const legacyTransactions = ((transactionsResult.data as FinancialTransaction[]) || []).map((item) => ({
+      ...item,
+      backend: "legacy" as const,
+    }));
+    const cloudTransactions = (cloudFinanceResult.transactions || []).map((item) => ({
+      ...item,
+      id: `cloud:${item.id}`,
+      backend: "cloud" as const,
+    }));
+    setTransactions([...cloudTransactions, ...legacyTransactions]);
     setLoading(false);
   }, [user, t]);
 
@@ -228,6 +240,11 @@ const PaymentDashboard = () => {
   };
 
   const deleteEntry = async (entry: DashboardEntry) => {
+    if (entry.source === "cloud_financial_transactions") {
+      await invokeFinanceBackend("delete_transaction", { transactionId: entry.id.replace(/^cloud:/, "") });
+      setTransactions(prev => prev.filter(item => item.id !== entry.id));
+      return;
+    }
     if (entry.source === "financial_transactions") {
       await supabase.from("financial_transactions").delete().eq("id", entry.id);
       setTransactions(prev => prev.filter(item => item.id !== entry.id));
@@ -245,6 +262,14 @@ const PaymentDashboard = () => {
       if (parsedAmount && !isNaN(parsedAmount) && parsedAmount > 0) updates.amount = parsedAmount;
       await supabase.from("payment_tracking").update(updates).eq("id", entry.id);
       setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, ...updates } : p));
+    } else if (entry.source === "cloud_financial_transactions") {
+      const updates: Record<string, unknown> = { category: editCategory || null };
+      if (parsedAmount && !isNaN(parsedAmount) && parsedAmount > 0) updates.amount = parsedAmount;
+      await invokeFinanceBackend("update_transaction", {
+        transactionId: entry.id.replace(/^cloud:/, ""),
+        ...updates,
+      });
+      setTransactions(prev => prev.map(item => item.id === entry.id ? { ...item, ...updates } : item));
     } else {
       const updates: any = { category: editCategory || null };
       if (parsedAmount && !isNaN(parsedAmount) && parsedAmount > 0) updates.amount = parsedAmount;
@@ -261,7 +286,7 @@ const PaymentDashboard = () => {
       await supabase.from("payment_tracking").update({ recurring: newRecurring }).eq("id", entry.id);
       setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring } : p));
       toast.success(newRecurring ? t("fixedPayment" as any) : t("variableExpenses" as any));
-    } else if (entry.source === "financial_transactions") {
+    } else if (entry.source === "financial_transactions" || entry.source === "cloud_financial_transactions") {
       // For imported transactions: copy to payment_tracking as a fixed expense, then remove from financial_transactions
       const { error: insertErr } = await supabase.from("payment_tracking").insert({
         user_id: user!.id,
@@ -276,7 +301,11 @@ const PaymentDashboard = () => {
       });
       if (insertErr) { toast.error(t("error" as any)); return; }
       // Remove from financial_transactions
-      await supabase.from("financial_transactions").delete().eq("id", entry.id);
+      if (entry.source === "cloud_financial_transactions") {
+        await invokeFinanceBackend("delete_transaction", { transactionId: entry.id.replace(/^cloud:/, "") });
+      } else {
+        await supabase.from("financial_transactions").delete().eq("id", entry.id);
+      }
       toast.success(t("fixedPayment" as any));
       fetchFinanceData();
     }
@@ -303,7 +332,7 @@ const PaymentDashboard = () => {
 
     const importedEntries: DashboardEntry[] = transactions.map((transaction) => ({
       id: transaction.id,
-      source: "financial_transactions",
+      source: transaction.backend === "cloud" ? "cloud_financial_transactions" : "financial_transactions",
       title: transaction.description || transaction.merchant || (transaction.direction === "income" ? t("incomeType" as any) : t("expenseType" as any)),
       amount: transaction.amount,
       category: transaction.category,
@@ -512,7 +541,7 @@ ${context}
                 {p.due_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.due_date), "dd/MM/yy")}</span>}
                 {p.payment_method && <span className="text-[10px] text-muted-foreground">{p.payment_method}</span>}
                 <Badge variant="secondary" className="text-[9px]">
-                  {p.source === "financial_transactions" ? t("importedLabel" as any) : t("plannedLabel" as any)}
+                  {p.source !== "payment_tracking" ? t("importedLabel" as any) : t("plannedLabel" as any)}
                 </Badge>
                 {p.recurring && <Badge variant="outline" className="text-[9px] border-amber-300 text-amber-600">{t("fixedPayment" as any)}{p.recurring_frequency ? ` (${getBudgetPeriodLabel(p.recurring_frequency)})` : ""}</Badge>}
               </div>
@@ -537,7 +566,7 @@ ${context}
                   {CATEGORY_IDS.map((c, i) => <SelectItem key={c} value={c}>{t(CATEGORY_KEYS[i] as any)}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {(p.source === "payment_tracking" || p.source === "financial_transactions") && (
+              {(p.source === "payment_tracking" || p.source === "financial_transactions" || p.source === "cloud_financial_transactions") && (
                 <Input placeholder={t("notes" as any)} value={editNotes} onChange={e => setEditNotes(e.target.value)} className="h-8 text-xs flex-1 min-w-[120px]" />
               )}
               {/* Mark as fixed/recurring - works for both payment_tracking AND imported transactions */}
@@ -561,7 +590,7 @@ ${context}
         <h2 className="text-2xl font-bold">{t("incomeAndExpenses" as any)}</h2>
         <div className="flex-1" />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          dashboardEntries.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '', source: p.source === 'financial_transactions' ? t("importedLabel" as any) : t("plannedLabel" as any) })),
+          dashboardEntries.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '', source: p.source !== 'payment_tracking' ? t("importedLabel" as any) : t("plannedLabel" as any) })),
           [{ key: 'title', label: t("descriptionCol" as any) }, { key: 'amount', label: t("amountCol" as any) }, { key: 'type', label: t("typeCol" as any) }, { key: 'category', label: t("categoryCol" as any) }, { key: 'paid', label: t("paidCol" as any) }, { key: 'due_date', label: t("dateCol" as any) }, { key: 'recurring', label: t("recurringCol" as any) }, { key: 'method', label: t("methodCol" as any) }],
           t("paymentsSheet" as any)
         )}>

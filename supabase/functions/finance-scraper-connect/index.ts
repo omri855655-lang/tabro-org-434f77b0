@@ -66,7 +66,9 @@ Deno.serve(async (request) => {
     if (!token) return json({ error: "Authentication required" }, 401);
 
     const supabaseUrl = env("SUPABASE_URL");
-    const authClient = createClient(supabaseUrl, env("SUPABASE_ANON_KEY"), {
+    const sourceSupabaseUrl = Deno.env.get("SOURCE_SUPABASE_URL") || supabaseUrl;
+    const sourceAnonKey = Deno.env.get("SOURCE_SUPABASE_ANON_KEY") || env("SUPABASE_ANON_KEY");
+    const authClient = createClient(sourceSupabaseUrl, sourceAnonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
     const { data: { user }, error: userError } = await authClient.auth.getUser(token);
@@ -92,7 +94,15 @@ Deno.serve(async (request) => {
       const accounts = connectionIds.length
         ? (await service.from("financial_accounts").select("*").eq("user_id", user.id).in("connection_id", connectionIds)).data || []
         : [];
-      return json({ connections: connections || [], accounts });
+      const transactions = connectionIds.length
+        ? (await service.from("financial_transactions")
+          .select("id, amount, category, direction, description, merchant, transaction_date, created_at, provider, source_type")
+          .eq("user_id", user.id)
+          .eq("source_type", "cloud_scraper")
+          .in("source_connection_id", connectionIds)
+          .order("transaction_date", { ascending: false })).data || []
+        : [];
+      return json({ connections: connections || [], accounts, transactions });
     }
 
     if (action === "connect") {
@@ -164,6 +174,38 @@ Deno.serve(async (request) => {
         .eq("id", connectionId)
         .eq("user_id", user.id)
         .eq("integration_provider", "cloud_scraper");
+      if (error) throw error;
+      return json({ success: true });
+    }
+
+    if (action === "update_transaction") {
+      const transactionId = clean(body.transactionId, 80);
+      const updates: Record<string, unknown> = {};
+      if (typeof body.category === "string" || body.category === null) {
+        updates.category = typeof body.category === "string" ? clean(body.category, 120) || null : null;
+      }
+      const amount = Number(body.amount);
+      if (Number.isFinite(amount) && amount > 0) updates.amount = amount;
+      if (!Object.keys(updates).length) return json({ error: "No valid transaction changes" }, 400);
+
+      const { data, error } = await service.from("financial_transactions")
+        .update(updates)
+        .eq("id", transactionId)
+        .eq("user_id", user.id)
+        .eq("source_type", "cloud_scraper")
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return json({ error: "Transaction not found" }, 404);
+      return json({ success: true });
+    }
+
+    if (action === "delete_transaction") {
+      const transactionId = clean(body.transactionId, 80);
+      const { error } = await service.from("financial_transactions").delete()
+        .eq("id", transactionId)
+        .eq("user_id", user.id)
+        .eq("source_type", "cloud_scraper");
       if (error) throw error;
       return json({ success: true });
     }

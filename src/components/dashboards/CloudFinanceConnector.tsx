@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeFinanceBackend } from "@/lib/financeBackend";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,14 +90,10 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
   const selected = providers[companyId];
   const currentLanguage = fieldLabels.username[lang] ? lang : "en";
 
-  const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
-    const { data, error } = await supabase.functions.invoke("finance-scraper-connect", {
-      body: { action, ...payload },
-    });
-    if (error) throw new Error(data?.error || error.message);
-    if (data?.error) throw new Error(data.error);
-    return data;
-  }, []);
+  const invoke = useCallback(
+    (action: string, payload: Record<string, unknown> = {}) => invokeFinanceBackend(action, payload),
+    [],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
