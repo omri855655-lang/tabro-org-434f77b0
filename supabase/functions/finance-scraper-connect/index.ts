@@ -1,9 +1,26 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const allowedOrigins = new Set([
+  "https://omrigabayexcel.site",
+  "https://www.omrigabayexcel.site",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]);
+
+function responseHeaders(request: Request) {
+  const origin = request.headers.get("Origin") || "";
+  return {
+    "Access-Control-Allow-Origin": allowedOrigins.has(origin) ? origin : "https://omrigabayexcel.site",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Referrer-Policy": "no-referrer",
+    "Vary": "Origin",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+  };
+}
 
 const providers = {
   hapoalim: { name: "Bank Hapoalim", fields: ["userCode", "password"] },
@@ -25,10 +42,10 @@ const providers = {
   behatsdaa: { name: "Behatsdaa", fields: ["id", "password"] },
 } as const;
 
-function json(body: unknown, status = 200) {
+function json(request: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...responseHeaders(request), "Content-Type": "application/json" },
   });
 }
 
@@ -100,19 +117,51 @@ async function workerIdentityToken(audience: string) {
 async function callWorker(payload: Record<string, unknown>) {
   const workerUrl = env("FINANCE_WORKER_URL").replace(/\/$/, "");
   const identityToken = await workerIdentityToken(workerUrl);
+  const requestBody = JSON.stringify(payload);
+  const timestamp = Date.now().toString();
+  const signingKey = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(env("FINANCE_WORKER_SECRET")),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    signingKey,
+    new TextEncoder().encode(`${timestamp}.${requestBody}`),
+  );
+  const signatureHex = Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
   const response = await fetch(`${workerUrl}/sync`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${identityToken}`,
       "Content-Type": "application/json",
-      "x-worker-secret": env("FINANCE_WORKER_SECRET"),
+      "x-tabro-timestamp": timestamp,
+      "x-tabro-signature": signatureHex,
     },
-    body: JSON.stringify(payload),
+    body: requestBody,
     signal: AbortSignal.timeout(180_000),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Finance worker returned HTTP ${response.status}`);
   return body;
+}
+
+async function enforceRateLimit(
+  service: ReturnType<typeof createClient>,
+  userId: string,
+  action: "connect" | "sync",
+  limit: number,
+) {
+  const { data: allowed, error } = await service.rpc("check_finance_rate_limit", {
+    p_user_id: userId,
+    p_action: action,
+    p_limit: limit,
+    p_window_seconds: 900,
+  });
+  if (error) throw error;
+  if (!allowed) throw new Error("RATE_LIMITED");
 }
 
 async function workerHealth() {
@@ -128,12 +177,18 @@ async function workerHealth() {
 }
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (request.method === "OPTIONS") return new Response("ok", { headers: responseHeaders(request) });
+  if (request.method !== "POST") return json(request, { error: "Method not allowed" }, 405);
+  if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+    return json(request, { error: "JSON request required" }, 415);
+  }
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > 16_384) return json(request, { error: "Request is too large" }, 413);
 
   try {
     const authHeader = request.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
-    if (!token) return json({ error: "Authentication required" }, 401);
+    if (!token) return json(request, { error: "Authentication required" }, 401);
 
     const supabaseUrl = env("SUPABASE_URL");
     const sourceSupabaseUrl = Deno.env.get("SOURCE_SUPABASE_URL") || supabaseUrl;
@@ -142,19 +197,23 @@ Deno.serve(async (request) => {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
     const { data: { user }, error: userError } = await authClient.auth.getUser(token);
-    if (userError || !user) return json({ error: "Invalid session" }, 401);
+    if (userError || !user) return json(request, { error: "Invalid session" }, 401);
 
     const service = createClient(supabaseUrl, env("SUPABASE_SERVICE_ROLE_KEY"));
-    const body = await request.json().catch(() => ({}));
+    const rawBody = await request.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 16_384) {
+      return json(request, { error: "Request is too large" }, 413);
+    }
+    const body = JSON.parse(rawBody || "{}") as Record<string, unknown>;
     const action = clean(body.action, 40);
 
     if (action === "worker_status") {
       await workerHealth();
-      return json({ ready: true });
+      return json(request, { ready: true });
     }
 
     if (action === "providers") {
-      return json({ providers });
+      return json(request, { providers });
     }
 
     if (action === "list") {
@@ -177,13 +236,14 @@ Deno.serve(async (request) => {
           .in("source_connection_id", connectionIds)
           .order("transaction_date", { ascending: false })).data || []
         : [];
-      return json({ connections: connections || [], accounts, transactions });
+      return json(request, { connections: connections || [], accounts, transactions });
     }
 
     if (action === "connect") {
+      await enforceRateLimit(service, user.id, "connect", 5);
       const companyId = clean(body.companyId, 50) as keyof typeof providers;
       const provider = providers[companyId];
-      if (!provider) return json({ error: "Unsupported financial institution" }, 400);
+      if (!provider) return json(request, { error: "Unsupported financial institution" }, 400);
 
       const submitted = body.credentials && typeof body.credentials === "object"
         ? body.credentials as Record<string, unknown>
@@ -191,7 +251,7 @@ Deno.serve(async (request) => {
       const credentials: Record<string, string> = {};
       for (const field of provider.fields) {
         const value = clean(submitted[field], 180);
-        if (!value) return json({ error: `Missing credential field: ${field}` }, 400);
+        if (!value) return json(request, { error: `Missing credential field: ${field}` }, 400);
         credentials[field] = value;
       }
 
@@ -218,7 +278,7 @@ Deno.serve(async (request) => {
           companyId,
           credentials,
         });
-        return json({ success: true, connection, ...result });
+        return json(request, { success: true, connection, ...result });
       } catch (error) {
         await service.from("bank_connections").update({
           status: "error",
@@ -229,6 +289,7 @@ Deno.serve(async (request) => {
     }
 
     if (action === "sync") {
+      await enforceRateLimit(service, user.id, "sync", 20);
       const connectionId = clean(body.connectionId, 80);
       const { data: connection, error } = await service.from("bank_connections")
         .select("*")
@@ -236,11 +297,11 @@ Deno.serve(async (request) => {
         .eq("user_id", user.id)
         .eq("integration_provider", "cloud_scraper")
         .single();
-      if (error || !connection) return json({ error: "Connection not found" }, 404);
+      if (error || !connection) return json(request, { error: "Connection not found" }, 404);
       const companyId = clean(connection.metadata?.company_id, 50);
-      if (!companyId) return json({ error: "Connection provider is missing" }, 409);
+      if (!companyId) return json(request, { error: "Connection provider is missing" }, 409);
       await service.from("bank_connections").update({ status: "syncing", last_error: null }).eq("id", connection.id);
-      return json(await callWorker({ userId: user.id, connectionId: connection.id, companyId }));
+      return json(request, await callWorker({ userId: user.id, connectionId: connection.id, companyId }));
     }
 
     if (action === "delete") {
@@ -250,7 +311,7 @@ Deno.serve(async (request) => {
         .eq("user_id", user.id)
         .eq("integration_provider", "cloud_scraper");
       if (error) throw error;
-      return json({ success: true });
+      return json(request, { success: true });
     }
 
     if (action === "update_transaction") {
@@ -261,7 +322,7 @@ Deno.serve(async (request) => {
       }
       const amount = Number(body.amount);
       if (Number.isFinite(amount) && amount > 0) updates.amount = amount;
-      if (!Object.keys(updates).length) return json({ error: "No valid transaction changes" }, 400);
+      if (!Object.keys(updates).length) return json(request, { error: "No valid transaction changes" }, 400);
 
       const { data, error } = await service.from("financial_transactions")
         .update(updates)
@@ -271,8 +332,8 @@ Deno.serve(async (request) => {
         .select("id")
         .maybeSingle();
       if (error) throw error;
-      if (!data) return json({ error: "Transaction not found" }, 404);
-      return json({ success: true });
+      if (!data) return json(request, { error: "Transaction not found" }, 404);
+      return json(request, { success: true });
     }
 
     if (action === "delete_transaction") {
@@ -282,14 +343,23 @@ Deno.serve(async (request) => {
         .eq("user_id", user.id)
         .eq("source_type", "cloud_scraper");
       if (error) throw error;
-      return json({ success: true });
+      return json(request, { success: true });
     }
 
-    return json({ error: "Unknown action" }, 400);
+    return json(request, { error: "Unknown action" }, 400);
   } catch (error) {
     console.error("finance-scraper-connect", error);
+    if (error instanceof SyntaxError) {
+      return json(request, { error: "Invalid JSON request" }, 400);
+    }
     const message = (error as Error).message || "Finance connection failed";
+    if (message === "RATE_LIMITED") {
+      return json(request, { error: "Too many attempts. Please wait 15 minutes and try again." }, 429);
+    }
     const configurationError = message.includes("FINANCE_WORKER_");
-    return json({ error: message }, configurationError ? 503 : 500);
+    const publicMessage = configurationError
+      ? "The finance synchronization service is not configured"
+      : "The financial institution could not be synchronized. Check the details and try again.";
+    return json(request, { error: publicMessage }, configurationError ? 503 : 500);
   }
 });

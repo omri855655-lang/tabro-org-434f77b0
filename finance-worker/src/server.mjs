@@ -6,9 +6,28 @@ import { createScraper, SCRAPERS } from "israeli-bank-scrapers";
 
 const app = express();
 app.disable("x-powered-by");
-app.use(express.json({ limit: "256kb" }));
+app.use((request, response, next) => {
+  response.set({
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+  });
+  next();
+});
+app.use(express.json({
+  limit: "16kb",
+  strict: true,
+  verify: (request, _response, buffer) => {
+    request.rawBody = Buffer.from(buffer);
+  },
+}));
 
 const CARD_LIKE = new Set(["isracard", "amex", "visaCal", "max", "beyahadBishvilha", "behatsdaa"]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SIGNATURE_TOLERANCE_MS = 5 * 60_000;
 
 function env(name) {
   const value = process.env[name];
@@ -87,6 +106,19 @@ function transactionId(companyId, accountNumber, transaction, index) {
     index,
   ].join(":");
   return `${companyId}:${accountNumber}:${identity}`.slice(0, 500);
+}
+
+function errorDetails(error) {
+  if (error instanceof Error) return { message: error.message, code: error.code || null };
+  if (typeof error === "string") return { message: error, code: null };
+  if (error && typeof error === "object") {
+    const message = error.message || error.errorMessage || error.details || error.errorType;
+    return {
+      message: typeof message === "string" && message.trim() ? message : "Finance synchronization failed",
+      code: typeof error.code === "string" ? error.code : null,
+    };
+  }
+  return { message: "Finance synchronization failed", code: null };
 }
 
 function normalize(companyId, providerName, account, accountIndex) {
@@ -187,7 +219,13 @@ async function persistResult(service, context, result) {
     .eq("source_connection_id", connectionId);
   if (existingError) throw existingError;
   const known = new Set((existing || []).map((item) => item.external_transaction_id));
-  const newTransactions = transactions.filter((item) => !known.has(item.external_transaction_id));
+  const uniqueIncoming = new Map();
+  for (const transaction of transactions) {
+    if (!uniqueIncoming.has(transaction.external_transaction_id)) {
+      uniqueIncoming.set(transaction.external_transaction_id, transaction);
+    }
+  }
+  const newTransactions = [...uniqueIncoming.values()].filter((item) => !known.has(item.external_transaction_id));
 
   for (let index = 0; index < newTransactions.length; index += 500) {
     const { error } = await service.from("financial_transactions").insert(newTransactions.slice(index, index + 500));
@@ -214,12 +252,31 @@ async function persistResult(service, context, result) {
   return { success: true, accounts_count: normalized.length, transactions_count: newTransactions.length };
 }
 
-function authorized(request) {
-  const expected = env("FINANCE_WORKER_SECRET");
-  const supplied = request.get("x-worker-secret") || "";
-  const left = Buffer.from(expected);
-  const right = Buffer.from(supplied);
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
+function signedRequestAuthorized(request) {
+  const timestamp = request.get("x-tabro-timestamp") || "";
+  const supplied = request.get("x-tabro-signature") || "";
+  const timestampMs = Number(timestamp);
+  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > SIGNATURE_TOLERANCE_MS) return false;
+  if (!/^[a-f0-9]{64}$/i.test(supplied) || !Buffer.isBuffer(request.rawBody)) return false;
+
+  const expected = crypto
+    .createHmac("sha256", env("FINANCE_WORKER_SECRET"))
+    .update(`${timestamp}.`)
+    .update(request.rawBody)
+    .digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(supplied, "hex"));
+}
+
+function validSyncPayload({ userId, connectionId, companyId, credentials }) {
+  if (!UUID_PATTERN.test(userId) || !UUID_PATTERN.test(connectionId) || !SCRAPERS[companyId]) return false;
+  if (credentials === undefined) return true;
+  if (!credentials || typeof credentials !== "object" || Array.isArray(credentials)) return false;
+  return Object.entries(credentials).every(([key, value]) => (
+    /^[A-Za-z0-9_]{1,40}$/.test(key)
+    && typeof value === "string"
+    && value.length > 0
+    && value.length <= 180
+  ));
 }
 
 app.get("/health", (_request, response) => response.json({ ok: true, service: "tabro-finance-worker" }));
@@ -276,8 +333,9 @@ async function syncConnection({ userId, connectionId, companyId, credentials: su
     }, result);
     return summary;
   } catch (error) {
-    const message = (error instanceof Error ? error.message : "Unknown finance worker error").slice(0, 500);
-    console.error("finance sync failed", { connectionId, companyId, message });
+    const details = errorDetails(error);
+    const message = details.message.slice(0, 500);
+    console.error("finance sync failed", { connectionId, companyId, message, code: details.code });
     await Promise.all([
       service.from("bank_connections").update({ status: "error", last_error: message }).eq("id", connectionId).eq("user_id", userId),
       service.from("financial_sync_logs").insert({
@@ -296,23 +354,27 @@ async function syncConnection({ userId, connectionId, companyId, credentials: su
 }
 
 app.post("/sync", async (request, response) => {
-  if (!authorized(request)) return response.status(401).json({ error: "Unauthorized worker request" });
+  if (!request.is("application/json")) return response.status(415).json({ error: "JSON request required" });
+  if (!signedRequestAuthorized(request)) return response.status(401).json({ error: "Unauthorized worker request" });
+
+  const payload = {
+    userId: String(request.body.userId || ""),
+    connectionId: String(request.body.connectionId || ""),
+    companyId: String(request.body.companyId || ""),
+    credentials: request.body.credentials,
+  };
+  if (!validSyncPayload(payload)) return response.status(400).json({ error: "Invalid sync request" });
 
   try {
-    const result = await syncConnection({
-      userId: String(request.body.userId || ""),
-      connectionId: String(request.body.connectionId || ""),
-      companyId: String(request.body.companyId || ""),
-      credentials: request.body.credentials,
-    });
+    const result = await syncConnection(payload);
     return response.json(result);
   } catch (error) {
-    return response.status(502).json({ error: error instanceof Error ? error.message : "Finance sync failed" });
+    return response.status(502).json({ error: errorDetails(error).message });
   }
 });
 
 app.post("/sync-due", async (request, response) => {
-  if (!authorized(request)) return response.status(401).json({ error: "Unauthorized worker request" });
+  if (!request.is("application/json")) return response.status(415).json({ error: "JSON request required" });
 
   const service = serviceClient();
   const limit = Math.min(Math.max(Number(request.body.limit || 10), 1), 25);
