@@ -121,6 +121,37 @@ function errorDetails(error) {
   return { message: "Finance synchronization failed", code: null };
 }
 
+function isDuplicateTransactionError(error) {
+  const details = errorDetails(error);
+  return details.code === "23505"
+    || details.message.includes("idx_financial_transactions_dedup")
+    || details.message.toLowerCase().includes("duplicate key value");
+}
+
+async function insertTransactionsIgnoringDuplicates(service, transactions) {
+  let inserted = 0;
+
+  for (let index = 0; index < transactions.length; index += 500) {
+    const batch = transactions.slice(index, index + 500);
+    const { error } = await service.from("financial_transactions").insert(batch);
+    if (!error) {
+      inserted += batch.length;
+      continue;
+    }
+    if (!isDuplicateTransactionError(error)) throw error;
+
+    // A concurrent manual/automatic sync can win after the preflight lookup.
+    // Retry the rolled-back batch individually and ignore only unique-key races.
+    for (const transaction of batch) {
+      const { error: transactionError } = await service.from("financial_transactions").insert(transaction);
+      if (!transactionError) inserted += 1;
+      else if (!isDuplicateTransactionError(transactionError)) throw transactionError;
+    }
+  }
+
+  return inserted;
+}
+
 function normalize(companyId, providerName, account, accountIndex) {
   const accountNumber = String(account.accountNumber || `${companyId}-${accountIndex + 1}`);
   return {
@@ -227,10 +258,7 @@ async function persistResult(service, context, result) {
   }
   const newTransactions = [...uniqueIncoming.values()].filter((item) => !known.has(item.external_transaction_id));
 
-  for (let index = 0; index < newTransactions.length; index += 500) {
-    const { error } = await service.from("financial_transactions").insert(newTransactions.slice(index, index + 500));
-    if (error) throw error;
-  }
+  const insertedCount = await insertTransactionsIgnoringDuplicates(service, newTransactions);
 
   await Promise.all([
     service.from("bank_connections").update({
@@ -244,12 +272,12 @@ async function persistResult(service, context, result) {
       provider: providerName,
       sync_started_at: context.startedAt,
       sync_finished_at: now,
-      imported_count: newTransactions.length,
+      imported_count: insertedCount,
       status: "success",
     }),
   ]);
 
-  return { success: true, accounts_count: normalized.length, transactions_count: newTransactions.length };
+  return { success: true, accounts_count: normalized.length, transactions_count: insertedCount };
 }
 
 function signedRequestAuthorized(request) {
