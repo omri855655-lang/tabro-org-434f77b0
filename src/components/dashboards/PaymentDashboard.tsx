@@ -525,6 +525,58 @@ const PaymentDashboard = () => {
       upcoming,
     };
   }, [financialAccounts, payments]);
+
+  const proactiveFinanceInsights = useMemo(() => {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const actualExpenses = dashboardEntries.filter((entry) => entry.paid && entry.payment_type === "expense");
+    const currentExpenses = actualExpenses.filter((entry) => new Date(entry.created_at) >= currentMonthStart);
+    const historicalExpenses = actualExpenses.filter((entry) => new Date(entry.created_at) < currentMonthStart);
+    const historicalByCategory = new Map<string, { total: number; months: Set<string> }>();
+    historicalExpenses.forEach((entry) => {
+      const category = entry.category || "אחר";
+      const date = new Date(entry.created_at);
+      const month = `${date.getFullYear()}-${date.getMonth()}`;
+      const current = historicalByCategory.get(category) || { total: 0, months: new Set<string>() };
+      current.total += entry.amount;
+      current.months.add(month);
+      historicalByCategory.set(category, current);
+    });
+    const currentByCategory = new Map<string, number>();
+    currentExpenses.forEach((entry) => {
+      const category = entry.category || "אחר";
+      currentByCategory.set(category, (currentByCategory.get(category) || 0) + entry.amount);
+    });
+    const categoryAnomaly = [...currentByCategory.entries()]
+      .map(([category, current]) => {
+        const history = historicalByCategory.get(category);
+        const average = history && history.months.size > 0 ? history.total / history.months.size : 0;
+        return { category, current, average, ratio: average > 0 ? current / average : 0 };
+      })
+      .filter((item) => item.average >= 50 && item.current >= item.average + 100 && item.ratio >= 1.4)
+      .sort((a, b) => b.ratio - a.ratio)[0] || null;
+
+    const merchantHistory = new Map<string, number[]>();
+    historicalExpenses.forEach((entry) => {
+      const key = entry.title.trim().toLowerCase();
+      merchantHistory.set(key, [...(merchantHistory.get(key) || []), entry.amount]);
+    });
+    const unusualExpense = currentExpenses
+      .map((entry) => {
+        const history = merchantHistory.get(entry.title.trim().toLowerCase()) || [];
+        const average = history.length ? history.reduce((sum, amount) => sum + amount, 0) / history.length : 0;
+        return { entry, average, ratio: average > 0 ? entry.amount / average : 0 };
+      })
+      .filter((item) => item.average >= 20 && item.entry.amount >= item.average + 75 && item.ratio >= 1.75)
+      .sort((a, b) => b.ratio - a.ratio)[0] || null;
+
+    return {
+      categoryAnomaly,
+      unusualExpense,
+      nextUpcoming: cashFlowForecast.upcoming[0] || null,
+      requiresAttention: Boolean(categoryAnomaly || unusualExpense || cashFlowForecast.projectedBalance < 0),
+    };
+  }, [cashFlowForecast, dashboardEntries]);
   
   const overdue = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -608,6 +660,10 @@ const PaymentDashboard = () => {
 הוצאות משתנות: ₪${variableExpenses.toLocaleString()}
 לא שולמו: ₪${unpaidExpenses.toLocaleString()}
 באיחור: ${overdue.length} תשלומים
+יתרה נזילה כעת: ₪${cashFlowForecast.liquidBalance.toLocaleString()}
+תחזית לסוף החודש: ₪${cashFlowForecast.projectedBalance.toLocaleString()}
+הוצאות קבועות מתוכננות עד סוף החודש: ₪${cashFlowForecast.recurringExpenses.toLocaleString()}
+הוצאות חד-פעמיות מתוכננות עד סוף החודש: ₪${cashFlowForecast.oneOffExpenses.toLocaleString()}
 פילוח קטגוריות: ${catBreakdown}
 כלל 50/30/20 - צרכים: ${needsPercent}%, רצונות: ${wantsPercent}%, חיסכון: ${savingsPercent}%`;
 
@@ -1199,7 +1255,41 @@ ${context}
           ))}
         </TabsContent>
 
-        <TabsContent value="ai">
+        <TabsContent value="ai" className="space-y-4">
+          <Card className={proactiveFinanceInsights.requiresAttention ? "border-amber-200/80" : "border-emerald-200/80"}>
+            <CardContent className="space-y-4 p-5">
+              <div className="flex items-start gap-3">
+                <div className={`rounded-xl p-2 ${proactiveFinanceInsights.requiresAttention ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                  {proactiveFinanceInsights.requiresAttention ? <AlertTriangle className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-primary">{isRtl ? "בדיקה אוטומטית" : "Automatic check"}</p>
+                  <h3 className="font-semibold">{proactiveFinanceInsights.requiresAttention ? (isRtl ? "מצאתי נקודות שכדאי לבדוק" : "I found items worth reviewing") : (isRtl ? "לא מצאתי החלטה דחופה שדורשת אותך היום" : "No urgent decision needs you today")}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{isRtl ? "התובנות מחושבות מהתנועות המסונכרנות ומהתכנון שהזנת, בלי לבצע פעולה בחשבון." : "Insights use synced transactions and your plans without taking any account action."}</p>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">{isRtl ? "יתרה חזויה בסוף החודש" : "Projected month-end balance"}</p>
+                  <strong className={`mt-1 block text-lg ${cashFlowForecast.projectedBalance >= 0 ? "text-emerald-600" : "text-red-600"}`}>₪{cashFlowForecast.projectedBalance.toLocaleString()}</strong>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">{isRtl ? "החיוב המתוכנן הקרוב" : "Next planned charge"}</p>
+                  {proactiveFinanceInsights.nextUpcoming ? <><strong className="mt-1 block truncate">{proactiveFinanceInsights.nextUpcoming.payment.title}</strong><small className="text-muted-foreground">{format(proactiveFinanceInsights.nextUpcoming.occurrence, "dd/MM")} · ₪{proactiveFinanceInsights.nextUpcoming.payment.amount.toLocaleString()}</small></> : <strong className="mt-1 block text-emerald-600">{isRtl ? "אין חיוב מתוכנן" : "No planned charge"}</strong>}
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">{isRtl ? "בדיקת חריגות" : "Anomaly check"}</p>
+                  {proactiveFinanceInsights.categoryAnomaly ? <><strong className="mt-1 block truncate">{proactiveFinanceInsights.categoryAnomaly.category}</strong><small className="text-amber-700">{proactiveFinanceInsights.categoryAnomaly.ratio.toFixed(1)}× {isRtl ? "מהממוצע החודשי" : "monthly average"}</small></> : <strong className="mt-1 block text-emerald-600">{isRtl ? "לא זוהתה חריגה מהותית" : "No material anomaly"}</strong>}
+                </div>
+              </div>
+              {proactiveFinanceInsights.unusualExpense && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm dark:bg-amber-950/10">
+                  <strong>{isRtl ? "הוצאה חריגה אצל ספק מוכר: " : "Unusual spend at a known merchant: "}{proactiveFinanceInsights.unusualExpense.entry.title}</strong>
+                  <p className="mt-1 text-muted-foreground">₪{proactiveFinanceInsights.unusualExpense.entry.amount.toLocaleString()} {isRtl ? "לעומת ממוצע קודם של" : "versus a prior average of"} ₪{proactiveFinanceInsights.unusualExpense.average.toLocaleString(undefined, { maximumFractionDigits: 0 })}.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
           <AiChatPanel
             title={t("aiFinancialAdvisor" as any)}
             messages={aiChatHistory.messages}
