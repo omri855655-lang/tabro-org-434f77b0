@@ -1,15 +1,20 @@
 import { useMemo } from "react";
-import { ArrowDownRight, ArrowUpRight, CalendarClock, CircleHelp, Store, Tags } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarClock, CircleHelp, CreditCard, Landmark, Store, Tags, WalletCards } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cleanMerchantName } from "@/lib/financeCategorization";
+import { cleanMerchantName, getFinanceCategoryGroup } from "@/lib/financeCategorization";
 
 export interface FinanceInsightEntry {
   id: string;
   title: string;
   amount: number;
   category: string | null;
+  subcategory: string | null;
   payment_type: "income" | "expense";
+  source_channel: "credit_card" | "bank" | "manual";
+  account_label: string | null;
+  account_last_four: string | null;
+  payment_method: string | null;
   created_at: string;
   recurring: boolean;
   paid: boolean;
@@ -44,17 +49,39 @@ const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
     const previousSpend = previousExpenses.reduce((sum, entry) => sum + entry.amount, 0);
     const change = previousSpend > 0 ? ((currentSpend - previousSpend) / previousSpend) * 100 : null;
 
-    const categories = new Map<string, number>();
+    const categories = new Map<string, { total: number; subcategories: Map<string, number> }>();
     const merchants = new Map<string, number>();
+    const channels = new Map<FinanceInsightEntry["source_channel"], number>();
+    const cards = new Map<string, number>();
     for (const entry of currentExpenses) {
-      const category = entry.category || "אחר";
-      categories.set(category, (categories.get(category) || 0) + entry.amount);
+      const category = getFinanceCategoryGroup(entry.category);
+      const currentCategory = categories.get(category) || { total: 0, subcategories: new Map<string, number>() };
+      currentCategory.total += entry.amount;
+      const subcategory = entry.subcategory || entry.category || "אחר";
+      currentCategory.subcategories.set(subcategory, (currentCategory.subcategories.get(subcategory) || 0) + entry.amount);
+      categories.set(category, currentCategory);
       const merchant = cleanMerchantName(entry.title);
       merchants.set(merchant, (merchants.get(merchant) || 0) + entry.amount);
+      channels.set(entry.source_channel, (channels.get(entry.source_channel) || 0) + entry.amount);
+      if (entry.source_channel === "credit_card") {
+        const cardName = [entry.account_label || entry.payment_method || "כרטיס אשראי", entry.account_last_four ? `•••• ${entry.account_last_four}` : ""]
+          .filter(Boolean)
+          .join(" ");
+        cards.set(cardName, (cards.get(cardName) || 0) + entry.amount);
+      }
     }
 
-    const topCategories = [...categories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const topCategories = [...categories.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 6)
+      .map(([name, value]) => ({
+        name,
+        total: value.total,
+        subcategories: [...value.subcategories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4),
+      }));
     const topMerchants = [...merchants.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const channelTotals = [...channels.entries()].sort((a, b) => b[1] - a[1]);
+    const cardTotals = [...cards.entries()].sort((a, b) => b[1] - a[1]);
     const uncategorized = expenses.filter((entry) => !entry.category || entry.category === "אחר").length;
 
     const recurringCandidates = new Map<string, { count: number; months: Set<string>; total: number }>();
@@ -79,6 +106,8 @@ const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
       change,
       topCategories,
       topMerchants,
+      channelTotals,
+      cardTotals,
       uncategorized,
       recurring,
       dailyAverage: currentSpend / Math.max(now.getDate(), 1),
@@ -87,8 +116,13 @@ const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
 
   if (!entries.length) return null;
 
-  const maxCategory = analysis.topCategories[0]?.[1] || 1;
+  const maxCategory = analysis.topCategories[0]?.total || 1;
   const changeIsUp = (analysis.change || 0) > 0;
+  const channelLabels = {
+    credit_card: isRtl ? "כרטיסי אשראי" : "Credit cards",
+    bank: isRtl ? "בנק, העברות והוראות קבע" : "Bank and transfers",
+    manual: isRtl ? "תכנון ידני" : "Manual planning",
+  };
 
   return (
     <section className="space-y-4" dir={isRtl ? "rtl" : "ltr"}>
@@ -128,10 +162,19 @@ const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
         <Card><CardContent className="p-5">
           <h4 className="mb-4 flex items-center gap-2 font-semibold"><Tags className="h-4 w-4 text-primary" />{isRtl ? "קטגוריות מובילות החודש" : "Top categories this month"}</h4>
           <div className="space-y-3">
-            {analysis.topCategories.map(([name, value]) => (
-              <div key={name}>
-                <div className="mb-1 flex justify-between gap-3 text-sm"><span>{name}</span><strong>{money(value)}</strong></div>
-                <Progress value={(value / maxCategory) * 100} className="h-2" />
+            {analysis.topCategories.map((category) => (
+              <div key={category.name} className="rounded-xl border border-border/60 p-3">
+                <div className="mb-1 flex justify-between gap-3 text-sm"><strong>{category.name}</strong><strong>{money(category.total)}</strong></div>
+                <Progress value={(category.total / maxCategory) * 100} className="h-2" />
+                {category.subcategories.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {category.subcategories.map(([name, value]) => (
+                      <span key={name} className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                        {name} · {money(value)}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {!analysis.topCategories.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין הוצאות בחודש הנוכחי." : "No expenses this month."}</p>}
@@ -148,6 +191,37 @@ const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
               </div>
             ))}
             {!analysis.topMerchants.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין עדיין בתי עסק להצגה." : "No merchants to show yet."}</p>}
+          </div>
+        </CardContent></Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card><CardContent className="p-5">
+          <h4 className="mb-4 flex items-center gap-2 font-semibold"><Landmark className="h-4 w-4 text-primary" />{isRtl ? "מאיפה יצא הכסף" : "Where the money came from"}</h4>
+          <div className="space-y-3">
+            {analysis.channelTotals.map(([channel, value]) => {
+              const Icon = channel === "credit_card" ? CreditCard : channel === "bank" ? Landmark : WalletCards;
+              const share = analysis.currentSpend > 0 ? (value / analysis.currentSpend) * 100 : 0;
+              return <div key={channel} className="rounded-xl border border-border/60 p-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex items-center gap-2"><Icon className="h-4 w-4 text-muted-foreground" />{channelLabels[channel]}</span>
+                  <strong>{money(value)} · {share.toFixed(0)}%</strong>
+                </div>
+              </div>;
+            })}
+          </div>
+        </CardContent></Card>
+
+        <Card><CardContent className="p-5">
+          <h4 className="mb-4 flex items-center gap-2 font-semibold"><CreditCard className="h-4 w-4 text-primary" />{isRtl ? "פילוח לפי כרטיס אשראי" : "Credit card breakdown"}</h4>
+          <div className="divide-y divide-border/60">
+            {analysis.cardTotals.map(([name, value]) => (
+              <div key={name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <span className="min-w-0 truncate">{name}</span>
+                <strong>{money(value)}</strong>
+              </div>
+            ))}
+            {!analysis.cardTotals.length && <p className="text-sm text-muted-foreground">{isRtl ? "לא נמצאו החודש הוצאות ששויכו לכרטיס אשראי." : "No credit card expenses were identified this month."}</p>}
           </div>
         </CardContent></Card>
       </div>

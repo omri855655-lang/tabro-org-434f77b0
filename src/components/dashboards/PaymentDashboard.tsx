@@ -23,7 +23,7 @@ import AiChatPanel from "@/components/AiChatPanel";
 import BudgetCharts from "@/components/dashboards/BudgetCharts";
 import ManualTransactionForm from "@/components/ManualTransactionForm";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
-import { normalizeFinanceCategory } from "@/lib/financeCategorization";
+import { inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
 
 interface Payment {
   id: string;
@@ -47,6 +47,7 @@ interface FinancialTransaction {
   id: string;
   amount: number;
   category: string | null;
+  subcategory?: string | null;
   direction: "income" | "expense";
   description: string | null;
   merchant: string | null;
@@ -54,6 +55,21 @@ interface FinancialTransaction {
   created_at: string;
   provider: string | null;
   source_type: string;
+  account_external_id?: string | null;
+  raw_data?: { account_external_id?: string | null } | null;
+  backend?: "legacy" | "cloud";
+}
+
+interface FinancialAccount {
+  id: string;
+  external_account_id: string;
+  provider_name: string | null;
+  account_type: string | null;
+  display_name: string | null;
+  masked_number: string | null;
+  currency: string | null;
+  current_balance: number | null;
+  available_balance: number | null;
   backend?: "legacy" | "cloud";
 }
 
@@ -63,8 +79,12 @@ interface DashboardEntry {
   title: string;
   amount: number;
   category: string | null;
+  subcategory: string | null;
   payment_type: "income" | "expense";
   payment_method: string | null;
+  source_channel: "credit_card" | "bank" | "manual";
+  account_label: string | null;
+  account_last_four: string | null;
   due_date: string | null;
   paid: boolean;
   recurring: boolean;
@@ -127,6 +147,7 @@ const PaymentDashboard = () => {
   const isRtl = lang === "he" || lang === "ar";
   const [payments, setPayments] = useState<Payment[]>([]);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
+  const [financialAccounts, setFinancialAccounts] = useState<FinancialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -176,7 +197,7 @@ const PaymentDashboard = () => {
     if (!user) return;
     setLoading(true);
 
-    const [paymentsResult, transactionsResult, cloudFinanceResult] = await Promise.all([
+    const [paymentsResult, transactionsResult, accountsResult, cloudFinanceResult] = await Promise.all([
       supabase
         .from("payment_tracking")
         .select("*")
@@ -185,10 +206,15 @@ const PaymentDashboard = () => {
         .order("created_at", { ascending: false }),
       supabase
         .from("financial_transactions")
-        .select("id, amount, category, direction, description, merchant, transaction_date, created_at, provider, source_type")
+        .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false }),
-      invokeFinanceBackend<{ transactions?: FinancialTransaction[] }>("list").catch(() => ({ transactions: [] })),
+      supabase
+        .from("financial_accounts")
+        .select("id, external_account_id, provider_name, account_type, display_name, masked_number, currency, current_balance, available_balance")
+        .eq("user_id", user.id),
+      invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list")
+        .catch(() => ({ transactions: [], accounts: [] })),
     ]);
 
     if (paymentsResult.error || transactionsResult.error) {
@@ -200,6 +226,7 @@ const PaymentDashboard = () => {
     setPayments((paymentsResult.data as any[]) || []);
     const legacyTransactions = ((transactionsResult.data as FinancialTransaction[]) || []).map((item) => ({
       ...item,
+      account_external_id: item.raw_data?.account_external_id || null,
       backend: "legacy" as const,
     }));
     const cloudTransactions = (cloudFinanceResult.transactions || []).map((item) => ({
@@ -208,6 +235,16 @@ const PaymentDashboard = () => {
       backend: "cloud" as const,
     }));
     setTransactions([...cloudTransactions, ...legacyTransactions]);
+    const legacyAccounts = ((accountsResult.data as FinancialAccount[]) || []).map((item) => ({
+      ...item,
+      backend: "legacy" as const,
+    }));
+    const cloudAccounts = (cloudFinanceResult.accounts || []).map((item) => ({
+      ...item,
+      id: `cloud:${item.id}`,
+      backend: "cloud" as const,
+    }));
+    setFinancialAccounts([...cloudAccounts, ...legacyAccounts]);
     setLoading(false);
   }, [user, t]);
 
@@ -316,8 +353,12 @@ const PaymentDashboard = () => {
       title: payment.title,
       amount: payment.amount,
       category: payment.category,
+      subcategory: payment.category,
       payment_type: payment.payment_type === "income" ? "income" : "expense",
       payment_method: payment.payment_method,
+      source_channel: "manual",
+      account_label: null,
+      account_last_four: null,
       due_date: payment.due_date,
       paid: payment.paid,
       recurring: payment.recurring,
@@ -328,18 +369,37 @@ const PaymentDashboard = () => {
       created_at: payment.due_date || payment.created_at,
     }));
 
-    const importedEntries: DashboardEntry[] = transactions.map((transaction) => ({
+    const accountByExternalId = new Map(financialAccounts.map((account) => [account.external_account_id, account]));
+    const importedEntries: DashboardEntry[] = transactions.map((transaction) => {
+      const account = transaction.account_external_id
+        ? accountByExternalId.get(transaction.account_external_id)
+        : undefined;
+      const normalizedCategory = normalizeFinanceCategory(
+        transaction.category,
+        transaction.description || transaction.merchant,
+        transaction.direction,
+      );
+      const providerLooksLikeCard = /cal|כאל|visa|ישראכרט|isracard|max|amex|american express/i.test(
+        `${transaction.provider || ""} ${transaction.source_type || ""}`,
+      );
+      const sourceChannel = account?.account_type?.toUpperCase() === "CARD" || providerLooksLikeCard
+        ? "credit_card"
+        : "bank";
+
+      return ({
       id: transaction.id,
       source: transaction.backend === "cloud" ? "cloud_financial_transactions" : "financial_transactions",
       title: transaction.description || transaction.merchant || (transaction.direction === "income" ? t("incomeType" as any) : t("expenseType" as any)),
       amount: transaction.amount,
-      category: normalizeFinanceCategory(
-        transaction.category,
-        transaction.description || transaction.merchant,
-        transaction.direction,
-      ),
+      category: normalizedCategory,
+      subcategory: transaction.direction === "expense"
+        ? transaction.subcategory || inferFinanceSubcategory(transaction.description || transaction.merchant, normalizedCategory)
+        : normalizedCategory,
       payment_type: transaction.direction,
       payment_method: transaction.provider || transaction.source_type,
+      source_channel: sourceChannel,
+      account_label: account?.display_name || account?.provider_name || transaction.provider || null,
+      account_last_four: account?.masked_number?.match(/\d{4}$/)?.[0] || null,
       due_date: transaction.transaction_date,
       paid: true,
       recurring: false,
@@ -348,12 +408,13 @@ const PaymentDashboard = () => {
       sheet_name: "actual",
       archived: false,
       created_at: transaction.transaction_date || transaction.created_at,
-    }));
+      });
+    });
 
     return [...importedEntries, ...plannedEntries].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
-  }, [payments, transactions, t]);
+  }, [payments, transactions, financialAccounts, t]);
 
   // Filter entries by budget period for accurate budget calculations
   // Get current week range (Sunday-Saturday) for display
