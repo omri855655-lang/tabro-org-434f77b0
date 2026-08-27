@@ -23,6 +23,7 @@ import AiChatPanel from "@/components/AiChatPanel";
 import BudgetCharts from "@/components/dashboards/BudgetCharts";
 import ManualTransactionForm from "@/components/ManualTransactionForm";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
+import FinanceOverview from "@/components/dashboards/FinanceOverview";
 import { inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
 
 interface Payment {
@@ -788,75 +789,7 @@ ${context}
 
       {/* SINGLE overview tab — hero + budget + 50/30/20 + charts + transaction lists */}
       <TabsContent value="overview" className="space-y-4">
-        {/* Hero Card */}
-        <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-card via-primary/5 to-accent/10 shadow-sm backdrop-blur-xl">
-          <CardContent className="py-6 space-y-4">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-                  {t("availableToSave" as any)}
-                </p>
-                <p className="text-4xl font-bold text-foreground">₪{Math.abs(availableToSave).toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {availableToSave >= 0 ? t("availableToSavePositive" as any) : t("availableToSaveNegative" as any)}
-                </p>
-                {/* Budget remaining on hero card */}
-                {budgetTarget > 0 && (
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <Badge variant={periodSpending > budgetTarget ? "destructive" : "default"} className="text-xs">
-                      {getBudgetPeriodLabel(budgetPeriod)}{budgetPeriod === "weekly" ? ` (${weekRange.label})` : ""}: ₪{budgetTarget.toLocaleString()} | {t("budgetRemaining" as any)}: ₪{Math.max(budgetTarget - periodSpending, 0).toLocaleString()}
-                    </Badge>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-                  <p className="text-xs text-muted-foreground">{t("income" as any)}</p>
-                  <p className="mt-1 text-lg font-semibold">₪{totalIncome.toLocaleString()}</p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-                  <p className="text-xs text-muted-foreground">{t("spendingLabel" as any)}</p>
-                  <p className="mt-1 text-lg font-semibold">₪{totalSpending.toLocaleString()}</p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-                  <p className="text-xs text-muted-foreground">{t("markedAsSavings" as any)}</p>
-                  <p className="mt-1 text-lg font-semibold">₪{dedicatedSavings.toLocaleString()}</p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-                  <p className="text-xs text-muted-foreground">{t("overdue" as any)}</p>
-                  <p className="mt-1 text-lg font-semibold">{overdue.length}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  {t("goalEarnAndKeep" as any)}
-                </div>
-                <p className="mt-2 text-xs leading-6 text-muted-foreground">
-                  {t("goalEarnAndKeepDesc" as any)}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <PiggyBank className="h-4 w-4 text-primary" />
-                  {t("netBalance" as any)}
-                </div>
-                <p className="mt-2 text-2xl font-semibold">₪{balance.toLocaleString()}</p>
-              </div>
-              <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  {t("unpaidExpenses" as any)}
-                </div>
-                <p className="mt-2 text-2xl font-semibold">₪{unpaidExpenses.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <FinanceOverview entries={dashboardEntries} accounts={financialAccounts} isRtl={isRtl} />
 
         <Card className="border-sky-200/70 bg-sky-50/40 dark:bg-sky-950/10">
           <CardContent className="space-y-4 p-5">
