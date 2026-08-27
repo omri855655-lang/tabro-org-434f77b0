@@ -21,10 +21,7 @@ import { format } from "date-fns";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
 import BudgetCharts from "@/components/dashboards/BudgetCharts";
-import FinancialCsvImport from "@/components/FinancialCsvImport";
 import ManualTransactionForm from "@/components/ManualTransactionForm";
-import CreditCardConnect from "@/components/dashboards/CreditCardConnect";
-import CreditCardImport from "@/components/dashboards/CreditCardImport";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
 import { normalizeFinanceCategory } from "@/lib/financeCategorization";
 
@@ -1037,13 +1034,6 @@ ${context}
         <TabsContent value="credit-cards" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <CloudFinanceConnector onChanged={fetchFinanceData} />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <CreditCardConnect />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <FinancialCsvImport onImported={fetchFinanceData} />
-            <CreditCardImport onImported={fetchFinanceData} />
           </div>
         </TabsContent>
       </Tabs>

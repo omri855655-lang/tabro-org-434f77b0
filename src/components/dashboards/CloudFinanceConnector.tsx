@@ -38,16 +38,17 @@ const fieldLabels: Record<string, Record<string, string>> = {
 const copy = {
   he: {
     title: "חיבור ישיר לבנק ולאשראי",
-    description: "התחברות אוטומטית בענן ללא מחשב ביתי שפועל ברקע.",
-    securityTitle: "פרטי הכניסה מוצפנים",
-    security: "הפרטים מוצפנים במפתח שרת נפרד ומשמשים לקריאת חשבונות ותנועות בלבד. זהו חיבור מבוסס דפדפן ולא הרשאת Open Banking רשמית.",
+    description: "סנכרון אוטומטי בענן של חשבונות ותנועות, ללא מחשב ביתי שפועל ברקע.",
+    securityTitle: "גישה לקריאת נתונים בלבד בתוך Tabro",
+    security: "ה-worker המבודד של Tabro כולל רק פעולות קריאה של חשבונות ותנועות. אין בו נתיב להעברה, לתשלום או לשינוי בחשבון. פרטי הכניסה מוצפנים במפתח שרת נפרד ואינם זמינים לדפדפן לאחר החיבור. מאחר שזה חיבור מבוסס סיסמה ולא הרשאת Open Banking רשמית, מגבלת הקריאה נאכפת על ידי הקוד והבידוד של Tabro ולא על ידי הרשאה ייעודית מהבנק.",
     provider: "בנק, כרטיס או מועדון",
     choose: "בחר מקור",
     connect: "חבר וסנכרן",
     connected: "חיבורים בענן",
     empty: "עדיין אין חיבור ישיר. בחר מקור והזן את פרטי הכניסה שלו.",
     sync: "סנכרן עכשיו",
-    remove: "מחק חיבור",
+    remove: "נתק ומחק פרטי התחברות",
+    disconnectNote: "ניתוק מוחק מיד את החיבור ואת פרטי ההתחברות המוצפנים. תנועות שכבר יובאו נשארות בהיסטוריה הפיננסית שלך.",
     active: "פעיל",
     syncing: "מסנכרן",
     error: "דורש טיפול",
@@ -57,16 +58,17 @@ const copy = {
   },
   en: {
     title: "Direct bank and card connection",
-    description: "Automatic cloud sync without keeping a home computer online.",
-    securityTitle: "Credentials are encrypted",
-    security: "Credentials are encrypted with a separate server key and used only to read accounts and transactions. This is browser-based access, not official Open Banking consent.",
+    description: "Automatic cloud synchronization of accounts and transactions without keeping a home computer online.",
+    securityTitle: "Read-only data access inside Tabro",
+    security: "Tabro's isolated worker only contains account and transaction reading operations. It has no transfer, payment, or account-changing path. Credentials are encrypted with a separate server key and are unavailable to the browser after connecting. Because this is password-based access rather than official Open Banking consent, read-only behavior is enforced by Tabro's code and isolation rather than a dedicated bank permission.",
     provider: "Bank, card or club",
     choose: "Choose a source",
     connect: "Connect and sync",
     connected: "Cloud connections",
     empty: "No direct connection yet. Choose a source and enter its login details.",
     sync: "Sync now",
-    remove: "Delete connection",
+    remove: "Disconnect and delete credentials",
+    disconnectNote: "Disconnecting immediately deletes the connection and its encrypted credentials. Transactions already imported remain in your financial history.",
     active: "Active",
     syncing: "Syncing",
     error: "Needs attention",
@@ -168,12 +170,15 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
   };
 
   const remove = async (connectionId: string) => {
-    if (!window.confirm(lang === "he" ? "למחוק את החיבור והסוד המוצפן שלו?" : "Delete this connection and its encrypted secret?")) return;
+    if (!window.confirm(lang === "he"
+      ? "לנתק את החיבור ולמחוק לצמיתות את פרטי ההתחברות המוצפנים? התנועות שכבר יובאו יישארו בהיסטוריה."
+      : "Disconnect and permanently delete the encrypted credentials? Previously imported transactions will remain in history.")) return;
     setBusy(connectionId);
     try {
       await invoke("delete", { connectionId });
       await load();
       await onChanged?.();
+      toast.success(lang === "he" ? "החיבור ופרטי ההתחברות המוצפנים נמחקו" : "Connection and encrypted credentials deleted");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Delete failed");
     } finally {
@@ -256,6 +261,7 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
 
         <div className="space-y-3">
           <h3 className="text-sm font-semibold">{labels.connected}</h3>
+          <p className="text-xs text-muted-foreground">{labels.disconnectNote}</p>
           {loading ? (
             <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : connections.length === 0 ? (
