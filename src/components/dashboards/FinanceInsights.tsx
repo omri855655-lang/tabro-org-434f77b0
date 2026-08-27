@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { ArrowDownRight, ArrowUpRight, CalendarClock, CircleHelp, CreditCard, Landmark, Store, Tags, WalletCards } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cleanMerchantName, getFinanceCategoryGroup } from "@/lib/financeCategorization";
 
@@ -23,6 +24,7 @@ export interface FinanceInsightEntry {
 interface FinanceInsightsProps {
   entries: FinanceInsightEntry[];
   isRtl: boolean;
+  onCreateRecurring?: (entry: FinanceInsightEntry) => void;
 }
 
 const money = (value: number) => `₪${Math.round(value).toLocaleString("he-IL")}`;
@@ -32,7 +34,7 @@ function monthKey(value: string) {
   return Number.isNaN(date.getTime()) ? "" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
+const FinanceInsights = ({ entries, isRtl, onCreateRecurring }: FinanceInsightsProps) => {
   const analysis = useMemo(() => {
     const now = new Date();
     const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -84,20 +86,27 @@ const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
     const cardTotals = [...cards.entries()].sort((a, b) => b[1] - a[1]);
     const uncategorized = expenses.filter((entry) => !entry.category || entry.category === "אחר").length;
 
-    const recurringCandidates = new Map<string, { count: number; months: Set<string>; total: number }>();
+    const recurringCandidates = new Map<string, { entries: FinanceInsightEntry[]; months: Set<string> }>();
     for (const entry of expenses) {
       const merchant = cleanMerchantName(entry.title);
-      const candidate = recurringCandidates.get(merchant) || { count: 0, months: new Set<string>(), total: 0 };
-      candidate.count += 1;
+      const candidate = recurringCandidates.get(merchant) || { entries: [], months: new Set<string>() };
+      candidate.entries.push(entry);
       candidate.months.add(monthKey(entry.created_at));
-      candidate.total += entry.amount;
       recurringCandidates.set(merchant, candidate);
     }
     const recurring = [...recurringCandidates.entries()]
-      .filter(([, value]) => value.months.size >= 2 && value.count >= 2)
-      .sort((a, b) => b[1].months.size - a[1].months.size || b[1].total - a[1].total)
+      .map(([name, value]) => {
+        const amounts = value.entries.map((entry) => entry.amount);
+        const average = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length;
+        const amountSpread = Math.max(...amounts) - Math.min(...amounts);
+        const days = value.entries.map((entry) => new Date(entry.created_at).getDate());
+        const daySpread = Math.max(...days) - Math.min(...days);
+        const entry = [...value.entries].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+        return { name, average, months: value.months.size, amountSpread, daySpread, entry };
+      })
+      .filter((value) => value.months >= 2 && value.amountSpread <= Math.max(15, value.average * 0.15) && value.daySpread <= 7)
+      .sort((a, b) => b.months - a.months || b.average - a.average)
       .slice(0, 4)
-      .map(([name, value]) => ({ name, average: value.total / value.count, months: value.months.size }));
 
     return {
       currentIncome,
@@ -230,7 +239,7 @@ const FinanceInsights = ({ entries, isRtl }: FinanceInsightsProps) => {
         <div className="grid gap-4 lg:grid-cols-2">
           {analysis.recurring.length > 0 && <Card><CardContent className="p-5">
             <h4 className="mb-3 flex items-center gap-2 font-semibold"><CalendarClock className="h-4 w-4 text-primary" />{isRtl ? "חיובים קבועים שזוהו" : "Detected recurring charges"}</h4>
-            <div className="space-y-2 text-sm">{analysis.recurring.map((item) => <div key={item.name} className="flex justify-between gap-3"><span className="truncate">{item.name} <small className="text-muted-foreground">({item.months} {isRtl ? "חודשים" : "months"})</small></span><strong>~{money(item.average)}</strong></div>)}</div>
+            <div className="space-y-2 text-sm">{analysis.recurring.map((item) => <div key={item.name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 p-2.5"><span className="min-w-0 flex-1 truncate">{item.name} <small className="text-muted-foreground">({item.months} {isRtl ? "חודשים" : "months"})</small></span><strong>~{money(item.average)}</strong>{onCreateRecurring && !item.entry.recurring && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCreateRecurring(item.entry)}>{isRtl ? "אשר כהוצאה קבועה" : "Confirm recurring"}</Button>}</div>)}</div>
           </CardContent></Card>}
           {analysis.uncategorized > 0 && <Card className="border-amber-200/70"><CardContent className="p-5">
             <h4 className="font-semibold">{isRtl ? "עסקאות שדורשות בדיקה" : "Transactions to review"}</h4>

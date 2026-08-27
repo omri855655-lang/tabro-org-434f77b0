@@ -105,6 +105,22 @@ const CATEGORY_IDS = [
   "משכורת", "פרילנס", "דיור", "שכירות", "משכנתא", "סופר", "אוכל", "דלק", "תחבורה", "חשמל", "מים", "גז", "אינטרנט", "טלפון", "ביטוחים", "חשבונות", "קניות", "בילויים", "חינוך", "בריאות", "חיסכון", "השקעות", "אחר"
 ];
 
+function nextMonthlyOccurrence(value: string | null | undefined, from = new Date()) {
+  const sourceDate = value ? new Date(value) : from;
+  const preferredDay = Number.isNaN(sourceDate.getTime()) ? from.getDate() : sourceDate.getDate();
+  const candidate = new Date(from.getFullYear(), from.getMonth(), Math.min(preferredDay, new Date(from.getFullYear(), from.getMonth() + 1, 0).getDate()));
+  candidate.setHours(12, 0, 0, 0);
+  if (candidate < from) {
+    const nextMonthLastDay = new Date(from.getFullYear(), from.getMonth() + 2, 0).getDate();
+    candidate.setMonth(candidate.getMonth() + 1, Math.min(preferredDay, nextMonthLastDay));
+  }
+  return candidate;
+}
+
+function dateOnly(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12, 0, 0, 0);
+}
+
 const GUIDE_DEFS = [
   {
     id: "saving", icon: PiggyBank, titleKey: "guideSaving", color: "text-green-600", bgColor: "bg-green-50 dark:bg-green-950/20",
@@ -322,26 +338,26 @@ const PaymentDashboard = () => {
       setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring } : p));
       toast.success(newRecurring ? t("fixedPayment" as any) : t("variableExpenses" as any));
     } else if (entry.source === "financial_transactions" || entry.source === "cloud_financial_transactions") {
-      // For imported transactions: copy to payment_tracking as a fixed expense, then remove from financial_transactions
+      if (payments.some((payment) => payment.recurring && payment.title === entry.title)) {
+        toast.info(isRtl ? "כבר קיים תכנון קבוע עבור תנועה זו." : "A recurring plan already exists for this transaction.");
+        return;
+      }
+      const nextDueDate = nextMonthlyOccurrence(entry.due_date).toISOString().slice(0, 10);
       const { error: insertErr } = await supabase.from("payment_tracking").insert({
         user_id: user!.id,
         title: entry.title,
         amount: entry.amount,
         category: entry.category,
         payment_type: entry.payment_type,
-        due_date: entry.due_date,
+        payment_method: entry.payment_method,
+        due_date: nextDueDate,
         recurring: true,
         recurring_frequency: "monthly",
-        paid: entry.paid,
+        paid: false,
+        notes: isRtl ? "זוהה ואושר כתנועה חודשית קבועה" : "Detected and approved as a monthly recurring transaction",
       });
       if (insertErr) { toast.error(t("error" as any)); return; }
-      // Remove from financial_transactions
-      if (entry.source === "cloud_financial_transactions") {
-        await invokeFinanceBackend("delete_transaction", { transactionId: entry.id.replace(/^cloud:/, "") });
-      } else {
-        await supabase.from("financial_transactions").delete().eq("id", entry.id);
-      }
-      toast.success(t("fixedPayment" as any));
+      toast.success(isRtl ? "נוסף לתחזית כהוצאה קבועה. התנועה המקורית נשמרה." : "Added to the forecast. The original transaction was preserved.");
       fetchFinanceData();
     }
   };
@@ -466,6 +482,49 @@ const PaymentDashboard = () => {
   const recurringExpenseEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && p.recurring), [dashboardEntries]);
   const spendingEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category) && !p.recurring), [dashboardEntries, isSavingsCategory]);
   const incomeEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "income"), [dashboardEntries]);
+
+  const cashFlowForecast = useMemo(() => {
+    const now = dateOnly(new Date());
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const uniqueAccounts = new Map<string, FinancialAccount>();
+    financialAccounts.forEach((account) => {
+      const key = `${account.provider_name || ""}:${account.external_account_id}`;
+      if (!uniqueAccounts.has(key)) uniqueAccounts.set(key, account);
+    });
+    const liquidBalance = [...uniqueAccounts.values()]
+      .filter((account) => account.account_type?.toUpperCase() !== "CARD" && (!account.currency || account.currency === "ILS"))
+      .reduce((sum, account) => sum + (account.available_balance ?? account.current_balance ?? 0), 0);
+
+    const upcoming = payments.flatMap((payment) => {
+      if (payment.paid || !payment.due_date) return [];
+      const sourceDate = dateOnly(new Date(payment.due_date));
+      if (Number.isNaN(sourceDate.getTime())) return [];
+      const occurrence = payment.recurring && payment.recurring_frequency === "monthly"
+        ? nextMonthlyOccurrence(payment.due_date, now)
+        : sourceDate;
+      if (occurrence < now || occurrence > monthEnd) return [];
+      return [{ payment, occurrence }];
+    }).sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
+
+    const plannedIncome = upcoming
+      .filter(({ payment }) => payment.payment_type === "income")
+      .reduce((sum, { payment }) => sum + payment.amount, 0);
+    const recurringExpenses = upcoming
+      .filter(({ payment }) => payment.payment_type === "expense" && payment.recurring)
+      .reduce((sum, { payment }) => sum + payment.amount, 0);
+    const oneOffExpenses = upcoming
+      .filter(({ payment }) => payment.payment_type === "expense" && !payment.recurring)
+      .reduce((sum, { payment }) => sum + payment.amount, 0);
+
+    return {
+      liquidBalance,
+      plannedIncome,
+      recurringExpenses,
+      oneOffExpenses,
+      projectedBalance: liquidBalance + plannedIncome - recurringExpenses - oneOffExpenses,
+      upcoming,
+    };
+  }, [financialAccounts, payments]);
   
   const overdue = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -743,7 +802,45 @@ ${context}
           </CardContent>
         </Card>
 
-        <FinanceInsights entries={dashboardEntries} isRtl={isRtl} />
+        <Card className="border-sky-200/70 bg-sky-50/40 dark:bg-sky-950/10">
+          <CardContent className="space-y-4 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-sky-700 dark:text-sky-300">{isRtl ? "תכנון בלבד, לא הוצאה בפועל" : "Forecast only, not actual spending"}</p>
+                <h3 className="text-lg font-semibold">{isRtl ? "תחזית עד סוף החודש" : "End-of-month forecast"}</h3>
+              </div>
+              <div className={`text-2xl font-bold ${cashFlowForecast.projectedBalance >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                ₪{cashFlowForecast.projectedBalance.toLocaleString()}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "יתרה נזילה כעת" : "Liquid now"}</p><strong>₪{cashFlowForecast.liquidBalance.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הכנסות מתוכננות" : "Planned income"}</p><strong className="text-emerald-600">+₪{cashFlowForecast.plannedIncome.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות קבועות" : "Recurring expenses"}</p><strong className="text-red-600">-₪{cashFlowForecast.recurringExpenses.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות חד־פעמיות" : "One-off expenses"}</p><strong className="text-red-600">-₪{cashFlowForecast.oneOffExpenses.toLocaleString()}</strong></div>
+            </div>
+            {cashFlowForecast.upcoming.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">{isRtl ? "האירועים הבאים שנכללו בתחזית" : "Upcoming items included in the forecast"}</p>
+                {cashFlowForecast.upcoming.slice(0, 5).map(({ payment, occurrence }) => (
+                  <div key={payment.id} className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2 text-sm">
+                    <span className="truncate">{payment.title} · {format(occurrence, "dd/MM")}</span>
+                    <strong className={payment.payment_type === "income" ? "text-emerald-600" : "text-red-600"}>{payment.payment_type === "income" ? "+" : "-"}₪{payment.amount.toLocaleString()}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <FinanceInsights
+          entries={dashboardEntries}
+          isRtl={isRtl}
+          onCreateRecurring={(entry) => {
+            const fullEntry = dashboardEntries.find((candidate) => candidate.id === entry.id);
+            if (fullEntry) void handleToggleRecurring(fullEntry);
+          }}
+        />
 
         {/* Budget Target */}
         <Card className="border-primary/20">
@@ -1001,6 +1098,36 @@ ${context}
         <TabsContent value="add">
           <Card>
             <CardContent className="pt-4 space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto justify-start gap-3 border-amber-200 p-3 text-start"
+                  onClick={() => {
+                    setNewType("expense");
+                    setNewRecurring(true);
+                    setNewRecurringFrequency("monthly");
+                    setNewDueDate(nextMonthlyOccurrence(null).toISOString().slice(0, 10));
+                  }}
+                >
+                  <Calendar className="h-4 w-4 text-amber-600" />
+                  <span><strong className="block">{isRtl ? "הוצאה קבועה חיצונית" : "External recurring expense"}</strong><small className="font-normal text-muted-foreground">{isRtl ? "הלוואה, שכירות או חיוב שלא מופיע בחיבור" : "A loan, rent or unconnected charge"}</small></span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto justify-start gap-3 border-sky-200 p-3 text-start"
+                  onClick={() => {
+                    setNewType("expense");
+                    setNewRecurring(false);
+                    setNewDueDate("");
+                  }}
+                >
+                  <Lightbulb className="h-4 w-4 text-sky-600" />
+                  <span><strong className="block">{isRtl ? "הוצאה עתידית חד־פעמית" : "One-off future expense"}</strong><small className="font-normal text-muted-foreground">{isRtl ? "טיסה, רכישה גדולה או אירוע עתידי" : "A flight, major purchase or future event"}</small></span>
+                </Button>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">{isRtl ? "הפריטים ייכנסו לתחזית בלבד. הם ייחשבו כהוצאה בפועל רק לאחר סימון ששולמו." : "These items affect the forecast only and become actual spending only after being marked paid."}</p>
               {/* Type selector - prominent */}
               <div className="grid grid-cols-2 gap-2">
               <Button variant={newType === "income" ? "default" : "outline"} className={`gap-2 ${newType === "income" ? "bg-green-600 hover:bg-green-700" : ""}`} onClick={() => setNewType("income")}>
