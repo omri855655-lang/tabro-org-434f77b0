@@ -122,6 +122,15 @@ function dateOnly(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12, 0, 0, 0);
 }
 
+function addForecastInterval(value: Date, frequency: string | null) {
+  const next = new Date(value);
+  if (frequency === "weekly") next.setDate(next.getDate() + 7);
+  else if (frequency === "quarterly") next.setMonth(next.getMonth() + 3);
+  else if (frequency === "yearly") next.setFullYear(next.getFullYear() + 1);
+  else next.setMonth(next.getMonth() + 1);
+  return dateOnly(next);
+}
+
 const GUIDE_DEFS = [
   {
     id: "saving", icon: PiggyBank, titleKey: "guideSaving", color: "text-green-600", bgColor: "bg-green-50 dark:bg-green-950/20",
@@ -155,6 +164,28 @@ const GUIDE_DEFS = [
       { titleKey: "guideAvalanche", contentKey: "guideAvalancheText" },
       { titleKey: "guideDisclaimer", contentKey: "guideDisclaimerText" },
     ]
+  },
+  {
+    id: "monthly-review", icon: Calendar, title: { he: "בדיקה פיננסית חודשית", en: "Monthly money review" }, color: "text-cyan-700", bgColor: "bg-cyan-50 dark:bg-cyan-950/20",
+    sections: [
+      { title: { he: "בדיקת עשר דקות", en: "Ten-minute review" }, content: { he: "עברו על החריגות, החיובים הקבועים והתחזית ל־90 יום. אשרו רק תנועות חוזרות שאתם מזהים ועדכנו הוצאה מתוכננת שהשתנתה.", en: "Review anomalies, recurring charges and the 90-day forecast. Confirm only recurring movements you recognize and update changed plans." } },
+      { title: { he: "יעד אחד לחודש הבא", en: "One target for next month" }, content: { he: "בחרו קטגוריה אחת בלבד לצמצום וקבעו סכום מדיד. יעד ממוקד קל יותר לביצוע מקיצוץ כללי בכל ההוצאות.", en: "Choose one category to reduce and set a measurable amount. A focused target is easier than broad cuts." } },
+    ],
+  },
+  {
+    id: "fixed-costs", icon: Wallet, title: { he: "צמצום הוצאות קבועות", en: "Reduce fixed costs" }, color: "text-rose-700", bgColor: "bg-rose-50 dark:bg-rose-950/20",
+    sections: [
+      { title: { he: "מנויים וביטוחים", en: "Subscriptions and insurance" }, content: { he: "רכזו חיובים חוזרים לפי ספק, בטלו כפילויות ובקשו הצעה חדשה אחת לשנה. אל תבטלו ביטוח בלי לבדוק את הכיסוי החלופי.", en: "Group recurring charges by merchant, cancel duplicates and request new quotes annually. Do not cancel insurance before checking replacement coverage." } },
+      { title: { he: "חובות בריבית גבוהה", en: "High-interest debt" }, content: { he: "הפנו עודף קודם לחוב היקר ביותר, תוך שמירה על כרית חירום בסיסית. בדקו עמלות פירעון לפני שינוי הלוואה.", en: "Direct surplus to the highest-cost debt while keeping a basic emergency buffer. Check early-repayment fees first." } },
+    ],
+  },
+  {
+    id: "income-growth", icon: TrendingUp, title: { he: "רעיונות להגדלת הכנסה", en: "Ideas to grow income" }, color: "text-emerald-700", bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
+    sections: [
+      { title: { he: "הכנסה מהמיומנות הקיימת", en: "Monetize an existing skill" }, content: { he: "בחרו שירות קטן שאפשר לספק בערב או בסוף שבוע, הגדירו תוצאה ומחיר קבועים ופנו לשלושה לקוחות פוטנציאליים בשבוע.", en: "Package one existing skill into a small fixed-scope service and contact three potential customers each week." } },
+      { title: { he: "שיפור שכר בעבודה", en: "Improve employment income" }, content: { he: "תעדו הישגים כספיים או תפעוליים במשך חודש, השוו שכר שוק ובקשו שיחת שכר עם יעד מספרי ותוכנית חלופית.", en: "Document measurable results for a month, benchmark the market and request a salary discussion with a numeric target and fallback plan." } },
+      { title: { he: "זהירות מהבטחות מהירות", en: "Avoid quick-money promises" }, content: { he: "העדיפו הכנסה המבוססת על לקוח, מוצר או עבודה אמיתיים. אל תעבירו כסף מראש להצעה שמבטיחה תשואה או הכנסה ללא סיכון.", en: "Prefer income tied to real work, customers or products. Avoid offers requiring upfront payment for risk-free returns." } },
+    ],
   },
 ];
 
@@ -487,6 +518,7 @@ const PaymentDashboard = () => {
   const cashFlowForecast = useMemo(() => {
     const now = dateOnly(new Date());
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const horizonEnd = dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90));
     const uniqueAccounts = new Map<string, FinancialAccount>();
     financialAccounts.forEach((account) => {
       const key = `${account.provider_name || ""}:${account.external_account_id}`;
@@ -497,25 +529,56 @@ const PaymentDashboard = () => {
       .reduce((sum, account) => sum + (account.available_balance ?? account.current_balance ?? 0), 0);
 
     const upcoming = payments.flatMap((payment) => {
-      if (payment.paid || !payment.due_date) return [];
+      if (!payment.due_date || (!payment.recurring && payment.paid)) return [];
       const sourceDate = dateOnly(new Date(payment.due_date));
       if (Number.isNaN(sourceDate.getTime())) return [];
-      const occurrence = payment.recurring && payment.recurring_frequency === "monthly"
+      if (!payment.recurring) {
+        return sourceDate >= now && sourceDate <= horizonEnd ? [{ payment, occurrence: sourceDate }] : [];
+      }
+
+      let occurrence = payment.recurring_frequency === "monthly"
         ? nextMonthlyOccurrence(payment.due_date, now)
         : sourceDate;
-      if (occurrence < now || occurrence > monthEnd) return [];
-      return [{ payment, occurrence }];
+      while (occurrence < now) occurrence = addForecastInterval(occurrence, payment.recurring_frequency);
+      const occurrences = [];
+      while (occurrence <= horizonEnd) {
+        occurrences.push({ payment, occurrence });
+        occurrence = addForecastInterval(occurrence, payment.recurring_frequency);
+      }
+      return occurrences;
     }).sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
 
-    const plannedIncome = upcoming
+    let runningBalance = liquidBalance;
+    const timeline = upcoming.map((item) => {
+      runningBalance += item.payment.payment_type === "income" ? item.payment.amount : -item.payment.amount;
+      return { ...item, runningBalance };
+    });
+    const projectedAt = (days: number) => {
+      const end = new Date(now);
+      end.setDate(end.getDate() + days);
+      return timeline.filter((item) => item.occurrence <= end).at(-1)?.runningBalance ?? liquidBalance;
+    };
+    const monthUpcoming = upcoming.filter(({ occurrence }) => occurrence <= monthEnd);
+
+    const plannedIncome = monthUpcoming
       .filter(({ payment }) => payment.payment_type === "income")
       .reduce((sum, { payment }) => sum + payment.amount, 0);
-    const recurringExpenses = upcoming
+    const recurringExpenses = monthUpcoming
       .filter(({ payment }) => payment.payment_type === "expense" && payment.recurring)
       .reduce((sum, { payment }) => sum + payment.amount, 0);
-    const oneOffExpenses = upcoming
+    const oneOffExpenses = monthUpcoming
       .filter(({ payment }) => payment.payment_type === "expense" && !payment.recurring)
       .reduce((sum, { payment }) => sum + payment.amount, 0);
+
+    const lowestPoint = timeline.reduce(
+      (lowest, item) => item.runningBalance < lowest.balance
+        ? { balance: item.runningBalance, date: item.occurrence }
+        : lowest,
+      { balance: liquidBalance, date: now },
+    );
+    const todayItems = timeline.filter((item) => item.occurrence.getTime() === now.getTime());
+    const tomorrow = dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+    const tomorrowItems = timeline.filter((item) => item.occurrence.getTime() === tomorrow.getTime());
 
     return {
       liquidBalance,
@@ -523,7 +586,13 @@ const PaymentDashboard = () => {
       recurringExpenses,
       oneOffExpenses,
       projectedBalance: liquidBalance + plannedIncome - recurringExpenses - oneOffExpenses,
-      upcoming,
+      upcoming: timeline,
+      projected30: projectedAt(30),
+      projected60: projectedAt(60),
+      projected90: projectedAt(90),
+      lowestPoint,
+      todayItems,
+      tomorrowItems,
     };
   }, [financialAccounts, payments]);
 
@@ -796,7 +865,7 @@ ${context}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-medium text-sky-700 dark:text-sky-300">{isRtl ? "תכנון בלבד, לא הוצאה בפועל" : "Forecast only, not actual spending"}</p>
-                <h3 className="text-lg font-semibold">{isRtl ? "תחזית עד סוף החודש" : "End-of-month forecast"}</h3>
+                <h3 className="text-lg font-semibold">{isRtl ? "תחזית תזרים ל־90 יום" : "90-day cash-flow forecast"}</h3>
               </div>
               <div className={`text-2xl font-bold ${cashFlowForecast.projectedBalance >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                 ₪{cashFlowForecast.projectedBalance.toLocaleString()}
@@ -808,15 +877,39 @@ ${context}
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות קבועות" : "Recurring expenses"}</p><strong className="text-red-600">-₪{cashFlowForecast.recurringExpenses.toLocaleString()}</strong></div>
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות חד־פעמיות" : "One-off expenses"}</p><strong className="text-red-600">-₪{cashFlowForecast.oneOffExpenses.toLocaleString()}</strong></div>
             </div>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "בעוד 30 יום" : "In 30 days"}</p><strong className={cashFlowForecast.projected30 >= 0 ? "text-emerald-600" : "text-red-600"}>₪{cashFlowForecast.projected30.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "בעוד 60 יום" : "In 60 days"}</p><strong className={cashFlowForecast.projected60 >= 0 ? "text-emerald-600" : "text-red-600"}>₪{cashFlowForecast.projected60.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "בעוד 90 יום" : "In 90 days"}</p><strong className={cashFlowForecast.projected90 >= 0 ? "text-emerald-600" : "text-red-600"}>₪{cashFlowForecast.projected90.toLocaleString()}</strong></div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:bg-amber-950/20"><p className="text-xs text-amber-700">{isRtl ? "נקודת שפל צפויה" : "Projected low point"}</p><strong className={cashFlowForecast.lowestPoint.balance >= 0 ? "text-amber-700" : "text-red-600"}>₪{cashFlowForecast.lowestPoint.balance.toLocaleString()}</strong><small className="block text-muted-foreground">{format(cashFlowForecast.lowestPoint.date, "dd/MM/yyyy")}</small></div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {[
+                { label: isRtl ? "היום" : "Today", items: cashFlowForecast.todayItems },
+                { label: isRtl ? "מחר" : "Tomorrow", items: cashFlowForecast.tomorrowItems },
+              ].map((period) => (
+                <div key={period.label} className="rounded-xl border bg-background/80 p-3">
+                  <p className="text-xs font-semibold text-muted-foreground">{period.label}</p>
+                  {period.items.length ? period.items.map(({ payment, occurrence }) => (
+                    <div key={`${payment.id}:${occurrence.toISOString()}`} className="mt-2 flex items-center justify-between gap-2 text-sm">
+                      <span className="truncate">{payment.title}</span>
+                      <strong className={payment.payment_type === "income" ? "text-emerald-600" : "text-red-600"}>{payment.payment_type === "income" ? "+" : "-"}₪{payment.amount.toLocaleString()}</strong>
+                    </div>
+                  )) : <p className="mt-2 text-sm text-emerald-700">{isRtl ? "אין תנועה מתוכננת" : "No planned movement"}</p>}
+                </div>
+              ))}
+            </div>
             {cashFlowForecast.upcoming.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground">{isRtl ? "האירועים הבאים שנכללו בתחזית" : "Upcoming items included in the forecast"}</p>
-                {cashFlowForecast.upcoming.slice(0, 5).map(({ payment, occurrence }) => (
-                  <div key={payment.id} className="flex items-center justify-between gap-3 rounded-lg border bg-background/70 px-3 py-2 text-sm">
-                    <span className="truncate">{payment.title} · {format(occurrence, "dd/MM")}</span>
-                    <strong className={payment.payment_type === "income" ? "text-emerald-600" : "text-red-600"}>{payment.payment_type === "income" ? "+" : "-"}₪{payment.amount.toLocaleString()}</strong>
+                <p className="text-xs font-semibold text-muted-foreground">{isRtl ? "צפי תנועות ויתרה לאחר כל תנועה" : "Expected movements and running balance"}</p>
+                {cashFlowForecast.upcoming.slice(0, 10).map(({ payment, occurrence, runningBalance }) => (
+                  <div key={`${payment.id}:${occurrence.toISOString()}`} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border bg-background/70 px-3 py-2 text-sm">
+                    <span className="text-xs text-muted-foreground">{format(occurrence, "dd/MM")}</span>
+                    <span className="truncate">{payment.title}</span>
+                    <span className="text-end"><strong className={payment.payment_type === "income" ? "text-emerald-600" : "text-red-600"}>{payment.payment_type === "income" ? "+" : "-"}₪{payment.amount.toLocaleString()}</strong><small className="block text-muted-foreground">{isRtl ? "יתרה" : "Balance"} ₪{runningBalance.toLocaleString()}</small></span>
                   </div>
                 ))}
+                <p className="text-xs text-muted-foreground">{isRtl ? "התחזית כוללת רק חיובים והכנסות קבועים או מתוכננים שאושרו. הוצאות משתנות אינן מחושבות." : "The forecast includes only confirmed recurring or planned movements. Variable spending is not included."}</p>
               </div>
             )}
           </CardContent>
@@ -1167,7 +1260,7 @@ ${context}
                 <Card className={`${guide.bgColor} cursor-pointer hover:shadow-md transition-all`}>
                   <CardContent className="py-3 px-4 flex items-center gap-3">
                     <guide.icon className={`h-6 w-6 ${guide.color} shrink-0`} />
-                    <span className={`font-semibold flex-1 ${isRtl ? "text-right" : "text-left"}`}>{t(guide.titleKey as any)}</span>
+                    <span className={`font-semibold flex-1 ${isRtl ? "text-right" : "text-left"}`}>{"title" in guide ? guide.title[isRtl ? "he" : "en"] : t(guide.titleKey as any)}</span>
                     {expandedGuide === guide.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </CardContent>
                 </Card>
@@ -1177,8 +1270,8 @@ ${context}
                   {guide.sections.map((section, i) => (
                     <Card key={i} className="border-muted">
                       <CardContent className="py-3 px-4">
-                        <h4 className="font-semibold text-sm mb-1">{t(section.titleKey as any)}</h4>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{t(section.contentKey as any)}</p>
+                        <h4 className="font-semibold text-sm mb-1">{"title" in section ? section.title[isRtl ? "he" : "en"] : t(section.titleKey as any)}</h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{"content" in section ? section.content[isRtl ? "he" : "en"] : t(section.contentKey as any)}</p>
                       </CardContent>
                     </Card>
                   ))}

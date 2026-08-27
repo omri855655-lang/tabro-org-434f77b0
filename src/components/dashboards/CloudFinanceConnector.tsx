@@ -39,6 +39,7 @@ const copy = {
   he: {
     title: "חיבור ישיר לבנק ולאשראי",
     description: "סנכרון אוטומטי בענן של חשבונות ותנועות, ללא מחשב ביתי שפועל ברקע.",
+    schedule: "כל חיבור פעיל נבדק ומסתנכרן אוטומטית פעמיים ביום. אפשר גם לסנכרן ידנית בכל עת.",
     securityTitle: "גישה לקריאת נתונים בלבד בתוך Tabro",
     security: "ה-worker המבודד של Tabro כולל רק פעולות קריאה של חשבונות ותנועות. אין בו נתיב להעברה, לתשלום או לשינוי בחשבון. פרטי הכניסה מוצפנים במפתח שרת נפרד ואינם זמינים לדפדפן לאחר החיבור. מאחר שזה חיבור מבוסס סיסמה ולא הרשאת Open Banking רשמית, מגבלת הקריאה נאכפת על ידי הקוד והבידוד של Tabro ולא על ידי הרשאה ייעודית מהבנק.",
     provider: "בנק, כרטיס או מועדון",
@@ -59,6 +60,7 @@ const copy = {
   en: {
     title: "Direct bank and card connection",
     description: "Automatic cloud synchronization of accounts and transactions without keeping a home computer online.",
+    schedule: "Every active connection is checked and synchronized automatically twice a day. Manual sync remains available.",
     securityTitle: "Read-only data access inside Tabro",
     security: "Tabro's isolated worker only contains account and transaction reading operations. It has no transfer, payment, or account-changing path. Credentials are encrypted with a separate server key and are unavailable to the browser after connecting. Because this is password-based access rather than official Open Banking consent, read-only behavior is enforced by Tabro's code and isolation rather than a dedicated bank permission.",
     provider: "Bank, card or club",
@@ -208,6 +210,11 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
           <ShieldCheck className="h-4 w-4 text-amber-700" />
           <AlertTitle>{labels.securityTitle}</AlertTitle>
           <AlertDescription>{labels.security}</AlertDescription>
+        </Alert>
+        <Alert className="border-sky-200 bg-sky-50/50 dark:border-sky-900 dark:bg-sky-950/20">
+          <RefreshCw className="h-4 w-4 text-sky-700" />
+          <AlertTitle>{lang === "he" ? "סנכרון אוטומטי פעמיים ביום" : "Twice-daily automatic sync"}</AlertTitle>
+          <AlertDescription>{labels.schedule}</AlertDescription>
         </Alert>
 
         {serviceUnavailable ? (

@@ -278,7 +278,7 @@ Deno.serve(async (request) => {
           company_id: companyId,
           read_only_behavior: true,
           hosted_worker: true,
-          sync_interval_minutes: 360,
+          sync_interval_minutes: 720,
         },
       }).select("*").single();
       if (error) throw error;

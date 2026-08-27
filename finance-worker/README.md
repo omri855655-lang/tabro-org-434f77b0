@@ -14,7 +14,7 @@ This service runs `israeli-bank-scrapers` in an isolated Chromium process and wr
 
 Build the included Dockerfile on a service that supports long-running HTTP requests and at least 1 GB memory. Configure the deployed URL as the Supabase secret `FINANCE_WORKER_URL`, then deploy the `finance-scraper-connect` Edge Function.
 
-The service exposes `GET /health`, `POST /sync`, and `POST /sync-due`. Deploy it as a private Cloud Run service. `/sync` additionally requires a timestamped HMAC signature using `FINANCE_WORKER_SECRET`; `/sync-due` is callable only by the scheduler service account through Cloud Run IAM. For automatic updates without a home computer, configure Cloud Scheduler to call `POST /sync-due` every hour. Each connection is synced only when its interval is due (six hours by default).
+The service exposes `GET /health`, `POST /sync`, and `POST /sync-due`. Deploy it as a private Cloud Run service. `/sync` additionally requires a timestamped HMAC signature using `FINANCE_WORKER_SECRET`; `/sync-due` is callable only by the scheduler service account through Cloud Run IAM. For automatic updates without a home computer, configure Cloud Scheduler to call `POST /sync-due` every hour. Each connection is synced only when its interval is due (12 hours by default).
 
 The worker does not initiate payments. It signs into supported institutions with credentials supplied by the user and stores those credentials encrypted at rest. This is scraper-based access, not regulated Open Banking consent.
 

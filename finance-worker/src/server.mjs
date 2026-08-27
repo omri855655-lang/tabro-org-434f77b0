@@ -416,7 +416,7 @@ app.post("/sync-due", async (request, response) => {
 
   const now = Date.now();
   const due = (connections || []).filter((connection) => {
-    const interval = Math.max(Number(connection.metadata?.sync_interval_minutes || 360), 60);
+    const interval = Math.max(Number(connection.metadata?.sync_interval_minutes || 720), 60);
     const lastSync = connection.last_sync ? new Date(connection.last_sync).getTime() : 0;
     return !lastSync || now - lastSync >= interval * 60_000;
   }).slice(0, limit);
