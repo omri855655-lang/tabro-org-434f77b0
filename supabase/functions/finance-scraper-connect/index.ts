@@ -233,7 +233,7 @@ Deno.serve(async (request) => {
         : [];
       const transactionRows = connectionIds.length
         ? (await service.from("financial_transactions")
-          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
+          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
           .eq("user_id", user.id)
           .eq("source_type", "cloud_scraper")
           .in("source_connection_id", connectionIds)
@@ -266,6 +266,7 @@ Deno.serve(async (request) => {
         if (!value) return json(request, { error: `Missing credential field: ${field}` }, 400);
         credentials[field] = value;
       }
+      const storeCredentials = typeof body.storeCredentials === "boolean" ? body.storeCredentials : true;
 
       const externalId = `${companyId}:${crypto.randomUUID()}`;
       const { data: connection, error } = await service.from("bank_connections").insert({
@@ -278,7 +279,8 @@ Deno.serve(async (request) => {
           company_id: companyId,
           read_only_behavior: true,
           hosted_worker: true,
-          sync_interval_minutes: 720,
+          credential_storage: storeCredentials ? "encrypted" : "none",
+          sync_interval_minutes: storeCredentials ? 720 : null,
         },
       }).select("*").single();
       if (error) throw error;
@@ -289,6 +291,7 @@ Deno.serve(async (request) => {
           connectionId: connection.id,
           companyId,
           credentials,
+          storeCredentials,
         });
         return json(request, { success: true, connection, ...result });
       } catch (error) {
@@ -312,6 +315,9 @@ Deno.serve(async (request) => {
       if (error || !connection) return json(request, { error: "Connection not found" }, 404);
       const companyId = clean(connection.metadata?.company_id, 50);
       if (!companyId) return json(request, { error: "Connection provider is missing" }, 409);
+      if (connection.metadata?.credential_storage === "none") {
+        return json(request, { error: "This connection was imported without saving credentials. Reconnect to refresh it." }, 409);
+      }
       await service.from("bank_connections").update({ status: "syncing", last_error: null }).eq("id", connection.id);
       return json(request, await callWorker({ userId: user.id, connectionId: connection.id, companyId }));
     }
@@ -332,6 +338,10 @@ Deno.serve(async (request) => {
       if (typeof body.category === "string" || body.category === null) {
         updates.category = typeof body.category === "string" ? clean(body.category, 120) || null : null;
       }
+      if (typeof body.subcategory === "string" || body.subcategory === null) {
+        updates.subcategory = typeof body.subcategory === "string" ? clean(body.subcategory, 120) || null : null;
+      }
+      if (typeof body.hidden === "boolean") updates.hidden = body.hidden;
       const amount = Number(body.amount);
       if (Number.isFinite(amount) && amount > 0) updates.amount = amount;
       if (!Object.keys(updates).length) return json(request, { error: "No valid transaction changes" }, 400);

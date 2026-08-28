@@ -799,6 +799,51 @@ export type Database = {
           },
         ]
       }
+      finance_club_assets: {
+        Row: {
+          archived: boolean
+          asset_type: string
+          balance: number
+          created_at: string
+          currency: string
+          expiry_date: string | null
+          id: string
+          label: string
+          notes: string | null
+          provider_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          asset_type?: string
+          balance?: number
+          created_at?: string
+          currency?: string
+          expiry_date?: string | null
+          id?: string
+          label: string
+          notes?: string | null
+          provider_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          asset_type?: string
+          balance?: number
+          created_at?: string
+          currency?: string
+          expiry_date?: string | null
+          id?: string
+          label?: string
+          notes?: string | null
+          provider_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       financial_sync_logs: {
         Row: {
           connection_id: string | null
@@ -848,6 +893,7 @@ export type Database = {
           description: string | null
           direction: string
           external_transaction_id: string | null
+          hidden: boolean
           id: string
           installment_number: number | null
           installment_total: number | null
@@ -872,6 +918,7 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
+          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -896,6 +943,7 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
+          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -1112,6 +1160,9 @@ export type Database = {
           payment_type: string
           recurring: boolean
           recurring_frequency: string | null
+          recurrence_end_date: string | null
+          recurrence_source_transaction_id: string | null
+          recurrence_status: string
           sheet_name: string
           title: string
           updated_at: string
@@ -1135,6 +1186,9 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
+          recurrence_end_date?: string | null
+          recurrence_source_transaction_id?: string | null
+          recurrence_status?: string
           sheet_name?: string
           title: string
           updated_at?: string
@@ -1158,6 +1212,9 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
+          recurrence_end_date?: string | null
+          recurrence_source_transaction_id?: string | null
+          recurrence_status?: string
           sheet_name?: string
           title?: string
           updated_at?: string

@@ -22,7 +22,7 @@ interface CloudConnection {
   status: string;
   last_sync: string | null;
   last_error: string | null;
-  metadata: { company_id?: string } | null;
+  metadata: { company_id?: string; credential_storage?: "encrypted" | "none"; sync_interval_minutes?: number | null } | null;
 }
 
 const fieldLabels: Record<string, Record<string, string>> = {
@@ -90,6 +90,7 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
+  const [credentialMode, setCredentialMode] = useState<"one_time" | "automatic">("one_time");
 
   const selected = providers[companyId];
   const currentLanguage = fieldLabels.username[lang] ? lang : "en";
@@ -135,7 +136,7 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
     if (!canConnect) return;
     setBusy("connect");
     try {
-      const result = await invoke("connect", { companyId, credentials });
+      const result = await invoke("connect", { companyId, credentials, storeCredentials: credentialMode === "automatic" });
       toast.success(
         lang === "he"
           ? `החיבור הושלם: ${result.accounts_count || 0} חשבונות ו-${result.transactions_count || 0} תנועות חדשות`
@@ -238,7 +239,18 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
             </div>
 
             {selected && (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button type="button" className={`rounded-xl border p-3 text-start ${credentialMode === "one_time" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" : "border-border"}`} onClick={() => setCredentialMode("one_time")}>
+                    <strong className="block text-sm">{lang === "he" ? "ייבוא חד־פעמי ללא שמירת סיסמה" : "One-time import without saving credentials"}</strong>
+                    <small className="text-muted-foreground">{lang === "he" ? "מומלץ לאבטחה מרבית. הסיסמה משמשת בזיכרון בזמן הייבוא ונמחקת מיד." : "Recommended for maximum security. Credentials are used in memory and deleted immediately."}</small>
+                  </button>
+                  <button type="button" className={`rounded-xl border p-3 text-start ${credentialMode === "automatic" ? "border-sky-500 bg-sky-50 dark:bg-sky-950/20" : "border-border"}`} onClick={() => setCredentialMode("automatic")}>
+                    <strong className="block text-sm">{lang === "he" ? "סנכרון אוטומטי פעמיים ביום" : "Automatic twice-daily sync"}</strong>
+                    <small className="text-muted-foreground">{lang === "he" ? "דורש שמירת פרטי הכניסה כשהם מוצפנים בשרת המבודד." : "Requires encrypted credential storage in the isolated worker."}</small>
+                  </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
                 {selected.fields.map((field) => (
                   <div key={field} className="space-y-1.5">
                     <Label htmlFor={`cloud-finance-${field}`}>{fieldLabels[field]?.[currentLanguage] || field}</Label>
@@ -256,6 +268,7 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             )}
 
@@ -285,15 +298,15 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
                       </p>
                     </div>
                     <Badge variant={connection.status === "active" ? "default" : connection.status === "error" ? "destructive" : "secondary"}>
-                      {statusLabel(connection.status)}
+                      {connection.metadata?.credential_storage === "none" ? (lang === "he" ? "ייבוא חד־פעמי" : "One-time import") : statusLabel(connection.status)}
                     </Badge>
                   </div>
                   {connection.last_error && <p className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{connection.last_error}</p>}
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={busy === connection.id}>
+                    {connection.metadata?.credential_storage !== "none" && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={busy === connection.id}>
                       {busy === connection.id ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="me-1 h-3.5 w-3.5" />}
                       {labels.sync}
-                    </Button>
+                    </Button>}
                     <Button size="sm" variant="ghost" onClick={() => remove(connection.id)} disabled={busy === connection.id}>
                       <Trash2 className="me-1 h-3.5 w-3.5" />{labels.remove}
                     </Button>

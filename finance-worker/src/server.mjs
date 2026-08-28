@@ -295,8 +295,9 @@ function signedRequestAuthorized(request) {
   return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(supplied, "hex"));
 }
 
-function validSyncPayload({ userId, connectionId, companyId, credentials }) {
+function validSyncPayload({ userId, connectionId, companyId, credentials, storeCredentials }) {
   if (!UUID_PATTERN.test(userId) || !UUID_PATTERN.test(connectionId) || !SCRAPERS[companyId]) return false;
+  if (storeCredentials !== undefined && typeof storeCredentials !== "boolean") return false;
   if (credentials === undefined) return true;
   if (!credentials || typeof credentials !== "object" || Array.isArray(credentials)) return false;
   return Object.entries(credentials).every(([key, value]) => (
@@ -309,7 +310,7 @@ function validSyncPayload({ userId, connectionId, companyId, credentials }) {
 
 app.get("/health", (_request, response) => response.json({ ok: true, service: "tabro-finance-worker" }));
 
-async function syncConnection({ userId, connectionId, companyId, credentials: submittedCredentials }) {
+async function syncConnection({ userId, connectionId, companyId, credentials: submittedCredentials, storeCredentials = true }) {
   const metadata = SCRAPERS[companyId];
   if (!userId || !connectionId || !metadata) throw new Error("Invalid sync request");
 
@@ -332,12 +333,14 @@ async function syncConnection({ userId, connectionId, companyId, credentials: su
       .eq("user_id", userId);
     if (statusError) throw statusError;
 
-    const credentials = await saveCredentials(service, {
-      connectionId,
-      userId,
-      companyId,
-      credentials: submittedCredentials,
-    });
+    const credentials = submittedCredentials && !storeCredentials
+      ? submittedCredentials
+      : await saveCredentials(service, {
+        connectionId,
+        userId,
+        companyId,
+        credentials: submittedCredentials,
+      });
     const scraper = createScraper({
       companyId,
       startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
@@ -359,6 +362,9 @@ async function syncConnection({ userId, connectionId, companyId, credentials: su
       providerName: metadata.name,
       startedAt,
     }, result);
+    if (!storeCredentials) {
+      await service.from("finance_scraper_credentials").delete().eq("connection_id", connectionId).eq("user_id", userId);
+    }
     return summary;
   } catch (error) {
     const details = errorDetails(error);
@@ -366,6 +372,9 @@ async function syncConnection({ userId, connectionId, companyId, credentials: su
     console.error("finance sync failed", { connectionId, companyId, message, code: details.code });
     await Promise.all([
       service.from("bank_connections").update({ status: "error", last_error: message }).eq("id", connectionId).eq("user_id", userId),
+      submittedCredentials
+        ? service.from("finance_scraper_credentials").delete().eq("connection_id", connectionId).eq("user_id", userId)
+        : Promise.resolve(),
       service.from("financial_sync_logs").insert({
         user_id: userId,
         connection_id: connectionId,
@@ -390,6 +399,7 @@ app.post("/sync", async (request, response) => {
     connectionId: String(request.body.connectionId || ""),
     companyId: String(request.body.companyId || ""),
     credentials: request.body.credentials,
+    storeCredentials: request.body.storeCredentials,
   };
   if (!validSyncPayload(payload)) return response.status(400).json({ error: "Invalid sync request" });
 
@@ -416,6 +426,7 @@ app.post("/sync-due", async (request, response) => {
 
   const now = Date.now();
   const due = (connections || []).filter((connection) => {
+    if (connection.metadata?.credential_storage === "none") return false;
     const interval = Math.max(Number(connection.metadata?.sync_interval_minutes || 720), 60);
     const lastSync = connection.last_sync ? new Date(connection.last_sync).getTime() : 0;
     return !lastSync || now - lastSync >= interval * 60_000;

@@ -30,6 +30,7 @@ interface FinanceOverviewProps {
   entries: OverviewEntry[];
   accounts: OverviewAccount[];
   isRtl: boolean;
+  selectedMonth: string;
 }
 
 const money = (value: number, currency = "ILS") => new Intl.NumberFormat("he-IL", {
@@ -40,12 +41,13 @@ const money = (value: number, currency = "ILS") => new Intl.NumberFormat("he-IL"
 
 const monthKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}`;
 
-const FinanceOverview = ({ entries, accounts, isRtl }: FinanceOverviewProps) => {
+const FinanceOverview = ({ entries, accounts, isRtl, selectedMonth }: FinanceOverviewProps) => {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const analysis = useMemo(() => {
-    const now = new Date();
+    const [selectedYear, selectedMonthNumber] = selectedMonth.split("-").map(Number);
+    const now = new Date(selectedYear, selectedMonthNumber - 1, 1);
     const currentKey = monthKey(now);
-    const previousKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const previousKey = monthKey(new Date(selectedYear, selectedMonthNumber - 2, 1));
     const actual = entries.filter((entry) => entry.paid);
     const current = actual.filter((entry) => monthKey(new Date(entry.created_at)) === currentKey);
     const previous = actual.filter((entry) => monthKey(new Date(entry.created_at)) === previousKey);
@@ -98,7 +100,7 @@ const FinanceOverview = ({ entries, accounts, isRtl }: FinanceOverviewProps) => 
       : [];
 
     return { currentSummary, previousSummary, averageIncome, accountList, available, debt, heatmap, firstDay, maxDaySpend, recent, selectedTransactions };
-  }, [accounts, entries, selectedDay]);
+  }, [accounts, entries, selectedDay, selectedMonth]);
 
   const percentageChange = (current: number, previous: number) => previous > 0 ? ((current - previous) / previous) * 100 : null;
   const incomeChange = percentageChange(analysis.currentSummary.income, analysis.previousSummary.income);
@@ -139,7 +141,7 @@ const FinanceOverview = ({ entries, accounts, isRtl }: FinanceOverviewProps) => 
       </div>
 
       <Card><CardContent className="p-5">
-        <div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">{isRtl ? "החודש" : "This month"}</h3><span className="text-xs text-muted-foreground">{isRtl ? "מול החודש הקודם" : "vs previous month"}</span></div>
+        <div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">{new Date(`${selectedMonth}-01T12:00:00`).toLocaleDateString(isRtl ? "he-IL" : "en-US", { month: "long", year: "numeric" })}</h3><span className="text-xs text-muted-foreground">{isRtl ? "מול החודש הקודם" : "vs previous month"}</span></div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
             { label: isRtl ? "נטו" : "Net", value: analysis.currentSummary.net, change: percentageChange(analysis.currentSummary.net, analysis.previousSummary.net) },

@@ -25,6 +25,8 @@ interface FinanceInsightsProps {
   entries: FinanceInsightEntry[];
   isRtl: boolean;
   onCreateRecurring?: (entry: FinanceInsightEntry) => void;
+  onCategorySelect?: (category: string) => void;
+  confirmedRecurringTitles?: string[];
 }
 
 const money = (value: number) => `₪${Math.round(value).toLocaleString("he-IL")}`;
@@ -34,7 +36,7 @@ function monthKey(value: string) {
   return Number.isNaN(date.getTime()) ? "" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const FinanceInsights = ({ entries, isRtl, onCreateRecurring }: FinanceInsightsProps) => {
+const FinanceInsights = ({ entries, isRtl, onCreateRecurring, onCategorySelect, confirmedRecurringTitles = [] }: FinanceInsightsProps) => {
   const analysis = useMemo(() => {
     const now = new Date();
     const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -172,7 +174,7 @@ const FinanceInsights = ({ entries, isRtl, onCreateRecurring }: FinanceInsightsP
           <h4 className="mb-4 flex items-center gap-2 font-semibold"><Tags className="h-4 w-4 text-primary" />{isRtl ? "קטגוריות מובילות החודש" : "Top categories this month"}</h4>
           <div className="space-y-3">
             {analysis.topCategories.map((category) => (
-              <div key={category.name} className="rounded-xl border border-border/60 p-3">
+              <button type="button" key={category.name} className="block w-full rounded-xl border border-border/60 p-3 text-start transition-colors hover:border-primary/50 hover:bg-muted/30" onClick={() => onCategorySelect?.(category.name)}>
                 <div className="mb-1 flex justify-between gap-3 text-sm"><strong>{category.name}</strong><strong>{money(category.total)}</strong></div>
                 <Progress value={(category.total / maxCategory) * 100} className="h-2" />
                 {category.subcategories.length > 0 && (
@@ -184,7 +186,7 @@ const FinanceInsights = ({ entries, isRtl, onCreateRecurring }: FinanceInsightsP
                     ))}
                   </div>
                 )}
-              </div>
+              </button>
             ))}
             {!analysis.topCategories.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין הוצאות בחודש הנוכחי." : "No expenses this month."}</p>}
           </div>
@@ -239,7 +241,10 @@ const FinanceInsights = ({ entries, isRtl, onCreateRecurring }: FinanceInsightsP
         <div className="grid gap-4 lg:grid-cols-2">
           {analysis.recurring.length > 0 && <Card><CardContent className="p-5">
             <h4 className="mb-3 flex items-center gap-2 font-semibold"><CalendarClock className="h-4 w-4 text-primary" />{isRtl ? "חיובים קבועים שזוהו" : "Detected recurring charges"}</h4>
-            <div className="space-y-2 text-sm">{analysis.recurring.map((item) => <div key={item.name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 p-2.5"><span className="min-w-0 flex-1 truncate">{item.name} <small className="text-muted-foreground">({item.months} {isRtl ? "חודשים" : "months"})</small></span><strong>~{money(item.average)}</strong>{onCreateRecurring && !item.entry.recurring && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCreateRecurring(item.entry)}>{isRtl ? "אשר כהוצאה קבועה" : "Confirm recurring"}</Button>}</div>)}</div>
+            <div className="space-y-2 text-sm">{analysis.recurring.map((item) => {
+              const confirmed = confirmedRecurringTitles.includes(item.entry.title);
+              return <div key={item.name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 p-2.5"><span className="min-w-0 flex-1 truncate">{item.name} <small className="text-muted-foreground">({item.months} {isRtl ? "חודשים" : "months"})</small></span><strong>~{money(item.average)}</strong>{confirmed ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">✓ {isRtl ? "אושר" : "Confirmed"}</span> : onCreateRecurring && !item.entry.recurring && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCreateRecurring(item.entry)}>{isRtl ? "אשר כהוצאה קבועה" : "Confirm recurring"}</Button>}</div>;
+            })}</div>
           </CardContent></Card>}
           {analysis.uncategorized > 0 && <Card className="border-amber-200/70"><CardContent className="p-5">
             <h4 className="font-semibold">{isRtl ? "עסקאות שדורשות בדיקה" : "Transactions to review"}</h4>
