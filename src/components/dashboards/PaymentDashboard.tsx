@@ -150,6 +150,23 @@ function addForecastInterval(value: Date, frequency: string | null) {
   return dateOnly(next);
 }
 
+function median(values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function normalizeSalarySource(value: string) {
+  return value
+    .toLocaleLowerCase("he")
+    .replace(/\d+/g, " ")
+    .replace(/[^\p{L}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function transactionDisplayKey(transaction: FinancialTransaction) {
   const title = `${transaction.description || transaction.merchant || ""}`.toLocaleLowerCase("he").replace(/\s+/g, " ").trim();
   return [transaction.transaction_date?.slice(0, 10), transaction.direction, Number(transaction.amount).toFixed(2), title].join("|");
@@ -657,6 +674,41 @@ const PaymentDashboard = () => {
   const variableExpenses = Math.max(totalSpending - fixedExpenses, 0);
   const recurringExpenseEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && p.recurring), [dashboardEntries]);
 
+  const estimatedSalary = useMemo(() => {
+    const salaryPattern = /משכורת|שכר|salary|payroll|עובדי\s*מדינ/i;
+    const historicalIncome = dashboardEntries
+      .filter((entry) => {
+        if (entry.hidden || !entry.paid || entry.payment_type !== "income") return false;
+        const date = new Date(entry.due_date || entry.created_at);
+        if (Number.isNaN(date.getTime()) || date > new Date()) return false;
+        return salaryPattern.test(`${entry.title} ${entry.category || ""} ${entry.subcategory || ""}`);
+      })
+      .sort((a, b) => new Date(b.due_date || b.created_at).getTime() - new Date(a.due_date || a.created_at).getTime());
+
+    const byMonth = new Map<string, DashboardEntry>();
+    historicalIncome.forEach((entry) => {
+      const date = new Date(entry.due_date || entry.created_at);
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const current = byMonth.get(monthKey);
+      if (!current || entry.amount > current.amount) byMonth.set(monthKey, entry);
+    });
+
+    const samples = [...byMonth.values()].slice(0, 6);
+    if (samples.length < 2) return null;
+    const amounts = samples.map((entry) => entry.amount);
+    const average = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length;
+    const spread = Math.max(...amounts) - Math.min(...amounts);
+    if (average <= 0 || spread / average > 0.35) return null;
+
+    const latest = samples[0];
+    return {
+      amount: Math.round(average * 100) / 100,
+      day: Math.round(median(samples.map((entry) => new Date(entry.due_date || entry.created_at).getDate()))),
+      source: normalizeSalarySource(latest.title) || (isRtl ? "משכורת" : "Salary"),
+      samples: samples.length,
+    };
+  }, [dashboardEntries, isRtl]);
+
   const cashFlowForecast = useMemo(() => {
     const now = dateOnly(new Date());
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -670,7 +722,7 @@ const PaymentDashboard = () => {
       .filter((account) => account.account_type?.toUpperCase() !== "CARD" && (!account.currency || account.currency === "ILS"))
       .reduce((sum, account) => sum + (account.available_balance ?? account.current_balance ?? 0), 0);
 
-    const upcoming = payments.flatMap((payment) => {
+    const plannedUpcoming = payments.flatMap((payment) => {
       if (payment.recurrence_status === "paused" || payment.recurrence_status === "ended") return [];
       if (!payment.due_date || (!payment.recurring && payment.paid)) return [];
       const sourceDate = dateOnly(new Date(payment.due_date));
@@ -690,7 +742,50 @@ const PaymentDashboard = () => {
         occurrence = addForecastInterval(occurrence, payment.recurring_frequency);
       }
       return occurrences;
-    }).sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
+    });
+
+    const estimatedSalaryUpcoming: Array<{ payment: Payment; occurrence: Date }> = [];
+    if (estimatedSalary) {
+      let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(estimatedSalary.day, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
+      if (occurrence < now) occurrence = addForecastInterval(occurrence, "monthly");
+      while (occurrence <= horizonEnd) {
+        const monthHasPlannedSalary = plannedUpcoming.some(({ payment, occurrence: plannedDate }) =>
+          payment.payment_type === "income"
+          && plannedDate.getFullYear() === occurrence.getFullYear()
+          && plannedDate.getMonth() === occurrence.getMonth(),
+        );
+        if (!monthHasPlannedSalary) {
+          estimatedSalaryUpcoming.push({
+            payment: {
+              id: `estimated-salary-${format(occurrence, "yyyy-MM")}`,
+              title: isRtl ? `משכורת משוערת · ${estimatedSalary.source}` : `Estimated salary · ${estimatedSalary.source}`,
+              amount: estimatedSalary.amount,
+              currency: "ILS",
+              category: isRtl ? "משכורת" : "Salary",
+              payment_type: "income",
+              payment_method: "forecast",
+              due_date: format(occurrence, "yyyy-MM-dd"),
+              paid: false,
+              recurring: true,
+              recurring_frequency: "monthly",
+              recurrence_status: "estimated",
+              recurrence_end_date: null,
+              recurrence_source_transaction_id: null,
+              notes: isRtl ? `ממוצע של ${estimatedSalary.samples} חודשי משכורת` : `Average of ${estimatedSalary.samples} salary months`,
+              sheet_name: "forecast",
+              archived: false,
+              hidden: false,
+              created_at: new Date().toISOString(),
+            },
+            occurrence: new Date(occurrence),
+          });
+        }
+        occurrence = addForecastInterval(occurrence, "monthly");
+      }
+    }
+
+    const upcoming = [...plannedUpcoming, ...estimatedSalaryUpcoming]
+      .sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
 
     let runningBalance = liquidBalance;
     const timeline = upcoming.map((item) => {
@@ -737,8 +832,9 @@ const PaymentDashboard = () => {
       lowestPoint,
       todayItems,
       tomorrowItems,
+      estimatedSalary,
     };
-  }, [financialAccounts, payments]);
+  }, [estimatedSalary, financialAccounts, isRtl, payments]);
 
   const proactiveFinanceInsights = useMemo(() => {
     const now = new Date();

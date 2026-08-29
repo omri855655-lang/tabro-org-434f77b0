@@ -135,6 +135,7 @@ Deno.serve(async (req) => {
               await serviceClient.from("email_analyses").upsert({
                 user_id: user.id,
                 connection_id: connectionId,
+                external_message_id: msg.id,
                 email_subject: subject,
                 email_from: from,
                 email_date: date ? new Date(date).toISOString() : new Date().toISOString(),
@@ -145,7 +146,7 @@ Deno.serve(async (req) => {
                   : category === "task"
                   ? { type: "create_task", description: subject }
                   : null,
-              } as any);
+              } as any, { onConflict: "connection_id,external_message_id" });
 
               emailsProcessed++;
             } catch (msgErr) {

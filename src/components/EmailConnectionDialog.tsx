@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Mail, Server, Loader2 } from "lucide-react";
+import { Mail, Loader2, ShieldCheck } from "lucide-react";
 import { useEmailIntegration } from "@/hooks/useEmailIntegration";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,23 +14,18 @@ interface EmailConnectionDialogProps {
 
 const PROVIDERS = [
   { id: "gmail", name: "Gmail", icon: Mail, color: "text-red-500", oauth: true },
-  { id: "imap", name: "IMAP", icon: Server, color: "text-gray-500", oauth: false },
 ];
 
 const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) => {
   const { t, lang } = useLanguage();
-  const { addConnection, refetch } = useEmailIntegration();
-  const [provider, setProvider] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [imapHost, setImapHost] = useState("");
-  const [imapPort, setImapPort] = useState("993");
-  const [imapPassword, setImapPassword] = useState("");
-  const [saving, setSaving] = useState(false);
+  const { refetch } = useEmailIntegration();
   const [oauthLoading, setOauthLoading] = useState(false);
   const isHe = lang === "he" || lang === "ar";
+  const oauthOrigin = new URL(import.meta.env.VITE_SUPABASE_URL).origin;
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== oauthOrigin) return;
       if (event.data?.type === "gmail-connected") {
         toast.success(`${t("emailConnected" as any)}: ${event.data.email}`);
         refetch();
@@ -48,7 +39,7 @@ const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) =>
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isHe, onClose, refetch, t]);
+  }, [isHe, oauthOrigin, onClose, refetch, t]);
 
   const handleGmailOAuth = async () => {
     setOauthLoading(true);
@@ -81,33 +72,14 @@ const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) =>
     }
   };
 
-  const handleConnect = async () => {
-    if (!provider || !email.trim()) return;
-
-    setSaving(true);
-    if (provider === "imap") {
-      await addConnection(provider, email, {
-        host: imapHost, port: parseInt(imapPort), password: imapPassword,
-      });
-    } else {
-      await addConnection(provider, email, {});
-    }
-
-    setSaving(false);
-    setProvider(null);
-    setEmail("");
-    onClose();
-  };
-
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { setProvider(null); onClose(); } }}>
-      <DialogContent className="max-w-sm" dir="auto">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm" dir={isHe ? "rtl" : "ltr"}>
         <DialogHeader>
           <DialogTitle>{t("connectEmail" as any)}</DialogTitle>
         </DialogHeader>
 
-        {!provider ? (
-          <div className="space-y-2">
+        <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               {t("chooseProvider" as any)}
             </p>
@@ -116,13 +88,7 @@ const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) =>
               return (
                 <button
                   key={p.id}
-                  onClick={() => {
-                    if (p.oauth) {
-                      handleGmailOAuth();
-                    } else {
-                      setProvider(p.id);
-                    }
-                  }}
+                  onClick={handleGmailOAuth}
                   disabled={oauthLoading}
                   className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors text-right disabled:opacity-50"
                   aria-label={`${t("connect" as any)} ${p.name}`}
@@ -137,49 +103,11 @@ const EmailConnectionDialog = ({ open, onClose }: EmailConnectionDialogProps) =>
                 </button>
               );
             })}
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{isHe ? "החיבור מתבצע אצל Google בהרשאת קריאה בלבד. Tabro אינה מקבלת או שומרת את סיסמת Gmail שלך." : "Google handles sign-in with read-only access. Tabro never receives or stores your Gmail password."}</span>
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="email-input">{t("emailAddress" as any)}</Label>
-              <Input
-                id="email-input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
-                dir="ltr"
-              />
-            </div>
-            {provider === "imap" && (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="imap-host">IMAP Host</Label>
-                  <Input id="imap-host" value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="imap.example.com" dir="ltr" />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="imap-port">Port</Label>
-                  <Input id="imap-port" value={imapPort} onChange={(e) => setImapPort(e.target.value)} type="number" dir="ltr" />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="imap-password">{t("password" as any)}</Label>
-                  <Input id="imap-password" type="password" value={imapPassword} onChange={(e) => setImapPassword(e.target.value)} dir="ltr" />
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {provider && (
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setProvider(null)}>
-              {t("back" as any)}
-            </Button>
-            <Button size="sm" onClick={handleConnect} disabled={!email.trim() || saving}>
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : t("connect" as any)}
-            </Button>
-          </DialogFooter>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );

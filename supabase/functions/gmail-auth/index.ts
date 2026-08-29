@@ -9,6 +9,49 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const SCOPES = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email";
 
+const toBase64Url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
+  .replace(/\+/g, "-")
+  .replace(/\//g, "_")
+  .replace(/=+$/g, "");
+
+async function signState(payload: string) {
+  const secret = Deno.env.get("OAUTH_STATE_SECRET") || Deno.env.get("GOOGLE_CLIENT_SECRET");
+  if (!secret) throw new Error("OAuth state secret is not configured");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
+  return `${toBase64Url(new TextEncoder().encode(payload))}.${toBase64Url(signature)}`;
+}
+
+async function verifyState(state: string) {
+  const [encodedPayload, encodedSignature] = state.split(".");
+  if (!encodedPayload || !encodedSignature) return null;
+  const decode = (value: string) => Uint8Array.from(
+    atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=")),
+    (char) => char.charCodeAt(0),
+  );
+  const payload = new TextDecoder().decode(decode(encodedPayload));
+  const secret = Deno.env.get("OAUTH_STATE_SECRET") || Deno.env.get("GOOGLE_CLIENT_SECRET");
+  if (!secret) return null;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const valid = await crypto.subtle.verify("HMAC", key, decode(encodedSignature), new TextEncoder().encode(payload));
+  if (!valid) return null;
+  const parsed = JSON.parse(payload) as { userId?: string; expiresAt?: number };
+  if (!parsed.userId || !parsed.expiresAt || parsed.expiresAt < Date.now()) return null;
+  return parsed.userId;
+}
+
 function getRedirectUri() {
   return `${Deno.env.get("SUPABASE_URL")}/functions/v1/gmail-auth?action=callback`;
 }
@@ -23,7 +66,7 @@ Deno.serve(async (req) => {
     // Handle OAuth callback from Google (GET redirect)
     if (action === "callback") {
       const code = url.searchParams.get("code");
-      const state = url.searchParams.get("state"); // contains user_id
+      const state = url.searchParams.get("state");
       const error = url.searchParams.get("error");
 
       if (error) {
@@ -36,6 +79,11 @@ Deno.serve(async (req) => {
         return new Response(`<html><body><script>window.close();</script>Missing params</body></html>`, {
           headers: { "Content-Type": "text/html" },
         });
+      }
+
+      const stateUserId = await verifyState(state);
+      if (!stateUserId) {
+        return new Response("Invalid or expired OAuth state", { status: 400, headers: { "Content-Type": "text/plain" } });
       }
 
       // Exchange code for tokens
@@ -71,7 +119,7 @@ Deno.serve(async (req) => {
       );
 
       await serviceClient.from("email_connections").upsert({
-        user_id: state,
+        user_id: stateUserId,
         provider: "gmail",
         email_address: profile.email,
         access_token: tokens.access_token,
@@ -79,8 +127,10 @@ Deno.serve(async (req) => {
         settings: { token_expiry: Date.now() + (tokens.expires_in * 1000) },
       } as any, { onConflict: "user_id,provider,email_address" });
 
+      const safeEmail = JSON.stringify(String(profile.email || ""));
+      const appOrigin = JSON.stringify(Deno.env.get("APP_ORIGIN") || "https://omrigabayexcel.site");
       return new Response(
-        `<html><body><script>window.opener && window.opener.postMessage({type:'gmail-connected',email:'${profile.email}'},'*');window.close();</script><p>Connected! You can close this window.</p></body></html>`,
+        `<html><body><script>window.opener && window.opener.postMessage({type:'gmail-connected',email:${safeEmail}},${appOrigin});window.close();</script><p>Connected. You can close this window.</p></body></html>`,
         { headers: { "Content-Type": "text/html" } }
       );
     }
@@ -101,6 +151,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     if (body.action === "get_auth_url") {
+      const state = await signState(JSON.stringify({ userId: user.id, expiresAt: Date.now() + 10 * 60 * 1000 }));
       const params = new URLSearchParams({
         client_id: Deno.env.get("GOOGLE_CLIENT_ID")!,
         redirect_uri: getRedirectUri(),
@@ -108,7 +159,7 @@ Deno.serve(async (req) => {
         scope: SCOPES,
         access_type: "offline",
         prompt: "consent",
-        state: user.id,
+        state,
       });
 
       return new Response(JSON.stringify({ url: `${GOOGLE_AUTH_URL}?${params}` }), {

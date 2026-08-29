@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import type { AudioPreset } from "./zoneflowAudioPresets";
+import { ZoneFlowFocusRoom } from "./ZoneFlowFocusRoom";
 
 export type FocusMode = "simple" | "gamified";
 
@@ -52,31 +53,6 @@ const formatClock = (seconds: number) => {
 
 const sessionDate = (session: UnifiedFocusSession) => new Date(session.timestamp);
 
-function FocusGardenScene({ running, progress }: { running: boolean; progress: number }) {
-  return (
-    <div className="relative h-52 overflow-hidden rounded-[2rem] border border-white/15 bg-[radial-gradient(circle_at_30%_15%,rgba(255,240,185,0.36),transparent_24%),linear-gradient(155deg,#173c3a_0%,#1f5650_46%,#102725_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] sm:h-64">
-      <div className={`absolute left-[12%] top-[16%] h-20 w-20 rounded-full bg-amber-200/75 blur-sm transition-all duration-1000 ${running ? "scale-110 shadow-[0_0_70px_rgba(253,230,138,0.65)]" : ""}`} />
-      <div className="absolute inset-x-0 bottom-0 h-[44%] bg-[linear-gradient(165deg,transparent_0_20%,rgba(8,33,31,0.8)_21%_100%)]" />
-      <div className="absolute -bottom-12 -left-10 h-44 w-56 rounded-[50%] bg-emerald-950/80" />
-      <div className="absolute -bottom-16 right-[-7%] h-52 w-64 rounded-[50%] bg-teal-950/80" />
-      <div className={`absolute bottom-[18%] left-[50%] h-28 w-1 -translate-x-1/2 rounded-full bg-amber-100/65 transition-opacity duration-700 ${running ? "opacity-100" : "opacity-55"}`} />
-      <div className="absolute bottom-[20%] left-1/2 h-4 w-32 -translate-x-1/2 rounded-[50%] bg-amber-100/20 blur-md" />
-      <div className="absolute bottom-[24%] left-[38%] h-10 w-24 -skew-x-6 rounded-lg border border-amber-100/20 bg-[#8c5f3c] shadow-xl" />
-      <div className="absolute bottom-[35%] left-[44%] h-16 w-2 rounded-full bg-[#7c4d31]" />
-      <div className="absolute bottom-[48%] left-[40%] h-12 w-20 rounded-[70%_30%_65%_35%] bg-emerald-300/70" />
-      <div className="absolute bottom-[46%] left-[49%] h-10 w-16 rounded-[35%_65%_30%_70%] bg-lime-200/60" />
-      <div className="absolute right-5 top-5 rounded-full border border-white/15 bg-black/15 px-3 py-1.5 text-xs text-white/75 backdrop-blur-md">
-        {running ? "הסביבה צומחת איתך" : "גן השקט שלך"}
-      </div>
-      <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur-md">
-        <div className="flex items-center justify-between text-xs text-white/75"><span>התקדמות הסשן</span><strong>{Math.round(progress)}%</strong></div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-amber-200 via-lime-200 to-emerald-300 transition-[width] duration-700" style={{ width: `${progress}%` }} /></div>
-      </div>
-      {running && <div className="absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.06),transparent_45%)] [animation-duration:4s]" />}
-    </div>
-  );
-}
-
 export function ZoneFlowFocusDeck({
   sessions,
   rewardBalance,
@@ -105,6 +81,9 @@ export function ZoneFlowFocusDeck({
   useEffect(() => { safeLocalStorage.setString("zoneflow-focus-mode", mode); }, [mode]);
   useEffect(() => { safeLocalStorage.setString("zoneflow-focus-minutes", String(focusMinutes)); }, [focusMinutes]);
   useEffect(() => { safeLocalStorage.setString("zoneflow-break-minutes", String(breakMinutes)); }, [breakMinutes]);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("zoneflow-focus-state", { detail: { active: status === "running", mode, phase } }));
+  }, [mode, phase, status]);
 
   useEffect(() => {
     if (status !== "running") return;
@@ -236,7 +215,7 @@ export function ZoneFlowFocusDeck({
 
       <div className={`grid gap-6 p-5 sm:p-7 ${mode === "gamified" ? "lg:grid-cols-[1.05fr_0.95fr]" : "lg:grid-cols-[1fr_0.72fr]"}`}>
         <div className="space-y-5">
-          {mode === "gamified" && <FocusGardenScene running={status === "running"} progress={progress} />}
+          {mode === "gamified" && <ZoneFlowFocusRoom running={status === "running"} progress={progress} level={level} />}
           <div className={`rounded-[1.75rem] border p-5 sm:p-7 ${mode === "simple" ? "border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.04]" : "border-emerald-900/15 bg-emerald-950 text-white shadow-[0_18px_50px_rgba(6,78,59,0.22)]"}`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>

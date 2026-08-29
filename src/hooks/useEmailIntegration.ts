@@ -78,7 +78,17 @@ export function useEmailIntegration() {
         .order("email_date", { ascending: false })
         .limit(200);
       if (error) throw error;
-      setAnalyses((data as any[]) || []);
+      const unique = new Map<string, EmailAnalysis>();
+      ((data as EmailAnalysis[]) || []).forEach((analysis) => {
+        const key = [
+          analysis.connection_id,
+          analysis.email_subject || "",
+          analysis.email_from || "",
+          analysis.email_date ? new Date(analysis.email_date).toISOString() : "",
+        ].join("|");
+        if (!unique.has(key)) unique.set(key, analysis);
+      });
+      setAnalyses([...unique.values()]);
     } catch (e) {
       console.error("Error fetching email analyses:", e);
     }
@@ -157,17 +167,23 @@ export function useEmailIntegration() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error(t("loginRequired" as any)); return; }
       
-      const { error } = await supabase.functions.invoke("email-sync", {
+      const { data, error } = await supabase.functions.invoke("email-sync", {
         body: { connectionId },
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (error) throw error;
-      await fetchAnalyses();
-      toast.success(isHe ? "סנכרון המיילים הושלם" : "Email sync completed");
+      await Promise.all([fetchAnalyses(), fetchConnections()]);
+      const processed = Number(data?.emails_processed || 0);
+      toast.success(isHe
+        ? `סנכרון המיילים הושלם · ${processed} מיילים עודכנו`
+        : `Email sync completed · ${processed} emails updated`);
+      return true;
     } catch (e: any) {
+      console.error("Email sync failed:", e);
       toast.error(isHe ? "שגיאה בסנכרון מיילים" : "Error syncing emails");
+      return false;
     }
-  }, [fetchAnalyses, isHe, t]);
+  }, [fetchAnalyses, fetchConnections, isHe, t]);
 
   const saveEmailPriorityPrefs = useCallback(async (nextPrefs: EmailPriorityPrefs) => {
     if (!user) return false;

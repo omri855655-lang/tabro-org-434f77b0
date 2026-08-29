@@ -162,7 +162,6 @@ const PersonalPlanner = () => {
   const [showQuickEventDialog, setShowQuickEventDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [quickEditorAnchor, setQuickEditorAnchor] = useState<{ top: number; left: number } | null>(null);
-  const [showLinkToDashboard, setShowLinkToDashboard] = useState(false);
   const [pendingLinkEvent, setPendingLinkEvent] = useState<CalendarEvent | null>(null);
   const [newEventData, setNewEventData] = useState({
     title: "",
@@ -1391,7 +1390,6 @@ const PersonalPlanner = () => {
         const savedEvent = eventToOfferForLinking;
         window.setTimeout(() => {
           setPendingLinkEvent(savedEvent);
-          setShowLinkToDashboard(true);
         }, 180);
       }
     } catch (error) {
@@ -1410,8 +1408,6 @@ const PersonalPlanner = () => {
       return;
     }
 
-    // Close dialog immediately for better UX
-    setShowLinkToDashboard(false);
     setPendingLinkEvent(null);
 
     try {
@@ -2665,6 +2661,27 @@ const PersonalPlanner = () => {
 
       {/* Left side - Calendar */}
       <div className="flex-1 flex flex-col min-w-0">
+        {pendingLinkEvent && (
+          <div className="mx-3 mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">האירוע נשמר בהצלחה</p>
+              <p className="truncate text-xs text-muted-foreground">
+                רוצה לצרף את "{pendingLinkEvent.title}" גם לדשבורד המשימות?
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => void handleLinkToDashboard("personal")}>
+                משימות אישיות
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void handleLinkToDashboard("work")}>
+                משימות עבודה
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPendingLinkEvent(null)}>
+                לא עכשיו
+              </Button>
+            </div>
+          </div>
+        )}
         {/* Calendar header */}
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 p-4 backdrop-blur-xl">
           {isMobile && (
@@ -3265,37 +3282,6 @@ const PersonalPlanner = () => {
           }}
         />
       )}
-
-      {/* Link to Dashboard Dialog */}
-      <Dialog open={showLinkToDashboard} onOpenChange={(open) => {
-        if (!open) {
-          setShowLinkToDashboard(false);
-          setPendingLinkEvent(null);
-        }
-      }}>
-        <DialogContent dir="rtl" className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>הוספה לדשבורד משימות</DialogTitle>
-            <DialogDescription className="sr-only">
-              בחירה אם להוסיף את האירוע שנוצר גם לדשבורד המשימות.
-            </DialogDescription>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            רוצה לצרף את <strong>"{pendingLinkEvent?.title}"</strong> לדשבורד משימות? כך תקבל מעקב מלא והתראות סיום.
-          </p>
-          <div className="flex flex-col gap-2 mt-2">
-            <Button onClick={() => handleLinkToDashboard("personal")} className="gap-2">
-              📋 משימות אישיות
-            </Button>
-            <Button onClick={() => handleLinkToDashboard("work")} variant="outline" className="gap-2">
-              💼 משימות עבודה
-            </Button>
-            <Button variant="ghost" onClick={() => { setShowLinkToDashboard(false); setPendingLinkEvent(null); }}>
-              לא, תודה
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Category Manager Dialog */}
       <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
