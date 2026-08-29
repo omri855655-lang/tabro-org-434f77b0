@@ -3,6 +3,7 @@ import { Coffee, Headphones, Library, LogOut, MicOff, Pause, Plane, Play, Radio,
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import cozyLibraryRoom from "@/assets/zoneflow/cozy-library-room-v2.png";
 
 export type FocusRoomScene = "library" | "plane" | "cafe" | "office";
 
@@ -68,9 +69,22 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       tabIndex={0}
       onKeyDown={moveFromKeyboard}
     >
+      {scene === "library" && (
+        <>
+          <img src={cozyLibraryRoom} alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#120b08]/25 via-transparent to-[#090605]/75" />
+          <div className="zoneflow-library-light absolute left-[13%] top-[19%] h-64 w-32 -rotate-12 bg-gradient-to-b from-amber-100/30 to-transparent blur-2xl" />
+          {Array.from({ length: 14 }, (_, index) => (
+            <span
+              key={`library-dust-${index}`}
+              className="zoneflow-library-dust absolute h-1.5 w-1.5 rounded-full bg-amber-100/80 shadow-[0_0_8px_rgba(254,243,199,.9)]"
+              style={{ left: `${8 + ((index * 17) % 82)}%`, top: `${25 + ((index * 23) % 48)}%`, animationDelay: `${index * -0.72}s`, animationDuration: `${7 + (index % 5)}s` }}
+            />
+          ))}
+        </>
+      )}
       <div className={cn("absolute -start-24 -top-24 h-72 w-72 rounded-full blur-3xl", config.glow)} />
-      <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-      {scene === "library" && <div className="absolute inset-x-5 top-24 grid grid-cols-2 gap-20 opacity-90"><div className="h-72 rounded-2xl border-[14px] border-[#3d2114] bg-[repeating-linear-gradient(0deg,#7f3f26_0_12px,#e9b35f_12px_18px,#2f1c18_18px_23px)] shadow-2xl" /><div className="h-72 rounded-2xl border-[14px] border-[#3d2114] bg-[repeating-linear-gradient(0deg,#6d3728_0_13px,#d7924d_13px_20px,#2f1c18_20px_25px)] shadow-2xl" /></div>}
+      <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
       {scene === "plane" && <>
         <div className="absolute inset-x-6 top-24 flex justify-around">
           {[0, 1, 2, 3, 4].map((item) => <div key={item} className="relative h-20 w-24 overflow-hidden rounded-[45%] border-8 border-slate-200/75 bg-gradient-to-b from-sky-100 via-sky-300 to-sky-500 shadow-[inset_0_0_25px_rgba(255,255,255,.8)]">
@@ -95,8 +109,8 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       <div className="absolute bottom-28 end-3 top-28 z-30 hidden w-52 rounded-3xl border border-white/15 bg-slate-950/65 p-3 backdrop-blur-xl lg:block"><div className="flex items-center justify-between text-xs font-bold"><span className="flex items-center gap-2"><Users className="h-4 w-4 text-cyan-300" />בחדר עכשיו</span><span>{participants.length}</span></div><div className="mt-3 space-y-2">{participants.map((participant) => <div key={participant.userId} className="flex items-center gap-2 rounded-xl bg-white/8 p-2"><div className={cn("h-8 w-8 rounded-full border-2 border-white/30", participant.color || "bg-sky-300")} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{participant.displayName}</div><div className="text-[9px] text-white/55">{STATUS_LABELS[participant.status]}</div></div>{participant.status === "focusing" && <Headphones className="h-3.5 w-3.5 text-emerald-300" />}</div>)}</div><div className="mt-4 rounded-2xl bg-white/8 p-3 text-[10px] leading-5 text-white/60"><Sparkles className="mb-1 h-4 w-4 text-amber-300" />עובדים יחד בשקט. אפשר לזוז לשולחן אחר בלי להפריע לאחרים.</div></div>
 
       <div className="absolute bottom-28 end-4 start-4 top-24 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem] lg:end-60" onClick={moveFromPointer} aria-label="מרחב החדר. לחץ כדי להזיז את הדמות">
-        <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 bg-black/15 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%]" : "rounded-[42%]")} />
-        {scene !== "plane" && [18, 40, 62, 82].map((x, index) => <div key={x} className="absolute h-12 w-24 -translate-x-1/2 rounded-md border-t-4 border-amber-100/25 bg-[#3b241d]/80 shadow-xl" style={{ left: `${x}%`, top: `${55 + (index % 2) * 16}%` }}><div className="mx-auto -mt-5 h-8 w-14 rounded-t-lg bg-slate-900/80" /></div>)}
+        <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%] bg-black/15" : scene === "library" ? "rounded-[42%] bg-transparent" : "rounded-[42%] bg-black/15")} />
+        {scene !== "plane" && scene !== "library" && [18, 40, 62, 82].map((x, index) => <div key={x} className="absolute h-12 w-24 -translate-x-1/2 rounded-md border-t-4 border-amber-100/25 bg-[#3b241d]/80 shadow-xl" style={{ left: `${x}%`, top: `${55 + (index % 2) * 16}%` }}><div className="mx-auto -mt-5 h-8 w-14 rounded-t-lg bg-slate-900/80" /></div>)}
         {scene === "plane" && [25, 42, 58, 75].flatMap((y) => [28, 72].map((x) => <div key={`${x}-${y}`} className="absolute h-12 w-16 -translate-x-1/2 rounded-t-2xl border border-cyan-100/20 bg-gradient-to-b from-slate-600 to-slate-900 shadow-[0_8px_18px_rgba(0,0,0,.4)]" style={{ left: `${x}%`, top: `${y}%` }}><div className="mx-auto mt-2 h-5 w-10 rounded-t-xl border border-white/10 bg-slate-800" /></div>))}
         {participants.map((participant) => (
           <div
@@ -105,7 +119,10 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
             style={{ left: `${participant.x}%`, top: `${participant.y}%` }}
           >
             <div className="mb-1 max-w-24 truncate rounded-full bg-black/55 px-2 py-0.5 text-[10px] backdrop-blur">{participant.displayName}</div>
-            <div className={cn("relative h-12 w-12 rounded-full border-4 shadow-xl", participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/60", participant.color || "bg-sky-300")}><div className="absolute start-2.5 top-3 h-1.5 w-1.5 rounded-full bg-slate-900" /><div className="absolute end-2.5 top-3 h-1.5 w-1.5 rounded-full bg-slate-900" /><div className="absolute inset-x-3 top-7 h-1 rounded-full bg-slate-800/65" /><div className="absolute -bottom-5 left-1/2 h-8 w-14 -translate-x-1/2 rounded-t-[2rem] bg-slate-900" /></div>
+            <div className="zoneflow-avatar-idle relative">
+              <div className={cn("relative h-12 w-12 rounded-full border-4 shadow-xl", participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/60", participant.color || "bg-sky-300")}><div className="absolute start-2.5 top-3 h-1.5 w-1.5 rounded-full bg-slate-900" /><div className="absolute end-2.5 top-3 h-1.5 w-1.5 rounded-full bg-slate-900" /><div className="absolute inset-x-3 top-7 h-1 rounded-full bg-slate-800/65" /><div className="absolute -bottom-5 left-1/2 h-8 w-14 -translate-x-1/2 rounded-t-[2rem] bg-slate-900" /></div>
+              {participant.status === "focusing" && <span className="absolute -end-2 -top-2 h-3 w-3 animate-ping rounded-full bg-emerald-300" />}
+            </div>
             <div className={cn("mt-5 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{STATUS_LABELS[participant.status]}</div>
           </div>
         ))}

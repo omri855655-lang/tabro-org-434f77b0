@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2, Copy } from "lucide-react";
+import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2, Copy, ListChecks } from "lucide-react";
 import { BOARD_THEMES, type BoardTheme } from "@/hooks/useCustomBoards";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDashboardDisplay, type DashboardViewMode } from "@/hooks/useDashboardDisplay";
@@ -167,6 +167,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [mentalTask, setMentalTask] = useState<Task | null>(null);
   const [sharingDialogOpen, setSharingDialogOpen] = useState(false);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [newSubtask, setNewSubtask] = useState("");
   const taskColorStorageKey = `tabro-task-text-colors:${taskType}:${user?.id || "guest"}`;
   const [taskTextColors, setTaskTextColors] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem(taskColorStorageKey) || "{}"); } catch { return {}; }
@@ -573,6 +574,26 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       localStorage.setItem(taskColorStorageKey, JSON.stringify(next));
       return next;
     });
+    void updateTask(taskId, { textColor: color });
+  };
+
+  useEffect(() => {
+    const syncedColors = Object.fromEntries(tasks.filter((task) => task.textColor).map((task) => [task.id, task.textColor]));
+    if (Object.keys(syncedColors).length) setTaskTextColors((current) => ({ ...current, ...syncedColors }));
+  }, [tasks]);
+
+  const handleAddSubtask = async () => {
+    if (!detailTask || !newSubtask.trim()) return;
+    const created = await addTask(detailTask.sheetName || selectedSheet || currentYear, {
+      description: newSubtask.trim(),
+      category: detailTask.category,
+      responsible: detailTask.responsible,
+      parentTaskId: detailTask.id,
+      status: "טרם החל",
+    });
+    if (!created) return;
+    setNewSubtask("");
+    toast.success("תת־המשימה נוספה");
   };
 
   const handleContinueTask = async (task: Task) => {
@@ -1348,7 +1369,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
       {/* Task Tabs with Table */}
       <TaskTabs 
-        tasks={tasks} 
+        tasks={tasks.filter((task) => !task.parentTaskId)}
         activeTab={activeTaskTab} 
         onTabChange={setActiveTaskTab}
       >
@@ -2006,6 +2027,24 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                 <p className="mt-2 text-xs text-muted-foreground">
                   אפשר לקבל פירוק משימה, ניסוח צעד הבא, או עזרה מנטלית כשיש תקיעות.
                 </p>
+              </div>
+
+              <div className="rounded-xl border border-border bg-background p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2"><ListChecks className="h-4 w-4 text-primary" /><span className="font-semibold">תת־משימות</span></div>
+                  <span className="text-xs text-muted-foreground">{tasks.filter((task) => task.parentTaskId === detailTask.id && task.status === "בוצע").length}/{tasks.filter((task) => task.parentTaskId === detailTask.id).length} הושלמו</span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {tasks.filter((task) => task.parentTaskId === detailTask.id).map((subtask) => (
+                    <div key={subtask.id} className="flex items-center gap-2 rounded-lg border bg-muted/20 p-2">
+                      <button type="button" className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", subtask.status === "בוצע" ? "border-emerald-600 bg-emerald-600 text-white" : "border-muted-foreground/40")} onClick={() => void updateTask(subtask.id, { status: subtask.status === "בוצע" ? "טרם החל" : "בוצע" })} aria-label={subtask.status === "בוצע" ? "סמן כלא הושלם" : "סמן כהושלם"}>{subtask.status === "בוצע" && <Check className="h-3.5 w-3.5" />}</button>
+                      <span className={cn("min-w-0 flex-1 text-sm", subtask.status === "בוצע" && "text-muted-foreground line-through")}>{subtask.description}</span>
+                      {!readOnly && <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => void deleteTask(subtask.id)}><Trash2 className="h-3.5 w-3.5" /></Button>}
+                    </div>
+                  ))}
+                  {!tasks.some((task) => task.parentTaskId === detailTask.id) && <p className="text-xs text-muted-foreground">עדיין אין תת־משימות למשימה הזו.</p>}
+                </div>
+                {!readOnly && <div className="mt-3 flex gap-2"><Input value={newSubtask} onChange={(event) => setNewSubtask(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void handleAddSubtask(); } }} placeholder="הוסף צעד קטן וברור..." /><Button type="button" onClick={() => void handleAddSubtask()} disabled={!newSubtask.trim()}><Plus className="ms-1 h-4 w-4" />הוסף</Button></div>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

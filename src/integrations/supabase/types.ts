@@ -2101,6 +2101,7 @@ export type Database = {
           last_editor_user_id: string | null
           last_editor_username: string | null
           overdue: boolean | null
+          parent_task_id: string | null
           planned_end: string | null
           progress: string | null
           responsible: string | null
@@ -2108,6 +2109,7 @@ export type Database = {
           status: string | null
           status_notes: string | null
           task_type: string
+          text_color: string | null
           updated_at: string
           urgent: boolean | null
           user_id: string
@@ -2127,6 +2129,7 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
+          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2134,6 +2137,7 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
+          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id: string
@@ -2153,6 +2157,7 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
+          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2160,11 +2165,20 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
+          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       telegram_users: {
         Row: {

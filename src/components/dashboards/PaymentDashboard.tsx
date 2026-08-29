@@ -765,6 +765,81 @@ const PaymentDashboard = () => {
       return occurrences;
     });
 
+    const creditCardUpcoming: Array<{ payment: Payment; occurrence: Date }> = [];
+    [...uniqueAccounts.values()]
+      .filter((account) => account.account_type?.toUpperCase() === "CARD" && (!account.currency || account.currency === "ILS"))
+      .forEach((account) => {
+        const lastFour = account.masked_number?.match(/\d{4}$/)?.[0] || null;
+        const cardName = account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card");
+        const matchingCardEntries = dashboardEntries.filter((entry) => {
+          if (entry.source_channel !== "credit_card" || entry.payment_type !== "expense") return false;
+          if (lastFour && entry.account_last_four === lastFour) return true;
+          return Boolean(entry.account_label && [account.display_name, account.provider_name].filter(Boolean).includes(entry.account_label));
+        });
+        const matchingBankDebits = dashboardEntries.filter((entry) => {
+          if (entry.source_channel !== "bank" || entry.payment_type !== "expense") return false;
+          const title = entry.title.toLocaleLowerCase();
+          return [account.provider_name, account.display_name, lastFour]
+            .filter((token): token is string => Boolean(token && token.length >= 3))
+            .some((token) => title.includes(token.toLocaleLowerCase()));
+        });
+        const inferredBillingDay = matchingBankDebits.length
+          ? Math.round(median(matchingBankDebits.slice(0, 6).map((entry) => new Date(entry.due_date || entry.created_at).getDate())))
+          : 10;
+        const monthlySpend = new Map<string, number>();
+        matchingCardEntries.forEach((entry) => {
+          const date = new Date(entry.due_date || entry.created_at);
+          if (Number.isNaN(date.getTime())) return;
+          const key = `${date.getFullYear()}-${date.getMonth()}`;
+          monthlySpend.set(key, (monthlySpend.get(key) || 0) + Math.abs(entry.amount));
+        });
+        const historicalMonths = [...monthlySpend.entries()]
+          .filter(([key]) => key !== `${now.getFullYear()}-${now.getMonth()}`)
+          .sort(([a], [b]) => b.localeCompare(a))
+          .slice(0, 3)
+          .map(([, amount]) => amount);
+        const currentCharge = Math.abs(account.current_balance ?? account.available_balance ?? 0);
+        const estimatedCharge = historicalMonths.length ? median(historicalMonths) : currentCharge;
+        if (currentCharge <= 0 && estimatedCharge <= 0) return;
+
+        let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(inferredBillingDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
+        if (occurrence < now) occurrence = addForecastInterval(occurrence, "monthly");
+        let index = 0;
+        while (occurrence <= horizonEnd) {
+          const amount = index === 0 && currentCharge > 0 ? currentCharge : estimatedCharge;
+          if (amount > 0) {
+            creditCardUpcoming.push({
+              payment: {
+                id: `card-forecast-${account.id}-${format(occurrence, "yyyy-MM")}`,
+                title: `${index === 0 ? (isRtl ? "חיוב קרוב" : "Upcoming charge") : (isRtl ? "אומדן חיוב" : "Estimated charge")} · ${cardName}${lastFour ? ` ••••${lastFour}` : ""}`,
+                amount: Math.round(amount * 100) / 100,
+                currency: "ILS",
+                category: isRtl ? "כרטיס אשראי" : "Credit card",
+                payment_type: "expense",
+                payment_method: "credit_card_forecast",
+                due_date: format(occurrence, "yyyy-MM-dd"),
+                paid: false,
+                recurring: true,
+                recurring_frequency: "monthly",
+                recurrence_status: index === 0 ? "synced" : "estimated",
+                recurrence_end_date: null,
+                recurrence_source_transaction_id: null,
+                notes: index === 0
+                  ? (isRtl ? "יתרת חיוב נוכחית שסונכרנה מהכרטיס" : "Current card balance synced from the provider")
+                  : (isRtl ? `אומדן לפי ${Math.max(historicalMonths.length, 1)} חודשים אחרונים` : `Estimate based on ${Math.max(historicalMonths.length, 1)} recent months`),
+                sheet_name: "forecast",
+                archived: false,
+                hidden: false,
+                created_at: new Date().toISOString(),
+              },
+              occurrence: new Date(occurrence),
+            });
+          }
+          occurrence = addForecastInterval(occurrence, "monthly");
+          index += 1;
+        }
+      });
+
     const estimatedSalaryUpcoming: Array<{ payment: Payment; occurrence: Date }> = [];
     if (estimatedSalary) {
       let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(estimatedSalary.day, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
@@ -807,7 +882,7 @@ const PaymentDashboard = () => {
       }
     }
 
-    const upcoming = [...plannedUpcoming, ...estimatedSalaryUpcoming]
+    const upcoming = [...plannedUpcoming, ...estimatedSalaryUpcoming, ...creditCardUpcoming]
       .sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
 
     let runningBalance = liquidBalance;
@@ -854,8 +929,9 @@ const PaymentDashboard = () => {
       todayItems,
       tomorrowItems,
       estimatedSalary,
+      creditCardForecasts: creditCardUpcoming.length,
     };
-  }, [estimatedSalary, financialAccounts, isRtl, payments]);
+  }, [dashboardEntries, estimatedSalary, financialAccounts, isRtl, payments]);
 
   const proactiveFinanceInsights = useMemo(() => {
     const now = new Date();

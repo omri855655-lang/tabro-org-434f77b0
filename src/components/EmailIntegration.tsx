@@ -52,11 +52,19 @@ const normalizeToken = (value: string) => value.trim().toLowerCase();
 
 const includesAny = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
 
-const getSmartBucket = (analysis: { category: string; email_subject: string | null; email_from: string | null }): SmartBucket => {
+const getSmartBucket = (
+  analysis: { category: string; email_subject: string | null; email_from: string | null },
+  prefs?: EmailPriorityPrefs,
+): SmartBucket => {
   const subject = (analysis.email_subject || "").toLowerCase();
   const sender = (analysis.email_from || "").toLowerCase();
   const senderDomain = extractSenderDomain(analysis.email_from);
   const haystack = `${subject} ${sender} ${senderDomain}`;
+  const learnedBucket = prefs?.senderBuckets?.[senderDomain] || prefs?.senderBuckets?.[sender];
+
+  if (learnedBucket && learnedBucket in SMART_BUCKET_META) return learnedBucket;
+  if (prefs?.vipSenders.includes(senderDomain) || prefs?.vipSenders.includes(sender)) return "personal";
+  if (prefs?.lowPrioritySenders.includes(senderDomain) || prefs?.lowPrioritySenders.includes(sender)) return "promotions";
 
   if (
     analysis.category === "newsletter" ||
@@ -294,7 +302,7 @@ const EmailIntegration = () => {
 
   const smartInbox = useMemo(() => {
     const enriched = baseRecentEmails.map((analysis) => {
-      const smartBucket = getSmartBucket(analysis);
+      const smartBucket = getSmartBucket(analysis, emailPriorityPrefs);
       const senderDomain = extractSenderDomain(analysis.email_from);
       const smartPriority = getSmartPriority(analysis, smartBucket, emailPriorityPrefs);
       const importantForUser =
@@ -1026,6 +1034,25 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
                       <SmartIcon className="h-3 w-3" />
                       {getSmartLabel(a.smartBucket)}
                     </Badge>
+                    <Select
+                      value={a.smartBucket}
+                      onValueChange={(value: SmartBucket) => {
+                        if (!senderKey) return;
+                        void persistEmailPrefs((current) => ({
+                          ...current,
+                          senderBuckets: { ...current.senderBuckets, [senderKey]: value },
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-[112px] text-[10px]" aria-label={isHe ? "שנה סיווג שולח" : "Change sender category"}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(SMART_BUCKET_META) as SmartBucket[]).map((bucket) => (
+                          <SelectItem key={bucket} value={bucket}>{getSmartLabel(bucket)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     {a.importantForUser && (
                       <Badge variant="outline" className="text-[9px] bg-amber-500/10 text-amber-700">
                         {isHe ? "חשוב לי" : "Important to me"}

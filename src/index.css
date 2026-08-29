@@ -1255,3 +1255,24 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
 .zoneflow-flight-route {
   animation: zoneflow-route-pulse 2.8s ease-in-out infinite;
 }
+
+@keyframes zoneflow-library-dust {
+  0% { opacity: 0; transform: translate3d(0, 18px, 0) scale(.65); }
+  25% { opacity: .85; }
+  70% { opacity: .45; }
+  100% { opacity: 0; transform: translate3d(24px, -64px, 0) scale(1.15); }
+}
+
+@keyframes zoneflow-library-light {
+  0%, 100% { opacity: .45; transform: rotate(-12deg) scaleX(.92); }
+  50% { opacity: .72; transform: rotate(-9deg) scaleX(1.08); }
+}
+
+@keyframes zoneflow-avatar-idle {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-5px) rotate(1deg); }
+}
+
+.zoneflow-library-dust { animation: zoneflow-library-dust 9s ease-in-out infinite; }
+.zoneflow-library-light { animation: zoneflow-library-light 7s ease-in-out infinite; transform-origin: top center; }
+.zoneflow-avatar-idle { animation: zoneflow-avatar-idle 2.4s ease-in-out infinite; }

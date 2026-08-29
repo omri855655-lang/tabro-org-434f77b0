@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, HeartHandshake, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { ExternalLink, HeartHandshake, Languages, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
+import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface GoodNewsItem { title: string; link: string; pubDate: string; description: string; source: string; thumbnail?: string }
 const SOURCES = [
@@ -12,9 +14,37 @@ const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/&nbsp;
 const cacheKey = () => `zoneflow-good-news:${new Date().toISOString().slice(0, 10)}`;
 
 export function ZoneFlowGoodNewsStudio() {
+  const { lang } = useLanguage();
   const [items, setItems] = useState<GoodNewsItem[]>(() => safeLocalStorage.getJSON(cacheKey(), []));
   const [loading, setLoading] = useState(items.length === 0);
   const [error, setError] = useState("");
+  const translationKey = `zoneflow-good-news-translations:${lang}`;
+  const [translations, setTranslations] = useState<Record<string, { title: string; description: string }>>(() => safeLocalStorage.getJSON(translationKey, {}));
+  const [translating, setTranslating] = useState<string | null>(null);
+  const [showingOriginal, setShowingOriginal] = useState<Record<string, boolean>>({});
+  useEffect(() => safeLocalStorage.setJSON(translationKey, translations), [translationKey, translations]);
+
+  const translateItem = async (item: GoodNewsItem) => {
+    if (translations[item.link]) {
+      setShowingOriginal((current) => ({ ...current, [item.link]: !current[item.link] }));
+      return;
+    }
+    setTranslating(item.link);
+    try {
+      const languageNames: Record<string, string> = { he: "עברית", en: "English", ar: "العربية", ru: "Русский" };
+      const { data, error: invokeError } = await supabase.functions.invoke("task-ai-helper", {
+        body: { type: "custom", prompt: `תרגם לשפה ${languageNames[lang] || lang} את כותרת הכתבה ואת התקציר הציבורי בלבד. שמור שמות, מספרים ומשמעות ללא הוספת עובדות. החזר JSON בלבד עם title ו-description.\nכותרת: ${item.title}\nתקציר: ${item.description}` },
+      });
+      if (invokeError) throw invokeError;
+      const raw = String(data?.result || data?.suggestion || "").replace(/^```json\s*|```$/g, "").trim();
+      const parsed = JSON.parse(raw);
+      if (!parsed.title) throw new Error("Invalid translation");
+      setTranslations((current) => ({ ...current, [item.link]: { title: String(parsed.title), description: String(parsed.description || "") } }));
+    } catch (cause) {
+      console.error("Good news translation failed", cause);
+      setError("לא הצלחנו לתרגם את התקציר כרגע. הכתבה המקורית עדיין זמינה.");
+    } finally { setTranslating(null); }
+  };
   const refresh = async () => {
     setLoading(true); setError("");
     try {
@@ -39,6 +69,11 @@ export function ZoneFlowGoodNewsStudio() {
     <header className="flex flex-wrap items-start justify-between gap-4 rounded-[1.75rem] border border-emerald-900/10 bg-white/80 p-5 shadow-[0_20px_60px_rgba(31,74,52,.1)] backdrop-blur"><div><div className="flex items-center gap-2 text-xs font-bold tracking-[.13em] text-emerald-700"><HeartHandshake className="h-4 w-4" />GOOD NEWS DAILY</div><h2 className="mt-2 font-serif text-3xl font-semibold">חדשות טובות מהעולם</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">כתבות אמיתיות ממקורות מזוהים, עם קישור למקור ותאריך. Tabro לא ממציאה אירועים ולא מסתירה את המקור.</p></div><Button variant="outline" onClick={() => void refresh()} disabled={loading}>{loading ? <Loader2 className="ms-2 h-4 w-4 animate-spin" /> : <RefreshCw className="ms-2 h-4 w-4" />}רענן</Button></header>
     <div className="mt-4 flex items-center gap-2 text-xs text-emerald-800"><ShieldCheck className="h-4 w-4" />{updatedAt ? `הכתבה החדשה ביותר עודכנה: ${updatedAt}` : "ממתין לעדכון מאומת"}</div>
     {error && <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{error}</div>}
-    {loading && !items.length ? <div className="grid min-h-72 place-items-center"><Loader2 className="h-9 w-9 animate-spin text-emerald-700" /></div> : <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map((item) => <article key={item.link} className="group overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">{item.thumbnail && <img src={item.thumbnail} alt="" className="h-36 w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />}<div className="p-4"><div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-emerald-700"><span>{item.source}</span><time>{item.pubDate ? new Date(item.pubDate).toLocaleDateString("he-IL") : ""}</time></div><h3 className="mt-2 text-lg font-semibold leading-6">{item.title}</h3>{item.description && <p className="mt-2 line-clamp-4 text-sm leading-6 text-slate-600">{item.description}</p>}<a href={item.link} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-900">לכתבה המקורית<ExternalLink className="h-3.5 w-3.5" /></a></div></article>)}</div>}
+    {loading && !items.length ? <div className="grid min-h-72 place-items-center"><Loader2 className="h-9 w-9 animate-spin text-emerald-700" /></div> : <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map((item) => {
+      const translated = translations[item.link];
+      const showOriginal = showingOriginal[item.link] || !translated;
+      const visible = showOriginal ? item : { ...item, ...translated };
+      return <article key={item.link} className="group overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">{item.thumbnail && <img src={item.thumbnail} alt="" className="h-36 w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />}<div className="p-4"><div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-emerald-700"><span>{item.source}</span><time>{item.pubDate ? new Date(item.pubDate).toLocaleDateString("he-IL") : ""}</time></div><h3 className="mt-2 text-lg font-semibold leading-6">{visible.title}</h3>{visible.description && <p className="mt-2 line-clamp-4 text-sm leading-6 text-slate-600">{visible.description}</p>}<div className="mt-4 flex flex-wrap items-center gap-2"><Button type="button" size="sm" variant="outline" onClick={() => void translateItem(item)} disabled={translating === item.link}>{translating === item.link ? <Loader2 className="ms-1 h-3.5 w-3.5 animate-spin" /> : <Languages className="ms-1 h-3.5 w-3.5" />}{translated ? (showOriginal ? "הצג תרגום" : "הצג מקור") : "תרגם תקציר"}</Button><a href={item.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-900">לכתבה המקורית<ExternalLink className="h-3.5 w-3.5" /></a></div></div></article>;
+    })}</div>}
   </div>;
 }

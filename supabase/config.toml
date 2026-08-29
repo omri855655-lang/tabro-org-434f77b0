@@ -47,3 +47,5 @@ project_id = "isnhgyycowmnlxtmbmwm"
     verify_jwt = false
   [functions.send-event-invitation]
     verify_jwt = false
+  [functions.resend-inbound-webhook]
+    verify_jwt = false

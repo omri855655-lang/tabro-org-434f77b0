@@ -30,6 +30,7 @@ export interface EmailPriorityPrefs {
   importantKeywords: string[];
   ignoredKeywords: string[];
   importantCategories: string[];
+  senderBuckets: Record<string, "action" | "finance" | "shopping" | "updates" | "personal" | "promotions" | "low">;
   notifyOnImportantPush: boolean;
   notifyOnImportantEmail: boolean;
 }
@@ -40,6 +41,7 @@ const DEFAULT_EMAIL_PRIORITY_PREFS: EmailPriorityPrefs = {
   importantKeywords: [],
   ignoredKeywords: [],
   importantCategories: ["task", "payment", "bill"],
+  senderBuckets: {},
   notifyOnImportantPush: true,
   notifyOnImportantEmail: false,
 };
@@ -113,6 +115,9 @@ export function useEmailIntegration() {
         importantKeywords: Array.isArray(nextPrefs?.importantKeywords) ? nextPrefs.importantKeywords : DEFAULT_EMAIL_PRIORITY_PREFS.importantKeywords,
         ignoredKeywords: Array.isArray(nextPrefs?.ignoredKeywords) ? nextPrefs.ignoredKeywords : DEFAULT_EMAIL_PRIORITY_PREFS.ignoredKeywords,
         importantCategories: Array.isArray(nextPrefs?.importantCategories) ? nextPrefs.importantCategories : DEFAULT_EMAIL_PRIORITY_PREFS.importantCategories,
+        senderBuckets: nextPrefs?.senderBuckets && typeof nextPrefs.senderBuckets === "object"
+          ? nextPrefs.senderBuckets
+          : DEFAULT_EMAIL_PRIORITY_PREFS.senderBuckets,
       });
     } catch (e) {
       console.error("Error fetching email priority prefs:", e);

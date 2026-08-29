@@ -39,6 +39,8 @@ export interface DbTask {
   last_editor_email: string | null;
   last_editor_name: string | null;
   last_editor_username: string | null;
+  parent_task_id: string | null;
+  text_color: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +65,8 @@ export interface Task {
   lastEditorEmail: string;
   lastEditorName: string;
   lastEditorUsername: string;
+  parentTaskId: string;
+  textColor: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +91,8 @@ const mapDbTaskToTask = (dbTask: DbTask & { urgent?: boolean }): Task => ({
   lastEditorEmail: dbTask.last_editor_email || "",
   lastEditorName: dbTask.last_editor_name || "",
   lastEditorUsername: dbTask.last_editor_username || "",
+  parentTaskId: dbTask.parent_task_id || "",
+  textColor: dbTask.text_color || "",
   createdAt: dbTask.created_at,
   updatedAt: dbTask.updated_at,
 });
@@ -108,6 +114,8 @@ const mapTaskToDbInsert = (
   overdue: task.overdue || false,
   urgent: task.urgent || false,
   archived: task.archived || false,
+  parent_task_id: task.parentTaskId || null,
+  text_color: task.textColor || null,
   task_type: taskType,
   sheet_name: sheetName,
 });
@@ -256,6 +264,8 @@ export function useTasks(
       if (updates.overdue !== undefined) dbUpdates.overdue = updates.overdue;
       if (updates.urgent !== undefined) dbUpdates.urgent = updates.urgent;
       if (updates.archived !== undefined) dbUpdates.archived = updates.archived;
+      if (updates.parentTaskId !== undefined) dbUpdates.parent_task_id = updates.parentTaskId || null;
+      if (updates.textColor !== undefined) dbUpdates.text_color = updates.textColor || null;
 
       const newPlannedEnd = updates.plannedEnd !== undefined ? updates.plannedEnd : currentTask?.plannedEnd;
       const newStatus = updates.status !== undefined ? updates.status : currentTask?.status;
@@ -352,7 +362,7 @@ export function useTasks(
           return;
         }
 
-        setTasks((prev) => prev.filter((task) => task.id !== taskId));
+        setTasks((prev) => prev.filter((task) => task.id !== taskId && task.parentTaskId !== taskId));
       } catch (error: any) {
         console.error("Error deleting task:", error);
         toast.error("שגיאה במחיקת משימה");

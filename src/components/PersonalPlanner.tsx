@@ -178,6 +178,16 @@ const PersonalPlanner = () => {
   const [savingEvent, setSavingEvent] = useState(false);
   const [selectedTaskForAi, setSelectedTaskForAi] = useState<{ title: string; description: string; category: string } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (showQuickEventDialog || showEventDialog) return;
+    const cleanup = window.setTimeout(() => {
+      setEditingEvent(null);
+      setQuickEditorAnchor(null);
+      document.body.style.pointerEvents = "";
+    }, 80);
+    return () => window.clearTimeout(cleanup);
+  }, [showEventDialog, showQuickEventDialog]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState("");
   const [mentalTask, setMentalTask] = useState<Task | null>(null);
@@ -1375,17 +1385,13 @@ const PersonalPlanner = () => {
 
       }
 
-      setShowQuickEventDialog(false);
-      setQuickEditorAnchor(null);
-      setShowEventDialog(false);
-      setEditingEvent(null);
+      if (showQuickEventDialog) {
+        setShowQuickEventDialog(false);
+        setQuickEditorAnchor(null);
+      } else {
+        setShowEventDialog(false);
+      }
       toast.success(editingEvent ? "האירוע עודכן" : "האירוע נשמר בלו״ז");
-
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (!document.querySelector('[role="dialog"]')) document.body.style.pointerEvents = "";
-        });
-      });
     } catch (error) {
       console.error("Planner save failed:", error);
       toast.error("לא הצלחנו לשמור את האירוע. הנתונים שהזנת נשארו פתוחים.");
@@ -2752,9 +2758,6 @@ const PersonalPlanner = () => {
           setShowQuickEventDialog(open);
           if (!open) {
             setQuickEditorAnchor(null);
-            if (!showEventDialog) {
-              setEditingEvent(null);
-            }
           }
         }}
       >
@@ -2900,12 +2903,7 @@ const PersonalPlanner = () => {
       {/* Event Dialog */}
       <Dialog
         open={showEventDialog}
-        onOpenChange={(open) => {
-          setShowEventDialog(open);
-          if (!open && !showQuickEventDialog) {
-            setEditingEvent(null);
-          }
-        }}
+        onOpenChange={setShowEventDialog}
       >
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>

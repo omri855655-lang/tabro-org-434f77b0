@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpenCheck, BrainCircuit, CheckCircle2, Clock3, Flame, History, Loader2, Play, RotateCcw, Sparkles } from "lucide-react";
+import { BookOpenCheck, BrainCircuit, CheckCircle2, Clock3, ExternalLink, Flame, History, Loader2, Newspaper, Play, RefreshCw, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +34,12 @@ const FALLBACK_TOPICS: Record<string, { title: string; content: string }> = {
 };
 
 interface LearningEntry { id: string; date: string; category: string; subtopic?: string; level?: string; title: string; summary: string; feedback?: string }
+interface CurrentAffairsItem { title: string; link: string; pubDate: string; description: string; source: string }
+
+const CURRENT_AFFAIRS_SOURCES = [
+  { name: "BBC World", feed: "https://feeds.bbci.co.uk/news/world/rss.xml" },
+];
+const stripNewsHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 
 const formatClock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
@@ -49,9 +55,42 @@ export function ZoneFlowLearningStudio({ userId }: { userId?: string }) {
   const [summary, setSummary] = useState("");
   const [feedback, setFeedback] = useState("");
   const [history, setHistory] = useState<LearningEntry[]>(() => safeLocalStorage.getJSON(storageKey, []));
+  const currentAffairsKey = `zoneflow-current-affairs:${new Date().toISOString().slice(0, 10)}`;
+  const [currentAffairs, setCurrentAffairs] = useState<CurrentAffairsItem[]>(() => safeLocalStorage.getJSON(currentAffairsKey, []));
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState("");
   const targetEnd = useRef<number | null>(null);
 
   useEffect(() => safeLocalStorage.setJSON(storageKey, history), [history, storageKey]);
+  const refreshCurrentAffairs = async () => {
+    setNewsLoading(true);
+    setNewsError("");
+    try {
+      const responses = await Promise.all(CURRENT_AFFAIRS_SOURCES.map(async (source) => {
+        const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.feed)}`;
+        const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
+        if (!response.ok) throw new Error(`${source.name}: ${response.status}`);
+        const payload = await response.json();
+        return (payload.items || []).slice(0, 6).map((item: any) => ({
+          title: stripNewsHtml(item.title),
+          link: String(item.link || ""),
+          pubDate: String(item.pubDate || ""),
+          description: stripNewsHtml(item.description || item.content).slice(0, 240),
+          source: source.name,
+        }));
+      }));
+      const next = responses.flat().filter((item) => item.title && item.link).sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()).slice(0, 6);
+      if (!next.length) throw new Error("No verified current-affairs items returned");
+      setCurrentAffairs(next);
+      safeLocalStorage.setJSON(currentAffairsKey, next);
+    } catch (error) {
+      console.error("Current affairs refresh failed", error);
+      setNewsError("האקטואליה לא זמינה כרגע. לא נציג כותרות מומצאות; אפשר לנסות שוב מאוחר יותר.");
+    } finally {
+      setNewsLoading(false);
+    }
+  };
+  useEffect(() => { if (!currentAffairs.length) void refreshCurrentAffairs(); }, []);
   useEffect(() => {
     if (!running) return;
     const timer = window.setInterval(() => {
@@ -71,6 +110,10 @@ export function ZoneFlowLearningStudio({ userId }: { userId?: string }) {
     const byCategory = history.reduce<Record<string, number>>((acc, entry) => { acc[entry.category] = (acc[entry.category] || 0) + 1; return acc; }, {});
     return { streak, byCategory };
   }, [history]);
+  const pathProgress = useMemo(() => {
+    const completed = history.filter((entry) => entry.category === category && entry.subtopic === subtopic).length;
+    return { completed, lessonNumber: completed + 1, percentage: Math.min(100, completed * 20) };
+  }, [category, history, subtopic]);
 
   const generateTopic = async (requestedCategory = category) => {
     const selected = requestedCategory === "הפתעה" ? CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)] : requestedCategory;
@@ -142,17 +185,24 @@ export function ZoneFlowLearningStudio({ userId }: { userId?: string }) {
               <label className="text-xs font-medium text-slate-600">מאיפה להתחיל<select value={subtopic} onChange={(event) => setSubtopic(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-[#dfd5bd] bg-white px-3 text-sm">{LEARNING_PATHS[category].map((item) => <option key={item}>{item}</option>)}</select></label>
               <label className="text-xs font-medium text-slate-600">רמת השיעור<select value={level} onChange={(event) => setLevel(event.target.value as typeof level)} className="mt-1 h-10 w-full rounded-xl border border-[#dfd5bd] bg-white px-3 text-sm">{LEVELS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
             </div>
-            <div className="mt-4 flex gap-2"><Button onClick={() => void generateTopic(category)} disabled={loading} className="bg-[#263f38] text-white hover:bg-[#36584e]">{loading ? <Loader2 className="ms-2 h-4 w-4 animate-spin" /> : <Sparkles className="ms-2 h-4 w-4" />}צור שיעור יומי</Button><Button variant="outline" onClick={() => void generateTopic("הפתעה")} disabled={loading}>הפתעה אותי</Button></div>
+            <div className="mt-4 rounded-2xl border border-[#dfd5bd] bg-white/70 p-3"><div className="flex items-center justify-between text-xs"><strong>מסלול {subtopic}</strong><span>השיעור הבא: {pathProgress.lessonNumber}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-200"><div className="h-full rounded-full bg-gradient-to-l from-amber-500 to-emerald-600 transition-all" style={{ width: `${pathProgress.percentage}%` }} /></div><p className="mt-2 text-[11px] text-slate-500">{pathProgress.completed ? `${pathProgress.completed} מושגים כבר נשמרו במסלול הזה` : "מתחילים במושג ראשון ומתקדמים בהדרגה"}</p></div>
+            <div className="mt-4 flex gap-2"><Button onClick={() => void generateTopic(category)} disabled={loading} className="bg-[#263f38] text-white hover:bg-[#36584e]">{loading ? <Loader2 className="ms-2 h-4 w-4 animate-spin" /> : <Sparkles className="ms-2 h-4 w-4" />}צור מושג לשיעור {pathProgress.lessonNumber}</Button><Button variant="outline" onClick={() => void generateTopic("הפתעה")} disabled={loading}>הפתעה אותי</Button></div>
           </div>
           <div className="rounded-[1.6rem] border border-[#e2d8c2] bg-white p-5 shadow-sm">
             {!topic && !loading && <div className="grid min-h-60 place-items-center text-center text-slate-400"><div><BookOpenCheck className="mx-auto h-10 w-10" /><p className="mt-3 text-sm">בחר תחום וצור את השיעור של היום</p></div></div>}
             {loading && <div className="grid min-h-60 place-items-center"><Loader2 className="h-8 w-8 animate-spin text-amber-700" /></div>}
-            {topic && <><div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-xs font-medium text-amber-700">{category} · {subtopic} · {LEVELS.find((item) => item.id === level)?.label}</span><h3 className="mt-1 text-2xl font-semibold">{topic.title}</h3></div><div className="rounded-xl bg-[#263f38] px-3 py-2 font-mono text-lg text-white">{formatClock(secondsLeft)}</div></div><p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-slate-700">{topic.content}</p><div className="mt-5 flex gap-2"><Button onClick={startTimer} disabled={running || secondsLeft === 0}><Play className="ms-1 h-4 w-4" />{running ? "לומדים עכשיו" : secondsLeft < 600 ? "המשך טיימר" : "התחל 10 דקות"}</Button><Button variant="ghost" size="icon" onClick={() => { setRunning(false); setSecondsLeft(600); targetEnd.current = null; }}><RotateCcw className="h-4 w-4" /></Button></div></>}
+            {topic && <><div className="flex flex-wrap items-start justify-between gap-3"><div><span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800">המושג של היום · שיעור {pathProgress.lessonNumber}</span><span className="mt-2 block text-xs font-medium text-amber-700">{category} · {subtopic} · {LEVELS.find((item) => item.id === level)?.label}</span><h3 className="mt-1 text-2xl font-semibold">{topic.title}</h3></div><div className={`rounded-xl px-3 py-2 font-mono text-lg text-white transition-colors ${running ? "bg-emerald-700 shadow-[0_0_24px_rgba(4,120,87,.3)]" : "bg-[#263f38]"}`}>{formatClock(secondsLeft)}</div></div><p className="mt-5 whitespace-pre-wrap rounded-2xl bg-[#fbfaf6] p-4 text-sm leading-7 text-slate-700">{topic.content}</p><div className="mt-5 flex gap-2"><Button onClick={startTimer} disabled={running || secondsLeft === 0}><Play className="ms-1 h-4 w-4" />{running ? "לומדים עכשיו" : secondsLeft < 600 ? "המשך טיימר" : "התחל 10 דקות"}</Button><Button variant="ghost" size="icon" onClick={() => { setRunning(false); setSecondsLeft(600); targetEnd.current = null; }}><RotateCcw className="h-4 w-4" /></Button></div></>}
           </div>
         </div>
       </section>
 
       {topic && <section className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]"><div className="rounded-[1.6rem] border border-slate-200 bg-white p-5"><h3 className="font-semibold">מה הבנת מהשיעור?</h3><p className="mt-1 text-xs text-slate-500">חובה לנסח במילים שלך. אין כפתור “סיימתי” ללא סיכום.</p><Textarea value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-3 min-h-32" placeholder="כתוב כאן את הרעיון המרכזי, דוגמה ושאלה שנשארה לך..." /><Button className="mt-3" onClick={() => void completeLesson()} disabled={summary.trim().length < 30}><CheckCircle2 className="ms-1 h-4 w-4" />שמור וקבל משוב</Button>{feedback && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">{feedback}</div>}</div><div className="grid grid-cols-2 gap-3"><div className="rounded-[1.6rem] border bg-white p-4"><Flame className="h-5 w-5 text-orange-500" /><strong className="mt-3 block text-3xl">{stats.streak}</strong><span className="text-xs text-slate-500">ימי למידה ברצף</span></div><div className="rounded-[1.6rem] border bg-white p-4"><Clock3 className="h-5 w-5 text-sky-600" /><strong className="mt-3 block text-3xl">{history.length}</strong><span className="text-xs text-slate-500">נושאים שנלמדו</span></div><div className="col-span-2 rounded-[1.6rem] border bg-white p-4"><p className="text-sm font-semibold">התקדמות לפי תחום</p><div className="mt-3 flex flex-wrap gap-2">{Object.entries(stats.byCategory).map(([name, count]) => <span key={name} className="rounded-full bg-slate-100 px-3 py-1 text-xs">{name} · {count}</span>)}</div></div></div></section>}
+
+      <section className="rounded-[1.6rem] border border-sky-900/10 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-bold tracking-[.12em] text-sky-700"><Newspaper className="h-4 w-4" />CURRENT AFFAIRS</div><h3 className="mt-1 text-xl font-semibold">אקטואליה יומית ממקור מזוהה</h3><p className="mt-1 text-xs leading-5 text-slate-500">כותרות חיות וקישור למקור. הן אינן נכתבות בידי AI ואינן נשמרות כחלק מהיסטוריית הלמידה עד שתבחר ללמוד ולסכם אותן.</p></div><Button variant="outline" size="sm" onClick={() => void refreshCurrentAffairs()} disabled={newsLoading}>{newsLoading ? <Loader2 className="ms-1 h-4 w-4 animate-spin" /> : <RefreshCw className="ms-1 h-4 w-4" />}רענן</Button></div>
+        {newsError && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{newsError}</div>}
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{currentAffairs.map((item) => <article key={item.link} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"><div className="flex items-center justify-between text-[10px] font-semibold text-sky-700"><span>{item.source}</span><time>{item.pubDate ? new Date(item.pubDate).toLocaleDateString("he-IL") : ""}</time></div><h4 className="mt-2 text-sm font-semibold leading-6">{item.title}</h4>{item.description && <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{item.description}</p>}<a href={item.link} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:text-sky-900">למקור המלא<ExternalLink className="h-3 w-3" /></a></article>)}</div>
+      </section>
 
       {history.length > 0 && <section className="rounded-[1.6rem] border bg-white p-5"><div className="flex items-center gap-2"><History className="h-5 w-5 text-slate-500" /><h3 className="font-semibold">היסטוריית למידה</h3></div><div className="mt-4 grid gap-3 md:grid-cols-2">{history.slice(0, 12).map((entry) => <article key={entry.id} className="rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-2"><strong className="text-sm">{entry.title}</strong><span className="text-[11px] text-slate-400">{new Date(entry.date).toLocaleDateString("he-IL")}</span></div><span className="mt-1 block text-xs text-amber-700">{entry.category}</span><p className="mt-3 text-xs leading-6 text-slate-600">{entry.summary}</p></article>)}</div></section>}
     </div>
