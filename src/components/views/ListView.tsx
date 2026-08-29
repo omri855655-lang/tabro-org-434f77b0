@@ -14,6 +14,7 @@ export interface ListViewItem {
   notes?: string | null;
   meta?: string;
   urgent?: boolean;
+  textColor?: string;
 }
 
 interface ListViewProps {
@@ -68,7 +69,7 @@ const ListView = ({ items, emptyText = 'אין פריטים', onStatusChange, on
               </div>
             ) : (
               <div className="flex items-center gap-1">
-                <span className="font-medium text-sm truncate">{item.title}</span>
+                <span className="font-medium text-sm truncate" style={{ color: item.textColor }}>{item.title}</span>
                 {onTitleChange && (
                   <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100" onClick={e => { e.stopPropagation(); setEditTitleValue(item.title); setEditingTitle(item.id); }}>
                     <Pencil className="h-3 w-3" />

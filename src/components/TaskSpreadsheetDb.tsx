@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2 } from "lucide-react";
+import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2, Copy } from "lucide-react";
 import { BOARD_THEMES, type BoardTheme } from "@/hooks/useCustomBoards";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDashboardDisplay, type DashboardViewMode } from "@/hooks/useDashboardDisplay";
@@ -167,6 +167,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [mentalTask, setMentalTask] = useState<Task | null>(null);
   const [sharingDialogOpen, setSharingDialogOpen] = useState(false);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const taskColorStorageKey = `tabro-task-text-colors:${taskType}:${user?.id || "guest"}`;
+  const [taskTextColors, setTaskTextColors] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(taskColorStorageKey) || "{}"); } catch { return {}; }
+  });
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const stickyHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef<"table" | "header" | null>(null);
@@ -561,6 +565,34 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     setSelectedRow(newTask.id);
     setPendingScrollTaskId(newTask.id);
     setPendingEditTaskId(newTask.id);
+  };
+
+  const setTaskTextColor = (taskId: string, color: string) => {
+    setTaskTextColors((current) => {
+      const next = { ...current, [taskId]: color };
+      localStorage.setItem(taskColorStorageKey, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleContinueTask = async (task: Task) => {
+    const copied = await addTask(task.sheetName || selectedSheet || currentYear, {
+      description: task.description,
+      category: task.category,
+      responsible: task.responsible,
+      status: "טרם החל",
+      statusNotes: task.statusNotes ? `המשך למשימה קודמת: ${task.statusNotes}` : "המשך למשימה קודמת",
+      progress: "",
+      plannedEnd: task.plannedEnd,
+      urgent: task.urgent,
+    });
+    if (!copied) return;
+    if (taskTextColors[task.id]) setTaskTextColor(copied.id, taskTextColors[task.id]);
+    setDetailTask(null);
+    setSelectedRow(copied.id);
+    setActiveTaskTab("active");
+    setPendingScrollTaskId(copied.id);
+    toast.success("נוצרה משימת המשך חדשה; המשימה המקורית נשארה ללא שינוי");
   };
 
   const handleDeleteTask = async () => {
@@ -1393,11 +1425,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     notes: t.statusNotes || t.progress || null,
                     meta: t.plannedEnd || undefined,
                     urgent: t.urgent,
+                    textColor: taskTextColors[t.id],
                   }))}
                   onStatusChange={(id, status) => handleStatusChange(id, status as Task["status"])}
                   onDelete={readOnly ? undefined : (id) => { deleteTask(id); }}
                   onNotesChange={readOnly ? undefined : (id, val) => updateTask(id, { statusNotes: val })}
-                  onClick={(id) => setSelectedRow(id)}
+                  onClick={(id) => {
+                    const task = tasks.find((item) => item.id === id);
+                    if (task) setDetailTask(task);
+                  }}
                 />
               </div>
             );
@@ -1416,11 +1452,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     notes: t.statusNotes || t.progress || null,
                     meta: t.plannedEnd || undefined,
                     urgent: t.urgent,
+                    textColor: taskTextColors[t.id],
                   }))}
                   onStatusChange={(id, status) => handleStatusChange(id, status as Task["status"])}
                   onDelete={readOnly ? undefined : (id) => { deleteTask(id); }}
                   onNotesChange={readOnly ? undefined : (id, val) => updateTask(id, { statusNotes: val })}
-                  onClick={(id) => setSelectedRow(id)}
+                  onClick={(id) => {
+                    const task = tasks.find((item) => item.id === id);
+                    if (task) setDetailTask(task);
+                  }}
                 />
               </div>
             );
@@ -1437,12 +1477,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     status: t.status,
                     notes: t.statusNotes || null,
                     urgent: t.urgent,
+                    textColor: taskTextColors[t.id],
                   }))}
                   columns={kanbanColumns}
                   onStatusChange={(id, status) => handleStatusChange(id, status as Task["status"])}
                   onDelete={readOnly ? undefined : (id) => { deleteTask(id); }}
                   onNotesChange={readOnly ? undefined : (id, val) => updateTask(id, { statusNotes: val })}
-                  onClick={(id) => setSelectedRow(id)}
+                  onClick={(id) => {
+                    const task = tasks.find((item) => item.id === id);
+                    if (task) setDetailTask(task);
+                  }}
                 />
               </div>
             );
@@ -1458,9 +1502,13 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     status: t.status,
                     subtitle: t.category || null,
                     urgent: t.urgent,
+                    textColor: taskTextColors[t.id],
                   }))}
                   onDelete={readOnly ? undefined : (id) => { deleteTask(id); }}
-                  onClick={(id) => setSelectedRow(id)}
+                  onClick={(id) => {
+                    const task = tasks.find((item) => item.id === id);
+                    if (task) setDetailTask(task);
+                  }}
                 />
               </div>
             );
@@ -1548,7 +1596,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
                     </td>
-                    <td className="px-3 py-2 text-sm" style={getColumnStyle("description")}>
+                    <td className="px-3 py-2 text-sm" style={{ ...getColumnStyle("description"), color: taskTextColors[task.id] || undefined }}>
                       {renderEditableCell(task.description, task.id, "description")}
                     </td>
                     <td className="px-3 py-2 text-sm" style={getColumnStyle("category")}>
@@ -1893,7 +1941,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
                     <Input value={detailTask.category} onChange={(e) => setDetailTask({ ...detailTask, category: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label>אחריות</Label>
+                    <Label>אחראי/ת / הקצאת משימה</Label>
                     <Input value={detailTask.responsible} onChange={(e) => setDetailTask({ ...detailTask, responsible: e.target.value })} />
                   </div>
                   <div className="space-y-1">
@@ -1929,6 +1977,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
               <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
                 <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" className="gap-2" onClick={() => void handleContinueTask(detailTask)}>
+                    <Copy className="h-4 w-4" />
+                    המשך כמשימה חדשה
+                  </Button>
+                  <div className="flex items-center gap-1 rounded-lg border bg-background px-2 py-1" aria-label="צבע טקסט למשימה">
+                    <Palette className="h-4 w-4 text-muted-foreground" />
+                    {["#111827", "#2563eb", "#047857", "#b45309", "#be123c", "#7c3aed"].map((color) => (
+                      <button key={color} type="button" className="h-5 w-5 rounded-full border-2 border-white shadow ring-1 ring-black/10" style={{ backgroundColor: color }} onClick={() => setTaskTextColor(detailTask.id, color)} title="בחר צבע טקסט" />
+                    ))}
+                  </div>
                   <Button variant="outline" className="gap-2" onClick={() => handleAiHelp(detailTask)}>
                     <Sparkles className="h-4 w-4" />
                     AI למשימה

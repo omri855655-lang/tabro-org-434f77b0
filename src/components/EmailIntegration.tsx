@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
 
-type SmartBucket = "action" | "finance" | "shopping" | "updates" | "personal" | "low";
+type SmartBucket = "action" | "finance" | "shopping" | "updates" | "personal" | "promotions" | "low";
 
 const CATEGORY_ICONS: Record<string, typeof Mail> = {
   payment: CreditCard,
@@ -38,6 +38,7 @@ const SMART_BUCKET_META: Record<SmartBucket, { icon: typeof Mail; color: string 
   shopping: { icon: ShoppingCart, color: "bg-green-500/12 text-green-700" },
   updates: { icon: FileText, color: "bg-violet-500/12 text-violet-700" },
   personal: { icon: User, color: "bg-slate-500/12 text-slate-700" },
+  promotions: { icon: ShoppingCart, color: "bg-fuchsia-500/12 text-fuchsia-700" },
   low: { icon: Mail, color: "bg-muted text-muted-foreground" },
 };
 
@@ -56,6 +57,14 @@ const getSmartBucket = (analysis: { category: string; email_subject: string | nu
   const sender = (analysis.email_from || "").toLowerCase();
   const senderDomain = extractSenderDomain(analysis.email_from);
   const haystack = `${subject} ${sender} ${senderDomain}`;
+
+  if (
+    analysis.category === "newsletter" ||
+    analysis.category === "social" ||
+    includesAny(haystack, ["unsubscribe", "promotion", "promotions", "special offer", "limited time", "sale", "discount", "coupon", "marketing", "mailchimp", "newsletter", "מבצע", "הנחה", "קופון", "הטבה", "פרסומת", "שיווק", "הסר מרשימת", "הסרה מרשימת"])
+  ) {
+    return "promotions";
+  }
 
   if (
     analysis.category === "task" ||
@@ -77,14 +86,6 @@ const getSmartBucket = (analysis: { category: string; email_subject: string | nu
     includesAny(haystack, ["order", "shipping", "delivery", "amazon", "purchase", "shop", "tracking", "משלוח", "הזמנה", "קניה", "קנייה"])
   ) {
     return "shopping";
-  }
-
-  if (
-    analysis.category === "newsletter" ||
-    analysis.category === "social" ||
-    includesAny(haystack, ["unsubscribe", "newsletter", "digest", "weekly update", "social", "promotion", "promotions", "mailchimp", "substack"])
-  ) {
-    return "low";
   }
 
   if (
@@ -113,6 +114,7 @@ const getSmartPriority = (
   else if (smartBucket === "shopping") basePriority = 2.5;
   else if (smartBucket === "updates") basePriority = 2;
   else if (smartBucket === "personal") basePriority = 2.2;
+  else if (smartBucket === "promotions") basePriority = 0.5;
 
   if (!prefs) return basePriority;
 
@@ -137,6 +139,7 @@ const getSmartHeadline = (bucket: SmartBucket, isHe: boolean) => {
         shopping: "קניות ומשלוחים",
         updates: "עדכונים שכדאי לסרוק",
         personal: "אישי ושוטף",
+        promotions: "פרסומות ומבצעים",
         low: "מיילים ברעש נמוך",
       }
     : {
@@ -145,6 +148,7 @@ const getSmartHeadline = (bucket: SmartBucket, isHe: boolean) => {
         shopping: "Orders and deliveries",
         updates: "Updates worth scanning",
         personal: "Personal flow",
+        promotions: "Promotions and offers",
         low: "Low-noise email",
       };
   return labels[bucket];
@@ -231,6 +235,7 @@ const EmailIntegration = () => {
         shopping: "קניות ומשלוחים",
         updates: "עדכונים ומערכות",
         personal: "אישי ושוטף",
+        promotions: "פרסומות ומבצעים",
         low: "רעש נמוך",
       };
       return labels[bucket];
@@ -242,6 +247,7 @@ const EmailIntegration = () => {
       shopping: "Shopping",
       updates: "Updates",
       personal: "Personal",
+      promotions: "Promotions",
       low: "Low priority",
     };
     return labels[bucket];
@@ -320,7 +326,7 @@ const EmailIntegration = () => {
     }, {} as Record<SmartBucket, number>);
 
     const priorityQueue = [...enriched]
-      .filter((email) => email.smartPriority >= 3)
+      .filter((email) => email.smartPriority >= 3 && !email.lowPriorityForUser && email.smartBucket !== "promotions")
       .sort((a, b) => {
         if (b.smartPriority !== a.smartPriority) return b.smartPriority - a.smartPriority;
         return new Date(b.email_date || 0).getTime() - new Date(a.email_date || 0).getTime();
@@ -358,7 +364,7 @@ const EmailIntegration = () => {
     };
 
     const importantNow = enriched
-      .filter((email) => email.importantForUser || email.smartPriority >= 4.5)
+      .filter((email) => !email.lowPriorityForUser && email.smartBucket !== "promotions" && (email.importantForUser || email.smartPriority >= 4.5))
       .sort((a, b) => {
         if (b.smartPriority !== a.smartPriority) return b.smartPriority - a.smartPriority;
         return new Date(b.email_date || 0).getTime() - new Date(a.email_date || 0).getTime();
@@ -379,7 +385,7 @@ const EmailIntegration = () => {
     if (importanceFilter === "important") {
       filtered = filtered.filter((a) => a.importantForUser || a.smartPriority >= 4.5);
     } else if (importanceFilter === "low") {
-      filtered = filtered.filter((a) => a.lowPriorityForUser || a.smartBucket === "low");
+      filtered = filtered.filter((a) => a.lowPriorityForUser || a.smartBucket === "low" || a.smartBucket === "promotions");
     }
     if (sortMode === "oldest") {
       filtered.sort((a, b) => new Date(a.email_date!).getTime() - new Date(b.email_date!).getTime());
@@ -1052,7 +1058,7 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
                       variant="ghost"
                       size="icon"
                       className={`h-6 w-6 ${isLowSender ? "text-slate-500" : "text-muted-foreground"}`}
-                      title={isHe ? "סמן כרעש נמוך" : "Mark as low priority"}
+                      title={isHe ? "סמן שולח כפרסומת / רעש נמוך" : "Mark sender as promotion / low priority"}
                       onClick={() => {
                         if (!senderKey) return;
                         void persistEmailPrefs((current) => ({

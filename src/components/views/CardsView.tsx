@@ -14,6 +14,7 @@ export interface CardViewItem {
   notes?: string | null;
   meta?: string;
   urgent?: boolean;
+  textColor?: string;
 }
 
 interface CardsViewProps {
@@ -67,7 +68,7 @@ const CardsView = ({ items, emptyText = 'אין פריטים', onStatusChange, o
               </div>
             ) : (
               <div className="flex items-center gap-1 flex-1 min-w-0">
-                <h4 className="font-semibold text-sm leading-tight flex-1 truncate">{item.title}</h4>
+                <h4 className="font-semibold text-sm leading-tight flex-1 truncate" style={{ color: item.textColor }}>{item.title}</h4>
                 {onTitleChange && (
                   <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-60 hover:opacity-100" onClick={e => { e.stopPropagation(); setEditTitleValue(item.title); setEditingTitle(item.id); }}>
                     <Pencil className="h-3 w-3" />

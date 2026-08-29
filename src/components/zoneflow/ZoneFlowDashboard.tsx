@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff, Settings2, Users } from "lucide-react";
+import { Play, Pause, RotateCcw, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff, Settings2, Users, Newspaper } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_PATHS, MEDITATION_SESSION_META, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPE_META, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
@@ -28,6 +28,7 @@ import { ZoneFlowWorkspaceBoundary } from "./ZoneFlowWorkspaceBoundary";
 import { ZoneFlowFocusDeck, type UnifiedFocusSession } from "./ZoneFlowFocusDeck";
 import { ZoneFlowBlocker } from "./ZoneFlowBlocker";
 import { ZoneFlowLearningStudio } from "./ZoneFlowLearningStudio";
+import { ZoneFlowGoodNewsStudio } from "./ZoneFlowGoodNewsStudio";
 import { toast } from "sonner";
 
 // Background themes
@@ -80,7 +81,7 @@ interface HiddenYtVideo {
   desc: string;
 }
 
-type Workspace = "core" | "mind" | "wellbeing" | "together" | "learning";
+type Workspace = "core" | "mind" | "wellbeing" | "together" | "learning" | "goodnews";
 type VisibleWorkspaces = Record<Workspace, boolean>;
 
 const getVisibleWorkspaces = (): VisibleWorkspaces => {
@@ -92,16 +93,17 @@ const getVisibleWorkspaces = (): VisibleWorkspaces => {
     // Older preferences predate this workspace, so a missing value must be visible.
     together: saved.together !== false,
     learning: saved.learning !== false,
+    goodnews: saved.goodnews !== false,
   };
 };
 
 const WORKSPACE_LABELS = {
-  he: { core: "ZoneFlow ראשי", mind: "ZoneFlow Mind", wellbeing: "רווחה דיגיטלית", together: "חדרי ריכוז", learning: "למד דבר חדש" },
-  en: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Digital Wellbeing", together: "Focus Rooms", learning: "Learn Daily" },
-  es: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Bienestar digital", together: "Salas de enfoque", learning: "Aprender cada día" },
-  zh: { core: "ZoneFlow 核心", mind: "ZoneFlow Mind", wellbeing: "数字健康", together: "专注房间", learning: "每日学习" },
-  ar: { core: "ZoneFlow الأساسي", mind: "ZoneFlow Mind", wellbeing: "الرفاه الرقمي", together: "غرف التركيز", learning: "تعلم يوميا" },
-  ru: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Цифровое благополучие", together: "Комнаты фокуса", learning: "Учиться каждый день" },
+  he: { core: "ZoneFlow ראשי", mind: "ZoneFlow Mind", wellbeing: "רווחה דיגיטלית", together: "חדרי ריכוז", learning: "למד דבר חדש", goodnews: "חדשות טובות" },
+  en: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Digital Wellbeing", together: "Focus Rooms", learning: "Learn Daily", goodnews: "Good News" },
+  es: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Bienestar digital", together: "Salas de enfoque", learning: "Aprender cada día", goodnews: "Buenas noticias" },
+  zh: { core: "ZoneFlow 核心", mind: "ZoneFlow Mind", wellbeing: "数字健康", together: "专注房间", learning: "每日学习", goodnews: "好消息" },
+  ar: { core: "ZoneFlow الأساسي", mind: "ZoneFlow Mind", wellbeing: "الرفاه الرقمي", together: "غرف التركيز", learning: "تعلم يوميا", goodnews: "أخبار جيدة" },
+  ru: { core: "ZoneFlow Core", mind: "ZoneFlow Mind", wellbeing: "Цифровое благополучие", together: "Комнаты фокуса", learning: "Учиться каждый день", goodnews: "Хорошие новости" },
 } as const;
 
 const COLOR_MAP: Record<string, string> = {
@@ -137,7 +139,7 @@ const ZoneFlowDashboard = () => {
   });
   const [workspace, setWorkspace] = useState<Workspace>(() => {
     const saved = safeLocalStorage.getString("zoneflow-workspace", "core");
-    return saved === "mind" || saved === "wellbeing" || saved === "together" || saved === "learning" ? saved : "core";
+    return saved === "mind" || saved === "wellbeing" || saved === "together" || saved === "learning" || saved === "goodnews" ? saved : "core";
   });
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [visibleWorkspaces, setVisibleWorkspaces] = useState<VisibleWorkspaces>(getVisibleWorkspaces);
@@ -539,13 +541,14 @@ const ZoneFlowDashboard = () => {
               {visibleWorkspaces.wellbeing && <button onClick={() => setWorkspace("wellbeing")} className={`rounded-full px-4 py-2 text-sm transition-all ${workspace === "wellbeing" ? "bg-gradient-to-r from-[#0d6473] via-[#118a91] to-[#52c7b8] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}>{workspaceLabels.wellbeing}</button>}
               {visibleWorkspaces.together && <button onClick={() => setWorkspace("together")} className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${workspace === "together" ? "bg-gradient-to-r from-[#3b35ae] via-[#5147d9] to-[#0ea5a6] text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}><Users className="me-1 inline h-4 w-4" />{workspaceLabels.together}</button>}
               {visibleWorkspaces.learning && <button onClick={() => setWorkspace("learning")} className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${workspace === "learning" ? "bg-gradient-to-r from-amber-700 via-orange-600 to-emerald-700 text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}><BookOpen className="me-1 inline h-4 w-4" />{workspaceLabels.learning}</button>}
+              {visibleWorkspaces.goodnews && <button onClick={() => setWorkspace("goodnews")} className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${workspace === "goodnews" ? "bg-gradient-to-r from-emerald-700 via-teal-600 to-amber-500 text-white shadow-sm" : isLight ? "text-slate-600 hover:bg-slate-100" : "text-white/70 hover:bg-white/10"}`}><Newspaper className="me-1 inline h-4 w-4" />{workspaceLabels.goodnews}</button>}
             </div>
             <Button variant="ghost" size="icon" className={isLight ? "text-slate-600" : "text-white/70"} onClick={() => setWorkspaceSettingsOpen((value) => !value)} aria-label="התאמת מרחבי ZoneFlow" aria-expanded={workspaceSettingsOpen}><Settings2 className="h-4 w-4" /></Button>
           </div>
 
           {workspaceSettingsOpen && <div className={`absolute z-20 mt-14 rounded-2xl border p-3 shadow-xl ${isLight ? "border-slate-200 bg-white" : "border-white/10 bg-[#10172d]"}`}>
             <div className="mb-2 text-xs font-semibold">הצג או הסתר מרחבי ZoneFlow</div>
-            {(["core", "mind", "wellbeing", "together", "learning"] as const).map((key) => <button key={key} type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10" onClick={() => setVisibleWorkspaces((value) => {
+            {(["core", "mind", "wellbeing", "together", "learning", "goodnews"] as const).map((key) => <button key={key} type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10" onClick={() => setVisibleWorkspaces((value) => {
               if (value[key] && Object.values(value).filter(Boolean).length === 1) return value;
               return { ...value, [key]: !value[key] };
             })}><span className={`h-2.5 w-2.5 rounded-full ${visibleWorkspaces[key] ? "bg-emerald-500" : "bg-slate-300"}`} />{workspaceLabels[key]}</button>)}
@@ -574,6 +577,8 @@ const ZoneFlowDashboard = () => {
           <ZoneFlowTogetherStudio isLight={isLight} />
         ) : workspace === "learning" ? (
           <ZoneFlowLearningStudio userId={user?.id} />
+        ) : workspace === "goodnews" ? (
+          <ZoneFlowGoodNewsStudio />
         ) : (
           <>
         {/* Background selector + AI Chat button */}

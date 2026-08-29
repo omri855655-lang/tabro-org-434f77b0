@@ -681,28 +681,49 @@ const PaymentDashboard = () => {
         if (entry.hidden || !entry.paid || entry.payment_type !== "income") return false;
         const date = new Date(entry.due_date || entry.created_at);
         if (Number.isNaN(date.getTime()) || date > new Date()) return false;
-        return salaryPattern.test(`${entry.title} ${entry.category || ""} ${entry.subcategory || ""}`);
+        return Math.abs(entry.amount) >= 500;
       })
       .sort((a, b) => new Date(b.due_date || b.created_at).getTime() - new Date(a.due_date || a.created_at).getTime());
 
-    const byMonth = new Map<string, DashboardEntry>();
+    const grouped = new Map<string, DashboardEntry[]>();
     historicalIncome.forEach((entry) => {
-      const date = new Date(entry.due_date || entry.created_at);
-      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      const current = byMonth.get(monthKey);
-      if (!current || entry.amount > current.amount) byMonth.set(monthKey, entry);
+      const searchable = `${entry.title} ${entry.category || ""} ${entry.subcategory || ""}`;
+      const normalized = normalizeSalarySource(entry.title)
+        .toLocaleLowerCase()
+        .replace(/\d+/g, "")
+        .replace(/[^\p{L}]+/gu, " ")
+        .trim();
+      const key = salaryPattern.test(searchable) ? `salary:${normalized || "known"}` : `income:${normalized}`;
+      grouped.set(key, [...(grouped.get(key) || []), entry]);
     });
 
-    const samples = [...byMonth.values()].slice(0, 6);
-    if (samples.length < 2) return null;
-    const amounts = samples.map((entry) => entry.amount);
-    const average = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length;
+    const candidates = [...grouped.entries()].map(([key, entries]) => {
+      const byMonth = new Map<string, DashboardEntry>();
+      entries.forEach((entry) => {
+        const date = new Date(entry.due_date || entry.created_at);
+        const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+        const current = byMonth.get(monthKey);
+        if (!current || Math.abs(entry.amount) > Math.abs(current.amount)) byMonth.set(monthKey, entry);
+      });
+      const samples = [...byMonth.values()]
+        .sort((a, b) => new Date(b.due_date || b.created_at).getTime() - new Date(a.due_date || a.created_at).getTime())
+        .slice(0, 6);
+      return { key, samples, explicit: key.startsWith("salary:") };
+    }).filter((candidate) => candidate.samples.length >= (candidate.explicit ? 1 : 2));
+
+    const chosen = candidates.sort((a, b) => Number(b.explicit) - Number(a.explicit)
+      || b.samples.length - a.samples.length
+      || Math.abs(b.samples[0]?.amount || 0) - Math.abs(a.samples[0]?.amount || 0))[0];
+    if (!chosen) return null;
+    const samples = chosen.samples;
+    const amounts = samples.map((entry) => Math.abs(entry.amount));
+    const typicalAmount = median(amounts);
     const spread = Math.max(...amounts) - Math.min(...amounts);
-    if (average <= 0 || spread / average > 0.35) return null;
+    if (typicalAmount <= 0 || (!chosen.explicit && spread / typicalAmount > 0.6)) return null;
 
     const latest = samples[0];
     return {
-      amount: Math.round(average * 100) / 100,
+      amount: Math.round(typicalAmount * 100) / 100,
       day: Math.round(median(samples.map((entry) => new Date(entry.due_date || entry.created_at).getDate()))),
       source: normalizeSalarySource(latest.title) || (isRtl ? "משכורת" : "Salary"),
       samples: samples.length,
@@ -710,8 +731,8 @@ const PaymentDashboard = () => {
   }, [dashboardEntries, isRtl]);
 
   const cashFlowForecast = useMemo(() => {
+    const salaryPattern = /משכורת|שכר|salary|payroll|עובדי\s*מדינ/i;
     const now = dateOnly(new Date());
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     const horizonEnd = dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90));
     const uniqueAccounts = new Map<string, FinancialAccount>();
     financialAccounts.forEach((account) => {
@@ -752,7 +773,9 @@ const PaymentDashboard = () => {
         const monthHasPlannedSalary = plannedUpcoming.some(({ payment, occurrence: plannedDate }) =>
           payment.payment_type === "income"
           && plannedDate.getFullYear() === occurrence.getFullYear()
-          && plannedDate.getMonth() === occurrence.getMonth(),
+          && plannedDate.getMonth() === occurrence.getMonth()
+          && (salaryPattern.test(`${payment.title} ${payment.category || ""}`)
+            || Math.abs(payment.amount - estimatedSalary.amount) <= estimatedSalary.amount * 0.35),
         );
         if (!monthHasPlannedSalary) {
           estimatedSalaryUpcoming.push({
@@ -797,15 +820,13 @@ const PaymentDashboard = () => {
       end.setDate(end.getDate() + days);
       return timeline.filter((item) => item.occurrence <= end).at(-1)?.runningBalance ?? liquidBalance;
     };
-    const monthUpcoming = upcoming.filter(({ occurrence }) => occurrence <= monthEnd);
-
-    const plannedIncome = monthUpcoming
+    const plannedIncome = upcoming
       .filter(({ payment }) => payment.payment_type === "income")
       .reduce((sum, { payment }) => sum + payment.amount, 0);
-    const recurringExpenses = monthUpcoming
+    const recurringExpenses = upcoming
       .filter(({ payment }) => payment.payment_type === "expense" && payment.recurring)
       .reduce((sum, { payment }) => sum + payment.amount, 0);
-    const oneOffExpenses = monthUpcoming
+    const oneOffExpenses = upcoming
       .filter(({ payment }) => payment.payment_type === "expense" && !payment.recurring)
       .reduce((sum, { payment }) => sum + payment.amount, 0);
 
@@ -824,7 +845,7 @@ const PaymentDashboard = () => {
       plannedIncome,
       recurringExpenses,
       oneOffExpenses,
-      projectedBalance: liquidBalance + plannedIncome - recurringExpenses - oneOffExpenses,
+      projectedBalance: projectedAt(90),
       upcoming: timeline,
       projected30: projectedAt(30),
       projected60: projectedAt(60),
@@ -971,9 +992,10 @@ const PaymentDashboard = () => {
 לא שולמו: ₪${unpaidExpenses.toLocaleString()}
 באיחור: ${overdue.length} תשלומים
 יתרה נזילה כעת: ₪${cashFlowForecast.liquidBalance.toLocaleString()}
-תחזית לסוף החודש: ₪${cashFlowForecast.projectedBalance.toLocaleString()}
-הוצאות קבועות מתוכננות עד סוף החודש: ₪${cashFlowForecast.recurringExpenses.toLocaleString()}
-הוצאות חד-פעמיות מתוכננות עד סוף החודש: ₪${cashFlowForecast.oneOffExpenses.toLocaleString()}
+תחזית ל־90 יום: ₪${cashFlowForecast.projectedBalance.toLocaleString()}
+הכנסות מתוכננות ומשוערות ל־90 יום: ₪${cashFlowForecast.plannedIncome.toLocaleString()}
+הוצאות קבועות מתוכננות ל־90 יום: ₪${cashFlowForecast.recurringExpenses.toLocaleString()}
+הוצאות חד-פעמיות מתוכננות ל־90 יום: ₪${cashFlowForecast.oneOffExpenses.toLocaleString()}
 פילוח קטגוריות: ${catBreakdown}
 כלל 50/30/20 - צרכים: ${needsPercent}%, רצונות: ${wantsPercent}%, חיסכון: ${savingsPercent}%`;
 
@@ -1141,9 +1163,9 @@ ${context}
             </div>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "יתרה נזילה כעת" : "Liquid now"}</p><strong>₪{cashFlowForecast.liquidBalance.toLocaleString()}</strong></div>
-              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הכנסות מתוכננות" : "Planned income"}</p><strong className="text-emerald-600">+₪{cashFlowForecast.plannedIncome.toLocaleString()}</strong></div>
-              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות קבועות" : "Recurring expenses"}</p><strong className="text-red-600">-₪{cashFlowForecast.recurringExpenses.toLocaleString()}</strong></div>
-              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות חד־פעמיות" : "One-off expenses"}</p><strong className="text-red-600">-₪{cashFlowForecast.oneOffExpenses.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הכנסות צפויות ב־90 יום" : "Expected income · 90 days"}</p><strong className="text-emerald-600">+₪{cashFlowForecast.plannedIncome.toLocaleString()}</strong>{cashFlowForecast.estimatedSalary && <small className="mt-1 block text-emerald-700">{isRtl ? `כולל משכורת משוערת לפי ${cashFlowForecast.estimatedSalary.samples} חודשים` : `Includes salary estimate from ${cashFlowForecast.estimatedSalary.samples} months`}</small>}</div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות קבועות ב־90 יום" : "Recurring expenses · 90 days"}</p><strong className="text-red-600">-₪{cashFlowForecast.recurringExpenses.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות חד־פעמיות ב־90 יום" : "One-off expenses · 90 days"}</p><strong className="text-red-600">-₪{cashFlowForecast.oneOffExpenses.toLocaleString()}</strong></div>
             </div>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "בעוד 30 יום" : "In 30 days"}</p><strong className={cashFlowForecast.projected30 >= 0 ? "text-emerald-600" : "text-red-600"}>₪{cashFlowForecast.projected30.toLocaleString()}</strong></div>

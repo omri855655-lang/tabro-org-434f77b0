@@ -9,6 +9,7 @@ export interface CompactViewItem {
   subtitle?: string | null;
   urgent?: boolean;
   notes?: string | null;
+  textColor?: string;
 }
 
 interface CompactViewProps {
@@ -39,7 +40,7 @@ const CompactView = ({ items, emptyText = 'אין פריטים', onDelete, onCli
           onClick={() => onClick?.(item.id)}
         >
           <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot(item.status)}`} />
-          <span className="flex-1 truncate">{item.title}</span>
+          <span className="flex-1 truncate" style={{ color: item.textColor }}>{item.title}</span>
           {item.subtitle && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{item.subtitle}</span>}
           {item.status && <Badge variant="outline" className="text-[9px] h-5 px-1.5">{item.status}</Badge>}
           {onDelete && (

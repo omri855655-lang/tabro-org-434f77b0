@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LockKeyhole, Move, Sparkles } from "lucide-react";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
+import cozyLibraryRoom from "@/assets/zoneflow/cozy-library-room-v2.png";
 
 interface Position { x: number; y: number }
 
@@ -39,25 +40,11 @@ export function ZoneFlowFocusRoom({ running, progress, level }: { running: boole
           y: clamp(((event.clientY - bounds.top) / bounds.height) * 100, 42, 86),
         });
       }}
-      className="group relative h-[22rem] cursor-crosshair overflow-hidden rounded-[2rem] border border-[#f7dfb4]/30 bg-[#122d2a] shadow-[inset_0_1px_0_rgba(255,255,255,.16),0_24px_65px_rgba(8,31,28,.34)] outline-none ring-emerald-300/60 focus-visible:ring-2 sm:h-[27rem]"
+      className="group relative h-[22rem] cursor-crosshair overflow-hidden rounded-[2rem] border border-[#f7dfb4]/30 bg-[#122d2a] shadow-[inset_0_1px_0_rgba(255,255,255,.16),0_30px_80px_rgba(8,20,18,.42)] outline-none ring-emerald-300/60 focus-visible:ring-2 sm:h-[31rem] lg:h-[36rem]"
     >
-      <div className="absolute inset-x-0 top-0 h-[41%] bg-[linear-gradient(180deg,#173a38,#244944)]" />
-      <div className="absolute inset-x-0 bottom-0 h-[62%] bg-[#8b5f42] [background-image:linear-gradient(90deg,rgba(55,31,20,.22)_1px,transparent_1px),linear-gradient(rgba(55,31,20,.18)_1px,transparent_1px)] [background-size:42px_42px] [transform:perspective(420px)_rotateX(7deg)] [transform-origin:bottom]" />
-      <div className="absolute inset-x-[12%] top-[28%] h-3 rounded-full bg-[#6a3f2b] shadow-[0_5px_0_#4d2f23]" />
-
-      {[18, 43, 68].map((left) => <div key={left} className="absolute top-[7%] h-[20%] w-[18%] rounded-t-[1.4rem] border-[6px] border-[#603e2d] bg-[linear-gradient(180deg,#90cbd0_0_45%,#e7bd6b_46%_49%,#587e72_50%)] shadow-[inset_0_0_25px_rgba(255,245,194,.35)]" style={{ left: `${left}%` }}><div className="absolute left-1/2 top-0 h-full w-1 -translate-x-1/2 bg-[#603e2d]" /></div>)}
-
-      <div className="absolute left-[4%] top-[5%] h-[31%] w-[10%] rounded bg-[#4b2d22] p-1.5 shadow-xl">
-        <div className="grid h-full grid-cols-3 gap-1">{Array.from({ length: 18 }).map((_, index) => <span key={index} className={`rounded-sm ${index % 4 === 0 ? "bg-[#d6a25c]" : index % 3 === 0 ? "bg-[#587868]" : "bg-[#a84f3e]"}`} />)}</div>
-      </div>
-      <div className="absolute right-[4%] top-[5%] h-[31%] w-[10%] rounded bg-[#4b2d22] p-1.5 shadow-xl">
-        <div className="grid h-full grid-cols-3 gap-1">{Array.from({ length: 18 }).map((_, index) => <span key={index} className={`rounded-sm ${index % 4 === 0 ? "bg-[#d6a25c]" : index % 3 === 0 ? "bg-[#587868]" : "bg-[#a84f3e]"}`} />)}</div>
-      </div>
-
-      {[24, 58].map((left, index) => <div key={left} className="absolute top-[48%] h-[18%] w-[22%] rounded-md bg-[#75472f] shadow-[0_10px_0_#4e3024,0_18px_22px_rgba(37,21,15,.34)]" style={{ left: `${left}%` }}><div className="absolute -top-4 right-5 h-6 w-8 rounded bg-[#d8cdbd] shadow-md" /><div className={`absolute -top-7 left-7 h-8 w-8 rounded-full ${running ? "animate-pulse bg-[#ffe69a] shadow-[0_0_28px_#ffd86b]" : "bg-[#c9b271]"}`} /><div className="absolute -top-1 left-[29px] h-5 w-1 bg-[#b08b56]" />{index === 1 && level < 2 && <div className="absolute inset-0 grid place-items-center rounded-md bg-black/45 text-[11px] text-white"><LockKeyhole className="me-1 inline h-3 w-3" />רמה 2</div>}</div>)}
-
-      {level >= 2 && <div className="absolute bottom-[8%] left-[8%] h-[22%] w-[15%]"><div className="absolute bottom-0 left-1/2 h-[42%] w-10 -translate-x-1/2 rounded-b-xl bg-[#9b6242]" /><div className={`absolute left-1/2 top-0 h-[70%] w-[72%] -translate-x-1/2 rounded-[50%] bg-[#4b8a62] ${running ? "animate-[pulse_3s_ease-in-out_infinite]" : ""}`} /></div>}
-      {level >= 3 && <div className="absolute bottom-[7%] right-[18%] h-[22%] w-[20%] rounded-[50%] border-4 border-[#cf9f63]/70 bg-[radial-gradient(circle,#d6bc78_0_15%,#8f5842_16%_35%,#315a50_36%)] opacity-90" />}
+      <img src={cozyLibraryRoom} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(4,13,14,.04),transparent_48%,rgba(4,13,14,.2))]" />
+      {level < 2 && <div className="absolute right-[14%] top-[43%] flex items-center gap-1 rounded-full border border-white/20 bg-black/55 px-3 py-1.5 text-[11px] text-white backdrop-blur"><LockKeyhole className="h-3 w-3" />פינת האח נפתחת ברמה 2</div>}
 
       <div className="absolute transition-[left,top] duration-200 ease-out" style={{ left: `${position.x}%`, top: `${position.y}%`, transform: "translate(-50%, -72%)" }}>
         <div className={`relative h-16 w-12 ${running ? "animate-[bounce_1.8s_ease-in-out_infinite]" : ""}`}>

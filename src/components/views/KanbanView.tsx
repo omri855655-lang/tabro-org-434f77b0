@@ -10,6 +10,7 @@ export interface KanbanItem {
   status: string;
   notes?: string | null;
   urgent?: boolean;
+  textColor?: string;
 }
 
 interface KanbanViewProps {
@@ -57,7 +58,7 @@ const KanbanView = ({ items, columns, emptyText = 'אין פריטים', onStatu
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', item.id)}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <span className="text-sm font-medium leading-tight">{item.title}</span>
+                      <span className="text-sm font-medium leading-tight" style={{ color: item.textColor }}>{item.title}</span>
                       {onDelete && (
                         <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}>
                           <Trash2 className="h-3 w-3" />

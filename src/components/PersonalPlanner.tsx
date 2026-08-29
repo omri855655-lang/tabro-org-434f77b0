@@ -162,7 +162,6 @@ const PersonalPlanner = () => {
   const [showQuickEventDialog, setShowQuickEventDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [quickEditorAnchor, setQuickEditorAnchor] = useState<{ top: number; left: number } | null>(null);
-  const [pendingLinkEvent, setPendingLinkEvent] = useState<CalendarEvent | null>(null);
   const [newEventData, setNewEventData] = useState({
     title: "",
     description: "",
@@ -1316,8 +1315,6 @@ const PersonalPlanner = () => {
     }
 
     setSavingEvent(true);
-    let eventToOfferForLinking: CalendarEvent | null = null;
-
     try {
       if (editingEvent) {
         const updated = await updateEvent(editingEvent.id, {
@@ -1376,8 +1373,6 @@ const PersonalPlanner = () => {
           }
         }
 
-        // If it's a custom event (not linked), ask user if they want to link to dashboard
-        if (isCustom) eventToOfferForLinking = savedEvent;
       }
 
       setShowQuickEventDialog(false);
@@ -1386,60 +1381,16 @@ const PersonalPlanner = () => {
       setEditingEvent(null);
       toast.success(editingEvent ? "האירוע עודכן" : "האירוע נשמר בלו״ז");
 
-      if (eventToOfferForLinking) {
-        const savedEvent = eventToOfferForLinking;
-        window.setTimeout(() => {
-          setPendingLinkEvent(savedEvent);
-        }, 180);
-      }
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (!document.querySelector('[role="dialog"]')) document.body.style.pointerEvents = "";
+        });
+      });
     } catch (error) {
       console.error("Planner save failed:", error);
       toast.error("לא הצלחנו לשמור את האירוע. הנתונים שהזנת נשארו פתוחים.");
     } finally {
       setSavingEvent(false);
-    }
-  };
-
-  const handleLinkToDashboard = async (taskType: "personal" | "work") => {
-    // Capture values immediately to avoid race conditions with dialog closing
-    const eventToLink = pendingLinkEvent;
-    if (!user || !eventToLink) {
-      console.error("handleLinkToDashboard: no user or no pending event");
-      return;
-    }
-
-    setPendingLinkEvent(null);
-
-    try {
-      const plannedEnd = eventToLink.endTime ? eventToLink.endTime.split("T")[0] : null;
-      const { data: newTask, error } = await supabase
-        .from("tasks")
-        .insert([{
-          user_id: user.id,
-          description: eventToLink.title || "משימה חדשה",
-          category: eventToLink.category || null,
-          status: "טרם החל",
-          planned_end: plannedEnd,
-          task_type: taskType,
-          sheet_name: String(new Date().getFullYear()),
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Update the calendar event to link to this task
-      const sourceType = taskType === "personal" ? "personal_task" : "work_task";
-      await supabase
-        .from("calendar_events")
-        .update({ source_type: sourceType, source_id: newTask.id })
-        .eq("id", eventToLink.id)
-        .eq("user_id", user.id);
-
-      toast.success(`✅ המשימה "${eventToLink.title}" נוספה לדשבורד ${taskType === "personal" ? "אישי" : "עבודה"}`);
-    } catch (e: any) {
-      console.error("Error linking event to dashboard:", e);
-      toast.error("שגיאה בהוספת משימה לדשבורד");
     }
   };
 
@@ -2661,27 +2612,6 @@ const PersonalPlanner = () => {
 
       {/* Left side - Calendar */}
       <div className="flex-1 flex flex-col min-w-0">
-        {pendingLinkEvent && (
-          <div className="mx-3 mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">האירוע נשמר בהצלחה</p>
-              <p className="truncate text-xs text-muted-foreground">
-                רוצה לצרף את "{pendingLinkEvent.title}" גם לדשבורד המשימות?
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => void handleLinkToDashboard("personal")}>
-                משימות אישיות
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => void handleLinkToDashboard("work")}>
-                משימות עבודה
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setPendingLinkEvent(null)}>
-                לא עכשיו
-              </Button>
-            </div>
-          </div>
-        )}
         {/* Calendar header */}
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 p-4 backdrop-blur-xl">
           {isMobile && (
