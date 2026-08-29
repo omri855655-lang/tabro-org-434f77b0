@@ -285,18 +285,13 @@ const PaymentDashboard = () => {
     if (!user) return;
     setLoading(true);
 
-    const [paymentsResult, transactionsResult, accountsResult, cloudFinanceResult] = await Promise.all([
+    const [paymentsResult, accountsResult, cloudFinanceResult] = await Promise.all([
       supabase
         .from("payment_tracking")
         .select("*")
         .eq("user_id", user.id)
         .eq("archived", false)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("financial_transactions")
-        .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
-        .eq("user_id", user.id)
-        .order("transaction_date", { ascending: false }),
       supabase
         .from("financial_accounts")
         .select("id, external_account_id, provider_name, account_type, display_name, masked_number, currency, current_balance, available_balance")
@@ -305,11 +300,29 @@ const PaymentDashboard = () => {
         .catch(() => ({ transactions: [], accounts: [] })),
     ]);
 
-    if (paymentsResult.error || transactionsResult.error) {
-      toast.error(t("error" as any));
-      setLoading(false);
-      return;
+    let transactionsResult = await supabase
+      .from("financial_transactions")
+      .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
+      .eq("user_id", user.id)
+      .order("transaction_date", { ascending: false });
+
+    // The original Tabro database may not have the display-only `hidden` column.
+    // Falling back keeps historical and cloud data visible without mutating either store.
+    if (transactionsResult.error) {
+      const fallbackResult = await supabase
+        .from("financial_transactions")
+        .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
+        .eq("user_id", user.id)
+        .order("transaction_date", { ascending: false });
+      transactionsResult = {
+        ...fallbackResult,
+        data: fallbackResult.data?.map((transaction) => ({ ...transaction, hidden: false })) ?? null,
+      } as typeof transactionsResult;
     }
+
+    if (paymentsResult.error) console.warn("Payment tracking is unavailable; continuing with synced finance data", paymentsResult.error);
+    if (transactionsResult.error) console.warn("Legacy finance history is unavailable; continuing with cloud finance data", transactionsResult.error);
+    if (accountsResult.error) console.warn("Legacy finance accounts are unavailable; continuing with cloud finance data", accountsResult.error);
 
     setPayments((paymentsResult.data as any[]) || []);
     const legacyTransactions = ((transactionsResult.data as FinancialTransaction[]) || []).map((item) => ({
@@ -339,7 +352,7 @@ const PaymentDashboard = () => {
     }));
     setFinancialAccounts([...cloudAccounts, ...legacyAccounts]);
     setLoading(false);
-  }, [user, t]);
+  }, [user]);
 
   useEffect(() => { fetchFinanceData(); }, [fetchFinanceData]);
 

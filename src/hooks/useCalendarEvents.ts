@@ -213,7 +213,7 @@ export function useCalendarEvents() {
   }, [user]);
 
   const updateEvent = useCallback(async (eventId: string, updates: Partial<CalendarEvent>) => {
-    if (!user) return;
+    if (!user) return false;
 
     const dbUpdates: Record<string, any> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -235,9 +235,11 @@ export function useCalendarEvents() {
       setEvents((prev) =>
         prev.map((e) => (e.id === eventId ? { ...e, ...updates } : e))
       );
+      return true;
     } catch (error: any) {
       console.error("Error updating calendar event:", error);
       toast.error("שגיאה בעדכון אירוע");
+      return false;
     }
   }, [user]);
 

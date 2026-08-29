@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Play, Pause, RotateCcw, Timer, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff, Settings2, Users } from "lucide-react";
+import { Play, Pause, RotateCcw, Map, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Flame, CalendarClock, Music, StopCircle, MessageCircle, ExternalLink, RotateCcwIcon, Eye, EyeOff, Settings2, Users } from "lucide-react";
 import { AUDIO_PRESETS, CATEGORIES, GUIDES, MEDITATION_HISTORY_TIMELINE, MEDITATION_PATHS, MEDITATION_SESSION_META, MEDITATION_SESSIONS, MEDITATION_SOURCE_LINKS, MEDITATION_TYPE_META, MEDITATION_TYPES, MEDITATION_VIDEO_TOPICS, MOTIVATION_TIPS, MORNING_HABITS_GUIDE, DEEP_SHALLOW_WORK_GUIDE, SLEEP_HABITS_GUIDE, NUTRITION_GUIDE, type AudioPreset } from "./zoneflowAudioPresets";
 import { useZoneFlowAudioEngine } from "./useZoneFlowAudioEngine";
 import { unlockAudioContext } from "./zoneflowIosAudioUnlock";
@@ -25,6 +25,7 @@ import { ZoneFlowMindStudio } from "./ZoneFlowMindStudio";
 import { ZoneFlowWellbeingStudio } from "./ZoneFlowWellbeingStudio";
 import { ZoneFlowTogetherStudio } from "./ZoneFlowTogetherStudio";
 import { ZoneFlowWorkspaceBoundary } from "./ZoneFlowWorkspaceBoundary";
+import { ZoneFlowFocusDeck, type UnifiedFocusSession } from "./ZoneFlowFocusDeck";
 import { toast } from "sonner";
 
 // Background themes
@@ -47,12 +48,6 @@ const BG_THEMES = [
   { id: "light-white", name: "לבן נקי", bg: "bg-white", text: "text-[#1a1a2e]", isLight: true, cardBg: "bg-[#f8f8fc]", cardBorder: "border-[#e0e0e8]", mutedText: "text-[#1a1a2e]/50", subtleText: "text-[#1a1a2e]/70", inputBg: "bg-[#f0f0f5]", inputBorder: "border-[#d8d8e0]", hoverBg: "hover:bg-[#f0f0f5]", ringColor: "ring-[#1a1a2e]/20", activeBg: "bg-[#e0e0e8]" },
 ];
 
-// Timer presets
-const TIMER_PRESETS = [
-  { id: "pomodoro", name: "Pomodoro", work: 25, break: 5 },
-  { id: "sprint", name: "Sprint", work: 50, break: 10 },
-];
-
 // Roadmap steps
 const ROADMAP_STEPS = [
   { id: 1, title: "ניקוי רעשים", items: ["כבה התראות בטלפון", "סגור טאבים מיותרים", "הפעל 'נא לא להפריע'", "נקה שולחן עבודה"] },
@@ -67,13 +62,7 @@ interface Task {
   done: boolean;
 }
 
-interface SessionLog {
-  id: string;
-  type: string;
-  duration: number;
-  frequency: string;
-  timestamp: Date;
-}
+type SessionLog = UnifiedFocusSession;
 
 interface CalendarTask {
   id: string;
@@ -129,11 +118,11 @@ const ACTIVE_COLOR_MAP: Record<string, string> = {
 };
 
 const ZoneFlowDashboard = () => {
-  const { activePresetId, isPlaying, isRendering, toggle } = useZoneFlowAudioEngine();
+  const { activePresetId, isPlaying, isRendering, volume, setVolume, toggle } = useZoneFlowAudioEngine();
   const { user } = useAuth();
   const { t, lang, dir } = useLanguage();
   const { stopwatchTime, isStopwatchRunning, toggleStopwatch, resetStopwatch } = useDailyStopwatch();
-  const { award } = useZoneFlowRewards();
+  const { award, balance: rewardBalance } = useZoneFlowRewards();
 
   // Sound category
   const [activeCategory, setActiveCategory] = useState<string>("focus");
@@ -151,12 +140,7 @@ const ZoneFlowDashboard = () => {
   const [visibleWorkspaces, setVisibleWorkspaces] = useState<VisibleWorkspaces>(getVisibleWorkspaces);
   const workspaceLabels = WORKSPACE_LABELS[lang] ?? WORKSPACE_LABELS.en;
 
-  // Timer
-  const [timerPreset, setTimerPreset] = useState(TIMER_PRESETS[0]);
-  const [timeLeft, setTimeLeft] = useState(TIMER_PRESETS[0].work * 60);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [isBreak, setIsBreak] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusDeckRef = useRef<HTMLDivElement | null>(null);
 
   // Stopwatch now handled by useDailyStopwatch hook
 
@@ -320,7 +304,7 @@ const ZoneFlowDashboard = () => {
   };
 
   // Play completion sound
-  const playCompletionSound = () => {
+  const playCompletionSound = useCallback(() => {
     try {
       const ctx = unlockAudioContext();
       const osc = ctx.createOscillator();
@@ -341,37 +325,7 @@ const ZoneFlowDashboard = () => {
     } catch {
       // Audio feedback is optional on browsers that block an AudioContext.
     }
-  };
-
-  // Timer logic
-  useEffect(() => {
-    if (isTimerRunning && timeLeft > 0) {
-      timerRef.current = setTimeout(() => setTimeLeft(t => t - 1), 1000);
-    } else if (isTimerRunning && timeLeft === 0) {
-      playCompletionSound();
-      if (!isBreak) {
-        const log: SessionLog = {
-          id: Date.now().toString(),
-          type: timerPreset.id,
-          duration: timerPreset.work,
-          frequency: activePresetId || "none",
-          timestamp: new Date(),
-        };
-        setSessions(prev => [log, ...prev]);
-        const earned = Math.max(1, Math.round(log.duration / 3));
-        if (award(`focus:classic:${log.id}`, "focus", earned, `${timerPreset.name} · ${log.duration} min`)) {
-          toast.success(`הרווחת ${earned} דקות פתיחה`);
-        }
-        setIsBreak(true);
-        setTimeLeft(timerPreset.break * 60);
-      } else {
-        setIsBreak(false);
-        setTimeLeft(timerPreset.work * 60);
-        setIsTimerRunning(false);
-      }
-    }
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [isTimerRunning, timeLeft, isBreak, timerPreset, activePresetId, award]);
+  }, []);
 
   // Stopwatch logic now handled by useDailyStopwatch hook
 
@@ -451,12 +405,22 @@ const ZoneFlowDashboard = () => {
 
   const startPomodoroForTask = (task: CalendarTask) => {
     setSelectedCalendarTask(task);
-    setTimerPreset(TIMER_PRESETS[0]); // Pomodoro
-    setTimeLeft(TIMER_PRESETS[0].work * 60);
-    setIsTimerRunning(false);
-    setIsBreak(false);
-    // Don't auto-start audio - let the user choose when to play
+    window.setTimeout(() => focusDeckRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   };
+
+  const handleFocusSessionLogged = useCallback((session: UnifiedFocusSession) => {
+    setSessions((previous) => [session, ...previous]);
+    if (session.completed === false) {
+      toast.info("הסשן נשמר כהפסקה מוקדמת, ללא צבירת מטבעות");
+      return;
+    }
+
+    playCompletionSound();
+    const earned = Math.max(1, Math.round(session.duration / 3));
+    if (award(`focus:unified:${session.id}`, "focus", earned, `ZoneFlow focus · ${session.duration} min`)) {
+      toast.success(`הרווחת ${earned} דקות פתיחה`);
+    }
+  }, [award, playCompletionSound]);
 
   const today = new Date().toDateString();
   const todaySessions = sessions.filter(s => new Date(s.timestamp).toDateString() === today);
@@ -464,6 +428,9 @@ const ZoneFlowDashboard = () => {
   const todayCompleted = currentTasks.filter(t => t.done).length;
 
   const filteredPresets = AUDIO_PRESETS.filter(p => p.category === activeCategory);
+  const focusSoundOptions = ["brown-noise-deep", "lofi-chill", "lofi-rain"]
+    .map((id) => AUDIO_PRESETS.find((preset) => preset.id === id))
+    .filter((preset): preset is AudioPreset => Boolean(preset));
   const activeCat = CATEGORIES.find(c => c.id === activeCategory);
   const wellnessPresets = AUDIO_PRESETS.filter((preset) => preset.category === "wellness").slice(0, 3);
   const wellnessRoutines = [
@@ -1827,57 +1794,23 @@ const ZoneFlowDashboard = () => {
           themeInput={themeInput}
         />
 
-        {/* Main grid: Timer + Stopwatch + Tasks + Roadmap */}
-        <div className="grid lg:grid-cols-4 gap-4">
-          {/* Pomodoro Timer */}
-          <Card className="bg-white/5 border-white/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Timer className="h-4 w-4 text-cyan-400" />
-                טיימר פומודורו
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2 mb-4">
-                {TIMER_PRESETS.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => { setTimerPreset(p); setTimeLeft(p.work * 60); setIsTimerRunning(false); setIsBreak(false); }}
-                    className={`flex-1 py-2 rounded-lg text-sm transition-all ${
-                      timerPreset.id === p.id ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "bg-white/5 opacity-60"
-                    }`}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-              <div className="text-center">
-                <div className="text-5xl font-mono font-bold mb-1 tabular-nums text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                  {formatTime(timeLeft)}
-                </div>
-                <p className="text-xs opacity-60 mb-4">
-                  {isBreak ? "🟢 הפסקה" : timerPreset.id === "pomodoro" ? "🍅 סשן עבודה" : "🏃 ספרינט"}
-                </p>
-                <div className="flex gap-2 justify-center">
-                  <Button
-                    onClick={() => setIsTimerRunning(!isTimerRunning)}
-                    className={`rounded-full px-6 ${isTimerRunning ? "bg-red-500/20 text-red-300 hover:bg-red-500/30" : "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"}`}
-                    variant="ghost"
-                  >
-                    {isTimerRunning ? <><Pause className="h-4 w-4 ml-1" /> עצור</> : <><Play className="h-4 w-4 ml-1" /> התחל</>}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => { setIsTimerRunning(false); setIsBreak(false); setTimeLeft(timerPreset.work * 60); }}
-                    className="opacity-40 hover:opacity-100"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div ref={focusDeckRef} className="scroll-mt-6">
+          <ZoneFlowFocusDeck
+            sessions={sessions}
+            rewardBalance={rewardBalance}
+            activeSoundId={activePresetId}
+            isSoundPlaying={isPlaying}
+            isSoundLoading={isRendering}
+            soundVolume={volume}
+            soundOptions={focusSoundOptions}
+            onSoundToggle={toggle}
+            onSoundVolumeChange={setVolume}
+            onSessionLogged={handleFocusSessionLogged}
+          />
+        </div>
+
+        {/* Main grid: Stopwatch + Tasks + Roadmap */}
+        <div className="grid lg:grid-cols-3 gap-4">
 
           {/* Stopwatch */}
           <Card className="bg-white/5 border-white/5">
@@ -1916,6 +1849,8 @@ const ZoneFlowDashboard = () => {
                           duration: Math.round(totalSeconds / 60),
                           frequency: activePresetId || "none",
                           timestamp: new Date(),
+                          mode: "stopwatch",
+                          completed: true,
                         };
                         setSessions(prev => [log, ...prev]);
                         const earned = Math.max(1, Math.round(log.duration / 3));

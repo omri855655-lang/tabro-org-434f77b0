@@ -11,6 +11,7 @@ interface ZoneFlowFreqRuntime {
   isRendering: boolean;
   audioEl: HTMLAudioElement | null;
   blobUrl: string | null;
+  volume: number;
 }
 
 const FREQ_RUNTIME_KEY = "_zoneflowFreqRuntimeFull";
@@ -23,6 +24,7 @@ function getZoneFlowFreqRuntime(): ZoneFlowFreqRuntime {
       isRendering: false,
       audioEl: null,
       blobUrl: null,
+      volume: 0.65,
     };
   }
 
@@ -34,6 +36,7 @@ function getZoneFlowFreqRuntime(): ZoneFlowFreqRuntime {
       isRendering: false,
       audioEl: null,
       blobUrl: null,
+      volume: 0.65,
     };
   }
 
@@ -65,6 +68,7 @@ export function useZoneFlowAudioEngine() {
   const [activePresetId, setActivePresetId] = useState<string | null>(runtime.activePresetId);
   const [isPlaying, setIsPlaying] = useState(runtime.isPlaying);
   const [isRendering, setIsRendering] = useState(runtime.isRendering);
+  const [volume, setVolumeState] = useState(runtime.volume ?? 0.65);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const isPlayingRef = useRef(false);
@@ -81,6 +85,7 @@ export function useZoneFlowAudioEngine() {
     setActivePresetId(rt.activePresetId);
     setIsPlaying(rt.isPlaying);
     setIsRendering(rt.isRendering);
+    setVolumeState(rt.volume ?? 0.65);
 
     return () => {
       mountedRef.current = false;
@@ -151,7 +156,7 @@ export function useZoneFlowAudioEngine() {
       // Create a real <audio> element — iOS keeps these alive in background
       const audio = new Audio(blobUrl);
       audio.loop = true;
-      audio.volume = 1; // gain is baked into the WAV
+      audio.volume = rt.volume ?? 0.65;
       audio.setAttribute("playsinline", "true");
       (audio as any).playsInline = true;
       audio.style.display = "none";
@@ -240,6 +245,15 @@ export function useZoneFlowAudioEngine() {
     }
   }, [activePresetId, isPlaying, isRendering, playPreset, stopAudio]);
 
+  const setVolume = useCallback((nextVolume: number) => {
+    const normalized = Math.max(0, Math.min(1, nextVolume));
+    const rt = getZoneFlowFreqRuntime();
+    rt.volume = normalized;
+    if (rt.audioEl) rt.audioEl.volume = normalized;
+    if (audioElRef.current) audioElRef.current.volume = normalized;
+    if (mountedRef.current) setVolumeState(normalized);
+  }, []);
+
   // Resume audio when returning from background
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -286,5 +300,5 @@ export function useZoneFlowAudioEngine() {
     });
   }, [isPlaying, activePresetId, stopAudio]);
 
-  return { activePresetId, isPlaying, isRendering, toggle, stopAudio };
+  return { activePresetId, isPlaying, isRendering, volume, setVolume, toggle, stopAudio };
 }

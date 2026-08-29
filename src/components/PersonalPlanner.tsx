@@ -177,6 +177,7 @@ const PersonalPlanner = () => {
   });
 
   const [sendingInvites, setSendingInvites] = useState(false);
+  const [savingEvent, setSavingEvent] = useState(false);
   const [selectedTaskForAi, setSelectedTaskForAi] = useState<{ title: string; description: string; category: string } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -1295,9 +1296,18 @@ const PersonalPlanner = () => {
     return () => { document.removeEventListener('mousemove', handleMove); document.removeEventListener('mouseup', handleUp); };
   }, [resizingHour]);
 
-   const handleSaveEvent = async () => {
+  const handleSaveEvent = async () => {
     if (!newEventData.title.trim()) {
       toast.error("יש להזין כותרת");
+      return;
+    }
+
+    if (savingEvent) return;
+
+    const start = new Date(newEventData.startTime);
+    const end = new Date(newEventData.endTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      toast.error("יש לבחור זמן התחלה וסיום תקינים");
       return;
     }
 
@@ -1306,71 +1316,90 @@ const PersonalPlanner = () => {
       return;
     }
 
-    if (editingEvent) {
-      await updateEvent(editingEvent.id, {
-        title: newEventData.title,
-        description: newEventData.description,
-        category: newEventData.category,
-        startTime: newEventData.startTime,
-        endTime: newEventData.endTime,
-        color: newEventData.color || getDynCategoryColor(newEventData.category),
-      });
-    } else {
-      const isCustom = !newEventData.sourceId && (newEventData.sourceType === "custom" || !newEventData.sourceType);
+    setSavingEvent(true);
+    let eventToOfferForLinking: CalendarEvent | null = null;
+
+    try {
+      if (editingEvent) {
+        const updated = await updateEvent(editingEvent.id, {
+          title: newEventData.title,
+          description: newEventData.description,
+          category: newEventData.category,
+          startTime: newEventData.startTime,
+          endTime: newEventData.endTime,
+          color: newEventData.color || getDynCategoryColor(newEventData.category),
+        });
+        if (!updated) return;
+      } else {
+        const isCustom = !newEventData.sourceId && (newEventData.sourceType === "custom" || !newEventData.sourceType);
       
-      // Check for duplicate tasks
-      if (isCustom) {
-        const titleLower = newEventData.title.toLowerCase().trim();
-        const allTaskTitles = [
-          ...personalTasks.filter(t => !t.archived).map(t => t.description?.toLowerCase().trim()),
-          ...workTasks.filter(t => !t.archived).map(t => t.description?.toLowerCase().trim()),
-        ];
-        const duplicate = allTaskTitles.find(t => t && (t === titleLower || t.includes(titleLower) || titleLower.includes(t)));
-        if (duplicate) {
-          const proceed = confirm(`⚠️ נמצאה משימה דומה: "${duplicate}"\nהאם להמשיך בכל זאת?`);
-          if (!proceed) return;
-        }
-      }
-
-      const savedEvent = await addEvent({
-        title: newEventData.title,
-        description: newEventData.description,
-        category: newEventData.category,
-        startTime: newEventData.startTime,
-        endTime: newEventData.endTime,
-        color: newEventData.color || getDynCategoryColor(newEventData.category),
-        sourceType: newEventData.sourceType,
-        sourceId: newEventData.sourceId,
-      });
-
-      // Send invitations if emails provided
-      if (savedEvent && newEventData.inviteeEmails.trim()) {
-        const emails = newEventData.inviteeEmails.split(",").map(e => e.trim()).filter(Boolean);
-        if (emails.length > 0) {
-          setSendingInvites(true);
-          try {
-            await supabase.functions.invoke("send-event-invitation", {
-              body: { eventId: savedEvent.id, inviteeEmails: emails },
-            });
-            toast.success(`📨 נשלחו ${emails.length} הזמנות`);
-          } catch {
-            toast.error("שגיאה בשליחת הזמנות");
+        // Check for duplicate tasks
+        if (isCustom) {
+          const titleLower = newEventData.title.toLowerCase().trim();
+          const allTaskTitles = [
+            ...personalTasks.filter(t => !t.archived).map(t => t.description?.toLowerCase().trim()),
+            ...workTasks.filter(t => !t.archived).map(t => t.description?.toLowerCase().trim()),
+          ];
+          const duplicate = allTaskTitles.find(t => t && (t === titleLower || t.includes(titleLower) || titleLower.includes(t)));
+          if (duplicate) {
+            const proceed = confirm(`⚠️ נמצאה משימה דומה: "${duplicate}"\nהאם להמשיך בכל זאת?`);
+            if (!proceed) return;
           }
-          setSendingInvites(false);
         }
+
+        const savedEvent = await addEvent({
+          title: newEventData.title,
+          description: newEventData.description,
+          category: newEventData.category,
+          startTime: newEventData.startTime,
+          endTime: newEventData.endTime,
+          color: newEventData.color || getDynCategoryColor(newEventData.category),
+          sourceType: newEventData.sourceType,
+          sourceId: newEventData.sourceId,
+        });
+
+        if (!savedEvent) return;
+
+        // Send invitations if emails provided
+        if (newEventData.inviteeEmails.trim()) {
+          const emails = newEventData.inviteeEmails.split(",").map(e => e.trim()).filter(Boolean);
+          if (emails.length > 0) {
+            setSendingInvites(true);
+            try {
+              await supabase.functions.invoke("send-event-invitation", {
+                body: { eventId: savedEvent.id, inviteeEmails: emails },
+              });
+              toast.success(`📨 נשלחו ${emails.length} הזמנות`);
+            } catch {
+              toast.error("שגיאה בשליחת הזמנות");
+            }
+            setSendingInvites(false);
+          }
+        }
+
+        // If it's a custom event (not linked), ask user if they want to link to dashboard
+        if (isCustom) eventToOfferForLinking = savedEvent;
       }
 
-      // If it's a custom event (not linked), ask user if they want to link to dashboard
-      if (isCustom && savedEvent) {
-        setPendingLinkEvent(savedEvent);
-        setShowLinkToDashboard(true);
+      setShowQuickEventDialog(false);
+      setQuickEditorAnchor(null);
+      setShowEventDialog(false);
+      setEditingEvent(null);
+      toast.success(editingEvent ? "האירוע עודכן" : "האירוע נשמר בלו״ז");
+
+      if (eventToOfferForLinking) {
+        const savedEvent = eventToOfferForLinking;
+        window.setTimeout(() => {
+          setPendingLinkEvent(savedEvent);
+          setShowLinkToDashboard(true);
+        }, 180);
       }
+    } catch (error) {
+      console.error("Planner save failed:", error);
+      toast.error("לא הצלחנו לשמור את האירוע. הנתונים שהזנת נשארו פתוחים.");
+    } finally {
+      setSavingEvent(false);
     }
-
-    setShowQuickEventDialog(false);
-    setQuickEditorAnchor(null);
-    setShowEventDialog(false);
-    setEditingEvent(null);
   };
 
   const handleLinkToDashboard = async (taskType: "personal" | "work") => {
@@ -2117,14 +2146,14 @@ const PersonalPlanner = () => {
   };
 
   return (
-    <div className="flex h-full flex-col md:flex-row" dir="rtl">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-[radial-gradient(circle_at_80%_0%,hsl(var(--primary)/0.08),transparent_28%),hsl(var(--background))] shadow-[0_20px_55px_hsl(var(--foreground)/0.08)] md:flex-row" dir="rtl">
       {/* Right sidebar - Task list */}
-      <div className={`${isMobile ? "hidden" : "flex"} w-80 border-l border-border flex-col bg-card flex-shrink-0`}>
-        <div className="p-3 border-b border-border">
+      <div className={`${isMobile ? "hidden" : "flex"} w-[21rem] flex-shrink-0 flex-col border-l border-border/70 bg-card/90 backdrop-blur-xl`}>
+        <div className="border-b border-border/70 p-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="font-bold text-sm mb-1">משימות ללוז</h3>
-              <p className="text-[10px] text-muted-foreground">גרור משימה ללוח, או חפש ותזמן במהירות</p>
+              <h3 className="mb-1 text-base font-bold tracking-tight">מרכז המשימות</h3>
+              <p className="text-[11px] leading-5 text-muted-foreground">גרור משימה ללוח, או חפש ותזמן אותה במהירות</p>
             </div>
             <Badge variant="secondary" className="text-[10px]">{visibleTasks.length}/{allTasks.length}</Badge>
           </div>
@@ -2637,7 +2666,7 @@ const PersonalPlanner = () => {
       {/* Left side - Calendar */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Calendar header */}
-        <div className="flex items-center gap-2 p-3 border-b border-border bg-card flex-shrink-0 flex-wrap">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 p-4 backdrop-blur-xl">
           {isMobile && (
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setSidebarOpen(true)}>
               <PanelRightOpen className="h-4 w-4" />
@@ -2656,7 +2685,7 @@ const PersonalPlanner = () => {
             </Button>
           </div>
 
-          <h2 className="font-bold text-lg min-w-[150px]">
+          <h2 className="min-w-[150px] text-lg font-bold tracking-tight">
             {viewMode === "day" && format(currentDate, "EEEE, dd MMMM yyyy", { locale: he })}
             {viewMode === "week" && `${format(dateRange.start, "dd/MM")} - ${format(dateRange.end, "dd/MM/yyyy")}`}
             {viewMode === "month" && format(currentDate, "MMMM yyyy", { locale: he })}
@@ -2664,12 +2693,12 @@ const PersonalPlanner = () => {
           </h2>
 
           <div className="mr-auto flex items-center gap-2">
-            <div className="flex border border-border rounded-md overflow-hidden">
+            <div className="flex overflow-hidden rounded-xl border border-border bg-muted/30 p-1">
               {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === mode ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${viewMode === mode ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"}`}
                 >
                   {mode === "day" ? "יומי" : mode === "week" ? "שבועי" : mode === "month" ? "חודשי" : "שנתי"}
                 </button>
@@ -2728,7 +2757,7 @@ const PersonalPlanner = () => {
           </div>
         </div>
 
-        <div className="border-b border-border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+        <div className="border-b border-border/70 bg-primary/[0.035] px-4 py-2.5 text-[11px] leading-5 text-muted-foreground">
           לחץ על משבצת ריקה כדי לפתוח אירוע חדש, גרור משימה מהצד כדי לשבץ אותה, ולחץ פעמיים בחודש כדי להוסיף אירוע ליום שבחרת.
         </div>
 
@@ -2913,8 +2942,8 @@ const PersonalPlanner = () => {
               <Button type="button" variant="outline" size="sm" onClick={openFullEventEditor}>
                 עריכה מלאה
               </Button>
-              <Button size="sm" onClick={handleSaveEvent} disabled={sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
-                שמור
+              <Button size="sm" onClick={handleSaveEvent} disabled={savingEvent || sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
+                {savingEvent ? "שומר..." : "שמור"}
               </Button>
             </div>
           </div>
@@ -3187,8 +3216,8 @@ const PersonalPlanner = () => {
                 {editingEvent.id.startsWith("recurring-") ? "הסר רק ליום הזה" : "מחק"}
               </Button>
             )}
-            <Button onClick={handleSaveEvent} disabled={sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
-              {sendingInvites ? "שולח הזמנות..." : editingEvent ? "עדכן" : "הוסף"}
+            <Button onClick={handleSaveEvent} disabled={savingEvent || sendingInvites || !!editingEvent?.id.startsWith("recurring-")}>
+              {savingEvent ? "שומר..." : sendingInvites ? "שולח הזמנות..." : editingEvent ? "עדכן" : "הוסף"}
             </Button>
           </DialogFooter>
         </DialogContent>
