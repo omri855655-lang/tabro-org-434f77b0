@@ -73,6 +73,10 @@ const INITIAL_ROOMS: Room[] = [
 ];
 
 const SCENE_ICONS = { library: Library, plane: Plane, cafe: Coffee, office: Users };
+const AVATAR_CHOICES = [
+  "bg-cyan-400", "bg-rose-400", "bg-amber-400", "bg-emerald-400",
+  "bg-violet-400", "bg-blue-400", "bg-lime-400", "bg-pink-400",
+] as const;
 
 const getStoredRooms = (): Room[] => {
   const stored = safeLocalStorage.getJSON<unknown>("zoneflow-together-rooms", INITIAL_ROOMS);
@@ -125,6 +129,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [liveRoomsAvailable, setLiveRoomsAvailable] = useState(false);
   const [roomParticipants, setRoomParticipants] = useState<FocusRoomParticipant[]>([]);
   const [myPosition, setMyPosition] = useState(() => safeLocalStorage.getJSON("zoneflow-together-avatar-position", { x: 50, y: 62 }));
+  const [avatarStyle, setAvatarStyle] = useState(() => safeLocalStorage.getJSON("zoneflow-together-avatar-style", 0));
   const sessionStartedAt = useRef<string | null>(null);
   const focusSessionId = useRef<string | null>(null);
   const plannedEndAt = useRef<number | null>(null);
@@ -184,7 +189,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       x: myPosition.x,
       y: myPosition.y,
       status: focusActive ? "focusing" : "setting-up",
-      color: "bg-cyan-300",
+      avatarStyle,
       isMe: true,
     };
     if (!user || !isUuid(selectedRoom.id)) {
@@ -203,7 +208,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
           x: Number.isFinite(participant.x) ? participant.x : 50,
           y: Number.isFinite(participant.y) ? participant.y : 62,
           status: participant.status || "setting-up",
-          color: participant.color || "bg-sky-300",
+          color: participant.color,
+          avatarStyle: Number.isFinite(participant.avatarStyle) ? participant.avatarStyle : 0,
           isMe: participant.userId === user.id,
         } satisfies FocusRoomParticipant));
         setRoomParticipants(people);
@@ -225,7 +231,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     };
     // Position and focus status are updated through the lightweight effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoom?.id, user?.id, username]);
+  }, [avatarStyle, selectedRoom?.id, user?.id, username]);
 
   useEffect(() => {
     if (!selectedRoom) return;
@@ -235,7 +241,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       x: myPosition.x,
       y: myPosition.y,
       status: focusActive ? "focusing" : "setting-up",
-      color: "bg-cyan-300",
+      avatarStyle,
       isMe: true,
       onlineAt: new Date().toISOString(),
     };
@@ -244,7 +250,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       return [...withoutMe, participant];
     });
     if (roomChannelRef.current) void roomChannelRef.current.track(participant);
-  }, [focusActive, myPosition, selectedRoom, user?.id, username]);
+  }, [avatarStyle, focusActive, myPosition, selectedRoom, user?.id, username]);
 
   const recordCompletedSession = useCallback(async () => {
     if (!sessionStartedAt.current) return;
@@ -535,7 +541,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
         displayName: username.trim() || "Tabro learner",
         ...position,
         status: focusActive ? "focusing" : "setting-up",
-        color: "bg-cyan-300",
+        avatarStyle,
         onlineAt: new Date().toISOString(),
       } satisfies RoomPresencePayload,
     });
@@ -555,7 +561,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     <Card className={cn("overflow-hidden border", panel)}>
       <CardContent className="bg-gradient-to-br from-[#13234d] via-[#3b35ae] to-[#0ea5a6] p-6 text-white">
         <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs"><Globe2 className="h-3.5 w-3.5" /> ZoneFlow Together</div><h2 className="mt-3 text-2xl font-bold">{copy.title}</h2><p className="mt-2 max-w-2xl text-sm leading-7 text-white/80">{copy.subtitle}</p></div><div className="rounded-3xl bg-white/15 p-4 text-center"><div className="text-xs text-white/70">{copy.points}</div><div className="text-4xl font-bold">{points}</div></div></div>
-        <div className="mt-5 flex flex-wrap gap-3"><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">{copy.username}</div><Input value={username} onChange={(event) => { setUsername(event.target.value); safeLocalStorage.setString("zoneflow-together-username", event.target.value); }} className="mt-1 h-8 border-white/20 bg-white/10 text-white placeholder:text-white/50" /></div><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">{copy.unlock}</div><div className="mt-1 text-xl font-bold">{unlockMinutes} {copy.minutes}</div></div></div>
+        <div className="mt-5 flex flex-wrap gap-3"><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">{copy.username}</div><Input value={username} onChange={(event) => { setUsername(event.target.value); safeLocalStorage.setString("zoneflow-together-username", event.target.value); }} className="mt-1 h-8 border-white/20 bg-white/10 text-white placeholder:text-white/50" /></div><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">בחר דמות</div><div className="mt-2 flex flex-wrap gap-2">{AVATAR_CHOICES.map((shirt, index) => <button key={shirt} type="button" aria-label={`דמות ${index + 1}`} aria-pressed={avatarStyle === index} onClick={() => { setAvatarStyle(index); safeLocalStorage.setJSON("zoneflow-together-avatar-style", index); }} className={cn("relative h-9 w-9 rounded-full border-2 transition hover:scale-110", avatarStyle === index ? "border-white ring-2 ring-cyan-300" : "border-white/25")}><span className={cn("absolute bottom-1 left-1/2 h-4 w-6 -translate-x-1/2 rounded-t-full", shirt)} /><span className="absolute left-1/2 top-1 h-4 w-4 -translate-x-1/2 rounded-full bg-[#e3a278]" /></button>)}</div></div><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">{copy.unlock}</div><div className="mt-1 text-xl font-bold">{unlockMinutes} {copy.minutes}</div></div></div>
       </CardContent>
     </Card>
 

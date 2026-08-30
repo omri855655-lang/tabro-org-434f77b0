@@ -179,12 +179,29 @@ const PersonalPlanner = () => {
   const [selectedTaskForAi, setSelectedTaskForAi] = useState<{ title: string; description: string; category: string } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
+  const closeEventEditors = useCallback(() => {
+    setShowQuickEventDialog(false);
+    setShowEventDialog(false);
+    setQuickEditorAnchor(null);
+    setEditingEvent(null);
+
+    // Radix normally releases these styles after its exit animation. Resetting
+    // them on the next frame also covers interrupted mobile/dialog transitions.
+    window.requestAnimationFrame(() => {
+      document.body.style.pointerEvents = "";
+      document.body.style.overflow = "";
+      document.documentElement.style.pointerEvents = "";
+    });
+  }, []);
+
   useEffect(() => {
     if (showQuickEventDialog || showEventDialog) return;
     const cleanup = window.setTimeout(() => {
       setEditingEvent(null);
       setQuickEditorAnchor(null);
       document.body.style.pointerEvents = "";
+      document.body.style.overflow = "";
+      document.documentElement.style.pointerEvents = "";
     }, 80);
     return () => window.clearTimeout(cleanup);
   }, [showEventDialog, showQuickEventDialog]);
@@ -1325,6 +1342,7 @@ const PersonalPlanner = () => {
     }
 
     setSavingEvent(true);
+    const wasEditing = Boolean(editingEvent);
     try {
       if (editingEvent) {
         const updated = await updateEvent(editingEvent.id, {
@@ -1385,13 +1403,14 @@ const PersonalPlanner = () => {
 
       }
 
-      await refetchCalendarEvents();
-      // Close both Radix layers together. Leaving an invisible Popover mounted
-      // behind the Dialog was able to retain a stale focus lock after saving.
-      setShowQuickEventDialog(false);
-      setShowEventDialog(false);
-      setQuickEditorAnchor(null);
-      toast.success(editingEvent ? "האירוע עודכן" : "האירוע נשמר בלו״ז");
+      // The hook has already updated the local calendar. Close the editor before
+      // the network refresh so a slow response cannot leave a full-screen focus
+      // lock behind the dialog and make the planner look like a blank page.
+      closeEventEditors();
+      toast.success(wasEditing ? "האירוע עודכן" : "האירוע נשמר בלו״ז");
+      void refetchCalendarEvents().catch((refreshError) => {
+        console.warn("Planner background refresh failed:", refreshError);
+      });
     } catch (error) {
       console.error("Planner save failed:", error);
       toast.error("לא הצלחנו לשמור את האירוע. הנתונים שהזנת נשארו פתוחים.");
@@ -1516,18 +1535,12 @@ const PersonalPlanner = () => {
 
     if (editingEvent.id.startsWith("recurring-") && editingEvent.sourceId) {
       await toggleSkipForDate(editingEvent.sourceId, format(new Date(editingEvent.startTime), "yyyy-MM-dd"));
-      setShowQuickEventDialog(false);
-      setQuickEditorAnchor(null);
-      setShowEventDialog(false);
-      setEditingEvent(null);
+      closeEventEditors();
       return;
     }
 
     await deleteEvent(editingEvent.id);
-    setShowQuickEventDialog(false);
-    setQuickEditorAnchor(null);
-    setShowEventDialog(false);
-    setEditingEvent(null);
+    closeEventEditors();
   };
 
   // Export to Word
@@ -2755,10 +2768,8 @@ const PersonalPlanner = () => {
       <Popover
         open={showQuickEventDialog}
         onOpenChange={(open) => {
-          setShowQuickEventDialog(open);
-          if (!open) {
-            setQuickEditorAnchor(null);
-          }
+          if (!open) closeEventEditors();
+          else setShowQuickEventDialog(true);
         }}
       >
         <PopoverTrigger asChild>
@@ -2796,10 +2807,7 @@ const PersonalPlanner = () => {
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs"
-                onClick={() => {
-                  setShowQuickEventDialog(false);
-                  setQuickEditorAnchor(null);
-                }}
+                onClick={closeEventEditors}
               >
                 סגור
               </Button>
@@ -2903,7 +2911,10 @@ const PersonalPlanner = () => {
       {/* Event Dialog */}
       <Dialog
         open={showEventDialog}
-        onOpenChange={setShowEventDialog}
+        onOpenChange={(open) => {
+          if (!open) closeEventEditors();
+          else setShowEventDialog(true);
+        }}
       >
         <DialogContent className="max-w-md" dir="rtl">
           <DialogHeader>

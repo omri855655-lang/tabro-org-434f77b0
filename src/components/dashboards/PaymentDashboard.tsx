@@ -79,6 +79,9 @@ interface FinancialAccount {
   backend?: "legacy" | "cloud";
 }
 
+const cardPreferenceKey = (account: FinancialAccount) =>
+  `${account.provider_name || "card"}:${account.external_account_id}`;
+
 interface DashboardEntry {
   id: string;
   source: "payment_tracking" | "financial_transactions" | "cloud_financial_transactions";
@@ -276,6 +279,57 @@ const PaymentDashboard = () => {
   const [clubLabel, setClubLabel] = useState("");
   const [clubBalance, setClubBalance] = useState("");
   const [clubExpiry, setClubExpiry] = useState("");
+  const [cardBillingDays, setCardBillingDays] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void supabase
+      .from("user_preferences")
+      .select("notification_settings")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const settings = data?.notification_settings as Record<string, any> | null;
+        const savedDays = settings?.financeForecast?.cardBillingDays;
+        if (savedDays && typeof savedDays === "object") setCardBillingDays(savedDays);
+      });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const saveCardBillingDay = useCallback(async (account: FinancialAccount, day: number | null) => {
+    if (!user) return;
+    const key = cardPreferenceKey(account);
+    const nextDays = { ...cardBillingDays };
+    if (day == null) delete nextDays[key];
+    else nextDays[key] = Math.min(28, Math.max(1, day));
+    setCardBillingDays(nextDays);
+
+    const { data } = await supabase
+      .from("user_preferences")
+      .select("notification_settings")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const settings = (data?.notification_settings as Record<string, any> | null) || {};
+    const { error } = await supabase.from("user_preferences").upsert({
+      user_id: user.id,
+      notification_settings: {
+        ...settings,
+        financeForecast: {
+          ...(settings.financeForecast || {}),
+          cardBillingDays: nextDays,
+        },
+      } as any,
+    }, { onConflict: "user_id" });
+    if (error) {
+      toast.error(isRtl ? "לא הצלחנו לשמור את יום החיוב" : "Could not save billing day");
+      return;
+    }
+    toast.success(day == null
+      ? (isRtl ? "יום החיוב יחושב אוטומטית" : "Billing day will be inferred")
+      : (isRtl ? `יום החיוב נשמר: ${day} בחודש` : `Billing day saved: day ${day}`));
+  }, [cardBillingDays, isRtl, user]);
 
   // Fetch budget target
   useEffect(() => {
@@ -730,6 +784,18 @@ const PaymentDashboard = () => {
     };
   }, [dashboardEntries, isRtl]);
 
+  const forecastCardAccounts = useMemo(() => {
+    const cards = new Map<string, FinancialAccount>();
+    financialAccounts
+      .filter((account) => account.account_type?.toUpperCase() === "CARD" && (!account.currency || account.currency === "ILS"))
+      .forEach((account) => {
+        const lastFour = account.masked_number?.match(/\d{4}$/)?.[0];
+        const key = `${account.provider_name || "card"}:${lastFour || account.external_account_id}`;
+        if (!cards.has(key)) cards.set(key, account);
+      });
+    return [...cards.values()];
+  }, [financialAccounts]);
+
   const cashFlowForecast = useMemo(() => {
     const salaryPattern = /משכורת|שכר|salary|payroll|עובדי\s*מדינ/i;
     const now = dateOnly(new Date());
@@ -790,6 +856,7 @@ const PaymentDashboard = () => {
         const inferredBillingDay = matchingBankDebits.length
           ? Math.round(median(matchingBankDebits.slice(0, 6).map((entry) => new Date(entry.due_date || entry.created_at).getDate())))
           : 10;
+        const billingDay = cardBillingDays[cardPreferenceKey(account)] || inferredBillingDay;
         const monthlySpend = new Map<string, number>();
         matchingCardEntries.forEach((entry) => {
           const date = new Date(entry.due_date || entry.created_at);
@@ -806,7 +873,7 @@ const PaymentDashboard = () => {
         const estimatedCharge = historicalMonths.length ? median(historicalMonths) : currentCharge;
         if (currentCharge <= 0 && estimatedCharge <= 0) return;
 
-        let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(inferredBillingDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
+        let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(billingDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
         if (occurrence < now) occurrence = addForecastInterval(occurrence, "monthly");
         // A zero current balance means there is no synced charge for the current
         // cycle. Historical estimates start next month instead of appearing as a
@@ -941,7 +1008,7 @@ const PaymentDashboard = () => {
       estimatedSalary,
       creditCardForecasts: creditCardUpcoming.length,
     };
-  }, [dashboardEntries, estimatedSalary, financialAccounts, isRtl, payments]);
+  }, [cardBillingDays, dashboardEntries, estimatedSalary, financialAccounts, isRtl, payments]);
 
   const proactiveFinanceInsights = useMemo(() => {
     const now = new Date();
@@ -1247,6 +1314,44 @@ ${context}
                 ₪{cashFlowForecast.projectedBalance.toLocaleString()}
               </div>
             </div>
+            {forecastCardAccounts.length > 0 && (
+              <div className="rounded-2xl border border-sky-200 bg-background/80 p-3">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold">{isRtl ? "ימי חיוב כרטיסים בתחזית" : "Card billing days in forecast"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isRtl
+                      ? "המערכת מנסה לזהות את היום לפי החיוב בבנק. אם היום שונה, אפשר לקבוע אותו ידנית לכל כרטיס."
+                      : "Tabro infers the day from bank debits. Override it per card when needed."}
+                  </p>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {forecastCardAccounts.map((account) => {
+                    const key = cardPreferenceKey(account);
+                    const lastFour = account.masked_number?.match(/\d{4}$/)?.[0];
+                    return (
+                      <label key={key} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 p-2 text-xs">
+                        <span className="min-w-0 truncate font-medium">
+                          {account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card")}
+                          {lastFour ? ` ••••${lastFour}` : ""}
+                        </span>
+                        <Select
+                          value={cardBillingDays[key] ? String(cardBillingDays[key]) : "auto"}
+                          onValueChange={(value) => void saveCardBillingDay(account, value === "auto" ? null : Number(value))}
+                        >
+                          <SelectTrigger className="h-8 w-28 shrink-0"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">{isRtl ? "זיהוי אוטומטי" : "Automatic"}</SelectItem>
+                            {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
+                              <SelectItem key={day} value={String(day)}>{isRtl ? `ב־${day} בחודש` : `Day ${day}`}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "יתרה נזילה כעת" : "Liquid now"}</p><strong>₪{cashFlowForecast.liquidBalance.toLocaleString()}</strong></div>
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הכנסות צפויות ב־90 יום" : "Expected income · 90 days"}</p><strong className="text-emerald-600">+₪{cashFlowForecast.plannedIncome.toLocaleString()}</strong>{cashFlowForecast.estimatedSalary && <small className="mt-1 block text-emerald-700">{isRtl ? `כולל משכורת משוערת לפי ${cashFlowForecast.estimatedSalary.samples} חודשים` : `Includes salary estimate from ${cashFlowForecast.estimatedSalary.samples} months`}</small>}</div>

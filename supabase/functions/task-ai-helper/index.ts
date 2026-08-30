@@ -291,7 +291,7 @@ ${taskDescription}
 
     } else if (customPrompt) {
       // Custom prompt mode - used by dream roadmap, shopping AI, payment AI, etc.
-      systemPrompt = `אתה עוזר AI חכם ומקצועי. דבר בעברית. היה ממוקד ומעשי.`;
+      systemPrompt = `אתה עוזר AI חכם ומקצועי. בצע במדויק את בקשת המשתמש, כולל שפת היעד ופורמט הפלט שהתבקשו. אל תוסיף עובדות שאינן מופיעות בקלט.`;
       userPrompt = customPrompt;
 
     } else {

@@ -71,12 +71,14 @@ export function ZoneFlowGoodNewsStudio() {
       setShowingOriginal((current) => ({ ...current, [item.link]: !(current[item.link] ?? true) }));
       return;
     }
+    setError("");
     setTranslating(item.link);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("task-ai-helper", {
-        body: { type: "custom", prompt: `Translate the complete article title and public summary below into ${TRANSLATION_LANGUAGES[translationLanguage]}. Preserve names, numbers and meaning. Do not add facts and do not ask for more context. Return JSON only: {"title":"...","description":"..."}.\n\nSOURCE TITLE:\n${item.title}\n\nSOURCE DESCRIPTION:\n${item.description || item.title}` },
+        body: { type: "custom", customPrompt: `Translate the complete article title and public summary below into ${TRANSLATION_LANGUAGES[translationLanguage]}. Preserve names, numbers and meaning. Do not add facts and do not ask for more context. Return JSON only: {"title":"...","description":"..."}.\n\nSOURCE TITLE:\n${item.title}\n\nSOURCE DESCRIPTION:\n${item.description || item.title}` },
       });
       if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(String(data.error));
       const parsed = parseTranslation(data?.result ?? data?.suggestion ?? data);
       setTranslationCache((current) => ({
         ...current,

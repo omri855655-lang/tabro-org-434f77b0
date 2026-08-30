@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent } from "react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 import { Coffee, Headphones, Library, LogOut, MicOff, Pause, Plane, Play, Radio, RotateCcw, Sparkles, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ export interface FocusRoomParticipant {
   y: number;
   status: "setting-up" | "focusing" | "break" | "away";
   color?: string;
+  avatarStyle?: number;
   isMe?: boolean;
 }
 
@@ -30,6 +31,16 @@ const SCENES = {
 const STATUS_LABELS = { "setting-up": "מתארגן", focusing: "בפוקוס", break: "בהפסקה", away: "לא זמין" } as const;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const avatarVariant = (userId: string) => [...userId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 4;
+const AVATAR_STYLES = [
+  { skin: "bg-[#f2b68b]", hair: "bg-slate-950", shirt: "bg-cyan-400" },
+  { skin: "bg-[#d9986b]", hair: "bg-amber-950", shirt: "bg-rose-400" },
+  { skin: "bg-[#8c593f]", hair: "bg-slate-900", shirt: "bg-amber-400" },
+  { skin: "bg-[#f6c6a2]", hair: "bg-orange-950", shirt: "bg-emerald-400" },
+  { skin: "bg-[#b97855]", hair: "bg-stone-950", shirt: "bg-violet-400" },
+  { skin: "bg-[#f0b58d]", hair: "bg-yellow-950", shirt: "bg-blue-400" },
+  { skin: "bg-[#70462f]", hair: "bg-zinc-950", shirt: "bg-lime-400" },
+  { skin: "bg-[#e3a278]", hair: "bg-red-950", shirt: "bg-pink-400" },
+] as const;
 
 export function FocusRoomInterior({ scene, name, topic, participants, timer, active, onToggle, onReset, onLeave, onMove }: {
   scene: FocusRoomScene;
@@ -46,11 +57,24 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const config = SCENES[scene];
   const SceneIcon = config.icon;
   const me = participants.find((participant) => participant.isMe);
+  const [walking, setWalking] = useState(false);
+  const walkingTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (walkingTimerRef.current) window.clearTimeout(walkingTimerRef.current);
+  }, []);
+
+  const move = (position: { x: number; y: number }) => {
+    setWalking(true);
+    if (walkingTimerRef.current) window.clearTimeout(walkingTimerRef.current);
+    walkingTimerRef.current = window.setTimeout(() => setWalking(false), 650);
+    onMove(position);
+  };
 
   const moveFromPointer = (event: MouseEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("button")) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    onMove({
+    move({
       x: clamp(((event.clientX - rect.left) / rect.width) * 100, 7, 93),
       y: clamp(((event.clientY - rect.top) / rect.height) * 100, 28, 77),
     });
@@ -60,7 +84,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     if (!me || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
     event.preventDefault();
     const delta = 4;
-    onMove({
+    move({
       x: clamp(me.x + (event.key === "ArrowRight" ? delta : event.key === "ArrowLeft" ? -delta : 0), 7, 93),
       y: clamp(me.y + (event.key === "ArrowDown" ? delta : event.key === "ArrowUp" ? -delta : 0), 28, 77),
     });
@@ -101,23 +125,27 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       <div className="absolute bottom-28 end-4 start-4 top-24 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem] lg:end-60" onClick={moveFromPointer} aria-label="מרחב החדר. לחץ כדי להזיז את הדמות">
         <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%] bg-black/15" : scene === "library" ? "rounded-[42%] bg-transparent" : "rounded-[42%] bg-black/15")} />
         {participants.map((participant) => (
-          <div
-            key={participant.userId}
-            className="absolute flex w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-[left,top] duration-500 ease-out"
-            style={{ left: `${participant.x}%`, top: `${participant.y}%` }}
-          >
+          (() => {
+            const variant = participant.avatarStyle ?? avatarVariant(participant.userId);
+            const avatar = AVATAR_STYLES[variant % AVATAR_STYLES.length];
+            return <div
+              key={participant.userId}
+              className="absolute flex w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-[left,top] duration-500 ease-out"
+              style={{ left: `${participant.x}%`, top: `${participant.y}%` }}
+            >
             <div className="mb-1 max-w-24 truncate rounded-full bg-black/55 px-2 py-0.5 text-[10px] backdrop-blur">{participant.displayName}</div>
-            <div className="zoneflow-avatar-idle relative h-[76px] w-14">
-              <span className="zoneflow-avatar-shadow absolute bottom-0 left-1/2 h-3 w-12 -translate-x-1/2 rounded-full bg-black/45 blur-[2px]" />
-              <div className={cn("absolute left-1/2 top-0 h-11 w-11 -translate-x-1/2 overflow-hidden rounded-[48%_48%_44%_44%] border-[3px] bg-[#f2b68b] shadow-xl", participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/65")}>
-                <span className={cn("absolute inset-x-0 top-0 bg-slate-900", avatarVariant(participant.userId) === 0 ? "h-4 rounded-b-[55%]" : avatarVariant(participant.userId) === 1 ? "h-5 -rotate-6 rounded-br-full" : avatarVariant(participant.userId) === 2 ? "h-3 rounded-b-lg" : "start-1 h-5 w-7 rounded-br-full")} />
-                <span className="zoneflow-avatar-eye absolute start-2 top-[21px] h-1.5 w-1.5 rounded-full bg-slate-900" /><span className="zoneflow-avatar-eye absolute end-2 top-[21px] h-1.5 w-1.5 rounded-full bg-slate-900" /><span className="absolute left-1/2 top-[31px] h-1 w-3 -translate-x-1/2 rounded-b-full border-b border-slate-700" />
+            <div className={cn("zoneflow-avatar-idle relative h-[92px] w-[68px]", participant.isMe && walking && "zoneflow-avatar-walking")}>
+              <span className="zoneflow-avatar-shadow absolute bottom-0 left-1/2 h-3 w-14 -translate-x-1/2 rounded-full bg-black/45 blur-[2px]" />
+              <div className={cn("absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 overflow-hidden rounded-[48%_48%_44%_44%] border-[3px] shadow-xl", avatar.skin, participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/65")}>
+                <span className={cn("absolute inset-x-0 top-0", avatar.hair, variant % 4 === 0 ? "h-5 rounded-b-[55%]" : variant % 4 === 1 ? "h-6 -rotate-6 rounded-br-full" : variant % 4 === 2 ? "h-4 rounded-b-lg" : "start-1 h-6 w-9 rounded-br-full")} />
+                <span className="zoneflow-avatar-eye absolute start-2.5 top-[27px] h-2 w-2 rounded-full bg-slate-900" /><span className="zoneflow-avatar-eye absolute end-2.5 top-[27px] h-2 w-2 rounded-full bg-slate-900" /><span className="absolute left-1/2 top-[40px] h-1.5 w-4 -translate-x-1/2 rounded-b-full border-b-2 border-slate-700" />
               </div>
-              <div className={cn("absolute bottom-3 left-1/2 h-9 w-12 -translate-x-1/2 rounded-t-[42%] border-2 border-white/35 shadow-lg", participant.color || "bg-sky-400")}><span className="absolute -start-2 top-2 h-7 w-3 rotate-12 rounded-full bg-inherit" /><span className="absolute -end-2 top-2 h-7 w-3 -rotate-12 rounded-full bg-inherit" /><span className="absolute bottom-[-12px] start-2 h-4 w-3 rounded-b-full bg-slate-800" /><span className="absolute bottom-[-12px] end-2 h-4 w-3 rounded-b-full bg-slate-800" /></div>
+              <div className={cn("absolute bottom-3 left-1/2 h-10 w-14 -translate-x-1/2 rounded-t-[42%] border-2 border-white/35 shadow-lg", participant.color || avatar.shirt)}><span className="zoneflow-avatar-limb-start absolute -start-2 top-2 h-8 w-3 rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-end absolute -end-2 top-2 h-8 w-3 -rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-start absolute bottom-[-13px] start-2.5 h-5 w-3 rounded-b-full bg-slate-800" /><span className="zoneflow-avatar-limb-end absolute bottom-[-13px] end-2.5 h-5 w-3 rounded-b-full bg-slate-800" /></div>
               {participant.status === "focusing" && <span className="absolute -end-2 -top-2 h-3 w-3 animate-ping rounded-full bg-emerald-300" />}
             </div>
             <div className={cn("mt-1 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{STATUS_LABELS[participant.status]}</div>
-          </div>
+          </div>;
+          })()
         ))}
         {participants.length <= 1 && <div className="absolute inset-x-0 top-[46%] text-center text-xs text-white/55">החדר פתוח. משתתפים אמיתיים יופיעו כאן כשהם יצטרפו.</div>}
         <div className="absolute bottom-2 start-3 rounded-full bg-black/35 px-3 py-1 text-[10px] text-white/65">{scene === "plane" ? "הטיסה בעיצומה · בחר מושב והתחל פוקוס" : "לחץ במרחב או השתמש בחצים כדי לזוז"}</div>

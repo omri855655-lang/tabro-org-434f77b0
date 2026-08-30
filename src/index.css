@@ -1277,6 +1277,27 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
 .zoneflow-library-light { animation: zoneflow-library-light 7s ease-in-out infinite; transform-origin: top center; }
 .zoneflow-avatar-idle { animation: zoneflow-avatar-idle 2.4s ease-in-out infinite; }
 
+@keyframes zoneflow-avatar-walk {
+  0%, 100% { transform: translateY(0) rotate(-2deg) scale(1); }
+  25% { transform: translateY(-7px) rotate(3deg) scale(1.03); }
+  50% { transform: translateY(-2px) rotate(-2deg) scale(1); }
+  75% { transform: translateY(-7px) rotate(3deg) scale(1.03); }
+}
+
+@keyframes zoneflow-avatar-step-left {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(18deg) translateY(-4px); }
+}
+
+@keyframes zoneflow-avatar-step-right {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(-18deg) translateY(-4px); }
+}
+
+.zoneflow-avatar-walking { animation: zoneflow-avatar-walk .34s linear infinite; }
+.zoneflow-avatar-walking .zoneflow-avatar-limb-start { animation: zoneflow-avatar-step-left .34s linear infinite; transform-origin: top center; }
+.zoneflow-avatar-walking .zoneflow-avatar-limb-end { animation: zoneflow-avatar-step-right .34s linear infinite; transform-origin: top center; }
+
 @keyframes zoneflow-room-breathe {
   0%, 100% { transform: scale(1.015); }
   50% { transform: scale(1.035); }

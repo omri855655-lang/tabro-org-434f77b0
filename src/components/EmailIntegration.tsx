@@ -1019,6 +1019,30 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
               </div>
             )}
 
+            <div className="flex flex-wrap gap-2 rounded-xl border bg-muted/20 p-2">
+              {([
+                ["all", isHe ? "הכל" : "All"],
+                ["personal", isHe ? "אישי" : "Personal"],
+                ["promotions", isHe ? "פרסומות ומבצעים" : "Promotions & offers"],
+                ["updates", isHe ? "עדכונים" : "Updates"],
+              ] as const).map(([bucket, label]) => (
+                <Button
+                  key={bucket}
+                  type="button"
+                  size="sm"
+                  variant={smartFilter === bucket ? "default" : "outline"}
+                  className="h-8"
+                  onClick={() => setSmartFilter(bucket)}
+                >
+                  {label}
+                  {bucket !== "all" && <Badge variant="secondary" className="ms-1 text-[9px]">{smartInbox.smartSummary[bucket] || 0}</Badge>}
+                </Button>
+              ))}
+              <span className="self-center text-[11px] text-muted-foreground">
+                {isHe ? "שינוי הסיווג ליד מייל נשמר לכל המיילים העתידיים מאותו שולח." : "Changing a sender lane also classifies future mail from that sender."}
+              </span>
+            </div>
+
             <div className="space-y-1">
               {displayEmails.map((a) => {
                 const Icon = CATEGORY_ICONS[a.category] || Mail;
