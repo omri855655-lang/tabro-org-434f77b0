@@ -55,24 +55,41 @@ export const getCategoryColor = (category: string): string => {
 
 export const CATEGORIES = Object.keys(DEFAULT_CATEGORY_COLORS);
 
-const mapDbToEvent = (db: DbCalendarEvent, invitation?: { id: string; status: string } | null): CalendarEvent => ({
-  id: db.id,
-  userId: db.user_id,
-  title: db.title,
-  description: db.description || "",
-  category: db.category,
-  startTime: db.start_time,
-  endTime: db.end_time,
-  allDay: db.all_day || false,
-  color: db.color || getCategoryColor(db.category),
-  sourceType: db.source_type,
-  sourceId: db.source_id,
-  createdAt: db.created_at,
-  updatedAt: db.updated_at,
-  invitationStatus: invitation ? (invitation.status as "pending" | "accepted" | "declined") : null,
-  invitationId: invitation?.id || null,
-  isInvited: !!invitation,
-});
+const normalizeEventDate = (value: string | null | undefined) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
+const mapDbToEvent = (db: DbCalendarEvent, invitation?: { id: string; status: string } | null): CalendarEvent | null => {
+  const startTime = normalizeEventDate(db.start_time);
+  const endTime = normalizeEventDate(db.end_time);
+  if (!db.id || !startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
+    console.warn("Skipping malformed calendar event", db.id);
+    return null;
+  }
+  const category = db.category || "משימה";
+  return {
+    id: db.id,
+    userId: db.user_id,
+    title: String(db.title || "אירוע ללא כותרת"),
+    description: db.description || "",
+    category,
+    startTime,
+    endTime,
+    allDay: db.all_day || false,
+    color: db.color || getCategoryColor(category),
+    sourceType: db.source_type,
+    sourceId: db.source_id,
+    createdAt: db.created_at,
+    updatedAt: db.updated_at,
+    invitationStatus: invitation ? (invitation.status as "pending" | "accepted" | "declined") : null,
+    invitationId: invitation?.id || null,
+    isInvited: !!invitation,
+  };
+};
+
+const compactEvents = (events: Array<CalendarEvent | null>) => events.filter((event): event is CalendarEvent => Boolean(event));
 
 export function useCalendarEvents() {
   const { user } = useAuth();
@@ -96,7 +113,7 @@ export function useCalendarEvents() {
         .order("start_time", { ascending: true });
 
       if (ownError) throw ownError;
-      const ownEvents = (ownData as unknown as DbCalendarEvent[]).map(e => mapDbToEvent(e));
+      const ownEvents = compactEvents((ownData as unknown as DbCalendarEvent[]).map(e => mapDbToEvent(e)));
 
       // Fetch invitations for this user — use separate queries for reliable filtering
       let allInvitations: any[] = [];
@@ -137,10 +154,10 @@ export function useCalendarEvents() {
           .in("id", invitedEventIds);
 
         if (invData) {
-          invitedEvents = (invData as unknown as DbCalendarEvent[]).map(e => {
+          invitedEvents = compactEvents((invData as unknown as DbCalendarEvent[]).map(e => {
             const inv = (invitations || []).find(i => i.event_id === e.id);
             return mapDbToEvent(e, inv ? { id: inv.id, status: inv.status } : null);
-          });
+          }));
         }
       }
 
@@ -182,6 +199,12 @@ export function useCalendarEvents() {
 
   const addEvent = useCallback(async (event: Partial<CalendarEvent>): Promise<CalendarEvent | null> => {
     if (!user) return null;
+    const startTime = normalizeEventDate(event.startTime);
+    const endTime = normalizeEventDate(event.endTime);
+    if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
+      toast.error("זמן האירוע אינו תקין");
+      return null;
+    }
 
     try {
       const { data, error } = await supabase
@@ -191,8 +214,8 @@ export function useCalendarEvents() {
           title: event.title || "",
           description: event.description || null,
           category: event.category || "משימה",
-          start_time: event.startTime,
-          end_time: event.endTime,
+          start_time: startTime,
+          end_time: endTime,
           all_day: event.allDay || false,
           color: event.color || getCategoryColor(event.category || "משימה"),
           source_type: event.sourceType || "custom",
@@ -203,7 +226,8 @@ export function useCalendarEvents() {
 
       if (error) throw error;
       const newEvent = mapDbToEvent(data as unknown as DbCalendarEvent);
-      setEvents((prev) => [...prev, newEvent]);
+      if (!newEvent) throw new Error("Saved event returned invalid dates");
+      setEvents((prev) => [...prev.filter((existing) => existing.id !== newEvent.id), newEvent]);
       return newEvent;
     } catch (error: any) {
       console.error("Error adding calendar event:", error);
@@ -219,8 +243,18 @@ export function useCalendarEvents() {
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description || null;
     if (updates.category !== undefined) dbUpdates.category = updates.category;
-    if (updates.startTime !== undefined) dbUpdates.start_time = updates.startTime;
-    if (updates.endTime !== undefined) dbUpdates.end_time = updates.endTime;
+    if (updates.startTime !== undefined) {
+      const normalized = normalizeEventDate(updates.startTime);
+      if (!normalized) return false;
+      dbUpdates.start_time = normalized;
+      updates = { ...updates, startTime: normalized };
+    }
+    if (updates.endTime !== undefined) {
+      const normalized = normalizeEventDate(updates.endTime);
+      if (!normalized) return false;
+      dbUpdates.end_time = normalized;
+      updates = { ...updates, endTime: normalized };
+    }
     if (updates.allDay !== undefined) dbUpdates.all_day = updates.allDay;
     if (updates.color !== undefined) dbUpdates.color = updates.color;
 

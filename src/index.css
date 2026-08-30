@@ -1276,3 +1276,35 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
 .zoneflow-library-dust { animation: zoneflow-library-dust 9s ease-in-out infinite; }
 .zoneflow-library-light { animation: zoneflow-library-light 7s ease-in-out infinite; transform-origin: top center; }
 .zoneflow-avatar-idle { animation: zoneflow-avatar-idle 2.4s ease-in-out infinite; }
+
+@keyframes zoneflow-room-breathe {
+  0%, 100% { transform: scale(1.015); }
+  50% { transform: scale(1.035); }
+}
+@keyframes zoneflow-cafe-rain {
+  0% { transform: translateY(-120%) rotate(8deg); opacity: 0; }
+  20% { opacity: .7; }
+  100% { transform: translateY(760px) rotate(8deg); opacity: 0; }
+}
+@keyframes zoneflow-office-sunbeam {
+  0%, 100% { opacity: .35; transform: rotate(-18deg) translateX(-12px); }
+  50% { opacity: .62; transform: rotate(-17deg) translateX(16px); }
+}
+@keyframes zoneflow-office-leaf {
+  0%, 100% { transform: rotate(-9deg) translateY(0); }
+  50% { transform: rotate(11deg) translateY(6px); }
+}
+@keyframes zoneflow-avatar-blink {
+  0%, 45%, 51%, 100% { transform: scaleY(1); }
+  48% { transform: scaleY(.12); }
+}
+@keyframes zoneflow-avatar-shadow {
+  0%, 100% { transform: translateX(-50%) scaleX(1); opacity: .55; }
+  50% { transform: translateX(-50%) scaleX(.86); opacity: .38; }
+}
+.zoneflow-room-background { animation: zoneflow-room-breathe 18s ease-in-out infinite; }
+.zoneflow-cafe-rain { animation: zoneflow-cafe-rain 3s linear infinite; }
+.zoneflow-office-sunbeam { animation: zoneflow-office-sunbeam 8s ease-in-out infinite; }
+.zoneflow-office-leaf { animation: zoneflow-office-leaf 4s ease-in-out infinite; transform-origin: bottom center; }
+.zoneflow-avatar-eye { animation: zoneflow-avatar-blink 5.5s ease-in-out infinite; transform-origin: center; }
+.zoneflow-avatar-shadow { animation: zoneflow-avatar-shadow 2.4s ease-in-out infinite; }

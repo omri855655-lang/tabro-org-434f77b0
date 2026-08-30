@@ -19,6 +19,7 @@ import CoursesManager from "@/components/CoursesManager";
 import Dashboard from "@/components/Dashboard";
 import DailyRoutine from "@/components/DailyRoutine";
 import PersonalPlanner from "@/components/PersonalPlanner";
+import PlannerErrorBoundary from "@/components/PlannerErrorBoundary";
 import ZoneFlowDashboard from "@/components/zoneflow/ZoneFlowDashboard";
 import { ZoneFlowMiniPlayer } from "@/components/zoneflow/ZoneFlowMiniPlayer";
 import { GlobalZoneFlowYouTubePlayer } from "@/components/zoneflow/GlobalZoneFlowYouTubePlayer";
@@ -486,7 +487,7 @@ const Personal = () => {
       case "podcasts": return <PodcastsManager />;
       case "routine": return <DailyRoutine />;
       case "projects": return <ProjectsManager />;
-      case "planner": return <PersonalPlanner />;
+      case "planner": return <PlannerErrorBoundary><PersonalPlanner /></PlannerErrorBoundary>;
       case "courses": return <CoursesManager />;
       case "zoneflow": return <ZoneFlowDashboard />;
       case "settings": return <SettingsPanel />;

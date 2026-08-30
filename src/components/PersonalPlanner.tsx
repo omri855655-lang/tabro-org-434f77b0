@@ -127,7 +127,7 @@ const PersonalPlanner = () => {
     isTaskCompletedOnDate,
     toggleSkipForDate,
   } = useRecurringTasks();
-  const { events, addEvent, updateEvent, deleteEvent, respondToInvitation } = useCalendarEvents();
+  const { events, addEvent, updateEvent, deleteEvent, respondToInvitation, refetch: refetchCalendarEvents } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
   const isMobile = useIsMobile();
@@ -1385,12 +1385,12 @@ const PersonalPlanner = () => {
 
       }
 
-      if (showQuickEventDialog) {
-        setShowQuickEventDialog(false);
-        setQuickEditorAnchor(null);
-      } else {
-        setShowEventDialog(false);
-      }
+      await refetchCalendarEvents();
+      // Close both Radix layers together. Leaving an invisible Popover mounted
+      // behind the Dialog was able to retain a stale focus lock after saving.
+      setShowQuickEventDialog(false);
+      setShowEventDialog(false);
+      setQuickEditorAnchor(null);
       toast.success(editingEvent ? "האירוע עודכן" : "האירוע נשמר בלו״ז");
     } catch (error) {
       console.error("Planner save failed:", error);

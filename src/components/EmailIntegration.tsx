@@ -174,6 +174,7 @@ const EmailIntegration = () => {
   const [smartFilter, setSmartFilter] = useState<"all" | SmartBucket>("all");
   const [importanceFilter, setImportanceFilter] = useState<"all" | "important" | "low">("all");
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "sender">("newest");
+  const [historyDays, setHistoryDays] = useState<"14" | "30" | "90" | "all">("90");
   const [showAiChat, setShowAiChat] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
@@ -296,9 +297,11 @@ const EmailIntegration = () => {
   const baseRecentEmails = useMemo(() => {
     return analyses.filter((a) => {
       if (!a.email_date) return false;
-      return isAfter(new Date(a.email_date), subDays(new Date(), 14));
+      const date = new Date(a.email_date);
+      if (Number.isNaN(date.getTime())) return false;
+      return historyDays === "all" || isAfter(date, subDays(new Date(), Number(historyDays)));
     });
-  }, [analyses]);
+  }, [analyses, historyDays]);
 
   const smartInbox = useMemo(() => {
     const enriched = baseRecentEmails.map((analysis) => {
@@ -965,9 +968,18 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Eye className="h-4 w-4" />
-                {isHe ? `מיילים אחרונים (14 יום) — ${recentEmails.length}` : `Recent Emails (14 days) — ${recentEmails.length}`}
+                {isHe ? `תיבת המייל האמיתית — ${recentEmails.length} הודעות` : `Your real inbox — ${recentEmails.length} messages`}
               </CardTitle>
               <div className="flex gap-2 flex-wrap">
+                <Select value={historyDays} onValueChange={(value) => { setHistoryDays(value as typeof historyDays); setDisplayCount(50); }}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="14">{isHe ? "14 ימים" : "14 days"}</SelectItem>
+                    <SelectItem value="30">{isHe ? "30 ימים" : "30 days"}</SelectItem>
+                    <SelectItem value="90">{isHe ? "90 ימים" : "90 days"}</SelectItem>
+                    <SelectItem value="all">{isHe ? "כל ההיסטוריה" : "All history"}</SelectItem>
+                  </SelectContent>
+                </Select>
                 {/* Category filter */}
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>

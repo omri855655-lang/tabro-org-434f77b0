@@ -78,7 +78,7 @@ export function useEmailIntegration() {
         .select("*")
         .eq("user_id", user.id)
         .order("email_date", { ascending: false })
-        .limit(200);
+        .limit(1000);
       if (error) throw error;
       const unique = new Map<string, EmailAnalysis>();
       ((data as EmailAnalysis[]) || []).forEach((analysis) => {
@@ -86,7 +86,7 @@ export function useEmailIntegration() {
           analysis.connection_id,
           analysis.email_subject || "",
           analysis.email_from || "",
-          analysis.email_date ? new Date(analysis.email_date).toISOString() : "",
+          analysis.email_date && !Number.isNaN(new Date(analysis.email_date).getTime()) ? new Date(analysis.email_date).toISOString() : "",
         ].join("|");
         if (!unique.has(key)) unique.set(key, analysis);
       });

@@ -9,13 +9,15 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 // Unified categories - singular, matching frontend exactly
-async function classifyEmail(subject: string, from: string): Promise<string> {
+async function classifyEmail(subject: string, from: string, labels: string[] = []): Promise<string> {
   const lower = `${subject} ${from}`.toLowerCase();
+  if (labels.includes("CATEGORY_PROMOTIONS") || /unsubscribe|special offer|limited time|sale|discount|coupon|marketing|mailchimp|newsletter|מבצע|הנחה|קופון|הטבה|פרסומת|שיווק/.test(lower)) return "newsletter";
+  if (labels.includes("CATEGORY_SOCIAL")) return "social";
   if (/invoice|receipt|payment|חשבונית|תשלום|קבלה|paypal|stripe/.test(lower)) return "payment";
   if (/task|todo|action|משימה|לביצוע|reminder|jira|asana/.test(lower)) return "task";
+  if (/meeting|calendar|invitation|zoom|teams|פגישה|זימון/.test(lower)) return "meeting";
   if (/order|shipping|delivery|הזמנה|משלוח|amazon|aliexpress/.test(lower)) return "shopping";
   if (/bill|utility|חשבון|חשמל|מים|ארנונה/.test(lower)) return "bill";
-  if (/newsletter|unsubscribe|עדכון|marketing/.test(lower)) return "newsletter";
   return "personal";
 }
 
@@ -98,7 +100,8 @@ Deno.serve(async (req) => {
 
       if (accessToken) {
         // Fetch recent messages
-        const listRes = await fetch(`${GMAIL_API}/messages?maxResults=50&q=newer_than:14d`, {
+        const query = encodeURIComponent("newer_than:90d -in:spam -in:trash");
+        const listRes = await fetch(`${GMAIL_API}/messages?maxResults=100&q=${query}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         
@@ -117,7 +120,7 @@ Deno.serve(async (req) => {
         const listData = await listRes.json();
 
         if (listData.messages && Array.isArray(listData.messages)) {
-          for (const msg of listData.messages.slice(0, 20)) {
+          for (const msg of listData.messages.slice(0, 100)) {
             try {
               const msgRes = await fetch(`${GMAIL_API}/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
                 headers: { Authorization: `Bearer ${accessToken}` },
@@ -130,7 +133,7 @@ Deno.serve(async (req) => {
               const from = headers.find((h: any) => h.name === "From")?.value || "";
               const date = headers.find((h: any) => h.name === "Date")?.value || "";
 
-              const category = await classifyEmail(subject, from);
+              const category = await classifyEmail(subject, from, msgData.labelIds || []);
 
               await serviceClient.from("email_analyses").upsert({
                 user_id: user.id,

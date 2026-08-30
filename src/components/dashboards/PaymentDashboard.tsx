@@ -773,13 +773,17 @@ const PaymentDashboard = () => {
         const cardName = account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card");
         const matchingCardEntries = dashboardEntries.filter((entry) => {
           if (entry.source_channel !== "credit_card" || entry.payment_type !== "expense") return false;
-          if (lastFour && entry.account_last_four === lastFour) return true;
+          // A provider can expose several cards with the same label. Once a card has
+          // a masked number, never fall back to the provider label or every card will
+          // inherit the same transactions and forecast.
+          if (lastFour) return entry.account_last_four === lastFour;
           return Boolean(entry.account_label && [account.display_name, account.provider_name].filter(Boolean).includes(entry.account_label));
         });
         const matchingBankDebits = dashboardEntries.filter((entry) => {
           if (entry.source_channel !== "bank" || entry.payment_type !== "expense") return false;
           const title = entry.title.toLocaleLowerCase();
-          return [account.provider_name, account.display_name, lastFour]
+          const identifyingTokens = lastFour ? [lastFour] : [account.provider_name, account.display_name];
+          return identifyingTokens
             .filter((token): token is string => Boolean(token && token.length >= 3))
             .some((token) => title.includes(token.toLocaleLowerCase()));
         });
@@ -804,14 +808,20 @@ const PaymentDashboard = () => {
 
         let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(inferredBillingDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
         if (occurrence < now) occurrence = addForecastInterval(occurrence, "monthly");
+        // A zero current balance means there is no synced charge for the current
+        // cycle. Historical estimates start next month instead of appearing as a
+        // fabricated upcoming charge today.
+        if (currentCharge <= 0) occurrence = addForecastInterval(occurrence, "monthly");
+        const hasSyncedCurrentCharge = currentCharge > 0;
         let index = 0;
         while (occurrence <= horizonEnd) {
-          const amount = index === 0 && currentCharge > 0 ? currentCharge : estimatedCharge;
+          const isSyncedCharge = index === 0 && hasSyncedCurrentCharge;
+          const amount = isSyncedCharge ? currentCharge : estimatedCharge;
           if (amount > 0) {
             creditCardUpcoming.push({
               payment: {
                 id: `card-forecast-${account.id}-${format(occurrence, "yyyy-MM")}`,
-                title: `${index === 0 ? (isRtl ? "חיוב קרוב" : "Upcoming charge") : (isRtl ? "אומדן חיוב" : "Estimated charge")} · ${cardName}${lastFour ? ` ••••${lastFour}` : ""}`,
+                title: `${isSyncedCharge ? (isRtl ? "חיוב קרוב" : "Upcoming charge") : (isRtl ? "אומדן חיוב" : "Estimated charge")} · ${cardName}${lastFour ? ` ••••${lastFour}` : ""}`,
                 amount: Math.round(amount * 100) / 100,
                 currency: "ILS",
                 category: isRtl ? "כרטיס אשראי" : "Credit card",
@@ -821,10 +831,10 @@ const PaymentDashboard = () => {
                 paid: false,
                 recurring: true,
                 recurring_frequency: "monthly",
-                recurrence_status: index === 0 ? "synced" : "estimated",
+                recurrence_status: isSyncedCharge ? "synced" : "estimated",
                 recurrence_end_date: null,
                 recurrence_source_transaction_id: null,
-                notes: index === 0
+                notes: isSyncedCharge
                   ? (isRtl ? "יתרת חיוב נוכחית שסונכרנה מהכרטיס" : "Current card balance synced from the provider")
                   : (isRtl ? `אומדן לפי ${Math.max(historicalMonths.length, 1)} חודשים אחרונים` : `Estimate based on ${Math.max(historicalMonths.length, 1)} recent months`),
                 sheet_name: "forecast",
