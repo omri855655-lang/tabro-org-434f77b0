@@ -19,6 +19,7 @@ import TeamPerformanceDashboard from '@/components/projects/TeamPerformanceDashb
 import ProjectTaskDialog from '@/components/projects/ProjectTaskDialog';
 import AiChatPanel from '@/components/AiChatPanel';
 import { useDashboardChatHistory } from '@/hooks/useDashboardChatHistory';
+import { invokeFinanceFunction } from '@/lib/financeBackend';
 
 interface Project {
   id: string;
@@ -460,18 +461,26 @@ const ProjectsManager = () => {
       }
     }
 
-    // Notify team members
+    // Notify only the people assigned to this task. The edge function verifies
+    // every address against the approved project member list before sending.
+    const assignedEmails = Array.from(new Set([
+      assigneeEmail,
+      ...preAssignees.map((preAssignee) =>
+        allAssignable.find((member) => member.id === preAssignee.memberId)?.email || null
+      ),
+    ].filter((email): email is string => Boolean(email && email !== user?.email))));
+
     try {
-      await supabase.functions.invoke('notify-shared-task', {
-        body: {
+      if (assignedEmails.length > 0) {
+        await invokeFinanceFunction('notify-shared-task', {
           ownerUserId: user?.id,
           taskDescription: title,
           creatorName: user?.email?.split('@')[0] || 'משתמש',
           sheetName: projects.find(p => p.id === projectId)?.title || 'פרויקט',
           projectId,
-          notifyAllMembers: true,
-        },
-      });
+          assigneeEmails: assignedEmails,
+        });
+      }
     } catch {}
 
     setProjectTasks(prev => ({

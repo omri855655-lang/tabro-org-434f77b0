@@ -50,6 +50,13 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  return email.slice(0, 254);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -64,20 +71,22 @@ serve(async (req) => {
       });
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const userClient = createClient(supabaseUrl, anonKey, {
+    const sourceSupabaseUrl = Deno.env.get("SOURCE_SUPABASE_URL") || supabaseUrl;
+    const sourceAnonKey = Deno.env.get("SOURCE_SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_ANON_KEY")!;
+    const sharesAuthDatabase = sourceSupabaseUrl === supabaseUrl;
+    const sourceClient = createClient(sourceSupabaseUrl, sourceAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const jwt = authHeader.slice("Bearer ".length).trim();
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(jwt);
-    if (claimsError || !claimsData?.claims?.sub) {
+    const { data: { user: caller }, error: userError } = await sourceClient.auth.getUser(jwt);
+    if (userError || !caller) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const callerUserId = claimsData.claims.sub as string;
+    const callerUserId = caller.id;
 
-    const { ownerUserId, taskDescription, creatorName, sheetName, projectId, notifyAllMembers } = await req.json();
+    const { ownerUserId, taskDescription, creatorName, sheetName, projectId, notifyAllMembers, assigneeEmails } = await req.json();
     const normalizedTaskDescription = typeof taskDescription === "string" ? taskDescription.trim() : "";
     const taskPreview = normalizedTaskDescription ? `: ${normalizedTaskDescription.slice(0, 80)}` : "";
 
@@ -93,19 +102,30 @@ serve(async (req) => {
 
     // Authorization: caller must be the owner OR a member of the project (when notifying members)
     if (projectId) {
-      const { data: membership } = await supabase
+      const callerEmail = normalizeEmail(caller.email);
+      const { data: membershipByUser } = await sourceClient
         .from("project_members")
         .select("id")
         .eq("project_id", projectId)
-        .or(`user_id.eq.${callerUserId},invited_email.eq.${(claimsData.claims as any).email || ""}`)
+        .eq("user_id", callerUserId)
+        .eq("status", "approved")
         .maybeSingle();
-      const { data: ownedProject } = await supabase
+      const { data: membershipByEmail } = callerEmail
+        ? await sourceClient
+          .from("project_members")
+          .select("id")
+          .eq("project_id", projectId)
+          .ilike("invited_email", callerEmail)
+          .eq("status", "approved")
+          .maybeSingle()
+        : { data: null };
+      const { data: ownedProject } = await sourceClient
         .from("projects")
         .select("id")
         .eq("id", projectId)
         .eq("user_id", callerUserId)
         .maybeSingle();
-      if (!membership && !ownedProject) {
+      if (!membershipByUser && !membershipByEmail && !ownedProject) {
         return new Response(JSON.stringify({ error: "Forbidden" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -117,52 +137,69 @@ serve(async (req) => {
     }
 
     // Determine who to notify
-    const targetUserIds: string[] = [];
+    const targetUserIds = new Set<string>();
+    const targetEmails = new Set<string>();
 
-    if (notifyAllMembers && projectId) {
-      const { data: members } = await supabase
+    if (projectId) {
+      const { data: members } = await sourceClient
         .from("project_members")
         .select("user_id, invited_email")
         .eq("project_id", projectId)
         .eq("status", "approved");
 
-      if (members) {
-        for (const m of members) {
-          if (m.user_id && m.user_id !== ownerUserId) {
-            targetUserIds.push(m.user_id);
+      const allowedMemberEmails = new Set(
+        (members || [])
+          .map((member) => normalizeEmail(member.invited_email))
+          .filter((email): email is string => Boolean(email)),
+      );
+      const requestedAssigneeEmails = Array.isArray(assigneeEmails)
+        ? assigneeEmails.slice(0, 20).map(normalizeEmail).filter((email): email is string => Boolean(email))
+        : [];
+
+      if (requestedAssigneeEmails.length > 0) {
+        for (const email of requestedAssigneeEmails) {
+          if (!allowedMemberEmails.has(email)) {
+            return new Response(JSON.stringify({ error: "Assignee is not an approved project member" }), {
+              status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
           }
+          targetEmails.add(email);
+          const member = (members || []).find((item) => normalizeEmail(item.invited_email) === email);
+          if (sharesAuthDatabase && member?.user_id && member.user_id !== callerUserId) {
+            targetUserIds.add(member.user_id);
+          }
+        }
+      } else if (notifyAllMembers) {
+        for (const member of members || []) {
+          if (sharesAuthDatabase && member.user_id && member.user_id !== callerUserId) {
+            targetUserIds.add(member.user_id);
+          }
+          const email = normalizeEmail(member.invited_email);
+          if (email) targetEmails.add(email);
         }
       }
 
-      const { data: project } = await supabase
-        .from("projects")
-        .select("user_id")
-        .eq("id", projectId)
-        .single();
-
-      if (project && project.user_id !== ownerUserId && !targetUserIds.includes(project.user_id)) {
-        targetUserIds.push(project.user_id);
-      }
-    } else {
-      targetUserIds.push(ownerUserId);
+    } else if (ownerUserId !== callerUserId) {
+      targetUserIds.add(ownerUserId);
     }
 
-    if (targetUserIds.length === 0) {
+    for (const targetUserId of targetUserIds) {
+      const { data: userData } = await supabase.auth.admin.getUserById(targetUserId);
+      const email = normalizeEmail(userData?.user?.email);
+      if (email) targetEmails.add(email);
+    }
+
+    if (targetUserIds.size === 0 && targetEmails.size === 0) {
       return new Response(JSON.stringify({ success: true, message: "No users to notify" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const results = [];
+    const results: Array<{ userId?: string; email?: string; notified: boolean }> = [];
 
-    for (const targetUserId of targetUserIds) {
-      const { data: userData } = await supabase.auth.admin.getUserById(targetUserId);
-      const targetEmail = userData?.user?.email;
-
-      // Send email notification via unified path
-      if (targetEmail) {
-        try {
-          await sendEmailUnified(
+    for (const targetEmail of targetEmails) {
+      try {
+        const sent = await sendEmailUnified(
             [targetEmail],
             `${creatorName} צירף/ה משימה${taskPreview}`,
             `
@@ -171,18 +208,21 @@ serve(async (req) => {
                 <p><strong>${escapeHtml(creatorName)}</strong> צירף/ה משימה חדשה ${sheetName ? `ל<strong>${escapeHtml(sheetName)}</strong>` : ""}.</p>
                 ${normalizedTaskDescription ? `<p>המשימה: <strong>${escapeHtml(normalizedTaskDescription)}</strong></p>` : ""}
                 <hr style="margin: 20px 0;" />
-                <a href="https://excel-life-sync.lovable.app/personal" style="display: inline-block; background: #6366f1; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
+                <a href="https://omrigabayexcel.site/personal" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
                   פתח את האפליקציה
                 </a>
               </div>
             `,
             'Tabro <noreply@notify.tabro.org>',
           );
-        } catch (emailErr) {
-          console.error("Email error:", emailErr);
-        }
+        results.push({ email: targetEmail, notified: sent });
+      } catch (emailErr) {
+        console.error("Email error:", emailErr);
+        results.push({ email: targetEmail, notified: false });
       }
+    }
 
+    for (const targetUserId of targetUserIds) {
       // Send push notification
       const { data: pushSubs } = await supabase
         .from("push_subscriptions")
