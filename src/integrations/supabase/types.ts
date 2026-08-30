@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -799,51 +799,6 @@ export type Database = {
           },
         ]
       }
-      finance_club_assets: {
-        Row: {
-          archived: boolean
-          asset_type: string
-          balance: number
-          created_at: string
-          currency: string
-          expiry_date: string | null
-          id: string
-          label: string
-          notes: string | null
-          provider_name: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          archived?: boolean
-          asset_type?: string
-          balance?: number
-          created_at?: string
-          currency?: string
-          expiry_date?: string | null
-          id?: string
-          label: string
-          notes?: string | null
-          provider_name: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          archived?: boolean
-          asset_type?: string
-          balance?: number
-          created_at?: string
-          currency?: string
-          expiry_date?: string | null
-          id?: string
-          label?: string
-          notes?: string | null
-          provider_name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       financial_sync_logs: {
         Row: {
           connection_id: string | null
@@ -893,7 +848,6 @@ export type Database = {
           description: string | null
           direction: string
           external_transaction_id: string | null
-          hidden: boolean
           id: string
           installment_number: number | null
           installment_total: number | null
@@ -918,7 +872,6 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
-          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -943,7 +896,6 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
-          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -1160,9 +1112,6 @@ export type Database = {
           payment_type: string
           recurring: boolean
           recurring_frequency: string | null
-          recurrence_end_date: string | null
-          recurrence_source_transaction_id: string | null
-          recurrence_status: string
           sheet_name: string
           title: string
           updated_at: string
@@ -1186,9 +1135,6 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
-          recurrence_end_date?: string | null
-          recurrence_source_transaction_id?: string | null
-          recurrence_status?: string
           sheet_name?: string
           title: string
           updated_at?: string
@@ -1212,9 +1158,6 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
-          recurrence_end_date?: string | null
-          recurrence_source_transaction_id?: string | null
-          recurrence_status?: string
           sheet_name?: string
           title?: string
           updated_at?: string
@@ -2101,7 +2044,6 @@ export type Database = {
           last_editor_user_id: string | null
           last_editor_username: string | null
           overdue: boolean | null
-          parent_task_id: string | null
           planned_end: string | null
           progress: string | null
           responsible: string | null
@@ -2109,7 +2051,6 @@ export type Database = {
           status: string | null
           status_notes: string | null
           task_type: string
-          text_color: string | null
           updated_at: string
           urgent: boolean | null
           user_id: string
@@ -2129,7 +2070,6 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
-          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2137,7 +2077,6 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
-          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id: string
@@ -2157,7 +2096,6 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
-          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2165,20 +2103,11 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
-          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "tasks_parent_task_id_fkey"
-            columns: ["parent_task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       telegram_users: {
         Row: {
