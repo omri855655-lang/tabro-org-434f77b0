@@ -225,20 +225,38 @@ Deno.serve(async (request) => {
       if (error) throw error;
 
       const connectionIds = (connections || []).map((item) => item.id);
-      const accounts = connectionIds.length
-        ? (await service.from("financial_accounts")
-          .select("id, connection_id, external_account_id, provider_id, provider_name, account_type, display_name, masked_number, currency, current_balance, available_balance, last_synced_at")
+      let accounts: Record<string, unknown>[] = [];
+      let transactionRows: Record<string, unknown>[] = [];
+      if (connectionIds.length) {
+        const accountsResult = await service.from("financial_accounts")
+          .select("*")
           .eq("user_id", user.id)
-          .in("connection_id", connectionIds)).data || []
-        : [];
-      const transactionRows = connectionIds.length
-        ? (await service.from("financial_transactions")
+          .in("connection_id", connectionIds);
+        if (accountsResult.error) throw accountsResult.error;
+        accounts = accountsResult.data || [];
+
+        let transactionsResult = await service.from("financial_transactions")
           .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
           .eq("user_id", user.id)
           .eq("source_type", "cloud_scraper")
           .in("source_connection_id", connectionIds)
-          .order("transaction_date", { ascending: false })).data || []
-        : [];
+          .order("transaction_date", { ascending: false });
+
+        if (transactionsResult.error && /hidden/i.test(transactionsResult.error.message || "")) {
+          const fallbackResult = await service.from("financial_transactions")
+            .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
+            .eq("user_id", user.id)
+            .eq("source_type", "cloud_scraper")
+            .in("source_connection_id", connectionIds)
+            .order("transaction_date", { ascending: false });
+          transactionsResult = {
+            ...fallbackResult,
+            data: fallbackResult.data?.map((transaction) => ({ ...transaction, hidden: false })) ?? null,
+          } as typeof transactionsResult;
+        }
+        if (transactionsResult.error) throw transactionsResult.error;
+        transactionRows = transactionsResult.data || [];
+      }
       const transactions = transactionRows.map(({ raw_data, ...transaction }) => {
         const safeRawData = raw_data && typeof raw_data === "object" && !Array.isArray(raw_data)
           ? raw_data as Record<string, unknown>

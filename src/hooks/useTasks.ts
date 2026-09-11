@@ -102,23 +102,30 @@ const mapTaskToDbInsert = (
   userId: string,
   taskType: "personal" | "work",
   sheetName: string
-) => ({
-  user_id: userId,
-  description: task.description || "",
-  category: task.category || null,
-  responsible: task.responsible || null,
-  status: task.status || "טרם החל",
-  status_notes: task.statusNotes || null,
-  progress: task.progress || null,
-  planned_end: task.plannedEnd || null,
-  overdue: task.overdue || false,
-  urgent: task.urgent || false,
-  archived: task.archived || false,
-  parent_task_id: task.parentTaskId || null,
-  text_color: task.textColor || null,
-  task_type: taskType,
-  sheet_name: sheetName,
-});
+) => {
+  const insert: Record<string, unknown> = {
+    user_id: userId,
+    description: task.description || "",
+    category: task.category || null,
+    responsible: task.responsible || null,
+    status: task.status || "טרם החל",
+    status_notes: task.statusNotes || null,
+    progress: task.progress || null,
+    planned_end: task.plannedEnd || null,
+    overdue: task.overdue || false,
+    urgent: task.urgent || false,
+    archived: task.archived || false,
+    task_type: taskType,
+    sheet_name: sheetName,
+  };
+
+  // Older Tabro databases do not have the optional subtask/color columns yet.
+  // Omitting empty values keeps ordinary task creation compatible with them.
+  if (task.parentTaskId) insert.parent_task_id = task.parentTaskId;
+  if (task.textColor) insert.text_color = task.textColor;
+
+  return insert;
+};
 
 export function useTasks(
   taskType: "personal" | "work",

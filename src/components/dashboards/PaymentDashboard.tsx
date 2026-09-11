@@ -334,18 +334,54 @@ const PaymentDashboard = () => {
   // Fetch budget target
   useEffect(() => {
     if (!user) return;
-    supabase.from("budget_targets").select("*").eq("user_id", user.id).eq("period", budgetPeriod).is("category", null).maybeSingle().then(({ data }) => {
-      if (data) { setBudgetTarget(data.amount); setBudgetInput(String(data.amount)); }
-      else { setBudgetTarget(0); setBudgetInput(""); }
-    });
+    supabase
+      .from("budget_targets")
+      .select("id, amount, updated_at")
+      .eq("user_id", user.id)
+      .eq("period", budgetPeriod)
+      .is("category", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn("Budget target is unavailable", error);
+          setBudgetTarget(0);
+          setBudgetInput("");
+          return;
+        }
+        if (data) { setBudgetTarget(data.amount); setBudgetInput(String(data.amount)); }
+        else { setBudgetTarget(0); setBudgetInput(""); }
+      });
   }, [user, budgetPeriod]);
 
   const saveBudgetTarget = async () => {
     if (!user) return;
     const amount = parseFloat(budgetInput);
     if (isNaN(amount) || amount <= 0) return;
-    const { error } = await supabase.from("budget_targets").upsert({ user_id: user.id, period: budgetPeriod, amount, category: null }, { onConflict: "user_id,period,category" });
-    if (!error) { setBudgetTarget(amount); setEditingBudget(false); toast.success(t("budgetSaved" as any)); }
+    const { data: existing, error: lookupError } = await supabase
+      .from("budget_targets")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("period", budgetPeriod)
+      .is("category", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lookupError) {
+      toast.error(isRtl ? "לא הצלחנו לקרוא את יעד התקציב" : "Could not read the budget target");
+      return;
+    }
+    const result = existing
+      ? await supabase.from("budget_targets").update({ amount }).eq("id", existing.id).eq("user_id", user.id)
+      : await supabase.from("budget_targets").insert({ user_id: user.id, period: budgetPeriod, amount, category: null });
+    if (result.error) {
+      toast.error(isRtl ? "לא הצלחנו לשמור את יעד התקציב" : "Could not save the budget target");
+      return;
+    }
+    setBudgetTarget(amount);
+    setEditingBudget(false);
+    toast.success(t("budgetSaved" as any));
   };
 
   const isSavingsCategory = useCallback((category: string | null) => {
@@ -365,10 +401,13 @@ const PaymentDashboard = () => {
         .order("created_at", { ascending: false }),
       supabase
         .from("financial_accounts")
-        .select("id, external_account_id, provider_name, account_type, display_name, masked_number, currency, current_balance, available_balance")
+        .select("*")
         .eq("user_id", user.id),
       invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list")
-        .catch(() => ({ transactions: [], accounts: [] })),
+        .catch((error) => {
+          console.warn("Cloud finance data is unavailable; continuing with the primary database", error);
+          return { transactions: [], accounts: [] };
+        }),
     ]);
 
     let transactionsResult = await supabase
