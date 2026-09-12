@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
-import { Coffee, Headphones, Library, LogOut, MicOff, Pause, Plane, Play, Radio, RotateCcw, Sparkles, Users } from "lucide-react";
+import { BookOpen, Coffee, Headphones, Laptop, Library, LogOut, MicOff, NotebookPen, Pause, Plane, Play, Radio, RotateCcw, Sparkles, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,12 @@ import cozyCafeRoom from "@/assets/zoneflow/cozy-cafe-room-v2.png";
 import biophilicOfficeRoom from "@/assets/zoneflow/biophilic-office-room-v2.png";
 
 export type FocusRoomScene = "library" | "plane" | "cafe" | "office";
+export type FocusActivity = "computer" | "notebook" | "book";
+export const FOCUS_ACTIVITIES = {
+  computer: { label: "מחשב", icon: Laptop },
+  notebook: { label: "מחברת", icon: NotebookPen },
+  book: { label: "ספר", icon: BookOpen },
+} as const;
 
 export interface FocusRoomParticipant {
   userId: string;
@@ -19,6 +25,9 @@ export interface FocusRoomParticipant {
   color?: string;
   avatarStyle?: number;
   isMe?: boolean;
+  activity?: FocusActivity;
+  seated?: boolean;
+  durationMinutes?: number;
 }
 
 const SCENES = {
@@ -42,7 +51,7 @@ const AVATAR_STYLES = [
   { skin: "bg-[#e3a278]", hair: "bg-red-950", shirt: "bg-pink-400" },
 ] as const;
 
-export function FocusRoomInterior({ scene, name, topic, participants, timer, active, onToggle, onReset, onLeave, onMove }: {
+export function FocusRoomInterior({ scene, name, topic, participants, timer, active, onToggle, onReset, onLeave, onMove, activity, onActivityChange, onSit }: {
   scene: FocusRoomScene;
   name: string;
   topic: string;
@@ -53,6 +62,9 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   onReset: () => void;
   onLeave: () => void;
   onMove: (position: { x: number; y: number }) => void;
+  activity: FocusActivity;
+  onActivityChange: (activity: FocusActivity) => void;
+  onSit: () => void;
 }) {
   const config = SCENES[scene];
   const SceneIcon = config.icon;
@@ -123,18 +135,27 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       <div className="absolute bottom-28 end-3 top-28 z-30 hidden w-52 rounded-3xl border border-white/15 bg-slate-950/65 p-3 backdrop-blur-xl lg:block"><div className="flex items-center justify-between text-xs font-bold"><span className="flex items-center gap-2"><Users className="h-4 w-4 text-cyan-300" />בחדר עכשיו</span><span>{participants.length}</span></div><div className="mt-3 space-y-2">{participants.map((participant) => <div key={participant.userId} className="flex items-center gap-2 rounded-xl bg-white/8 p-2"><div className={cn("h-8 w-8 rounded-full border-2 border-white/30", participant.color || "bg-sky-300")} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{participant.displayName}</div><div className="text-[9px] text-white/55">{STATUS_LABELS[participant.status]}</div></div>{participant.status === "focusing" && <Headphones className="h-3.5 w-3.5 text-emerald-300" />}</div>)}</div><div className="mt-4 rounded-2xl bg-white/8 p-3 text-[10px] leading-5 text-white/60"><Sparkles className="mb-1 h-4 w-4 text-amber-300" />עובדים יחד בשקט. אפשר לזוז לשולחן אחר בלי להפריע לאחרים.</div></div>
 
       <div className="absolute bottom-28 end-4 start-4 top-24 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem] lg:end-60" onClick={moveFromPointer} aria-label="מרחב החדר. לחץ כדי להזיז את הדמות">
+        <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap justify-center gap-2 rounded-2xl bg-slate-950/75 p-2 backdrop-blur" dir="rtl">
+          {(Object.keys(FOCUS_ACTIVITIES) as FocusActivity[]).map((value) => {
+            const ItemIcon = FOCUS_ACTIVITIES[value].icon;
+            return <Button key={value} size="sm" variant="secondary" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn("gap-2 rounded-xl", activity === value && "bg-cyan-300 text-slate-950")}><ItemIcon className="h-4 w-4" />{FOCUS_ACTIVITIES[value].label}</Button>;
+          })}
+          <Button size="sm" variant="secondary" onClick={onSit} disabled={me?.seated}>שב כאן</Button>
+        </div>
         <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%] bg-black/15" : scene === "library" ? "rounded-[42%] bg-transparent" : "rounded-[42%] bg-black/15")} />
         {participants.map((participant) => (
           (() => {
-            const variant = participant.avatarStyle ?? avatarVariant(participant.userId);
+            const variant = Number.isInteger(participant.avatarStyle) && participant.avatarStyle! >= 0 ? participant.avatarStyle! : avatarVariant(participant.userId);
             const avatar = AVATAR_STYLES[variant % AVATAR_STYLES.length];
+            const work = FOCUS_ACTIVITIES[participant.activity || "computer"] || FOCUS_ACTIVITIES.computer;
+            const WorkIcon = work.icon;
             return <div
               key={participant.userId}
               className="absolute flex w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-[left,top] duration-500 ease-out"
               style={{ left: `${participant.x}%`, top: `${participant.y}%` }}
             >
             <div className="mb-1 max-w-24 truncate rounded-full bg-black/55 px-2 py-0.5 text-[10px] backdrop-blur">{participant.displayName}</div>
-            <div className={cn("zoneflow-avatar-idle relative h-[92px] w-[68px]", participant.isMe && walking && "zoneflow-avatar-walking")}>
+            <div className={cn("zoneflow-avatar-idle relative h-[92px] w-[68px]", participant.isMe && walking && "zoneflow-avatar-walking", participant.seated && "zoneflow-avatar-seated")}>
               <span className="zoneflow-avatar-shadow absolute bottom-0 left-1/2 h-3 w-14 -translate-x-1/2 rounded-full bg-black/45 blur-[2px]" />
               <div className={cn("absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 overflow-hidden rounded-[48%_48%_44%_44%] border-[3px] shadow-xl", avatar.skin, participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/65")}>
                 <span className={cn("absolute inset-x-0 top-0", avatar.hair, variant % 4 === 0 ? "h-5 rounded-b-[55%]" : variant % 4 === 1 ? "h-6 -rotate-6 rounded-br-full" : variant % 4 === 2 ? "h-4 rounded-b-lg" : "start-1 h-6 w-9 rounded-br-full")} />
@@ -142,7 +163,9 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
               </div>
               <div className={cn("absolute bottom-3 left-1/2 h-10 w-14 -translate-x-1/2 rounded-t-[42%] border-2 border-white/35 shadow-lg", participant.color || avatar.shirt)}><span className="zoneflow-avatar-limb-start absolute -start-2 top-2 h-8 w-3 rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-end absolute -end-2 top-2 h-8 w-3 -rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-start absolute bottom-[-13px] start-2.5 h-5 w-3 rounded-b-full bg-slate-800" /><span className="zoneflow-avatar-limb-end absolute bottom-[-13px] end-2.5 h-5 w-3 rounded-b-full bg-slate-800" /></div>
               {participant.status === "focusing" && <span className="absolute -end-2 -top-2 h-3 w-3 animate-ping rounded-full bg-emerald-300" />}
+              {participant.seated && <div className={cn("absolute -bottom-1 -left-3 flex h-10 w-[92px] items-center justify-center rounded-xl border-b-4 border-amber-950 bg-amber-800 shadow-xl", participant.status === "focusing" && "zoneflow-work-surface")}><WorkIcon aria-label={work.label} className={cn("h-9 w-12 rounded-md p-1", participant.activity === "computer" ? "bg-slate-900 text-cyan-200" : "bg-amber-50 text-amber-900")} /></div>}
             </div>
+            {participant.seated && <div className="mt-2 rounded-full bg-slate-950/80 px-2 py-1 text-[10px]">{work.label} · {participant.durationMinutes || 25} דקות{participant.isMe && <span className="ms-2 font-mono">{timer}</span>}</div>}
             <div className={cn("mt-1 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{STATUS_LABELS[participant.status]}</div>
           </div>;
           })()

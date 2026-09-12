@@ -1295,6 +1295,17 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
 }
 
 .zoneflow-avatar-walking { animation: zoneflow-avatar-walk .34s linear infinite; }
+.zoneflow-avatar-seated { animation: none; }
+.zoneflow-avatar-seated .zoneflow-avatar-limb-start,
+.zoneflow-avatar-seated .zoneflow-avatar-limb-end { height: 12px; }
+@keyframes zoneflow-working {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.zoneflow-work-surface svg { animation: zoneflow-working 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .zoneflow-work-surface svg { animation: none; }
+}
 .zoneflow-avatar-walking .zoneflow-avatar-limb-start { animation: zoneflow-avatar-step-left .34s linear infinite; transform-origin: top center; }
 .zoneflow-avatar-walking .zoneflow-avatar-limb-end { animation: zoneflow-avatar-step-right .34s linear infinite; transform-origin: top center; }
 

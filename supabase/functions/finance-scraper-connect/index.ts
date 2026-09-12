@@ -103,6 +103,7 @@ async function workerIdentityToken(audience: string) {
   const assertion = `${signingInput}.${base64Url(new Uint8Array(signature))}`;
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -347,8 +348,17 @@ Deno.serve(async (request) => {
       if (connection.metadata?.credential_storage === "none") {
         return json(request, { error: "This connection was imported without saving credentials. Reconnect to refresh it." }, 409);
       }
-      await service.from("bank_connections").update({ status: "syncing", last_error: null }).eq("id", connection.id);
-      return json(request, await callWorker({ userId: user.id, connectionId: connection.id, companyId }));
+      // The worker owns the running state. Marking it here leaves connections
+      // stuck forever when IAM/network failure prevents the worker from starting.
+      try {
+        return json(request, await callWorker({ userId: user.id, connectionId: connection.id, companyId }));
+      } catch (syncError) {
+        await service.from("bank_connections").update({
+          status: "error",
+          last_error: "הסנכרון לא הושלם. הנתונים הקודמים נשמרו; ניתן לנסות שוב.",
+        }).eq("id", connection.id).eq("user_id", user.id);
+        throw syncError;
+      }
     }
 
     if (action === "delete") {

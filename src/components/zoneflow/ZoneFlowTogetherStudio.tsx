@@ -15,7 +15,7 @@ import { applyBlockingPolicy, getBlockingAuthorization, stopBlockingPolicy } fro
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { FocusRoomInterior, type FocusRoomParticipant } from "./FocusRoomInterior";
+import { FocusRoomInterior, type FocusActivity, type FocusRoomParticipant } from "./FocusRoomInterior";
 
 type TogetherTab = "rooms" | "competitions" | "progress";
 type CompetitionKind = "focus" | "distractions";
@@ -130,6 +130,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [roomParticipants, setRoomParticipants] = useState<FocusRoomParticipant[]>([]);
   const [myPosition, setMyPosition] = useState(() => safeLocalStorage.getJSON("zoneflow-together-avatar-position", { x: 50, y: 62 }));
   const [avatarStyle, setAvatarStyle] = useState(() => safeLocalStorage.getJSON("zoneflow-together-avatar-style", 0));
+  const [activity, setActivity] = useState<FocusActivity>("computer");
+  const [seated, setSeated] = useState(false);
   const sessionStartedAt = useRef<string | null>(null);
   const focusSessionId = useRef<string | null>(null);
   const plannedEndAt = useRef<number | null>(null);
@@ -210,6 +212,9 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
           status: participant.status || "setting-up",
           color: participant.color,
           avatarStyle: Number.isFinite(participant.avatarStyle) ? participant.avatarStyle : 0,
+          activity: participant.activity === "book" || participant.activity === "notebook" ? participant.activity : "computer",
+          seated: participant.seated === true,
+          durationMinutes: Number.isFinite(participant.durationMinutes) ? participant.durationMinutes : 25,
           isMe: participant.userId === user.id,
         } satisfies FocusRoomParticipant));
         setRoomParticipants(people);
@@ -217,7 +222,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       .on("broadcast", { event: "avatar_move" }, ({ payload }) => {
         const moved = payload as RoomPresencePayload;
         if (!moved?.userId || moved.userId === user.id) return;
-        setRoomParticipants((people) => people.map((person) => person.userId === moved.userId ? { ...person, x: moved.x, y: moved.y, status: moved.status } : person));
+        if (!Number.isFinite(moved.x) || !Number.isFinite(moved.y)) return;
+        setRoomParticipants((people) => people.map((person) => person.userId === moved.userId ? { ...person, x: Math.max(7, Math.min(93, moved.x)), y: Math.max(28, Math.min(77, moved.y)), seated: false } : person));
       })
       .subscribe(async (status) => {
         if (status !== "SUBSCRIBED") return;
@@ -244,13 +250,16 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       avatarStyle,
       isMe: true,
       onlineAt: new Date().toISOString(),
+      activity,
+      seated,
+      durationMinutes: sessionDuration,
     };
     setRoomParticipants((people) => {
       const withoutMe = people.filter((person) => person.userId !== participant.userId);
       return [...withoutMe, participant];
     });
     if (roomChannelRef.current) void roomChannelRef.current.track(participant);
-  }, [avatarStyle, focusActive, myPosition, selectedRoom, user?.id, username]);
+  }, [activity, seated, sessionDuration, avatarStyle, focusActive, myPosition, selectedRoom, user?.id, username]);
 
   const recordCompletedSession = useCallback(async () => {
     if (!sessionStartedAt.current) return;
@@ -529,6 +538,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   };
 
   const moveAvatar = (position: { x: number; y: number }) => {
+    setSeated(false);
     setMyPosition(position);
     safeLocalStorage.setJSON("zoneflow-together-avatar-position", position);
     const channel = roomChannelRef.current;
@@ -569,7 +579,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} /> : pendingRoom ? (
+        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} activity={activity} onActivityChange={(value) => { setActivity(value); setSeated(true); }} onSit={() => setSeated(true)} /> : pendingRoom ? (
           <Card className={cn("overflow-hidden border", panel)}>
             <CardContent className="grid gap-6 bg-gradient-to-br from-cyan-500/10 via-transparent to-amber-500/10 p-6 md:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[2rem] bg-gradient-to-br from-[#172554] to-[#0f766e] p-6 text-white">

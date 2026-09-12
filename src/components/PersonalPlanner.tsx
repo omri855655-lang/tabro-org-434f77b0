@@ -2791,6 +2791,10 @@ const PersonalPlanner = () => {
           align="end"
           sideOffset={10}
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => {
+            // The trigger is a hidden positioning anchor, not a focus destination.
+            e.preventDefault();
+          }}
         >
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
