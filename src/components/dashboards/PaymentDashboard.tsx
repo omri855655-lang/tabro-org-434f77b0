@@ -241,6 +241,7 @@ const PaymentDashboard = () => {
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [financialAccounts, setFinancialAccounts] = useState<FinancialAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [financeUnavailable, setFinanceUnavailable] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -391,77 +392,79 @@ const PaymentDashboard = () => {
   const fetchFinanceData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    try {
+      const [paymentsResult, accountsResult, cloudFinanceResult] = await Promise.all([
+        supabase
+          .from("payment_tracking")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("archived", false)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("financial_accounts")
+          .select("*")
+          .eq("user_id", user.id),
+        invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list"),
+      ]);
 
-    const [paymentsResult, accountsResult, cloudFinanceResult] = await Promise.all([
-      supabase
-        .from("payment_tracking")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("archived", false)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("financial_accounts")
-        .select("*")
-        .eq("user_id", user.id),
-      invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list")
-        .catch((error) => {
-          console.warn("Cloud finance data is unavailable; continuing with the primary database", error);
-          return { transactions: [], accounts: [] };
-        }),
-    ]);
-
-    let transactionsResult = await supabase
-      .from("financial_transactions")
-      .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
-      .eq("user_id", user.id)
-      .order("transaction_date", { ascending: false });
-
-    // The original Tabro database may not have the display-only `hidden` column.
-    // Falling back keeps historical and cloud data visible without mutating either store.
-    if (transactionsResult.error) {
-      const fallbackResult = await supabase
+      let transactionsResult = await supabase
         .from("financial_transactions")
-        .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
+        .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false });
-      transactionsResult = {
-        ...fallbackResult,
-        data: fallbackResult.data?.map((transaction) => ({ ...transaction, hidden: false })) ?? null,
-      } as typeof transactionsResult;
+
+      // The original Tabro database may not have the display-only `hidden` column.
+      // Falling back keeps historical and cloud data visible without mutating either store.
+      if (transactionsResult.error) {
+        const fallbackResult = await supabase
+          .from("financial_transactions")
+          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
+          .eq("user_id", user.id)
+          .order("transaction_date", { ascending: false });
+        transactionsResult = {
+          ...fallbackResult,
+          data: fallbackResult.data?.map((transaction) => ({ ...transaction, hidden: false })) ?? null,
+        } as typeof transactionsResult;
+      }
+
+      if (paymentsResult.error) console.warn("Payment tracking is unavailable; continuing with synced finance data", paymentsResult.error);
+      if (transactionsResult.error) console.warn("Legacy finance history is unavailable; continuing with cloud finance data", transactionsResult.error);
+      if (accountsResult.error) console.warn("Legacy finance accounts are unavailable; continuing with cloud finance data", accountsResult.error);
+
+      setPayments((paymentsResult.data as any[]) || []);
+      const legacyTransactions = ((transactionsResult.data as FinancialTransaction[]) || []).map((item) => ({
+        ...item,
+        account_external_id: item.raw_data?.account_external_id || null,
+        backend: "legacy" as const,
+      }));
+      const cloudTransactions = (cloudFinanceResult.transactions || []).map((item) => ({
+        ...item,
+        id: `cloud:${item.id}`,
+        backend: "cloud" as const,
+      }));
+      const deduplicatedTransactions = new Map<string, FinancialTransaction>();
+      [...cloudTransactions, ...legacyTransactions].forEach((transaction) => {
+        const key = transactionDisplayKey(transaction);
+        if (!deduplicatedTransactions.has(key)) deduplicatedTransactions.set(key, transaction);
+      });
+      setTransactions([...deduplicatedTransactions.values()]);
+      const legacyAccounts = ((accountsResult.data as FinancialAccount[]) || []).map((item) => ({
+        ...item,
+        backend: "legacy" as const,
+      }));
+      const cloudAccounts = (cloudFinanceResult.accounts || []).map((item) => ({
+        ...item,
+        id: `cloud:${item.id}`,
+        backend: "cloud" as const,
+      }));
+      setFinancialAccounts([...cloudAccounts, ...legacyAccounts]);
+      setFinanceUnavailable(false);
+    } catch (error) {
+      console.warn("Finance data could not be loaded", error);
+      setFinanceUnavailable(true);
+    } finally {
+      setLoading(false);
     }
-
-    if (paymentsResult.error) console.warn("Payment tracking is unavailable; continuing with synced finance data", paymentsResult.error);
-    if (transactionsResult.error) console.warn("Legacy finance history is unavailable; continuing with cloud finance data", transactionsResult.error);
-    if (accountsResult.error) console.warn("Legacy finance accounts are unavailable; continuing with cloud finance data", accountsResult.error);
-
-    setPayments((paymentsResult.data as any[]) || []);
-    const legacyTransactions = ((transactionsResult.data as FinancialTransaction[]) || []).map((item) => ({
-      ...item,
-      account_external_id: item.raw_data?.account_external_id || null,
-      backend: "legacy" as const,
-    }));
-    const cloudTransactions = (cloudFinanceResult.transactions || []).map((item) => ({
-      ...item,
-      id: `cloud:${item.id}`,
-      backend: "cloud" as const,
-    }));
-    const deduplicatedTransactions = new Map<string, FinancialTransaction>();
-    [...cloudTransactions, ...legacyTransactions].forEach((transaction) => {
-      const key = transactionDisplayKey(transaction);
-      if (!deduplicatedTransactions.has(key)) deduplicatedTransactions.set(key, transaction);
-    });
-    setTransactions([...deduplicatedTransactions.values()]);
-    const legacyAccounts = ((accountsResult.data as FinancialAccount[]) || []).map((item) => ({
-      ...item,
-      backend: "legacy" as const,
-    }));
-    const cloudAccounts = (cloudFinanceResult.accounts || []).map((item) => ({
-      ...item,
-      id: `cloud:${item.id}`,
-      backend: "cloud" as const,
-    }));
-    setFinancialAccounts([...cloudAccounts, ...legacyAccounts]);
-    setLoading(false);
   }, [user]);
 
   useEffect(() => { fetchFinanceData(); }, [fetchFinanceData]);
@@ -1294,6 +1297,17 @@ ${context}
   };
 
   if (loading) return <div className="p-6 text-center text-muted-foreground">{t("loading" as any)}</div>;
+  if (financeUnavailable) return (
+    <Card dir={isRtl ? "rtl" : "ltr"} role="alert">
+      <CardHeader>
+        <CardTitle>{isRtl ? "נתוני הכספים אינם זמינים כרגע" : "Finance data is currently unavailable"}</CardTitle>
+        <CardDescription>{isRtl
+          ? "לא ניתן לחשב יתרה או תחזית מלאה עד שהשירות יחזור. זו אינה יתרת אפס, ולא נמחקו נתונים בפעולה הזו."
+          : "Balances and forecasts cannot be calculated until the service is available. This is not a zero balance; this action did not delete data."}</CardDescription>
+      </CardHeader>
+      <CardContent><Button onClick={() => void fetchFinanceData()}>{isRtl ? "נסה לטעון מחדש" : "Retry loading"}</Button></CardContent>
+    </Card>
+  );
 
   return (
     <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivityEvents } from "@/hooks/useActivityEvents";
 import { toast } from "sonner";
@@ -103,7 +104,10 @@ const mapTaskToDbInsert = (
   taskType: "personal" | "work",
   sheetName: string
 ) => {
-  const insert: Record<string, unknown> = {
+  const insert: Database["public"]["Tables"]["tasks"]["Insert"] & {
+    parent_task_id?: string;
+    text_color?: string;
+  } = {
     user_id: userId,
     description: task.description || "",
     category: task.category || null,

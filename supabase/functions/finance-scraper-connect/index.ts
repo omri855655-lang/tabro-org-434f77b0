@@ -233,7 +233,18 @@ Deno.serve(async (request) => {
           .eq("user_id", user.id)
           .in("connection_id", connectionIds);
         if (accountsResult.error) throw accountsResult.error;
-        accounts = accountsResult.data || [];
+        // Keep schema compatibility without exposing raw provider payloads.
+        accounts = (accountsResult.data || []).map((account) => ({
+          id: account.id,
+          external_account_id: account.external_account_id,
+          provider_name: account.provider_name,
+          account_type: account.account_type,
+          display_name: account.display_name,
+          masked_number: account.masked_number,
+          currency: account.currency,
+          current_balance: account.current_balance,
+          available_balance: account.available_balance,
+        }));
 
         let transactionsResult = await service.from("financial_transactions")
           .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
