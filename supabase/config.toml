@@ -41,6 +41,8 @@ project_id = "qfcuyrdxaambvppduslo"
     verify_jwt = false
   [functions.finance-scraper-connect]
     verify_jwt = false
+  [functions.finance-sync-due]
+    verify_jwt = false
   [functions.handle-email-unsubscribe]
     verify_jwt = false
   [functions.handle-email-suppression]
