@@ -12,7 +12,7 @@ This service runs the Camoufox-based `@sergienko4/israeli-bank-scrapers` package
 
 ## Deploy
 
-Build the included Dockerfile on a service that supports long-running HTTP requests and at least 1 GB memory. Configure the deployed URL as the Supabase secret `FINANCE_WORKER_URL`, then deploy the `finance-scraper-connect` Edge Function.
+Build the included Dockerfile on a service that supports long-running HTTP requests and at least 2 GB memory. Run one request per instance: Camoufox is memory-intensive, and parallel sessions from one IP increase WAF risk, especially for Amex and Isracard. Configure the deployed URL as the Supabase secret `FINANCE_WORKER_URL`, then deploy the `finance-scraper-connect` Edge Function.
 
 The service exposes `GET /health`, `POST /sync`, and `POST /sync-due`. Deploy it as a private Cloud Run service. `/sync` additionally requires a timestamped HMAC signature using `FINANCE_WORKER_SECRET`; `/sync-due` is callable only with a valid Cloud Run identity token.
 
