@@ -2,7 +2,11 @@ import crypto from "node:crypto";
 import process from "node:process";
 import express from "express";
 import { createClient } from "@supabase/supabase-js";
-import { createScraper, SCRAPERS } from "israeli-bank-scrapers";
+import {
+  createScraper,
+  SCRAPERS,
+} from "@sergienko4/israeli-bank-scrapers";
+import { credentialsForScraper } from "./scraper-policy.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -26,6 +30,8 @@ app.use(express.json({
 }));
 
 const CARD_LIKE = new Set(["isracard", "amex", "visaCal", "max", "beyahadBishvilha", "behatsdaa"]);
+const PROVIDERS = SCRAPERS;
+const WORKER_ENGINE = "camoufox";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SIGNATURE_TOLERANCE_MS = 5 * 60_000;
 
@@ -296,7 +302,7 @@ function signedRequestAuthorized(request) {
 }
 
 function validSyncPayload({ userId, connectionId, companyId, credentials, storeCredentials }) {
-  if (!UUID_PATTERN.test(userId) || !UUID_PATTERN.test(connectionId) || !SCRAPERS[companyId]) return false;
+  if (!UUID_PATTERN.test(userId) || !UUID_PATTERN.test(connectionId) || !PROVIDERS[companyId]) return false;
   if (storeCredentials !== undefined && typeof storeCredentials !== "boolean") return false;
   if (credentials === undefined) return true;
   if (!credentials || typeof credentials !== "object" || Array.isArray(credentials)) return false;
@@ -308,10 +314,30 @@ function validSyncPayload({ userId, connectionId, companyId, credentials, storeC
   ));
 }
 
-app.get("/health", (_request, response) => response.json({ ok: true, service: "tabro-finance-worker" }));
+function scraperOptions(companyId) {
+  return {
+    companyId,
+    startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+    defaultTimeout: 60_000,
+    shouldShowBrowser: false,
+  };
+}
+
+async function scrapeInstitution(companyId, credentials) {
+  if (!PROVIDERS[companyId]) throw new Error(`Unsupported financial institution: ${companyId}`);
+  const scraper = createScraper(scraperOptions(companyId));
+  return scraper.scrape(credentialsForScraper(companyId, credentials));
+}
+
+app.get("/health", (_request, response) => response.json({
+  ok: true,
+  service: "tabro-finance-worker",
+  version: "0.2.0",
+  engine: WORKER_ENGINE,
+}));
 
 async function syncConnection({ userId, connectionId, companyId, credentials: submittedCredentials, storeCredentials = true }) {
-  const metadata = SCRAPERS[companyId];
+  const metadata = PROVIDERS[companyId];
   if (!userId || !connectionId || !metadata) throw new Error("Invalid sync request");
 
   const service = serviceClient();
@@ -341,18 +367,7 @@ async function syncConnection({ userId, connectionId, companyId, credentials: su
         companyId,
         credentials: submittedCredentials,
       });
-    const scraper = createScraper({
-      companyId,
-      startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
-      combineInstallments: false,
-      showBrowser: false,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-      timeout: 45_000,
-      defaultTimeout: 45_000,
-      navigationRetryCount: 1,
-    });
-    const result = await scraper.scrape(credentials);
+    const result = await scrapeInstitution(companyId, credentials);
     if (!result.success) throw new Error(`${result.errorType || "SCRAPE_FAILED"}: ${result.errorMessage || "The institution rejected the sync"}`);
 
     const summary = await persistResult(service, {
@@ -450,7 +465,13 @@ app.post("/sync-due", async (request, response) => {
     }
   }
 
-  return response.json({ success: true, checked: connections?.length || 0, synced: results.length, results });
+  return response.json({
+    success: true,
+    engine: WORKER_ENGINE,
+    checked: connections?.length || 0,
+    synced: results.length,
+    results,
+  });
 });
 
 const port = Number(process.env.PORT || 8080);

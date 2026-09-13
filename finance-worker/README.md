@@ -1,6 +1,6 @@
 # Tabro Cloud Finance Worker
 
-This service runs `israeli-bank-scrapers` in an isolated Chromium process and writes normalized accounts and transactions to Tabro's existing Supabase tables.
+This service runs the Camoufox-based `@sergienko4/israeli-bank-scrapers` package in an isolated Firefox process and writes normalized accounts and transactions to Tabro's existing Supabase tables. Camoufox is used for every institution so WAF-protected login flows such as American Express and Isracard do not fall back to the blocked Chromium endpoint.
 
 ## Required environment variables
 
@@ -22,6 +22,6 @@ The worker does not initiate payments. It signs into supported institutions with
 
 ## Supported institutions
 
-The Edge Function exposes the banks, card companies, and clubs supported by the installed `israeli-bank-scrapers` release, including Hapoalim, Leumi, Mizrahi, Discount, Mercantile, Otsar Hahayal, Beinleumi, Massad, Yahav, Pagi, Union, MAX, Visa Cal, Isracard, Amex, Beyahad Bishvilha, and Behatsdaa.
+The Edge Function exposes the banks, card companies, and clubs supported by the installed scraper release, including Hapoalim, Leumi, Mizrahi, Discount, Mercantile, Otsar Hahayal, Beinleumi, Massad, Yahav, Pagi, MAX, Visa Cal, Isracard, Amex, Beyahad Bishvilha, and Behatsdaa. Union Bank is intentionally omitted because it is no longer supported by the maintained scraper.
 
 One Zero is intentionally not exposed by the regular credentials form. Its scraper requires an interactive SMS OTP exchange before a long-term token can be issued. Add it only through a dedicated two-step endpoint that encrypts the resulting long-term token; never ask users to reverse-engineer or paste browser session data.

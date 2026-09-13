@@ -37,7 +37,6 @@ const providers = {
   visaCal: { name: "Visa Cal", fields: ["username", "password"] },
   isracard: { name: "Isracard", fields: ["id", "card6Digits", "password"] },
   amex: { name: "American Express", fields: ["id", "card6Digits", "password"] },
-  union: { name: "Union Bank", fields: ["username", "password"] },
   beyahadBishvilha: { name: "Beyahad Bishvilha", fields: ["id", "password"] },
   behatsdaa: { name: "Behatsdaa", fields: ["id", "password"] },
 } as const;
@@ -57,6 +56,22 @@ function env(name: string) {
 
 function clean(value: unknown, max = 240) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function publicFinanceError(message: string) {
+  if (/INVALID_PASSWORD|LOGIN_FAILED|invalid credentials|rejected the login/i.test(message)) {
+    return "The institution rejected the login details. Verify the identifier, card digits, and password.";
+  }
+  if (/ACCOUNT_BLOCKED|account is blocked/i.test(message)) {
+    return "The institution reports that this account is blocked. Sign in directly to restore access first.";
+  }
+  if (/WAF_BLOCKED|Cloudflare|Attention Required|automation blocked|\b403\b/i.test(message)) {
+    return "The institution temporarily blocked automated access. Please try again later.";
+  }
+  if (/TIMEOUT|timed out|did not respond/i.test(message)) {
+    return "The institution did not respond in time. Please try again.";
+  }
+  return "The financial institution could not be synchronized. Check the details and try again.";
 }
 
 function base64Url(value: string | Uint8Array) {
@@ -298,22 +313,40 @@ Deno.serve(async (request) => {
       }
       const storeCredentials = typeof body.storeCredentials === "boolean" ? body.storeCredentials : true;
 
-      const externalId = `${companyId}:${crypto.randomUUID()}`;
-      const { data: connection, error } = await service.from("bank_connections").insert({
-        user_id: user.id,
-        integration_provider: "cloud_scraper",
-        external_connection_id: externalId,
-        provider_name: provider.name,
-        status: "syncing",
-        metadata: {
-          company_id: companyId,
-          read_only_behavior: true,
-          hosted_worker: true,
-          credential_storage: storeCredentials ? "encrypted" : "none",
-          sync_interval_minutes: storeCredentials ? 720 : null,
-        },
-      }).select("*").single();
-      if (error) throw error;
+      const metadata = {
+        company_id: companyId,
+        read_only_behavior: true,
+        hosted_worker: true,
+        credential_storage: storeCredentials ? "encrypted" : "none",
+        sync_interval_minutes: storeCredentials ? 720 : null,
+      };
+      const { data: previousFailures, error: previousFailureError } = await service.from("bank_connections")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("integration_provider", "cloud_scraper")
+        .eq("status", "error")
+        .contains("metadata", { company_id: companyId })
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (previousFailureError) throw previousFailureError;
+
+      const connectionResult = previousFailures?.[0]
+        ? await service.from("bank_connections").update({
+          provider_name: provider.name,
+          status: "syncing",
+          last_error: null,
+          metadata,
+        }).eq("id", previousFailures[0].id).eq("user_id", user.id).select("*").single()
+        : await service.from("bank_connections").insert({
+          user_id: user.id,
+          integration_provider: "cloud_scraper",
+          external_connection_id: `${companyId}:${crypto.randomUUID()}`,
+          provider_name: provider.name,
+          status: "syncing",
+          metadata,
+        }).select("*").single();
+      const { data: connection, error } = connectionResult;
+      if (error || !connection) throw error || new Error("Could not create the finance connection");
 
       try {
         const result = await callWorker({
@@ -323,6 +356,14 @@ Deno.serve(async (request) => {
           credentials,
           storeCredentials,
         });
+        // Keep one canonical connection after a successful retry instead of
+        // accumulating a card for every previous failed login attempt.
+        await service.from("bank_connections").delete()
+          .eq("user_id", user.id)
+          .eq("integration_provider", "cloud_scraper")
+          .eq("status", "error")
+          .contains("metadata", { company_id: companyId })
+          .neq("id", connection.id);
         return json(request, { success: true, connection, ...result });
       } catch (error) {
         await service.from("bank_connections").update({
@@ -420,7 +461,7 @@ Deno.serve(async (request) => {
     const configurationError = message.includes("FINANCE_WORKER_");
     const publicMessage = configurationError
       ? "The finance synchronization service is not configured"
-      : "The financial institution could not be synchronized. Check the details and try again.";
+      : publicFinanceError(message);
     return json(request, { error: publicMessage }, configurationError ? 503 : 500);
   }
 });

@@ -80,6 +80,30 @@ const copy = {
   },
 } as const;
 
+function financeErrorMessage(error: unknown, language: string, fallback: string) {
+  const message = error instanceof Error ? error.message : fallback;
+  if (language !== "he") return message;
+  if (/rejected the login details|INVALID_PASSWORD|LOGIN_FAILED/i.test(message)) {
+    return "החברה דחתה את פרטי ההתחברות. כדאי לבדוק שוב את תעודת הזהות, 6 הספרות האחרונות והסיסמה.";
+  }
+  if (/account is blocked|ACCOUNT_BLOCKED/i.test(message)) {
+    return "החשבון חסום אצל החברה. יש להיכנס קודם לאתר החברה ולשחרר את החסימה.";
+  }
+  if (/temporarily blocked automated access|WAF_BLOCKED|Cloudflare/i.test(message)) {
+    return "החברה חסמה זמנית את החיבור האוטומטי. אפשר לנסות שוב מאוחר יותר.";
+  }
+  if (/did not respond in time|TIMEOUT|timed out/i.test(message)) {
+    return "החברה לא השיבה בזמן. אפשר לנסות שוב בעוד כמה דקות.";
+  }
+  if (/not configured|not ready|unavailable/i.test(message)) {
+    return "שירות הסנכרון אינו זמין כרגע. החיבור הקיים והנתונים שלך נשמרו.";
+  }
+  if (/Too many attempts/i.test(message)) {
+    return "בוצעו יותר מדי ניסיונות. יש להמתין 15 דקות ולנסות שוב.";
+  }
+  return "לא הצלחנו לסנכרן את החברה. כדאי לבדוק את הפרטים ולנסות שוב.";
+}
+
 export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | Promise<void> }) {
   const { lang } = useLanguage();
   const labels = copy[lang === "he" ? "he" : "en"];
@@ -147,7 +171,7 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
       await load();
       await onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Connection failed");
+      toast.error(financeErrorMessage(error, lang, "Connection failed"));
     } finally {
       setBusy(null);
     }
@@ -165,7 +189,7 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
       await load();
       await onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Sync failed");
+      toast.error(financeErrorMessage(error, lang, "Sync failed"));
       await load();
     } finally {
       setBusy(null);

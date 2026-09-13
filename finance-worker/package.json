@@ -1,6 +1,6 @@
 {
   "name": "tabro-cloud-finance-worker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,11 +8,16 @@
   },
   "scripts": {
     "start": "node src/server.mjs",
-    "check": "node --check src/server.mjs"
+    "check": "node --check src/server.mjs && node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@sergienko4/israeli-bank-scrapers": "8.7.1",
     "@supabase/supabase-js": "^2.89.0",
-    "express": "^5.1.0",
-    "israeli-bank-scrapers": "^6.9.0"
+    "express": "^5.1.0"
+  },
+  "overrides": {
+    "adm-zip": "0.6.1",
+    "js-yaml": "4.3.2",
+    "qs": "6.16.0"
   }
 }
