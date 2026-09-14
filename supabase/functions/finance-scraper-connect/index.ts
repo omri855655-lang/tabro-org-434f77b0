@@ -58,6 +58,8 @@ function clean(value: unknown, max = 240) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+class WorkerSyncPendingError extends Error {}
+
 function publicFinanceError(message: string) {
   if (/INVALID_PASSWORD|LOGIN_FAILED|invalid credentials|rejected the login/i.test(message)) {
     return "The institution rejected the login details. Verify the identifier, card digits, and password.";
@@ -148,17 +150,25 @@ async function callWorker(payload: Record<string, unknown>) {
     new TextEncoder().encode(`${timestamp}.${requestBody}`),
   );
   const signatureHex = Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  const response = await fetch(`${workerUrl}/sync`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${identityToken}`,
-      "Content-Type": "application/json",
-      "x-tabro-timestamp": timestamp,
-      "x-tabro-signature": signatureHex,
-    },
-    body: requestBody,
-    signal: AbortSignal.timeout(180_000),
-  });
+  const timeoutMs = payload.companyId === "visaCal" ? 45_000 : 180_000;
+  const signal = AbortSignal.timeout(timeoutMs);
+  let response: Response;
+  try {
+    response = await fetch(`${workerUrl}/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${identityToken}`,
+        "Content-Type": "application/json",
+        "x-tabro-timestamp": timestamp,
+        "x-tabro-signature": signatureHex,
+      },
+      body: requestBody,
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) throw new WorkerSyncPendingError("Finance synchronization continues in the background");
+    throw error;
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Finance worker returned HTTP ${response.status}`);
   return body;
@@ -366,6 +376,9 @@ Deno.serve(async (request) => {
           .neq("id", connection.id);
         return json(request, { success: true, connection, ...result });
       } catch (error) {
+        if (error instanceof WorkerSyncPendingError) {
+          return json(request, { success: true, pending: true, connection }, 202);
+        }
         await service.from("bank_connections").update({
           status: "error",
           last_error: (error as Error).message.slice(0, 500),
@@ -394,6 +407,9 @@ Deno.serve(async (request) => {
       try {
         return json(request, await callWorker({ userId: user.id, connectionId: connection.id, companyId }));
       } catch (syncError) {
+        if (syncError instanceof WorkerSyncPendingError) {
+          return json(request, { success: true, pending: true, connectionId: connection.id }, 202);
+        }
         await service.from("bank_connections").update({
           status: "error",
           last_error: "הסנכרון לא הושלם. הנתונים הקודמים נשמרו; ניתן לנסות שוב.",

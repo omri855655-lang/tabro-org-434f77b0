@@ -8,12 +8,14 @@
   },
   "scripts": {
     "start": "node src/server.mjs",
-    "check": "node --check src/server.mjs && node --test tests/*.test.mjs"
+    "check": "node --check src/server.mjs && node --check scripts/patch-finance-scraper.mjs && node --test tests/*.test.mjs",
+    "postinstall": "node scripts/patch-finance-scraper.mjs"
   },
   "dependencies": {
     "@sergienko4/israeli-bank-scrapers": "8.7.1",
     "@supabase/supabase-js": "^2.89.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "playwright-core": "1.63.0"
   },
   "overrides": {
     "adm-zip": "0.6.1",

@@ -148,6 +148,12 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
   }, [load]);
 
   useEffect(() => {
+    if (loading || !connections.some((connection) => connection.status === "syncing" || connection.status === "pending")) return;
+    const timer = window.setTimeout(() => void load(), 20_000);
+    return () => window.clearTimeout(timer);
+  }, [connections, load, loading]);
+
+  useEffect(() => {
     setCredentials({});
   }, [companyId]);
 
@@ -162,7 +168,9 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
     try {
       const result = await invoke("connect", { companyId, credentials, storeCredentials: credentialMode === "automatic" });
       toast.success(
-        lang === "he"
+        result.pending
+          ? lang === "he" ? "החיבור נשמר והסנכרון ממשיך ברקע" : "Connected; synchronization continues in the background"
+          : lang === "he"
           ? `החיבור הושלם: ${result.accounts_count || 0} חשבונות ו-${result.transactions_count || 0} תנועות חדשות`
           : `Connected: ${result.accounts_count || 0} accounts and ${result.transactions_count || 0} new transactions`,
       );
@@ -182,7 +190,9 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
     try {
       const result = await invoke("sync", { connectionId });
       toast.success(
-        lang === "he"
+        result.pending
+          ? lang === "he" ? "הסנכרון התחיל וממשיך ברקע" : "Synchronization started and continues in the background"
+          : lang === "he"
           ? `נוספו ${result.transactions_count || 0} תנועות חדשות`
           : `${result.transactions_count || 0} new transactions imported`,
       );

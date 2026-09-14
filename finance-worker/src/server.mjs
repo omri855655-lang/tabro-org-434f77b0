@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import process from "node:process";
 import express from "express";
 import { createClient } from "@supabase/supabase-js";
+import { chromium } from "playwright-core";
 import {
   createScraper,
   SCRAPERS,
@@ -31,7 +32,7 @@ app.use(express.json({
 
 const CARD_LIKE = new Set(["isracard", "amex", "visaCal", "max", "beyahadBishvilha", "behatsdaa"]);
 const PROVIDERS = SCRAPERS;
-const WORKER_ENGINE = "camoufox";
+const WORKER_ENGINE = "chromium";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SIGNATURE_TOLERANCE_MS = 5 * 60_000;
 
@@ -325,8 +326,17 @@ function scraperOptions(companyId) {
 
 async function scrapeInstitution(companyId, credentials) {
   if (!PROVIDERS[companyId]) throw new Error(`Unsupported financial institution: ${companyId}`);
-  const scraper = createScraper(scraperOptions(companyId));
-  return scraper.scrape(credentialsForScraper(companyId, credentials));
+  const browser = await chromium.launch({
+    executablePath: env("FINANCE_BROWSER_EXECUTABLE"),
+    headless: true,
+    args: ["--disable-dev-shm-usage", "--no-sandbox"],
+  });
+  try {
+    const scraper = createScraper({ ...scraperOptions(companyId), browser });
+    return await scraper.scrape(credentialsForScraper(companyId, credentials));
+  } finally {
+    await browser.close().catch(() => undefined);
+  }
 }
 
 app.get("/health", (_request, response) => response.json({
