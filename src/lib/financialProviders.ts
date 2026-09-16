@@ -3,6 +3,7 @@
 export interface ParsedTransaction {
   transaction_date: string;
   posted_date?: string;
+  billing_date?: string;
   amount: number;
   currency: string;
   direction: "income" | "expense";
@@ -24,15 +25,29 @@ export interface FinancialProvider {
 }
 
 // Helper to parse dd/MM/yyyy or yyyy-MM-dd dates
-function parseDate(val: string): string {
-  if (!val) return new Date().toISOString().split("T")[0];
+export function parseFinancialDate(val: string): string {
+  const value = val?.trim();
+  if (!value) return "";
   // dd/MM/yyyy
-  const dmy = val.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  const dmy = value.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  if (dmy) {
+    const date = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    if (date.getFullYear() === Number(dmy[3]) && date.getMonth() === Number(dmy[2]) - 1 && date.getDate() === Number(dmy[1])) {
+      return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+    }
+  }
   // yyyy-MM-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-  return new Date().toISOString().split("T")[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date = new Date(`${value}T12:00:00Z`);
+    if (!Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value) return value;
+  }
+  return "";
 }
+
+const parseDate = parseFinancialDate;
+
+const ilsBillingAmountIndex = (headers: string[]) => headers.findIndex(h =>
+  /סכום\s*חיוב.*(?:ש["״]ח|שקל|ILS|NIS)|(?:ש["״]ח|שקל|ILS|NIS).*סכום\s*חיוב/i.test(h));
 
 function parseAmount(val: string): number {
   return parseFloat(val.replace(/[₪$€,\s]/g, "").replace(/[()]/g, "")) || 0;
@@ -71,13 +86,14 @@ const isracardProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => h.includes("תאריך עסקה") || h.includes("תאריך"));
     const descIdx = headers.findIndex(h => h.includes("שם בית העסק") || h.includes("שם") || h.includes("תיאור"));
-    const amtIdx = headers.findIndex(h => h.includes("סכום") || h.includes("סכום חיוב"));
+    const billedIdx = ilsBillingAmountIndex(headers);
+    const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום חיוב") || h.includes("סכום"));
     const currIdx = headers.findIndex(h => h.includes("מטבע"));
 
     return rows.map(row => ({
       transaction_date: parseDate(row[dateIdx] || ""),
       amount: Math.abs(parseAmount(row[amtIdx] || "0")),
-      currency: row[currIdx]?.trim() || "ILS",
+      currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
       direction: "expense" as const,
       description: row[descIdx]?.trim() || "",
       merchant: row[descIdx]?.trim(),
@@ -100,12 +116,14 @@ const maxProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => h.includes("תאריך רכישה") || h.includes("תאריך"));
     const descIdx = headers.findIndex(h => h.includes("שם בית עסק") || h.includes("שם"));
-    const amtIdx = headers.findIndex(h => h.includes("סכום") || h.includes("סכום חיוב"));
+    const billedIdx = ilsBillingAmountIndex(headers);
+    const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום חיוב") || h.includes("סכום"));
+    const currIdx = headers.findIndex(h => h.includes("מטבע"));
 
     return rows.map(row => ({
       transaction_date: parseDate(row[dateIdx] || ""),
       amount: Math.abs(parseAmount(row[amtIdx] || "0")),
-      currency: "ILS",
+      currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
       direction: "expense" as const,
       description: row[descIdx]?.trim() || "",
       merchant: row[descIdx]?.trim(),
@@ -128,12 +146,14 @@ const calProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => h.includes("תאריך") && h.includes("עסקה"));
     const descIdx = headers.findIndex(h => h.includes("שם") || h.includes("עסק") || h.includes("תיאור"));
-    const amtIdx = headers.findIndex(h => h.includes("סכום") || h.includes("חיוב"));
+    const billedIdx = ilsBillingAmountIndex(headers);
+    const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום חיוב") || h.includes("סכום") || h.includes("חיוב"));
+    const currIdx = headers.findIndex(h => h.includes("מטבע"));
 
     return rows.map(row => ({
       transaction_date: parseDate(row[dateIdx >= 0 ? dateIdx : 0] || ""),
       amount: Math.abs(parseAmount(row[amtIdx >= 0 ? amtIdx : 2] || "0")),
-      currency: "ILS",
+      currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
       direction: "expense" as const,
       description: row[descIdx >= 0 ? descIdx : 1]?.trim() || "",
       merchant: row[descIdx >= 0 ? descIdx : 1]?.trim(),
@@ -245,14 +265,45 @@ export function detectProvider(headers: string[], firstRows: string[][]): Financ
 }
 
 export function parseCSV(text: string): { headers: string[]; rows: string[][] } {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return { headers: [], rows: [] };
+  const source = text.replace(/^\uFEFF/, "");
+  const firstLine = source.split(/\r?\n/, 1)[0] || "";
+  const separatorCounts = { "\t": 0, ";": 0, ",": 0 };
+  let inQuotes = false;
+  for (const char of firstLine) {
+    if (char === '"') inQuotes = !inQuotes;
+    else if (!inQuotes && char in separatorCounts) separatorCounts[char as keyof typeof separatorCounts] += 1;
+  }
+  const delimiter = (Object.entries(separatorCounts) as Array<[keyof typeof separatorCounts, number]>)
+    .sort((a, b) => b[1] - a[1])[0][0];
+  const records: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
 
-  const delimiter = lines[0].includes("\t") ? "\t" : ",";
-  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ""));
-  const rows = lines.slice(1).map(line =>
-    line.split(delimiter).map(cell => cell.trim().replace(/^"|"$/g, ""))
-  ).filter(row => row.some(cell => cell.length > 0));
-
-  return { headers, rows };
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '"') {
+      if (quoted && source[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === delimiter && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && source[index + 1] === "\n") index += 1;
+      row.push(cell.trim());
+      if (row.some((value) => value)) records.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some((value) => value)) records.push(row);
+  if (records.length < 2) return { headers: [], rows: [] };
+  return { headers: records[0], rows: records.slice(1) };
 }

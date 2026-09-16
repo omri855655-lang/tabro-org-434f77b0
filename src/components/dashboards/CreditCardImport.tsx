@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, FileSpreadsheet, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { detectProvider, financialProviders, parseCSV, type ParsedTransaction } from "@/lib/financialProviders";
-import { importParsedFinancialTransactions, IMPORT_SOURCE_CONNECTION_ID } from "@/lib/financialImport";
+import { sanitizeStatementRows, statementRows, selectCardRows } from "@/lib/cardStatement";
+import { importParsedFinancialTransactions } from "@/lib/financialImport";
 
-type CreditCardConnection = Database["public"]["Tables"]["credit_card_connections"]["Row"];
+type CreditCardConnection = Pick<Database["public"]["Tables"]["credit_card_connections"]["Row"],
+  "id" | "provider" | "display_name" | "card_last_digits">;
 const CREDIT_CARD_CONNECTIONS_EVENT = "tabro-credit-card-connections-changed";
 
 interface CreditCardImportProps {
@@ -28,7 +30,8 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
   const [connections, setConnections] = useState<CreditCardConnection[]>([]);
-  const [selectedConnectionId, setSelectedConnectionId] = useState(IMPORT_SOURCE_CONNECTION_ID);
+  const [selectedConnectionId, setSelectedConnectionId] = useState("");
+  const [confirmUnidentified, setConfirmUnidentified] = useState(false);
 
   const isRtl = lang === "he" || lang === "ar";
 
@@ -38,7 +41,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
     const loadConnections = async () => {
       const { data, error } = await supabase
         .from("credit_card_connections")
-        .select("*")
+        .select("id,provider,display_name,card_last_digits")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -67,14 +70,13 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
       return;
     }
 
-    const parsed = provider
-      .parse(rows, headers)
-      .filter((tx) => tx.amount > 0 && tx.direction === "expense");
+    const parsed = statementRows(provider.parse(rows, headers));
     setProviderId(provider.id);
     setTransactions(parsed);
+    setConfirmUnidentified(false);
 
     if (parsed.length === 0) {
-      toast.error(isRtl ? "לא נמצאו הוצאות בקובץ" : "No expense transactions found in file");
+      toast.error(isRtl ? "לא נמצאו הוצאות עם סכום חיוב בשקלים בקובץ" : "No expenses with an ILS billing amount were found");
     }
   };
 
@@ -109,17 +111,18 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
   };
 
   const importTransactions = async () => {
-    if (!user || transactions.length === 0) return;
+    const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
+    if (!user || !selectedConnection?.card_last_digits || !selectedRows.length) return;
     setImporting(true);
 
     try {
-      const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
       const result = await importParsedFinancialTransactions({
         userId: user.id,
-        parsed: transactions,
-        provider: selectedConnection?.provider || providerId || "credit-card",
+        parsed: sanitizeStatementRows(selectedRows),
+        provider: selectedConnection.provider,
         sourceType: "credit_card_import",
-        sourceConnectionId: selectedConnection?.id || IMPORT_SOURCE_CONNECTION_ID,
+        sourceConnectionId: selectedConnection.id,
+        accountExternalId: `csv-card:${selectedConnection.id}`,
       });
 
       await onImported?.();
@@ -131,6 +134,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
       setTransactions([]);
       setProviderId("");
       setFileName("");
+      setConfirmUnidentified(false);
       if (fileRef.current) fileRef.current.value = "";
     } catch (error) {
       console.error("Credit card import error:", error);
@@ -139,6 +143,14 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
       setImporting(false);
     }
   };
+
+  const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
+  const cardRows = selectedConnection?.card_last_digits
+    ? selectCardRows(transactions, selectedConnection.card_last_digits)
+    : null;
+  const selectedRows = cardRows
+    ? [...cardRows.matching, ...(confirmUnidentified ? cardRows.unidentified : [])]
+    : [];
 
   return (
     <Card>
@@ -152,19 +164,16 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             {isRtl
-              ? "הייבוא שומר הוצאות אשראי בלבד, כדי לנתח הוצאה אמיתית ולא לערבב הכנסות."
-              : "This import keeps expense rows only so your budget reflects real card spending."}
+              ? "בחר את הכרטיס המדויק. ייובאו רק הוצאות שלו עם סכום חיוב בשקלים; תאריכי חיוב עתידיים מפורשים יוצגו בתחזית."
+              : "Choose the exact card. Only its expenses with an ILS billing amount are imported; explicit future billing dates appear in the forecast."}
           </p>
-          <Select value={selectedConnectionId} onValueChange={setSelectedConnectionId}>
+          <Select value={selectedConnectionId} onValueChange={(value) => { setSelectedConnectionId(value); setConfirmUnidentified(false); }}>
             <SelectTrigger className="text-sm">
               <SelectValue
                 placeholder={isRtl ? "בחר מקור כרטיס לשיוך הייבוא" : "Choose a card source for this import"}
               />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={IMPORT_SOURCE_CONNECTION_ID}>
-                {isRtl ? "כרטיס כללי / ללא שיוך" : "Generic card / unassigned"}
-              </SelectItem>
               {connections.map((connection) => (
                 <SelectItem key={connection.id} value={connection.id}>
                   {connection.display_name || connection.provider}
@@ -173,9 +182,10 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
               ))}
             </SelectContent>
           </Select>
+          {connections.length === 0 && <p className="text-xs text-amber-700">{isRtl ? "קודם צור מקור כרטיס עם ארבע ספרות אחרונות למעלה." : "First create a card source with its last four digits above."}</p>}
         </div>
         <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls" className="hidden" onChange={handleFileChange} />
-        <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+        <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={!selectedConnection?.card_last_digits}>
           <Upload className="h-3 w-3 mr-1" />{isRtl ? "ייבוא CSV / Excel" : "Import CSV / Excel"}
         </Button>
 
@@ -183,7 +193,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               {fileName && <Badge variant="outline">{fileName}</Badge>}
-              <Badge>{transactions.length} {t("transactions")}</Badge>
+              <Badge>{selectedRows.length} {t("transactions")}</Badge>
               {providerId && (
                 <Badge variant="secondary">
                   {(financialProviders.find((item) => item.id === providerId)?.nameHe) || providerId}
@@ -193,8 +203,17 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
                 {isRtl ? "הוצאות בלבד" : "Expenses only"}
               </Badge>
             </div>
+            {cardRows && cardRows.excluded > 0 && <p className="text-xs text-amber-700">{isRtl ? `${cardRows.excluded} שורות של כרטיסים אחרים לא ייובאו.` : `${cardRows.excluded} rows from other cards will be excluded.`}</p>}
+            {cardRows && cardRows.unidentified.length > 0 && (
+              <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2 text-xs">
+                <input type="checkbox" checked={confirmUnidentified} onChange={(event) => setConfirmUnidentified(event.target.checked)} className="mt-0.5" />
+                <span>{isRtl
+                  ? `אני מאשר ש-${cardRows.unidentified.length} השורות ללא מספר כרטיס בקובץ שייכות רק לכרטיס ••••${selectedConnection?.card_last_digits}.`
+                  : `I confirm that the ${cardRows.unidentified.length} rows without a card number belong only to card ••••${selectedConnection?.card_last_digits}.`}</span>
+              </label>
+            )}
             <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
-              {transactions.slice(0, 20).map((tx, i) => (
+              {selectedRows.slice(0, 20).map((tx, i) => (
                 <div key={i} className="flex items-center justify-between p-2 text-sm">
                   <div>
                     <span className="font-medium">{tx.description}</span>
@@ -205,13 +224,13 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
                   </span>
                 </div>
               ))}
-              {transactions.length > 20 && (
-                <div className="p-2 text-xs text-muted-foreground text-center">+{transactions.length - 20} more</div>
+              {selectedRows.length > 20 && (
+                <div className="p-2 text-xs text-muted-foreground text-center">+{selectedRows.length - 20} more</div>
               )}
             </div>
-            <Button size="sm" onClick={importTransactions} disabled={importing}>
+            <Button size="sm" onClick={importTransactions} disabled={importing || selectedRows.length === 0}>
               {importing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
-              {t("confirm")} ({transactions.length})
+              {t("confirm")} ({selectedRows.length})
             </Button>
           </div>
         )}

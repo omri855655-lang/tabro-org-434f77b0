@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "test:activity": "node --experimental-strip-types --test tests/activityScoring.test.mjs",
+    "test:finance": "node --experimental-strip-types --test tests/cardStatement.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -9,6 +9,7 @@ interface ImportParsedFinancialTransactionsParams {
   provider: string;
   sourceType?: string;
   sourceConnectionId?: string;
+  accountExternalId?: string;
 }
 
 const chunk = <T,>(items: T[], size: number) => {
@@ -46,10 +47,15 @@ export async function importParsedFinancialTransactions({
   provider,
   sourceType = "csv",
   sourceConnectionId = IMPORT_SOURCE_CONNECTION_ID,
+  accountExternalId,
 }: ImportParsedFinancialTransactionsParams) {
+  const occurrences = new Map<string, number>();
   const normalizedRows = parsed
     .map((tx, index) => {
-      const externalTransactionId = buildExternalId(tx, index, provider, sourceType);
+      const baseId = buildExternalId(tx, index, provider, sourceType);
+      const occurrence = (occurrences.get(baseId) || 0) + 1;
+      occurrences.set(baseId, occurrence);
+      const externalTransactionId = occurrence === 1 ? baseId : `${baseId}:${occurrence}`;
 
       return {
         user_id: userId,
@@ -68,7 +74,11 @@ export async function importParsedFinancialTransactions({
         installment_total: tx.installment_total || null,
         installment_number: tx.installment_number || null,
         month_key: tx.transaction_date?.substring(0, 7) || null,
-        raw_data: tx.raw_data || null,
+        raw_data: {
+          ...(tx.raw_data || {}),
+          ...(tx.billing_date ? { billing_date: tx.billing_date } : {}),
+          ...(accountExternalId ? { account_external_id: accountExternalId } : {}),
+        },
       };
     })
     .filter((tx) => tx.amount > 0 && tx.transaction_date && tx.description);

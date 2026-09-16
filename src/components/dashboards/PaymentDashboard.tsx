@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { CloudFinanceConnector } from "@/components/dashboards/CloudFinanceConnector";
+import BankConnect from "@/components/dashboards/BankConnect";
+import CreditCardConnect from "@/components/dashboards/CreditCardConnect";
+import CreditCardImport from "@/components/dashboards/CreditCardImport";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +28,7 @@ import ManualTransactionForm from "@/components/ManualTransactionForm";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
 import FinanceOverview from "@/components/dashboards/FinanceOverview";
 import { inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
+import { futureStatementCharges, nextCsvBillingEstimateDate } from "@/lib/cardStatement";
 
 interface Payment {
   id: string;
@@ -60,8 +64,9 @@ interface FinancialTransaction {
   created_at: string;
   provider: string | null;
   source_type: string;
+  source_connection_id?: string | null;
   account_external_id?: string | null;
-  raw_data?: { account_external_id?: string | null } | null;
+  raw_data?: { account_external_id?: string | null; billing_date?: string | null } | null;
   backend?: "legacy" | "cloud";
   hidden?: boolean;
 }
@@ -76,7 +81,15 @@ interface FinancialAccount {
   currency: string | null;
   current_balance: number | null;
   available_balance: number | null;
+  last_synced_at?: string | null;
   backend?: "legacy" | "cloud";
+}
+
+interface CsvCardSource {
+  id: string;
+  provider: string;
+  display_name: string | null;
+  card_last_digits: string | null;
 }
 
 const cardPreferenceKey = (account: FinancialAccount) =>
@@ -94,6 +107,7 @@ interface DashboardEntry {
   source_channel: "credit_card" | "bank" | "manual";
   account_label: string | null;
   account_last_four: string | null;
+  account_external_id: string | null;
   due_date: string | null;
   paid: boolean;
   recurring: boolean;
@@ -172,7 +186,17 @@ function normalizeSalarySource(value: string) {
 
 function transactionDisplayKey(transaction: FinancialTransaction) {
   const title = `${transaction.description || transaction.merchant || ""}`.toLocaleLowerCase("he").replace(/\s+/g, " ").trim();
-  return [transaction.transaction_date?.slice(0, 10), transaction.direction, Number(transaction.amount).toFixed(2), title].join("|");
+  return [transaction.transaction_date?.slice(0, 10), transaction.direction, Number(transaction.amount).toFixed(2), title,
+    transaction.account_external_id || transaction.source_connection_id || transaction.provider || ""].join("|");
+}
+
+function cardIssuerKey(value: string | null) {
+  const name = (value || "").toLocaleLowerCase();
+  if (/amex|american|אמריקן/.test(name)) return "amex";
+  if (/isracard|ישראכרט/.test(name)) return "isracard";
+  if (/visa.?cal|^cal$|כאל/.test(name)) return "cal";
+  if (/^max$|מקס/.test(name)) return "max";
+  return name;
 }
 
 const GUIDE_DEFS = [
@@ -240,6 +264,9 @@ const PaymentDashboard = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [financialAccounts, setFinancialAccounts] = useState<FinancialAccount[]>([]);
+  const [csvCardSources, setCsvCardSources] = useState<CsvCardSource[]>([]);
+  const [showCsvFallback, setShowCsvFallback] = useState(false);
+  const [requestedCsvProvider, setRequestedCsvProvider] = useState("");
   const [loading, setLoading] = useState(true);
   const [financeUnavailable, setFinanceUnavailable] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -393,7 +420,7 @@ const PaymentDashboard = () => {
     if (!user) return;
     setLoading(true);
     try {
-      const [paymentsResult, accountsResult, cloudFinanceResult] = await Promise.all([
+      const [paymentsResult, accountsResult, csvCardsResult, cloudFinanceResult] = await Promise.all([
         supabase
           .from("payment_tracking")
           .select("*")
@@ -404,12 +431,20 @@ const PaymentDashboard = () => {
           .from("financial_accounts")
           .select("*")
           .eq("user_id", user.id),
-        invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list"),
+        supabase
+          .from("credit_card_connections")
+          .select("id,provider,display_name,card_last_digits")
+          .eq("user_id", user.id),
+        invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list")
+          .catch((error) => {
+            console.warn("Cloud finance is unavailable; continuing with imported statements", error);
+            return { transactions: [], accounts: [] };
+          }),
       ]);
 
       let transactionsResult = await supabase
         .from("financial_transactions")
-        .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
+          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false });
 
@@ -418,7 +453,7 @@ const PaymentDashboard = () => {
       if (transactionsResult.error) {
         const fallbackResult = await supabase
           .from("financial_transactions")
-          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
+          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data")
           .eq("user_id", user.id)
           .order("transaction_date", { ascending: false });
         transactionsResult = {
@@ -430,8 +465,11 @@ const PaymentDashboard = () => {
       if (paymentsResult.error) console.warn("Payment tracking is unavailable; continuing with synced finance data", paymentsResult.error);
       if (transactionsResult.error) console.warn("Legacy finance history is unavailable; continuing with cloud finance data", transactionsResult.error);
       if (accountsResult.error) console.warn("Legacy finance accounts are unavailable; continuing with cloud finance data", accountsResult.error);
+      if (csvCardsResult.error) console.warn("Card import sources are unavailable", csvCardsResult.error);
 
       setPayments((paymentsResult.data as any[]) || []);
+      const cardSources = (csvCardsResult.data || []) as CsvCardSource[];
+      setCsvCardSources(cardSources);
       const legacyTransactions = ((transactionsResult.data as FinancialTransaction[]) || []).map((item) => ({
         ...item,
         account_external_id: item.raw_data?.account_external_id || null,
@@ -442,22 +480,43 @@ const PaymentDashboard = () => {
         id: `cloud:${item.id}`,
         backend: "cloud" as const,
       }));
-      const deduplicatedTransactions = new Map<string, FinancialTransaction>();
-      [...cloudTransactions, ...legacyTransactions].forEach((transaction) => {
+      const cloudCounts = new Map<string, number>();
+      cloudTransactions.forEach((transaction) => {
         const key = transactionDisplayKey(transaction);
-        if (!deduplicatedTransactions.has(key)) deduplicatedTransactions.set(key, transaction);
+        cloudCounts.set(key, (cloudCounts.get(key) || 0) + 1);
       });
-      setTransactions([...deduplicatedTransactions.values()]);
+      const matchedCloud = new Map<string, number>();
+      const uniqueLegacy = legacyTransactions.filter((transaction) => {
+        const key = transactionDisplayKey(transaction);
+        const matched = matchedCloud.get(key) || 0;
+        if (matched >= (cloudCounts.get(key) || 0)) return true;
+        matchedCloud.set(key, matched + 1);
+        return false;
+      });
+      setTransactions([...cloudTransactions, ...uniqueLegacy]);
       const legacyAccounts = ((accountsResult.data as FinancialAccount[]) || []).map((item) => ({
         ...item,
         backend: "legacy" as const,
+      }));
+      const importedCardAccounts: FinancialAccount[] = cardSources.map((card) => ({
+        id: `csv-card:${card.id}`,
+        external_account_id: `csv-card:${card.id}`,
+        provider_name: card.provider,
+        account_type: "CARD",
+        display_name: card.display_name || (card.provider === "amex" ? "American Express" : card.provider),
+        masked_number: card.card_last_digits ? `****${card.card_last_digits}` : null,
+        currency: "ILS",
+        current_balance: null,
+        available_balance: null,
+        last_synced_at: null,
+        backend: "legacy",
       }));
       const cloudAccounts = (cloudFinanceResult.accounts || []).map((item) => ({
         ...item,
         id: `cloud:${item.id}`,
         backend: "cloud" as const,
       }));
-      setFinancialAccounts([...cloudAccounts, ...legacyAccounts]);
+      setFinancialAccounts([...cloudAccounts, ...legacyAccounts, ...importedCardAccounts]);
       setFinanceUnavailable(false);
     } catch (error) {
       console.warn("Finance data could not be loaded", error);
@@ -468,6 +527,13 @@ const PaymentDashboard = () => {
   }, [user]);
 
   useEffect(() => { fetchFinanceData(); }, [fetchFinanceData]);
+
+  const openCsvFallback = useCallback((companyId?: string) => {
+    const provider = companyId === "visaCal" ? "cal" : companyId === "amex" ? "amex" : companyId || "";
+    setRequestedCsvProvider(provider);
+    setShowCsvFallback(true);
+    window.setTimeout(() => document.getElementById("credit-card-csv-fallback")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }, []);
 
   const fetchClubAssets = useCallback(async () => {
     if (!user) return;
@@ -622,6 +688,7 @@ const PaymentDashboard = () => {
       source_channel: "manual",
       account_label: null,
       account_last_four: null,
+      account_external_id: null,
       due_date: payment.due_date,
       paid: payment.paid,
       recurring: payment.recurring,
@@ -638,8 +705,10 @@ const PaymentDashboard = () => {
 
     const accountByExternalId = new Map(financialAccounts.map((account) => [account.external_account_id, account]));
     const importedEntries: DashboardEntry[] = transactions.map((transaction) => {
-      const account = transaction.account_external_id
-        ? accountByExternalId.get(transaction.account_external_id)
+      const accountId = transaction.account_external_id || (transaction.source_type === "credit_card_import" && transaction.source_connection_id
+        ? `csv-card:${transaction.source_connection_id}` : null);
+      const account = accountId
+        ? accountByExternalId.get(accountId)
         : undefined;
       const normalizedCategory = normalizeFinanceCategory(
         transaction.category,
@@ -667,6 +736,7 @@ const PaymentDashboard = () => {
       source_channel: sourceChannel,
       account_label: account?.display_name || account?.provider_name || transaction.provider || null,
       account_last_four: account?.masked_number?.match(/\d{4}$/)?.[0] || null,
+      account_external_id: accountId,
       due_date: transaction.transaction_date,
       paid: true,
       recurring: false,
@@ -828,15 +898,30 @@ const PaymentDashboard = () => {
 
   const forecastCardAccounts = useMemo(() => {
     const cards = new Map<string, FinancialAccount>();
+    const latestCsvImport = new Map<string, number>();
+    transactions.forEach((transaction) => {
+      if (transaction.source_type !== "credit_card_import" || !transaction.source_connection_id) return;
+      const accountId = `csv-card:${transaction.source_connection_id}`;
+      latestCsvImport.set(accountId, Math.max(latestCsvImport.get(accountId) || 0, new Date(transaction.created_at).getTime() || 0));
+    });
     financialAccounts
       .filter((account) => account.account_type?.toUpperCase() === "CARD" && (!account.currency || account.currency === "ILS"))
       .forEach((account) => {
         const lastFour = account.masked_number?.match(/\d{4}$/)?.[0];
-        const key = `${account.provider_name || "card"}:${lastFour || account.external_account_id}`;
-        if (!cards.has(key)) cards.set(key, account);
+        const key = `${cardIssuerKey(account.provider_name)}:${lastFour || account.external_account_id}`;
+        const previous = cards.get(key);
+        if (!previous) {
+          cards.set(key, account);
+          return;
+        }
+        const previousCsvAt = latestCsvImport.get(previous.external_account_id) || 0;
+        const currentCsvAt = latestCsvImport.get(account.external_account_id) || 0;
+        const previousSyncAt = new Date(previous.last_synced_at || 0).getTime() || 0;
+        const currentSyncAt = new Date(account.last_synced_at || 0).getTime() || 0;
+        if (Math.max(currentCsvAt, currentSyncAt) > Math.max(previousCsvAt, previousSyncAt)) cards.set(key, account);
       });
     return [...cards.values()];
-  }, [financialAccounts]);
+  }, [financialAccounts, transactions]);
 
   const cashFlowForecast = useMemo(() => {
     const salaryPattern = /משכורת|שכר|salary|payroll|עובדי\s*מדינ/i;
@@ -874,13 +959,13 @@ const PaymentDashboard = () => {
     });
 
     const creditCardUpcoming: Array<{ payment: Payment; occurrence: Date }> = [];
-    [...uniqueAccounts.values()]
-      .filter((account) => account.account_type?.toUpperCase() === "CARD" && (!account.currency || account.currency === "ILS"))
+    forecastCardAccounts
       .forEach((account) => {
         const lastFour = account.masked_number?.match(/\d{4}$/)?.[0] || null;
         const cardName = account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card");
         const matchingCardEntries = dashboardEntries.filter((entry) => {
           if (entry.source_channel !== "credit_card" || entry.payment_type !== "expense") return false;
+          if (entry.account_external_id) return entry.account_external_id === account.external_account_id;
           // A provider can expose several cards with the same label. Once a card has
           // a masked number, never fall back to the provider label or every card will
           // inherit the same transactions and forecast.
@@ -912,21 +997,62 @@ const PaymentDashboard = () => {
           .slice(0, 3)
           .map(([, amount]) => amount);
         const currentCharge = Math.abs(account.current_balance ?? account.available_balance ?? 0);
-        const estimatedCharge = historicalMonths.length ? median(historicalMonths) : currentCharge;
-        if (currentCharge <= 0 && estimatedCharge <= 0) return;
+        const currentMonthSpend = monthlySpend.get(`${now.getFullYear()}-${now.getMonth()}`) || 0;
+        const estimatedCharge = historicalMonths.length ? median(historicalMonths) : currentMonthSpend || currentCharge;
+        const statementCharges = futureStatementCharges(
+          transactions,
+          account.external_account_id,
+          format(now, "yyyy-MM-dd"),
+          format(horizonEnd, "yyyy-MM-dd"),
+        );
+        if (currentCharge <= 0 && estimatedCharge <= 0 && statementCharges.length === 0) return;
 
         let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(billingDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
         if (occurrence < now) occurrence = addForecastInterval(occurrence, "monthly");
-        // A zero current balance means there is no synced charge for the current
-        // cycle. Historical estimates start next month instead of appearing as a
-        // fabricated upcoming charge today.
-        if (currentCharge <= 0) occurrence = addForecastInterval(occurrence, "monthly");
+        const syncedChargeMonth = currentCharge > 0 ? format(occurrence, "yyyy-MM") : null;
+        const statementMonths = new Set<string>();
+        statementCharges.forEach(({ amount, billingDate }) => {
+          const month = billingDate.slice(0, 7);
+          if (month === syncedChargeMonth) return;
+          statementMonths.add(month);
+          creditCardUpcoming.push({
+            payment: {
+              id: `card-statement-${account.id}-${billingDate}`,
+              title: `${isRtl ? "חיוב עתידי מהפירוט" : "Statement charge due"} · ${cardName}${lastFour ? ` ••••${lastFour}` : ""}`,
+              amount: Math.round(amount * 100) / 100,
+              currency: "ILS",
+              category: isRtl ? "כרטיס אשראי" : "Credit card",
+              payment_type: "expense",
+              payment_method: "credit_card_statement",
+              due_date: billingDate,
+              paid: false,
+              recurring: false,
+              recurring_frequency: null,
+              recurrence_status: "statement",
+              recurrence_end_date: null,
+              recurrence_source_transaction_id: null,
+              notes: isRtl ? "תאריך וסכום חיוב שצוינו בקובץ הכרטיס" : "Billing date and amount listed in the card statement",
+              sheet_name: "forecast",
+              archived: false,
+              hidden: false,
+              created_at: new Date().toISOString(),
+            },
+            occurrence: dateOnly(new Date(`${billingDate}T12:00:00`)),
+          });
+        });
+        // File imports have no live balance. Their first unconfirmed estimate is
+        // next month's bill; an explicit statement date takes precedence below.
+        if (currentCharge <= 0 && account.external_account_id.startsWith("csv-card:")) {
+          occurrence = dateOnly(new Date(`${nextCsvBillingEstimateDate(format(now, "yyyy-MM-dd"), billingDay)}T12:00:00`));
+        } else if (currentCharge <= 0) {
+          occurrence = addForecastInterval(occurrence, "monthly");
+        }
         const hasSyncedCurrentCharge = currentCharge > 0;
         let index = 0;
         while (occurrence <= horizonEnd) {
           const isSyncedCharge = index === 0 && hasSyncedCurrentCharge;
           const amount = isSyncedCharge ? currentCharge : estimatedCharge;
-          if (amount > 0) {
+          if (amount > 0 && !statementMonths.has(format(occurrence, "yyyy-MM"))) {
             creditCardUpcoming.push({
               payment: {
                 id: `card-forecast-${account.id}-${format(occurrence, "yyyy-MM")}`,
@@ -1050,7 +1176,14 @@ const PaymentDashboard = () => {
       estimatedSalary,
       creditCardForecasts: creditCardUpcoming.length,
     };
-  }, [cardBillingDays, dashboardEntries, estimatedSalary, financialAccounts, isRtl, payments]);
+  }, [cardBillingDays, dashboardEntries, estimatedSalary, financialAccounts, forecastCardAccounts, isRtl, payments, transactions]);
+
+  const csvCardForecasts = useMemo(() => csvCardSources.map((card) => ({
+    card,
+    next: cashFlowForecast.upcoming.find(({ payment }) =>
+      payment.id.startsWith(`card-statement-csv-card:${card.id}-`)
+      || payment.id.startsWith(`card-forecast-csv-card:${card.id}-`)),
+  })), [cashFlowForecast.upcoming, csvCardSources]);
 
   const proactiveFinanceInsights = useMemo(() => {
     const now = new Date();
@@ -1443,7 +1576,7 @@ ${context}
                     <span className="text-end"><strong className={payment.payment_type === "income" ? "text-emerald-600" : "text-red-600"}>{payment.payment_type === "income" ? "+" : "-"}₪{payment.amount.toLocaleString()}</strong><small className="block text-muted-foreground">{isRtl ? "יתרה" : "Balance"} ₪{runningBalance.toLocaleString()}</small></span>
                   </div>
                 ))}
-                <p className="text-xs text-muted-foreground">{isRtl ? "התחזית כוללת רק חיובים והכנסות קבועים או מתוכננים שאושרו. הוצאות משתנות אינן מחושבות." : "The forecast includes only confirmed recurring or planned movements. Variable spending is not included."}</p>
+                <p className="text-xs text-muted-foreground">{isRtl ? "התחזית כוללת חיובים מתוכננים, תאריכי חיוב שדווחו בקובץ ואומדנים המסומנים ככאלה. אומדן אינו חיוב מאושר; הוצאות משתנות אחרות אינן מחושבות." : "The forecast includes planned charges, statement billing dates and clearly labeled estimates. Estimates are not confirmed charges; other variable spending is excluded."}</p>
               </div>
             )}
           </CardContent>
@@ -1905,8 +2038,40 @@ ${context}
         </TabsContent>
 
         <TabsContent value="credit-cards" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <CloudFinanceConnector onChanged={fetchFinanceData} />
+          <BankConnect onChanged={fetchFinanceData} />
+          <CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} />
+          <div id="credit-card-csv-fallback" className="space-y-4 scroll-mt-6">
+            <Button variant="outline" onClick={() => openCsvFallback()}>
+              {isRtl ? "סנכרון הכרטיס לא עובד? ייבוא CSV / Excel" : "Card sync not working? Import CSV / Excel"}
+            </Button>
+            {(showCsvFallback || csvCardSources.length > 0) && (
+              <div className="space-y-4">
+                {csvCardForecasts.length > 0 && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {csvCardForecasts.map(({ card, next }) => (
+                      <div key={card.id} className="rounded-xl border border-sky-200 bg-sky-50/50 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+                        <p className="text-sm font-semibold">{card.display_name || card.provider} · ••••{card.card_last_digits}</p>
+                        {next ? (
+                          <p className="mt-1 text-sm">
+                            {next.payment.recurrence_status === "statement"
+                              ? (isRtl ? "החיוב הבא לפי הפירוט" : "Next charge from statement")
+                              : (isRtl ? "אומדן חיוב לחודש הבא" : "Estimated next-month charge")}
+                            {": "}<strong>₪{next.payment.amount.toLocaleString()}</strong>
+                            {" · "}{format(next.occurrence, "dd/MM/yyyy")}
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-muted-foreground">{isRtl ? "אין עדיין חיוב עתידי ידוע לכרטיס הזה." : "No upcoming charge is known for this card yet."}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <CreditCardConnect requestedProvider={requestedCsvProvider} />
+                  <CreditCardImport onImported={fetchFinanceData} />
+                </div>
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>

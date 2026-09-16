@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Cloud, KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
+import { Cloud, FileSpreadsheet, KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProviderDefinition {
@@ -109,7 +109,12 @@ function financeErrorMessage(error: unknown, language: string, fallback: string)
   return "לא הצלחנו לסנכרן את החברה. כדאי לבדוק את הפרטים ולנסות שוב.";
 }
 
-export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | Promise<void> }) {
+const CARD_COMPANIES = new Set(["amex", "isracard", "visaCal", "max", "beyahadBishvilha", "behatsdaa"]);
+
+export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
+  onChanged?: () => void | Promise<void>;
+  onCsvFallback?: (companyId?: string) => void;
+}) {
   const { lang } = useLanguage();
   const labels = copy[lang === "he" ? "he" : "en"];
   const [providers, setProviders] = useState<Record<string, ProviderDefinition>>({});
@@ -315,6 +320,12 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
               {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
               {labels.connect}
             </Button>
+            {CARD_COMPANIES.has(companyId) && onCsvFallback && (
+              <Button type="button" variant="outline" onClick={() => onCsvFallback(companyId)} className="ms-2 gap-2">
+                <FileSpreadsheet className="h-4 w-4" />
+                {lang === "he" ? "הסנכרון לא עובד? ייבוא CSV / Excel" : "Sync not working? Import CSV / Excel"}
+              </Button>
+            )}
           </div>
         )}
 
@@ -346,6 +357,11 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
                       {busy === connection.id ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="me-1 h-3.5 w-3.5" />}
                       {labels.sync}
                     </Button>}
+                    {(connection.status === "error" || connection.last_error) && CARD_COMPANIES.has(connection.metadata?.company_id || "") && onCsvFallback && (
+                      <Button size="sm" variant="outline" onClick={() => onCsvFallback(connection.metadata?.company_id)} className="gap-1">
+                        <FileSpreadsheet className="h-3.5 w-3.5" />{lang === "he" ? "ייבוא CSV / Excel" : "Import CSV / Excel"}
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => remove(connection.id)} disabled={busy === connection.id}>
                       <Trash2 className="me-1 h-3.5 w-3.5" />{labels.remove}
                     </Button>

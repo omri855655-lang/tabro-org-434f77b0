@@ -10,23 +10,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CreditCard, Info, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { CreditCard, Info, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-type CreditCardConnection = Database["public"]["Tables"]["credit_card_connections"]["Row"];
+type CreditCardConnection = Pick<Database["public"]["Tables"]["credit_card_connections"]["Row"],
+  "id" | "user_id" | "provider" | "display_name" | "card_last_digits" | "sync_status" | "sync_error" | "last_sync" | "created_at">;
 const CREDIT_CARD_CONNECTIONS_EVENT = "tabro-credit-card-connections-changed";
 
 const CARD_PROVIDERS = [
   { id: "isracard", labelHe: "ישראכרט", labelEn: "Isracard", region: "IL" },
   { id: "max", labelHe: "MAX", labelEn: "MAX", region: "IL" },
   { id: "cal", labelHe: "כאל", labelEn: "CAL", region: "IL" },
+  { id: "amex", labelHe: "אמריקן אקספרס", labelEn: "American Express", region: "IL" },
   { id: "visa-global", labelHe: "Visa עולמי", labelEn: "Visa Global", region: "GLOBAL" },
   { id: "mastercard-global", labelHe: "Mastercard עולמי", labelEn: "Mastercard Global", region: "GLOBAL" },
   { id: "amex-global", labelHe: "Amex עולמי", labelEn: "Amex Global", region: "GLOBAL" },
   { id: "other-card", labelHe: "כרטיס אחר", labelEn: "Other card", region: "GLOBAL" },
 ] as const;
 
-const CreditCardConnect = () => {
+const CreditCardConnect = ({ requestedProvider }: { requestedProvider?: string }) => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const [connections, setConnections] = useState<CreditCardConnection[]>([]);
@@ -38,6 +40,10 @@ const CreditCardConnect = () => {
   const [lastDigits, setLastDigits] = useState("");
   const isHe = lang === "he" || lang === "ar";
 
+  useEffect(() => {
+    if (requestedProvider && CARD_PROVIDERS.some((item) => item.id === requestedProvider)) setProvider(requestedProvider);
+  }, [requestedProvider]);
+
   const loadConnections = useCallback(async () => {
     if (!user) {
       setConnections([]);
@@ -48,7 +54,7 @@ const CreditCardConnect = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("credit_card_connections")
-      .select("*")
+      .select("id,user_id,provider,display_name,card_last_digits,sync_status,sync_error,last_sync,created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -73,6 +79,14 @@ const CreditCardConnect = () => {
 
     try {
       const cleanLastDigits = lastDigits.replace(/\D/g, "").slice(-4);
+      if (cleanLastDigits.length !== 4) {
+        toast.error(isHe ? "יש להזין ארבע ספרות אחרונות כדי לשייך את הקובץ לכרטיס הנכון" : "Enter the last four digits to match the statement to the right card");
+        return;
+      }
+      if (connections.some((connection) => connection.provider === provider && connection.card_last_digits === cleanLastDigits)) {
+        toast.error(isHe ? "הכרטיס הזה כבר קיים ברשימה" : "This card is already in the list");
+        return;
+      }
       const { error } = await supabase.from("credit_card_connections").insert({
         user_id: user.id,
         provider,
@@ -104,36 +118,10 @@ const CreditCardConnect = () => {
     }
   };
 
-  const handleSync = async (connectionId: string) => {
-    setBusyId(connectionId);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("credit-card-sync", {
-        body: { connectionId },
-      });
-
-      if (error) {
-        toast.error(t("syncError" as any));
-        return;
-      }
-
-      await loadConnections();
-      toast.success(
-        data?.message ||
-          (isHe
-            ? "בוצעה בדיקת סנכרון. אם אין API ישיר, המשך עם ייבוא CSV."
-            : "Sync check completed. If there is no direct API, continue with CSV import."),
-      );
-    } catch (error) {
-      console.error("Failed to sync credit card source:", error);
-      toast.error(t("syncError" as any));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const handleDelete = async (connectionId: string) => {
-    if (!window.confirm(isHe ? "למחוק את מקור הכרטיס הזה?" : "Delete this card source?")) return;
+    if (!window.confirm(isHe
+      ? "למחוק את מקור הכרטיס? עסקאות שיובאו יישארו בהיסטוריה, אך לא ישויכו עוד לכרטיס בתחזית."
+      : "Delete this card source? Imported transactions stay in history but will no longer be linked to this card in the forecast.")) return;
 
     setBusyId(connectionId);
 
@@ -166,8 +154,8 @@ const CreditCardConnect = () => {
           </CardTitle>
           <CardDescription>
             {isHe
-              ? "שמור כרטיסים מישראל ומהעולם, וייבא אליהם רק הוצאות אמיתיות מהפירוט."
-              : "Save Israeli and global card sources, then import real statement expenses into them."}
+              ? "צור מקור נפרד לכל כרטיס וייבא אליו את פירוט ההוצאות שלו."
+              : "Create a separate source for each card and import only its statement expenses."}
           </CardDescription>
         </div>
       </CardHeader>
@@ -177,8 +165,8 @@ const CreditCardConnect = () => {
           <AlertTitle>{isHe ? "מה זמין עכשיו" : "Available now"}</AlertTitle>
           <AlertDescription>
             {isHe
-              ? "כרטיסים ישראליים נתמכים מתחברים דרך החיבור הישיר של Tabro למעלה. אם ספק מסוים דורש אימות שלא נתמך, אפשר להשתמש גם בייבוא CSV / Excel."
-              : "Supported Israeli cards connect through Tabro's direct connector above. CSV / Excel import remains available when a provider requires unsupported verification."}
+              ? "זהו מקור לייבוא קובץ, לא חיבור אוטומטי. סנכרון אוטומטי זמין דרך החיבור הישיר או Open Banking כשהספק נתמך."
+              : "This is a file-import source, not an automatic connection. Automatic sync uses the direct connector or a supported Open Banking provider."}
           </AlertDescription>
         </Alert>
 
@@ -263,7 +251,7 @@ const CreditCardConnect = () => {
                     </div>
                     <Badge variant="outline">
                       {connection.sync_status === "csv_ready"
-                        ? isHe ? "מוכן לייבוא" : "Ready for import"
+                        ? isHe ? "ייבוא CSV" : "CSV import"
                         : connection.sync_status === "pending"
                           ? isHe ? "ממתין" : "Pending"
                           : connection.sync_status === "syncing"
@@ -272,20 +260,11 @@ const CreditCardConnect = () => {
                     </Badge>
                   </div>
 
-                  {connection.sync_error && (
+                  {connection.sync_error && connection.sync_status !== "csv_ready" && (
                     <p className="text-xs text-muted-foreground">{connection.sync_error}</p>
                   )}
 
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleSync(connection.id)}
-                      disabled={isBusy}
-                    >
-                      {isBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
-                      {t("syncNow" as any)}
-                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
