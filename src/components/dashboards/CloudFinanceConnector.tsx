@@ -81,7 +81,12 @@ const copy = {
 } as const;
 
 function financeErrorMessage(error: unknown, language: string, fallback: string) {
-  const message = error instanceof Error ? error.message : fallback;
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+  if (/PRE-LOGIN: no password field|Login field not found on page|sign-in form did not load/i.test(message)) {
+    return language === "he"
+      ? "טופס הכניסה של החברה לא נטען. הסיסמה שלך לא נבדקה, ושלב האימות הדו־שלבי עדיין לא התחיל."
+      : "The institution's sign-in form did not load. Your password was not checked, and two-factor authentication has not started.";
+  }
   if (language !== "he") return message;
   if (/rejected the login details|INVALID_PASSWORD|LOGIN_FAILED/i.test(message)) {
     return "החברה דחתה את פרטי ההתחברות. כדאי לבדוק שוב את תעודת הזהות, 6 הספרות האחרונות והסיסמה.";
@@ -335,7 +340,7 @@ export function CloudFinanceConnector({ onChanged }: { onChanged?: () => void | 
                       {connection.metadata?.credential_storage === "none" ? (lang === "he" ? "ייבוא חד־פעמי" : "One-time import") : statusLabel(connection.status)}
                     </Badge>
                   </div>
-                  {connection.last_error && <p className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{connection.last_error}</p>}
+                  {connection.last_error && <p className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{financeErrorMessage(connection.last_error, lang, connection.last_error)}</p>}
                   <div className="flex flex-wrap gap-2">
                     {connection.metadata?.credential_storage !== "none" && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={busy === connection.id}>
                       {busy === connection.id ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="me-1 h-3.5 w-3.5" />}
