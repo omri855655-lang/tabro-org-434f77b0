@@ -22,10 +22,11 @@ let patchedSource = source;
 
 function replaceOnce(original, replacement, label) {
   if (patchedSource.includes(replacement)) return;
-  if (!patchedSource.includes(original)) {
+  const found = (Array.isArray(original) ? original : [original]).find((candidate) => patchedSource.includes(candidate));
+  if (!found) {
     throw new Error(`Could not find ${label} in the finance scraper bundle`);
   }
-  patchedSource = patchedSource.replace(original, replacement);
+  patchedSource = patchedSource.replace(found, replacement);
 }
 
 replaceOnce(
@@ -43,9 +44,12 @@ replaceOnce(
   "browser launcher",
 );
 replaceOnce(
-  '{ factory: makeHome, enabled: ifBrowser },',
-  '{ factory: makeHome, enabled: (state) => state.hasBrowser && state.options.companyId !== "visaCal" },',
-  "Visa Cal home-phase override",
+  [
+    '{ factory: makeHome, enabled: ifBrowser },',
+    '{ factory: makeHome, enabled: (state) => state.hasBrowser && state.options.companyId !== "visaCal" },',
+  ],
+  '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount"].includes(state.options.companyId) },',
+  "direct login home-phase override",
 );
 replaceOnce(
   '["visaCal" /* VisaCal */]: calConfig("https://www.cal-online.co.il/"),',
@@ -56,6 +60,16 @@ replaceOnce(
   'var VISACAL_LOGIN = {\n  loginUrl: "https://www.cal-online.co.il/",',
   'var VISACAL_LOGIN = {\n  loginUrl: "https://digital-web.cal-online.co.il/",',
   "Visa Cal login URL",
+);
+replaceOnce(
+  '["discount" /* Discount */]: defineBank("https://www.discountbank.co.il", ACCOUNT, SESSION_COOKIE),',
+  '["discount" /* Discount */]: defineBank("https://start.telebank.co.il/login/", ACCOUNT, SESSION_COOKIE),',
+  "Discount pipeline URL",
+);
+replaceOnce(
+  'var DISCOUNT_LOGIN = {\n  loginUrl: "https://www.discountbank.co.il",',
+  'var DISCOUNT_LOGIN = {\n  loginUrl: "https://start.telebank.co.il/login/",',
+  "Discount login URL",
 );
 
 if (patchedSource !== source) {

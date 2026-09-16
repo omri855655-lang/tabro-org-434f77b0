@@ -397,9 +397,6 @@ async function syncConnection({ userId, connectionId, companyId, credentials: su
     console.error("finance sync failed", { connectionId, companyId, message, code: details.code });
     await Promise.all([
       service.from("bank_connections").update({ status: "error", last_error: message }).eq("id", connectionId).eq("user_id", userId),
-      submittedCredentials
-        ? service.from("finance_scraper_credentials").delete().eq("connection_id", connectionId).eq("user_id", userId)
-        : Promise.resolve(),
       service.from("financial_sync_logs").insert({
         user_id: userId,
         connection_id: connectionId,

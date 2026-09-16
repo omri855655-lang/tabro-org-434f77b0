@@ -61,6 +61,9 @@ function clean(value: unknown, max = 240) {
 class WorkerSyncPendingError extends Error {}
 
 function publicFinanceError(message: string) {
+  if (/PRE-LOGIN: no password field|Login field not found on page/i.test(message)) {
+    return "The institution's sign-in form did not load. Your password was not checked; please try again later.";
+  }
   if (/INVALID_PASSWORD|LOGIN_FAILED|invalid credentials|rejected the login/i.test(message)) {
     return "The institution rejected the login details. Verify the identifier, card digits, and password.";
   }
