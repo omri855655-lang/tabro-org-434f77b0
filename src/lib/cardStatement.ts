@@ -16,6 +16,45 @@ export interface StatementChargeInput {
   raw_data?: { billing_date?: string | null } | null;
 }
 
+export function statementFileCardLastFour(fileName: string): string | null {
+  return fileName.match(/^(\d{4})[_-](?:0?[1-9]|1[0-2])[_-]20\d{2}\.(?:xlsx?|csv|txt)$/i)?.[1] || null;
+}
+
+export function findStatementTable(csv: { headers: string[]; rows: string[][] }) {
+  const records = [csv.headers, ...csv.rows];
+  const headerIndex = records.findIndex((row) =>
+    row.some((value) => /תאריך\s*(?:ה?עסקה|רכישה)|transaction\s*date|purchase\s*date|^date$/i.test(value))
+    && row.some((value) => /שם\s*בית\s*(?:ה?עסק)|תיאור|description|merchant|^name$/i.test(value))
+    && row.some((value) => /סכום\s*(?:חיוב|עסקה)|amount|חובה|charge|sum/i.test(value)));
+  if (headerIndex < 0) return { ...csv, preamble: [] as string[] };
+  return {
+    headers: records[headerIndex],
+    rows: records.slice(headerIndex + 1),
+    preamble: records.slice(0, headerIndex).flat(),
+  };
+}
+
+export function statementBillingDate(preamble: string[], parsed: ParsedTransaction[], fileName: string): string | undefined {
+  const match = preamble.join(" ").match(/לחיוב\s*ב[\s:-]*([0-3]?\d)[./]([01]?\d)(?:[./](\d{2}|\d{4}))?/);
+  if (!match) return undefined;
+  const [, day, month, explicitYear] = match;
+  const filePeriod = fileName.match(/^\d{4}[_-](\d{1,2})[_-](20\d{2})\./);
+  const filePeriodMatches = Boolean(filePeriod && Number(filePeriod[1]) === Number(month));
+  const latestTransaction = parsed.map((row) => parseFinancialDate(row.transaction_date)).filter(Boolean).sort().at(-1);
+  let year = explicitYear
+    ? Number(explicitYear.length === 2 ? `20${explicitYear}` : explicitYear)
+    : filePeriodMatches
+      ? Number(filePeriod[2])
+      : Number(latestTransaction?.slice(0, 4));
+  if (!year) return undefined;
+  let billingDate = parseFinancialDate(`${day}.${month}.${year}`);
+  if (!explicitYear && !filePeriodMatches && latestTransaction && billingDate && billingDate < latestTransaction) {
+    year += 1;
+    billingDate = parseFinancialDate(`${day}.${month}.${year}`);
+  }
+  return billingDate || undefined;
+}
+
 export function cardLastFour(rawData: Record<string, unknown> | undefined): string | null {
   if (!rawData) return null;
   for (const [header, value] of Object.entries(rawData)) {
@@ -26,7 +65,7 @@ export function cardLastFour(rawData: Record<string, unknown> | undefined): stri
   return null;
 }
 
-export function statementRows(parsed: ParsedTransaction[]) {
+export function statementRows(parsed: ParsedTransaction[], defaultBillingDate?: string) {
   return parsed.map((transaction) => {
     const fields = Object.entries(transaction.raw_data || {});
     const billingValue = fields.find(([header]) => BILLING_DATE_HEADER.test(header))?.[1];
@@ -34,7 +73,7 @@ export function statementRows(parsed: ParsedTransaction[]) {
     const transactionDate = transactionValue == null
       ? parseFinancialDate(transaction.transaction_date)
       : parseFinancialDate(String(transactionValue));
-    const billingDate = billingValue == null ? "" : parseFinancialDate(String(billingValue));
+    const billingDate = billingValue == null ? defaultBillingDate || "" : parseFinancialDate(String(billingValue));
     const currency = String(transaction.currency || "ILS").trim();
     const isIls = /^(ILS|NIS|₪|שח|ש["״]ח|שקל חדש)$/i.test(currency);
     return {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { detectProvider, financialProviders, parseCSV, parseFinancialDate } from "../src/lib/financialProviders.ts";
-import { cardLastFour, futureStatementCharges, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementRows } from "../src/lib/cardStatement.ts";
+import { cardLastFour, findStatementTable, futureStatementCharges, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "../src/lib/cardStatement.ts";
 
 test("CSV parser preserves quoted commas, escaped quotes and multiline descriptions", () => {
   const { headers, rows } = parseCSV('\uFEFFתאריך עסקה,שם בית העסק,סכום\r\n16/09/2026,"חנות, ""במרכז""\nתל אביב","1,234.50"\r\n');
@@ -19,6 +19,31 @@ test("invalid dates are rejected instead of silently becoming today", () => {
   assert.equal(parseFinancialDate("31/02/2026"), "");
   assert.equal(parseFinancialDate("2026-02-31"), "");
   assert.equal(parseFinancialDate("16/09/2026"), "2026-09-16");
+  assert.equal(parseFinancialDate("16.09.26"), "2026-09-16");
+  assert.equal(parseFinancialDate("31.02.26"), "");
+});
+
+test("MAX workbook-style statement uses billed ILS amounts and the header due date", () => {
+  const csv = parseCSV([
+    "פירוט עסקאות,,,,,,,",
+    ",,,,,,,לחיוב ב-02.10",
+    "עסקאות למועד חיוב,,,,,,",
+    "תאריך רכישה,שם בית עסק,סכום עסקה,מטבע עסקה,סכום חיוב,מטבע חיוב,מס׳ שובר,פירוט נוסף",
+    "15.09.26,Local shop,100,₪,100,₪,,",
+    "16.09.26,Foreign shop,20,$,75,₪,,",
+    ",סה\"כ לחיוב החודש,,175,175,₪,,",
+  ].join("\n"));
+  const table = findStatementTable(csv);
+  const provider = detectProvider(table.headers, table.rows);
+  assert.equal(provider.id, "max");
+  const parsed = provider.parse(table.rows, table.headers);
+  const billingDate = statementBillingDate(table.preamble, parsed, "1193_10_2026.xlsx");
+  const rows = statementRows(parsed, billingDate);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((row) => row.amount), [100, 75]);
+  assert.deepEqual(rows.map((row) => row.billing_date), ["2026-10-02", "2026-10-02"]);
+  assert.equal(statementFileCardLastFour("1193_10_2026.xlsx"), "1193");
+  assert.equal(statementBillingDate(["לחיוב ב-02.01"], [{ transaction_date: "2026-12-28" }], "statement.xlsx"), "2027-01-02");
 });
 
 test("statement rows keep only expenses and retain explicit billing dates", () => {

@@ -29,11 +29,12 @@ export function parseFinancialDate(val: string): string {
   const value = val?.trim();
   if (!value) return "";
   // dd/MM/yyyy
-  const dmy = value.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  const dmy = value.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
   if (dmy) {
-    const date = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
-    if (date.getFullYear() === Number(dmy[3]) && date.getMonth() === Number(dmy[2]) - 1 && date.getDate() === Number(dmy[1])) {
-      return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+    const year = dmy[3].length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+    const date = new Date(year, Number(dmy[2]) - 1, Number(dmy[1]));
+    if (date.getFullYear() === year && date.getMonth() === Number(dmy[2]) - 1 && date.getDate() === Number(dmy[1])) {
+      return `${year}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
     }
   }
   // yyyy-MM-dd
@@ -48,6 +49,21 @@ const parseDate = parseFinancialDate;
 
 const ilsBillingAmountIndex = (headers: string[]) => headers.findIndex(h =>
   /סכום\s*חיוב.*(?:ש["״]ח|שקל|ILS|NIS)|(?:ש["״]ח|שקל|ILS|NIS).*סכום\s*חיוב/i.test(h));
+
+const billingAmountIndex = (headers: string[]) => {
+  const ilsIndex = ilsBillingAmountIndex(headers);
+  return ilsIndex >= 0 ? ilsIndex : headers.findIndex(h => /סכום\s*חיוב|billing\s*amount|amount\s*billed/i.test(h));
+};
+
+function statementCurrency(headers: string[], row: string[], billedIndex: number): string {
+  if (billedIndex >= 0) {
+    const billingCurrencyIndex = headers.findIndex(h => /מטבע\s*חיוב|billing\s*currency/i.test(h));
+    if (billingCurrencyIndex >= 0) return row[billingCurrencyIndex]?.trim() || "";
+    if (billedIndex === ilsBillingAmountIndex(headers)) return "ILS";
+  }
+  const currencyIndex = headers.findIndex(h => /מטבע|currency/i.test(h));
+  return row[currencyIndex]?.trim() || "ILS";
+}
 
 function parseAmount(val: string): number {
   return parseFloat(val.replace(/[₪$€,\s]/g, "").replace(/[()]/g, "")) || 0;
@@ -86,14 +102,13 @@ const isracardProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => h.includes("תאריך עסקה") || h.includes("תאריך"));
     const descIdx = headers.findIndex(h => h.includes("שם בית העסק") || h.includes("שם") || h.includes("תיאור"));
-    const billedIdx = ilsBillingAmountIndex(headers);
+    const billedIdx = billingAmountIndex(headers);
     const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום חיוב") || h.includes("סכום"));
-    const currIdx = headers.findIndex(h => h.includes("מטבע"));
 
     return rows.map(row => ({
       transaction_date: parseDate(row[dateIdx] || ""),
       amount: Math.abs(parseAmount(row[amtIdx] || "0")),
-      currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
+      currency: statementCurrency(headers, row, billedIdx),
       direction: "expense" as const,
       description: row[descIdx]?.trim() || "",
       merchant: row[descIdx]?.trim(),
@@ -116,14 +131,13 @@ const maxProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => h.includes("תאריך רכישה") || h.includes("תאריך"));
     const descIdx = headers.findIndex(h => h.includes("שם בית עסק") || h.includes("שם"));
-    const billedIdx = ilsBillingAmountIndex(headers);
+    const billedIdx = billingAmountIndex(headers);
     const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום חיוב") || h.includes("סכום"));
-    const currIdx = headers.findIndex(h => h.includes("מטבע"));
 
     return rows.map(row => ({
       transaction_date: parseDate(row[dateIdx] || ""),
       amount: Math.abs(parseAmount(row[amtIdx] || "0")),
-      currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
+      currency: statementCurrency(headers, row, billedIdx),
       direction: "expense" as const,
       description: row[descIdx]?.trim() || "",
       merchant: row[descIdx]?.trim(),
@@ -146,14 +160,13 @@ const calProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => h.includes("תאריך") && h.includes("עסקה"));
     const descIdx = headers.findIndex(h => h.includes("שם") || h.includes("עסק") || h.includes("תיאור"));
-    const billedIdx = ilsBillingAmountIndex(headers);
+    const billedIdx = billingAmountIndex(headers);
     const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום חיוב") || h.includes("סכום") || h.includes("חיוב"));
-    const currIdx = headers.findIndex(h => h.includes("מטבע"));
 
     return rows.map(row => ({
       transaction_date: parseDate(row[dateIdx >= 0 ? dateIdx : 0] || ""),
       amount: Math.abs(parseAmount(row[amtIdx >= 0 ? amtIdx : 2] || "0")),
-      currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
+      currency: statementCurrency(headers, row, billedIdx),
       direction: "expense" as const,
       description: row[descIdx >= 0 ? descIdx : 1]?.trim() || "",
       merchant: row[descIdx >= 0 ? descIdx : 1]?.trim(),
@@ -178,9 +191,8 @@ const genericBankProvider: FinancialProvider = {
     const descIdx = headers.findIndex(h => h.includes("תיאור") || h.includes("פעולה") || h.includes("אסמכתא"));
     const debitIdx = headers.findIndex(h => h.includes("חובה") || h.includes("הוצאה"));
     const creditIdx = headers.findIndex(h => h.includes("זכות") || h.includes("הכנסה"));
-    const billedIdx = ilsBillingAmountIndex(headers);
+    const billedIdx = billingAmountIndex(headers);
     const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום"));
-    const currIdx = headers.findIndex(h => /מטבע|currency/i.test(h));
 
     return rows.map(row => {
       const debit = debitIdx >= 0 ? parseAmount(row[debitIdx] || "0") : 0;
@@ -191,7 +203,7 @@ const genericBankProvider: FinancialProvider = {
       return {
         transaction_date: parseDate(row[dateIdx] || ""),
         amount: Math.abs(amount || debit || credit),
-        currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
+        currency: statementCurrency(headers, row, billedIdx),
         direction: direction as "income" | "expense",
         description: row[descIdx >= 0 ? descIdx : 1]?.trim() || "",
         merchant: row[descIdx >= 0 ? descIdx : 1]?.trim(),
@@ -212,12 +224,11 @@ const customCsvProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => /date|תאריך/i.test(h));
     const descIdx = headers.findIndex(h => /desc|תיאור|description|name|שם/i.test(h));
-    const billedIdx = ilsBillingAmountIndex(headers);
+    const billedIdx = billingAmountIndex(headers);
     const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => /amount|סכום|sum/i.test(h));
     const dirIdx = headers.findIndex(h => /type|סוג|direction/i.test(h));
     const debitIdx = headers.findIndex(h => /debit|חובה|הוצאה|charge|חיוב/i.test(h));
     const creditIdx = headers.findIndex(h => /credit|זכות|הכנסה/i.test(h));
-    const currIdx = headers.findIndex(h => /מטבע|currency/i.test(h));
 
     return rows.map(row => {
       const dirVal = dirIdx >= 0 ? row[dirIdx]?.toLowerCase() : "";
@@ -245,7 +256,7 @@ const customCsvProvider: FinancialProvider = {
       return {
         transaction_date: parseDate(row[dateIdx >= 0 ? dateIdx : 0] || ""),
         amount,
-        currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
+        currency: statementCurrency(headers, row, billedIdx),
         direction,
         description: row[descIdx >= 0 ? descIdx : 1]?.trim() || "",
         category: autoCategorize(row[descIdx >= 0 ? descIdx : 1] || ""),

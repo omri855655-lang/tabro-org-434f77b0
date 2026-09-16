@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, FileSpreadsheet, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { detectProvider, financialProviders, parseCSV, type ParsedTransaction } from "@/lib/financialProviders";
-import { sanitizeStatementRows, statementRows, selectCardRows } from "@/lib/cardStatement";
+import { findStatementTable, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "@/lib/cardStatement";
 import { importParsedFinancialTransactions } from "@/lib/financialImport";
 
 type CreditCardConnection = Pick<Database["public"]["Tables"]["credit_card_connections"]["Row"],
@@ -60,8 +60,8 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
     return () => window.removeEventListener(CREDIT_CARD_CONNECTIONS_EVENT, handleConnectionsChanged);
   }, [user]);
 
-  const processText = (text: string) => {
-    const { headers, rows } = parseCSV(text);
+  const processText = (text: string, name: string) => {
+    const { headers, rows, preamble } = findStatementTable(parseCSV(text));
     const provider = detectProvider(headers, rows.slice(0, 3)) || financialProviders.find((item) => item.id === "custom");
 
     if (!provider) {
@@ -70,7 +70,8 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
       return;
     }
 
-    const parsed = statementRows(provider.parse(rows, headers));
+    const providerRows = provider.parse(rows, headers);
+    const parsed = statementRows(providerRows, statementBillingDate(preamble, providerRows, name));
     setProviderId(provider.id);
     setTransactions(parsed);
     setConfirmUnidentified(false);
@@ -85,6 +86,9 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
     if (!file) return;
 
     setFileName(file.name);
+    const fileCard = statementFileCardLastFour(file.name);
+    const matchingConnection = connections.find((connection) => connection.card_last_digits === fileCard);
+    if (matchingConnection) setSelectedConnectionId(matchingConnection.id);
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     if (ext === "xlsx" || ext === "xls") {
@@ -94,7 +98,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
         const workbook = read(buffer);
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const csvText = utils.sheet_to_csv(worksheet);
-        processText(csvText);
+        processText(csvText, file.name);
       } catch (error) {
         console.error("Credit card excel parse error:", error);
         toast.error(isRtl ? "שגיאה בקריאת קובץ Excel" : "Error reading Excel file");
@@ -105,7 +109,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      processText(text);
+      processText(text, file.name);
     };
     reader.readAsText(file, "UTF-8");
   };
@@ -145,11 +149,13 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
   };
 
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
+  const fileCard = statementFileCardLastFour(fileName);
+  const fileCardMismatch = Boolean(fileCard && selectedConnection && selectedConnection.card_last_digits !== fileCard);
   const cardRows = selectedConnection?.card_last_digits
     ? selectCardRows(transactions, selectedConnection.card_last_digits)
     : null;
-  const selectedRows = cardRows
-    ? [...cardRows.matching, ...(confirmUnidentified ? cardRows.unidentified : [])]
+  const selectedRows = cardRows && !fileCardMismatch
+    ? [...cardRows.matching, ...(confirmUnidentified || fileCard === selectedConnection?.card_last_digits ? cardRows.unidentified : [])]
     : [];
 
   return (
@@ -185,12 +191,14 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
           {connections.length === 0 && <p className="text-xs text-amber-700">{isRtl ? "קודם צור מקור כרטיס עם ארבע ספרות אחרונות למעלה." : "First create a card source with its last four digits above."}</p>}
         </div>
         <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls" className="hidden" onChange={handleFileChange} />
-        <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={!selectedConnection?.card_last_digits}>
+        <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
           <Upload className="h-3 w-3 mr-1" />{isRtl ? "ייבוא CSV / Excel" : "Import CSV / Excel"}
         </Button>
 
         {transactions.length > 0 && (
           <div className="space-y-2">
+            {fileCard && !selectedConnection && <p className="text-xs text-amber-700">{isRtl ? `הקובץ שייך לכרטיס ••••${fileCard}. צור או בחר את מקור הכרטיס הזה כדי לייבא.` : `This file belongs to card ••••${fileCard}. Create or choose that card source to import.`}</p>}
+            {fileCardMismatch && <p className="text-xs text-amber-700">{isRtl ? `הקובץ שייך לכרטיס ••••${fileCard}, ולא לכרטיס שנבחר. בחר את הכרטיס הנכון.` : `This file belongs to card ••••${fileCard}, not the selected card. Choose the matching card.`}</p>}
             <div className="flex items-center gap-2 flex-wrap">
               {fileName && <Badge variant="outline">{fileName}</Badge>}
               <Badge>{selectedRows.length} {t("transactions")}</Badge>
@@ -204,7 +212,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
               </Badge>
             </div>
             {cardRows && cardRows.excluded > 0 && <p className="text-xs text-amber-700">{isRtl ? `${cardRows.excluded} שורות של כרטיסים אחרים לא ייובאו.` : `${cardRows.excluded} rows from other cards will be excluded.`}</p>}
-            {cardRows && cardRows.unidentified.length > 0 && (
+            {cardRows && cardRows.unidentified.length > 0 && !fileCard && (
               <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2 text-xs">
                 <input type="checkbox" checked={confirmUnidentified} onChange={(event) => setConfirmUnidentified(event.target.checked)} className="mt-0.5" />
                 <span>{isRtl
