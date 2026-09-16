@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { detectProvider, financialProviders, parseCSV, parseFinancialDate } from "../src/lib/financialProviders.ts";
-import { cardLastFour, findStatementTable, futureStatementCharges, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "../src/lib/cardStatement.ts";
+import { applyStatementBillingDate, cardLastFour, findStatementTable, futureStatementCharges, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "../src/lib/cardStatement.ts";
 
 test("CSV parser preserves quoted commas, escaped quotes and multiline descriptions", () => {
   const { headers, rows } = parseCSV('\uFEFFתאריך עסקה,שם בית העסק,סכום\r\n16/09/2026,"חנות, ""במרכז""\nתל אביב","1,234.50"\r\n');
@@ -123,6 +123,7 @@ test("stored statement metadata omits full card and authentication fields", () =
 
 test("future statement charges are scoped to one card and grouped by due date", () => {
   const rows = [
+    { source_type: "credit_card_sync", source_connection_id: "card-a", direction: "expense", amount: 11000 },
     { source_type: "credit_card_import", source_connection_id: "card-a", direction: "expense", amount: 100, raw_data: { billing_date: "2026-10-10" } },
     { source_type: "credit_card_import", source_connection_id: "card-a", direction: "expense", amount: 50, raw_data: { billing_date: "2026-10-10" } },
     { source_type: "credit_card_import", source_connection_id: "card-b", direction: "expense", amount: 900, raw_data: { billing_date: "2026-10-10" } },
@@ -131,6 +132,15 @@ test("future statement charges are scoped to one card and grouped by due date", 
   assert.deepEqual(futureStatementCharges(rows, "csv-card:card-a", "2026-09-16", "2026-12-15"), [
     { billingDate: "2026-10-10", amount: 150 },
   ]);
+});
+
+test("confirmed import date fills missing due dates without replacing per-row dates", () => {
+  const rows = applyStatementBillingDate([
+    { transaction_date: "2026-09-16", billing_date: undefined },
+    { transaction_date: "2026-09-16", billing_date: "2026-11-02" },
+  ], "2026-10-02");
+  assert.deepEqual(rows.map((row) => row.billing_date), ["2026-10-02", "2026-11-02"]);
+  assert.equal(applyStatementBillingDate([{ transaction_date: "2026-09-16" }], "")[0].billing_date, undefined);
 });
 
 test("a CSV-only card estimates the next month, including year and month ends", () => {

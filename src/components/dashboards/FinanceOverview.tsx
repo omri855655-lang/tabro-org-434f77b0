@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Building2, CreditCard, Landmark, Wallet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { summarizeLiquidBalances } from "@/lib/financeBalances";
 
 interface OverviewEntry {
   id: string;
@@ -73,14 +74,7 @@ const FinanceOverview = ({ entries, accounts, isRtl, selectedMonth }: FinanceOve
       if (!uniqueAccounts.has(key)) uniqueAccounts.set(key, account);
     });
     const accountList = [...uniqueAccounts.values()];
-    let available = 0;
-    let debt = 0;
-    accountList.filter((account) => !account.currency || account.currency === "ILS").forEach((account) => {
-      const value = account.available_balance ?? account.current_balance ?? 0;
-      if (account.account_type?.toUpperCase() === "CARD") debt += Math.abs(value);
-      else if (value >= 0) available += value;
-      else debt += Math.abs(value);
-    });
+    const { available, debt } = summarizeLiquidBalances(accountList);
 
     const expensesByDay = new Map<number, number>();
     current.filter((entry) => entry.payment_type === "expense").forEach((entry) => {
@@ -132,7 +126,10 @@ const FinanceOverview = ({ entries, accounts, isRtl, selectedMonth }: FinanceOve
               const value = account.available_balance ?? account.current_balance ?? 0;
               return <div key={`${account.provider_name}:${account.external_account_id}`} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm">
                 <span className="flex min-w-0 items-center gap-2">{isCard ? <CreditCard className="h-4 w-4 text-violet-500" /> : <Landmark className="h-4 w-4 text-sky-500" />}<span className="min-w-0"><strong className="block truncate">{account.display_name || account.provider_name || (isRtl ? "חשבון" : "Account")}</strong><small className="text-muted-foreground">{account.masked_number || account.provider_name}</small></span></span>
-                <strong className={isCard || value < 0 ? "text-red-600" : "text-emerald-600"}>{money(value, account.currency || "ILS")}</strong>
+                <span className="text-end">
+                  <strong className={isCard ? "text-muted-foreground" : value < 0 ? "text-red-600" : "text-emerald-600"}>{money(value, account.currency || "ILS")}</strong>
+                  {isCard && <small className="block text-[10px] text-muted-foreground">{isRtl ? "נתון ספק, לא סכום לפירעון" : "Provider value, not amount due"}</small>}
+                </span>
               </div>;
             })}
             {!analysis.accountList.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין חשבונות מחוברים להצגה." : "No connected accounts to show."}</p>}

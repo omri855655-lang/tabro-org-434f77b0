@@ -113,6 +113,14 @@ export function sanitizeStatementRows(rows: ParsedTransaction[]) {
   }));
 }
 
+export function applyStatementBillingDate(rows: ParsedTransaction[], billingDate: string) {
+  const selectedDate = parseFinancialDate(billingDate) || undefined;
+  return rows.map((row) => ({
+    ...row,
+    billing_date: row.billing_date || selectedDate,
+  }));
+}
+
 export function futureStatementCharges(
   transactions: StatementChargeInput[],
   accountExternalId: string,

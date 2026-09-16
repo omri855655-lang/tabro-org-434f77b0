@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, FileSpreadsheet, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { detectProvider, financialProviders, parseCSV, type ParsedTransaction } from "@/lib/financialProviders";
-import { findStatementTable, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "@/lib/cardStatement";
+import { applyStatementBillingDate, findStatementTable, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "@/lib/cardStatement";
 import { importParsedFinancialTransactions } from "@/lib/financialImport";
 
 type CreditCardConnection = Pick<Database["public"]["Tables"]["credit_card_connections"]["Row"],
@@ -19,9 +20,10 @@ const CREDIT_CARD_CONNECTIONS_EVENT = "tabro-credit-card-connections-changed";
 
 interface CreditCardImportProps {
   onImported?: () => void | Promise<void>;
+  suggestedBillingDayForCard?: (card: CreditCardConnection) => number | undefined;
 }
 
-const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
+const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCardImportProps) => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -32,6 +34,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
   const [connections, setConnections] = useState<CreditCardConnection[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState("");
   const [confirmUnidentified, setConfirmUnidentified] = useState(false);
+  const [billingDateChoice, setBillingDateChoice] = useState("");
 
   const isRtl = lang === "he" || lang === "ar";
 
@@ -71,7 +74,16 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
     }
 
     const providerRows = provider.parse(rows, headers);
-    const parsed = statementRows(providerRows, statementBillingDate(preamble, providerRows, name));
+    const fileCard = statementFileCardLastFour(name);
+    const source = connections.find((connection) => connection.card_last_digits === fileCard)
+      || connections.find((connection) => connection.id === selectedConnectionId);
+    const preferredDay = source && suggestedBillingDayForCard?.(source);
+    const latestPurchase = providerRows.map((row) => row.transaction_date).filter(Boolean).sort().at(-1);
+    const suggestedDate = preferredDay
+      ? nextCsvBillingEstimateDate(latestPurchase || format(new Date(), "yyyy-MM-dd"), preferredDay)
+      : "";
+    setBillingDateChoice(statementBillingDate(preamble, providerRows, name) || suggestedDate);
+    const parsed = statementRows(providerRows);
     setProviderId(provider.id);
     setTransactions(parsed);
     setConfirmUnidentified(false);
@@ -122,7 +134,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
     try {
       const result = await importParsedFinancialTransactions({
         userId: user.id,
-        parsed: sanitizeStatementRows(selectedRows),
+        parsed: sanitizeStatementRows(applyStatementBillingDate(selectedRows, billingDateChoice)),
         provider: selectedConnection.provider,
         sourceType: "credit_card_import",
         sourceConnectionId: selectedConnection.id,
@@ -139,6 +151,7 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
       setProviderId("");
       setFileName("");
       setConfirmUnidentified(false);
+      setBillingDateChoice("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (error) {
       console.error("Credit card import error:", error);
@@ -170,8 +183,8 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             {isRtl
-              ? "בחר את הכרטיס המדויק. ייובאו רק הוצאות שלו עם סכום חיוב בשקלים; תאריכי חיוב עתידיים מפורשים יוצגו בתחזית."
-              : "Choose the exact card. Only its expenses with an ILS billing amount are imported; explicit future billing dates appear in the forecast."}
+              ? "בחר את הכרטיס המדויק. ייובאו רק הוצאות שלו עם סכום חיוב בשקלים; רק מועד פירעון שתאשר ייצור חיוב עתידי בתחזית."
+              : "Choose the exact card. Only its expenses with an ILS billing amount are imported; a future charge needs a confirmed payment date."}
           </p>
           <Select value={selectedConnectionId} onValueChange={(value) => { setSelectedConnectionId(value); setConfirmUnidentified(false); }}>
             <SelectTrigger className="text-sm">
@@ -220,6 +233,13 @@ const CreditCardImport = ({ onImported }: CreditCardImportProps) => {
                   : `I confirm that the ${cardRows.unidentified.length} rows without a card number belong only to card ••••${selectedConnection?.card_last_digits}.`}</span>
               </label>
             )}
+            <label className="block space-y-1 rounded-lg border p-3 text-xs">
+              <span className="block font-semibold">{isRtl ? "מתי ייפרע החיוב של הפירוט הזה?" : "When will this statement be charged?"}</span>
+              <input type="date" value={billingDateChoice} onChange={(event) => setBillingDateChoice(event.target.value)} className="h-9 rounded-md border bg-background px-2" dir="ltr" />
+              <span className="block text-muted-foreground">{isRtl
+                ? "אפשר לתקן את התאריך שזוהה בקובץ. אם הוא לא ידוע, השאר ריק: ההוצאות ייובאו, אך לא ייווצר חיוב עתידי. תאריכי חיוב מפורשים לכל עסקה נשמרים בנפרד."
+                : "You can correct the detected date. Leave it blank if unknown: expenses import without a future charge. Per-transaction due dates remain separate."}</span>
+            </label>
             <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
               {selectedRows.slice(0, 20).map((tx, i) => (
                 <div key={i} className="flex items-center justify-between p-2 text-sm">

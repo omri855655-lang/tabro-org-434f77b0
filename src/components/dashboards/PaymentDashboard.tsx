@@ -28,7 +28,8 @@ import ManualTransactionForm from "@/components/ManualTransactionForm";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
 import FinanceOverview from "@/components/dashboards/FinanceOverview";
 import { inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
-import { futureStatementCharges, nextCsvBillingEstimateDate } from "@/lib/cardStatement";
+import { futureStatementCharges } from "@/lib/cardStatement";
+import { summarizeLiquidBalances } from "@/lib/financeBalances";
 
 interface Payment {
   id: string;
@@ -331,7 +332,7 @@ const PaymentDashboard = () => {
     const key = cardPreferenceKey(account);
     const nextDays = { ...cardBillingDays };
     if (day == null) delete nextDays[key];
-    else nextDays[key] = Math.min(28, Math.max(1, day));
+    else nextDays[key] = Math.min(31, Math.max(1, day));
     setCardBillingDays(nextDays);
 
     const { data } = await supabase
@@ -355,8 +356,8 @@ const PaymentDashboard = () => {
       return;
     }
     toast.success(day == null
-      ? (isRtl ? "יום החיוב יחושב אוטומטית" : "Billing day will be inferred")
-      : (isRtl ? `יום החיוב נשמר: ${day} בחודש` : `Billing day saved: day ${day}`));
+      ? (isRtl ? "הצעת יום החיוב הוסרה" : "Preferred billing day cleared")
+      : (isRtl ? `יום החיוב המוצע נשמר: ${day} בחודש` : `Preferred billing day saved: day ${day}`));
   }, [cardBillingDays, isRtl, user]);
 
   // Fetch budget target
@@ -645,7 +646,11 @@ const PaymentDashboard = () => {
     if (entry.source === "payment_tracking") {
       const newRecurring = !entry.recurring;
       const recurrenceStatus = newRecurring ? "active" : "paused";
-      await supabase.from("payment_tracking").update({ recurring: newRecurring, recurrence_status: recurrenceStatus }).eq("id", entry.id);
+      const { error } = await supabase.from("payment_tracking").update({ recurring: newRecurring, recurrence_status: recurrenceStatus }).eq("id", entry.id);
+      if (error) {
+        toast.error(isRtl ? "לא הצלחנו לעדכן את התשלום הקבוע" : "Could not update the recurring payment");
+        return;
+      }
       setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring, recurrence_status: recurrenceStatus } : p));
       toast.success(newRecurring ? t("fixedPayment" as any) : t("variableExpenses" as any));
     } else if (entry.source === "financial_transactions" || entry.source === "cloud_financial_transactions") {
@@ -927,14 +932,7 @@ const PaymentDashboard = () => {
     const salaryPattern = /משכורת|שכר|salary|payroll|עובדי\s*מדינ/i;
     const now = dateOnly(new Date());
     const horizonEnd = dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90));
-    const uniqueAccounts = new Map<string, FinancialAccount>();
-    financialAccounts.forEach((account) => {
-      const key = `${account.provider_name || ""}:${account.external_account_id}`;
-      if (!uniqueAccounts.has(key)) uniqueAccounts.set(key, account);
-    });
-    const liquidBalance = [...uniqueAccounts.values()]
-      .filter((account) => account.account_type?.toUpperCase() !== "CARD" && (!account.currency || account.currency === "ILS"))
-      .reduce((sum, account) => sum + (account.available_balance ?? account.current_balance ?? 0), 0);
+    const liquidBalance = summarizeLiquidBalances(financialAccounts).liquid;
 
     const plannedUpcoming = payments.flatMap((payment) => {
       if (payment.recurrence_status === "paused" || payment.recurrence_status === "ended") return [];
@@ -958,132 +956,32 @@ const PaymentDashboard = () => {
       return occurrences;
     });
 
-    const creditCardUpcoming: Array<{ payment: Payment; occurrence: Date }> = [];
-    forecastCardAccounts
-      .forEach((account) => {
-        const lastFour = account.masked_number?.match(/\d{4}$/)?.[0] || null;
-        const cardName = account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card");
-        const matchingCardEntries = dashboardEntries.filter((entry) => {
-          if (entry.source_channel !== "credit_card" || entry.payment_type !== "expense") return false;
-          if (entry.account_external_id) return entry.account_external_id === account.external_account_id;
-          // A provider can expose several cards with the same label. Once a card has
-          // a masked number, never fall back to the provider label or every card will
-          // inherit the same transactions and forecast.
-          if (lastFour) return entry.account_last_four === lastFour;
-          return Boolean(entry.account_label && [account.display_name, account.provider_name].filter(Boolean).includes(entry.account_label));
-        });
-        const matchingBankDebits = dashboardEntries.filter((entry) => {
-          if (entry.source_channel !== "bank" || entry.payment_type !== "expense") return false;
-          const title = entry.title.toLocaleLowerCase();
-          const identifyingTokens = lastFour ? [lastFour] : [account.provider_name, account.display_name];
-          return identifyingTokens
-            .filter((token): token is string => Boolean(token && token.length >= 3))
-            .some((token) => title.includes(token.toLocaleLowerCase()));
-        });
-        const inferredBillingDay = matchingBankDebits.length
-          ? Math.round(median(matchingBankDebits.slice(0, 6).map((entry) => new Date(entry.due_date || entry.created_at).getDate())))
-          : 10;
-        const billingDay = cardBillingDays[cardPreferenceKey(account)] || inferredBillingDay;
-        const monthlySpend = new Map<string, number>();
-        matchingCardEntries.forEach((entry) => {
-          const date = new Date(entry.due_date || entry.created_at);
-          if (Number.isNaN(date.getTime())) return;
-          const key = `${date.getFullYear()}-${date.getMonth()}`;
-          monthlySpend.set(key, (monthlySpend.get(key) || 0) + Math.abs(entry.amount));
-        });
-        const historicalMonths = [...monthlySpend.entries()]
-          .filter(([key]) => key !== `${now.getFullYear()}-${now.getMonth()}`)
-          .sort(([a], [b]) => b.localeCompare(a))
-          .slice(0, 3)
-          .map(([, amount]) => amount);
-        const currentCharge = Math.abs(account.current_balance ?? account.available_balance ?? 0);
-        const currentMonthSpend = monthlySpend.get(`${now.getFullYear()}-${now.getMonth()}`) || 0;
-        const estimatedCharge = historicalMonths.length ? median(historicalMonths) : currentMonthSpend || currentCharge;
-        const statementCharges = futureStatementCharges(
-          transactions,
-          account.external_account_id,
-          format(now, "yyyy-MM-dd"),
-          format(horizonEnd, "yyyy-MM-dd"),
-        );
-        if (currentCharge <= 0 && estimatedCharge <= 0 && statementCharges.length === 0) return;
-
-        let occurrence = new Date(now.getFullYear(), now.getMonth(), Math.min(billingDay, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()), 12);
-        if (occurrence < now) occurrence = addForecastInterval(occurrence, "monthly");
-        const syncedChargeMonth = currentCharge > 0 ? format(occurrence, "yyyy-MM") : null;
-        const statementMonths = new Set<string>();
-        statementCharges.forEach(({ amount, billingDate }) => {
-          const month = billingDate.slice(0, 7);
-          if (month === syncedChargeMonth) return;
-          statementMonths.add(month);
-          creditCardUpcoming.push({
-            payment: {
-              id: `card-statement-${account.id}-${billingDate}`,
-              title: `${isRtl ? "חיוב עתידי מהפירוט" : "Statement charge due"} · ${cardName}${lastFour ? ` ••••${lastFour}` : ""}`,
-              amount: Math.round(amount * 100) / 100,
-              currency: "ILS",
-              category: isRtl ? "כרטיס אשראי" : "Credit card",
-              payment_type: "expense",
-              payment_method: "credit_card_statement",
-              due_date: billingDate,
-              paid: false,
-              recurring: false,
-              recurring_frequency: null,
-              recurrence_status: "statement",
-              recurrence_end_date: null,
-              recurrence_source_transaction_id: null,
-              notes: isRtl ? "תאריך וסכום חיוב שצוינו בקובץ הכרטיס" : "Billing date and amount listed in the card statement",
-              sheet_name: "forecast",
-              archived: false,
-              hidden: false,
-              created_at: new Date().toISOString(),
-            },
-            occurrence: dateOnly(new Date(`${billingDate}T12:00:00`)),
-          });
-        });
-        // File imports have no live balance. Their first unconfirmed estimate is
-        // next month's bill; an explicit statement date takes precedence below.
-        if (currentCharge <= 0 && account.external_account_id.startsWith("csv-card:")) {
-          occurrence = dateOnly(new Date(`${nextCsvBillingEstimateDate(format(now, "yyyy-MM-dd"), billingDay)}T12:00:00`));
-        } else if (currentCharge <= 0) {
-          occurrence = addForecastInterval(occurrence, "monthly");
-        }
-        const hasSyncedCurrentCharge = currentCharge > 0;
-        let index = 0;
-        while (occurrence <= horizonEnd) {
-          const isSyncedCharge = index === 0 && hasSyncedCurrentCharge;
-          const amount = isSyncedCharge ? currentCharge : estimatedCharge;
-          if (amount > 0 && !statementMonths.has(format(occurrence, "yyyy-MM"))) {
-            creditCardUpcoming.push({
-              payment: {
-                id: `card-forecast-${account.id}-${format(occurrence, "yyyy-MM")}`,
-                title: `${isSyncedCharge ? (isRtl ? "חיוב קרוב" : "Upcoming charge") : (isRtl ? "אומדן חיוב" : "Estimated charge")} · ${cardName}${lastFour ? ` ••••${lastFour}` : ""}`,
-                amount: Math.round(amount * 100) / 100,
-                currency: "ILS",
-                category: isRtl ? "כרטיס אשראי" : "Credit card",
-                payment_type: "expense",
-                payment_method: "credit_card_forecast",
-                due_date: format(occurrence, "yyyy-MM-dd"),
-                paid: false,
-                recurring: true,
-                recurring_frequency: "monthly",
-                recurrence_status: isSyncedCharge ? "synced" : "estimated",
-                recurrence_end_date: null,
-                recurrence_source_transaction_id: null,
-                notes: isSyncedCharge
-                  ? (isRtl ? "יתרת חיוב נוכחית שסונכרנה מהכרטיס" : "Current card balance synced from the provider")
-                  : (isRtl ? `אומדן לפי ${Math.max(historicalMonths.length, 1)} חודשים אחרונים` : `Estimate based on ${Math.max(historicalMonths.length, 1)} recent months`),
-                sheet_name: "forecast",
-                archived: false,
-                hidden: false,
-                created_at: new Date().toISOString(),
-              },
-              occurrence: new Date(occurrence),
-            });
-          }
-          occurrence = addForecastInterval(occurrence, "monthly");
-          index += 1;
-        }
-      });
+    const creditCardUpcoming: Array<{ payment: Payment; occurrence: Date }> = csvCardSources.flatMap((card) =>
+      futureStatementCharges(transactions, `csv-card:${card.id}`, format(now, "yyyy-MM-dd"), format(horizonEnd, "yyyy-MM-dd"))
+        .map(({ amount, billingDate }) => ({
+          payment: {
+            id: `card-statement-csv-card:${card.id}-${billingDate}`,
+            title: `${isRtl ? "חיוב מהפירוט" : "Statement charge"} · ${card.display_name || card.provider} ••••${card.card_last_digits || ""}`,
+            amount: Math.round(amount * 100) / 100,
+            currency: "ILS",
+            category: isRtl ? "כרטיס אשראי" : "Credit card",
+            payment_type: "expense" as const,
+            payment_method: "credit_card_statement",
+            due_date: billingDate,
+            paid: false,
+            recurring: false,
+            recurring_frequency: null,
+            recurrence_status: "statement",
+            recurrence_end_date: null,
+            recurrence_source_transaction_id: null,
+            notes: isRtl ? "סכום לפי הפירוט; מועד החיוב אושר בעת הייבוא" : "Amount from the statement; billing date confirmed at import",
+            sheet_name: "forecast",
+            archived: false,
+            hidden: false,
+            created_at: new Date().toISOString(),
+          },
+          occurrence: dateOnly(new Date(`${billingDate}T12:00:00`)),
+        })));
 
     const estimatedSalaryUpcoming: Array<{ payment: Payment; occurrence: Date }> = [];
     if (estimatedSalary) {
@@ -1176,13 +1074,13 @@ const PaymentDashboard = () => {
       estimatedSalary,
       creditCardForecasts: creditCardUpcoming.length,
     };
-  }, [cardBillingDays, dashboardEntries, estimatedSalary, financialAccounts, forecastCardAccounts, isRtl, payments, transactions]);
+  }, [csvCardSources, estimatedSalary, financialAccounts, isRtl, payments, transactions]);
 
   const csvCardForecasts = useMemo(() => csvCardSources.map((card) => ({
     card,
     next: cashFlowForecast.upcoming.find(({ payment }) =>
       payment.id.startsWith(`card-statement-csv-card:${card.id}-`)
-      || payment.id.startsWith(`card-forecast-csv-card:${card.id}-`)),
+    ),
   })), [cashFlowForecast.upcoming, csvCardSources]);
 
   const proactiveFinanceInsights = useMemo(() => {
@@ -1382,6 +1280,9 @@ ${context}
                   {p.source !== "payment_tracking" ? t("importedLabel" as any) : t("plannedLabel" as any)}
                 </Badge>
                 {p.recurring && <Badge variant="outline" className="text-[9px] border-amber-300 text-amber-600">{t("fixedPayment" as any)}{p.recurring_frequency ? ` (${getBudgetPeriodLabel(p.recurring_frequency)})` : ""}</Badge>}
+                {p.recurring && p.source === "payment_tracking" && <Badge variant="outline" className="text-[9px]">{p.recurrence_source_transaction_id
+                  ? (isRtl ? "נשמר מתנועה שסומנה כקבועה" : "Saved from a transaction marked recurring")
+                  : (isRtl ? "תשלום מתוכנן שנשמר" : "Saved planned payment")}</Badge>}
                 {p.recurring && p.recurrence_status === "active" && <Badge className="bg-emerald-600 text-[9px]">{isRtl ? "אושר" : "Confirmed"}</Badge>}
                 {p.recurrence_status === "paused" && <Badge variant="secondary" className="text-[9px]">{isRtl ? "מושהה" : "Paused"}</Badge>}
                 {p.recurrence_end_date && <span className="text-[10px] text-muted-foreground">{isRtl ? "עד" : "Until"} {format(new Date(p.recurrence_end_date), "dd/MM/yy")}</span>}
@@ -1391,6 +1292,7 @@ ${context}
             <span className={`font-bold text-sm whitespace-nowrap ${colorClass}`}>
               {p.payment_type === "income" ? "+" : "-"}₪{p.amount.toLocaleString()}
             </span>
+            {p.source === "payment_tracking" && p.recurring && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void handleToggleRecurring(p)}>{isRtl ? "השהה" : "Pause"}</Button>}
             <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
               if (isEditing) { setEditingEntryId(null); }
               else { setEditingEntryId(p.id); setEditCategory(p.category || ""); setEditSubcategory(p.subcategory || ""); setEditNotes(p.notes || ""); setEditAmount(String(p.amount)); setEditRecurrenceEndDate(p.recurrence_end_date || ""); }
@@ -1500,44 +1402,6 @@ ${context}
                 ₪{cashFlowForecast.projectedBalance.toLocaleString()}
               </div>
             </div>
-            {forecastCardAccounts.length > 0 && (
-              <div className="rounded-2xl border border-sky-200 bg-background/80 p-3">
-                <div className="mb-3">
-                  <p className="text-sm font-semibold">{isRtl ? "ימי חיוב כרטיסים בתחזית" : "Card billing days in forecast"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {isRtl
-                      ? "המערכת מנסה לזהות את היום לפי החיוב בבנק. אם היום שונה, אפשר לקבוע אותו ידנית לכל כרטיס."
-                      : "Tabro infers the day from bank debits. Override it per card when needed."}
-                  </p>
-                </div>
-                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                  {forecastCardAccounts.map((account) => {
-                    const key = cardPreferenceKey(account);
-                    const lastFour = account.masked_number?.match(/\d{4}$/)?.[0];
-                    return (
-                      <label key={key} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 p-2 text-xs">
-                        <span className="min-w-0 truncate font-medium">
-                          {account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card")}
-                          {lastFour ? ` ••••${lastFour}` : ""}
-                        </span>
-                        <Select
-                          value={cardBillingDays[key] ? String(cardBillingDays[key]) : "auto"}
-                          onValueChange={(value) => void saveCardBillingDay(account, value === "auto" ? null : Number(value))}
-                        >
-                          <SelectTrigger className="h-8 w-28 shrink-0"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="auto">{isRtl ? "זיהוי אוטומטי" : "Automatic"}</SelectItem>
-                            {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
-                              <SelectItem key={day} value={String(day)}>{isRtl ? `ב־${day} בחודש` : `Day ${day}`}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "יתרה נזילה כעת" : "Liquid now"}</p><strong>₪{cashFlowForecast.liquidBalance.toLocaleString()}</strong></div>
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הכנסות צפויות ב־90 יום" : "Expected income · 90 days"}</p><strong className="text-emerald-600">+₪{cashFlowForecast.plannedIncome.toLocaleString()}</strong>{cashFlowForecast.estimatedSalary && <small className="mt-1 block text-emerald-700">{isRtl ? `כולל משכורת משוערת לפי ${cashFlowForecast.estimatedSalary.samples} חודשים` : `Includes salary estimate from ${cashFlowForecast.estimatedSalary.samples} months`}</small>}</div>
@@ -1732,6 +1596,9 @@ ${context}
               {t("fixedExpenses" as any)}
               <Badge variant="outline" className="text-[10px]">{recurringExpenseEntries.length} | ₪{recurringExpenseEntries.reduce((s, p) => s + p.amount, 0).toLocaleString()}</Badge>
             </h3>
+            <p className="text-xs text-muted-foreground">{isRtl
+              ? "כאן מוצגים רק תשלומים שנשמרו כקבועים. חיבור כרטיס אינו יוצר אותם אוטומטית; אפשר להשהות רשומה שגויה ישירות מהרשימה."
+              : "Only saved recurring payments appear here. Connecting a card does not create them automatically; you can pause an incorrect entry here."}</p>
             <div className="max-h-[420px] space-y-1 overflow-y-auto pe-1">{recurringExpenseEntries.map(p => renderEntryRow(p, "text-red-600"))}</div>
           </div>
         )}
@@ -2038,6 +1905,42 @@ ${context}
         </TabsContent>
 
         <TabsContent value="credit-cards" className="space-y-4">
+          {forecastCardAccounts.length > 0 && (
+            <Card className="border-sky-200/70 bg-sky-50/40 dark:bg-sky-950/10">
+              <CardContent className="space-y-3 p-4">
+                <div>
+                  <p className="text-sm font-semibold">{isRtl ? "מתי ייפרעו חיובי הכרטיסים?" : "When are your card payments due?"}</p>
+                  <p className="text-xs text-muted-foreground">{isRtl
+                    ? "בחר יום פירעון מוצע לכל כרטיס. יום לבדו לא יוצר חיוב; בעת ייבוא פירוט תאשר תאריך מלא וסכום מהקובץ."
+                    : "Choose a preferred day per card. A day alone creates no charge; confirm the full date and statement amount when importing."}</p>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {forecastCardAccounts.map((account) => {
+                    const key = cardPreferenceKey(account);
+                    const lastFour = account.masked_number?.match(/\d{4}$/)?.[0];
+                    return (
+                      <label key={key} className="flex items-center justify-between gap-3 rounded-xl border bg-background/80 p-2 text-xs">
+                        <span className="min-w-0 truncate font-medium">
+                          {account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card")}
+                          {lastFour ? ` ••••${lastFour}` : ""}
+                        </span>
+                        <Select value={cardBillingDays[key] ? String(cardBillingDays[key]) : "auto"}
+                          onValueChange={(value) => void saveCardBillingDay(account, value === "auto" ? null : Number(value))}>
+                          <SelectTrigger className="h-8 w-28 shrink-0"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">{isRtl ? "ללא יום קבוע" : "No preferred day"}</SelectItem>
+                            {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                              <SelectItem key={day} value={String(day)}>{isRtl ? `ב־${day} בחודש` : `Day ${day}`}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </label>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <BankConnect onChanged={fetchFinanceData} />
           <CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} />
           <div id="credit-card-csv-fallback" className="space-y-4 scroll-mt-6">
@@ -2053,9 +1956,7 @@ ${context}
                         <p className="text-sm font-semibold">{card.display_name || card.provider} · ••••{card.card_last_digits}</p>
                         {next ? (
                           <p className="mt-1 text-sm">
-                            {next.payment.recurrence_status === "statement"
-                              ? (isRtl ? "החיוב הבא לפי הפירוט" : "Next charge from statement")
-                              : (isRtl ? "אומדן חיוב לחודש הבא" : "Estimated next-month charge")}
+                            {isRtl ? "החיוב הבא לפי הפירוט" : "Next charge from statement"}
                             {": "}<strong>₪{next.payment.amount.toLocaleString()}</strong>
                             {" · "}{format(next.occurrence, "dd/MM/yyyy")}
                           </p>
@@ -2068,7 +1969,12 @@ ${context}
                 )}
                 <div className="grid gap-4 md:grid-cols-2">
                   <CreditCardConnect requestedProvider={requestedCsvProvider} />
-                  <CreditCardImport onImported={fetchFinanceData} />
+                  <CreditCardImport onImported={fetchFinanceData} suggestedBillingDayForCard={(card) => {
+                    const matchingAccount = forecastCardAccounts.find((account) =>
+                      cardIssuerKey(account.provider_name) === cardIssuerKey(card.provider)
+                      && account.masked_number?.endsWith(card.card_last_digits || "----"));
+                    return cardBillingDays[matchingAccount ? cardPreferenceKey(matchingAccount) : `${card.provider}:csv-card:${card.id}`];
+                  }} />
                 </div>
               </div>
             )}
