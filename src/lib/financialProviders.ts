@@ -178,7 +178,9 @@ const genericBankProvider: FinancialProvider = {
     const descIdx = headers.findIndex(h => h.includes("תיאור") || h.includes("פעולה") || h.includes("אסמכתא"));
     const debitIdx = headers.findIndex(h => h.includes("חובה") || h.includes("הוצאה"));
     const creditIdx = headers.findIndex(h => h.includes("זכות") || h.includes("הכנסה"));
-    const amtIdx = headers.findIndex(h => h.includes("סכום"));
+    const billedIdx = ilsBillingAmountIndex(headers);
+    const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => h.includes("סכום"));
+    const currIdx = headers.findIndex(h => /מטבע|currency/i.test(h));
 
     return rows.map(row => {
       const debit = debitIdx >= 0 ? parseAmount(row[debitIdx] || "0") : 0;
@@ -189,7 +191,7 @@ const genericBankProvider: FinancialProvider = {
       return {
         transaction_date: parseDate(row[dateIdx] || ""),
         amount: Math.abs(amount || debit || credit),
-        currency: "ILS",
+        currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
         direction: direction as "income" | "expense",
         description: row[descIdx >= 0 ? descIdx : 1]?.trim() || "",
         merchant: row[descIdx >= 0 ? descIdx : 1]?.trim(),
@@ -210,10 +212,12 @@ const customCsvProvider: FinancialProvider = {
   parse: (rows, headers) => {
     const dateIdx = headers.findIndex(h => /date|תאריך/i.test(h));
     const descIdx = headers.findIndex(h => /desc|תיאור|description|name|שם/i.test(h));
-    const amtIdx = headers.findIndex(h => /amount|סכום|sum/i.test(h));
+    const billedIdx = ilsBillingAmountIndex(headers);
+    const amtIdx = billedIdx >= 0 ? billedIdx : headers.findIndex(h => /amount|סכום|sum/i.test(h));
     const dirIdx = headers.findIndex(h => /type|סוג|direction/i.test(h));
     const debitIdx = headers.findIndex(h => /debit|חובה|הוצאה|charge|חיוב/i.test(h));
     const creditIdx = headers.findIndex(h => /credit|זכות|הכנסה/i.test(h));
+    const currIdx = headers.findIndex(h => /מטבע|currency/i.test(h));
 
     return rows.map(row => {
       const dirVal = dirIdx >= 0 ? row[dirIdx]?.toLowerCase() : "";
@@ -241,7 +245,7 @@ const customCsvProvider: FinancialProvider = {
       return {
         transaction_date: parseDate(row[dateIdx >= 0 ? dateIdx : 0] || ""),
         amount,
-        currency: "ILS",
+        currency: billedIdx >= 0 ? "ILS" : row[currIdx]?.trim() || "ILS",
         direction,
         description: row[descIdx >= 0 ? descIdx : 1]?.trim() || "",
         category: autoCategorize(row[descIdx >= 0 ? descIdx : 1] || ""),

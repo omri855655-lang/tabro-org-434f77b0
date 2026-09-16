@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { detectProvider, parseCSV, parseFinancialDate } from "../src/lib/financialProviders.ts";
+import { detectProvider, financialProviders, parseCSV, parseFinancialDate } from "../src/lib/financialProviders.ts";
 import { cardLastFour, futureStatementCharges, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementRows } from "../src/lib/cardStatement.ts";
 
 test("CSV parser preserves quoted commas, escaped quotes and multiline descriptions", () => {
@@ -60,6 +60,20 @@ test("CAL and MAX use an explicit ILS bill rather than the foreign transaction a
     const withoutBillHeaders = headers.slice(0, -1);
     assert.equal(statementRows(provider.parse(rows.map((row) => row.slice(0, -1)), withoutBillHeaders)).length, 0);
   }
+});
+
+test("generic and custom statements do not label foreign amounts as ILS", () => {
+  const genericHeaders = ["תאריך", "תיאור", "סכום עסקה", "מטבע עסקה", "סכום חיוב בש״ח"];
+  const genericRows = [["16/09/2026", "shop", "30", "USD", "112.50"]];
+  const generic = detectProvider(genericHeaders, genericRows);
+  assert.equal(generic.id, "generic_bank");
+  assert.equal(statementRows(generic.parse(genericRows, genericHeaders))[0].amount, 112.5);
+  assert.equal(statementRows(generic.parse(genericRows.map((row) => row.slice(0, -1)), genericHeaders.slice(0, -1))).length, 0);
+
+  const custom = financialProviders.find((provider) => provider.id === "custom");
+  const customHeaders = ["date", "description", "amount", "currency"];
+  const customRows = [["2026-09-16", "shop", "30", "USD"]];
+  assert.equal(statementRows(custom.parse(customRows, customHeaders)).length, 0);
 });
 
 test("card selection excludes another card and separates unidentified rows", () => {
