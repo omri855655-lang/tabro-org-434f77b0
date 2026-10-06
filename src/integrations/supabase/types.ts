@@ -1957,6 +1957,99 @@ export type Database = {
         }
         Relationships: []
       }
+      task_intake_links: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          owner_id: string
+          sheet_name: string
+          task_type: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id: string
+          sheet_name?: string
+          task_type: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id?: string
+          sheet_name?: string
+          task_type?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      task_intake_submissions: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          details: string | null
+          id: string
+          link_id: string
+          owner_id: string
+          requester_email: string
+          requester_name: string
+          requester_phone: string | null
+          task_id: string | null
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          link_id: string
+          owner_id: string
+          requester_email: string
+          requester_name: string
+          requester_phone?: string | null
+          task_id?: string | null
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          link_id?: string
+          owner_id?: string
+          requester_email?: string
+          requester_name?: string
+          requester_phone?: string | null
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_intake_submissions_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "task_intake_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_intake_submissions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_sheet_collaborators: {
         Row: {
           created_at: string
@@ -2215,9 +2308,21 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_or_create_task_intake_link: {
+        Args: { p_sheet_name: string; p_task_type: string }
+        Returns: string
+      }
       get_project_role: {
         Args: { _project_id: string; _user_id: string }
         Returns: string
+      }
+      get_public_task_intake: {
+        Args: { p_token: string }
+        Returns: {
+          owner_display_name: string
+          sheet_name: string
+          task_type: string
+        }[]
       }
       has_role: {
         Args: {
@@ -2260,6 +2365,26 @@ export type Database = {
         }[]
       }
       set_pin: { Args: { input_pin: string }; Returns: undefined }
+      submit_public_task_intake: {
+        Args: {
+          p_category: string
+          p_company_website?: string
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_description: string
+          p_details: string
+          p_planned_end: string
+          p_progress: string
+          p_requester_email: string
+          p_requester_name: string
+          p_requester_phone: string
+          p_responsible: string
+          p_token: string
+          p_urgent: boolean
+        }
+        Returns: string
+      }
       verify_pin: { Args: { input_pin: string }; Returns: boolean }
     }
     Enums: {
