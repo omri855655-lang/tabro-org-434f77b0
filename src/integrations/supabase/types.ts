@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -104,11 +104,50 @@ export type Database = {
         }
         Relationships: []
       }
+      book_chapter_summaries: {
+        Row: {
+          book_id: string
+          chapter_title: string | null
+          created_at: string
+          id: string
+          sort_order: number
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          chapter_title?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          chapter_title?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_chapter_summaries_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       books: {
         Row: {
           author: string | null
           created_at: string
           id: string
+          long_summary: string | null
           notes: string | null
           status: string | null
           status_changed_at: string | null
@@ -120,6 +159,7 @@ export type Database = {
           author?: string | null
           created_at?: string
           id?: string
+          long_summary?: string | null
           notes?: string | null
           status?: string | null
           status_changed_at?: string | null
@@ -131,6 +171,7 @@ export type Database = {
           author?: string | null
           created_at?: string
           id?: string
+          long_summary?: string | null
           notes?: string | null
           status?: string | null
           status_changed_at?: string | null
@@ -816,7 +857,7 @@ export type Database = {
         }
         Insert: {
           archived?: boolean
-          asset_type?: string
+          asset_type: string
           balance?: number
           created_at?: string
           currency?: string
@@ -839,6 +880,57 @@ export type Database = {
           label?: string
           notes?: string | null
           provider_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      financial_accounts: {
+        Row: {
+          account_type: string | null
+          available_balance: number | null
+          created_at: string
+          currency: string | null
+          current_balance: number | null
+          display_name: string | null
+          external_account_id: string | null
+          id: string
+          last_synced_at: string | null
+          masked_number: string | null
+          provider_name: string | null
+          raw_data: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type?: string | null
+          available_balance?: number | null
+          created_at?: string
+          currency?: string | null
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_synced_at?: string | null
+          masked_number?: string | null
+          provider_name?: string | null
+          raw_data?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string | null
+          available_balance?: number | null
+          created_at?: string
+          currency?: string | null
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_synced_at?: string | null
+          masked_number?: string | null
+          provider_name?: string | null
+          raw_data?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -1160,9 +1252,6 @@ export type Database = {
           payment_type: string
           recurring: boolean
           recurring_frequency: string | null
-          recurrence_end_date: string | null
-          recurrence_source_transaction_id: string | null
-          recurrence_status: string
           sheet_name: string
           title: string
           updated_at: string
@@ -1186,9 +1275,6 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
-          recurrence_end_date?: string | null
-          recurrence_source_transaction_id?: string | null
-          recurrence_status?: string
           sheet_name?: string
           title: string
           updated_at?: string
@@ -1212,9 +1298,6 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
-          recurrence_end_date?: string | null
-          recurrence_source_transaction_id?: string | null
-          recurrence_status?: string
           sheet_name?: string
           title?: string
           updated_at?: string
@@ -1688,6 +1771,41 @@ export type Database = {
           },
         ]
       }
+      recurring_task_skips: {
+        Row: {
+          created_at: string
+          id: string
+          recurring_task_id: string
+          skipped_at: string
+          skipped_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          recurring_task_id: string
+          skipped_at?: string
+          skipped_date: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          recurring_task_id?: string
+          skipped_at?: string
+          skipped_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_task_skips_recurring_task_id_fkey"
+            columns: ["recurring_task_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_tasks: {
         Row: {
           created_at: string
@@ -1942,6 +2060,50 @@ export type Database = {
         }
         Relationships: []
       }
+      show_episode_notes: {
+        Row: {
+          created_at: string
+          episode_number: number | null
+          episode_title: string | null
+          id: string
+          season_number: number | null
+          show_id: string
+          sort_order: number
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          episode_number?: number | null
+          episode_title?: string | null
+          id?: string
+          season_number?: number | null
+          show_id: string
+          sort_order?: number
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          episode_number?: number | null
+          episode_title?: string | null
+          id?: string
+          season_number?: number | null
+          show_id?: string
+          sort_order?: number
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "show_episode_notes_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shows: {
         Row: {
           air_date: string | null
@@ -2013,6 +2175,146 @@ export type Database = {
           reason?: string
         }
         Relationships: []
+      }
+      task_edit_history: {
+        Row: {
+          action_type: string
+          changed_count: number
+          changed_fields: Json | null
+          created_at: string
+          edited_by_email: string | null
+          edited_by_name: string | null
+          edited_by_username: string | null
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          action_type?: string
+          changed_count?: number
+          changed_fields?: Json | null
+          created_at?: string
+          edited_by_email?: string | null
+          edited_by_name?: string | null
+          edited_by_username?: string | null
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          changed_count?: number
+          changed_fields?: Json | null
+          created_at?: string
+          edited_by_email?: string | null
+          edited_by_name?: string | null
+          edited_by_username?: string | null
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_edit_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_intake_links: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          owner_id: string
+          sheet_name: string
+          task_type: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id: string
+          sheet_name?: string
+          task_type: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id?: string
+          sheet_name?: string
+          task_type?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      task_intake_submissions: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          details: string | null
+          id: string
+          link_id: string
+          owner_id: string
+          requester_email: string
+          requester_name: string
+          requester_phone: string | null
+          task_id: string | null
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          link_id: string
+          owner_id: string
+          requester_email: string
+          requester_name: string
+          requester_phone?: string | null
+          task_id?: string | null
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          link_id?: string
+          owner_id?: string
+          requester_email?: string
+          requester_name?: string
+          requester_phone?: string | null
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_intake_submissions_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "task_intake_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_intake_submissions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_sheet_collaborators: {
         Row: {
@@ -2273,18 +2575,6 @@ export type Database = {
         Args: { _sheet_id: string; _user_id: string }
         Returns: boolean
       }
-      get_or_create_task_intake_link: {
-        Args: { p_sheet_name: string; p_task_type: string }
-        Returns: string
-      }
-      get_public_task_intake: {
-        Args: { p_token: string }
-        Returns: {
-          owner_display_name: string
-          sheet_name: string
-          task_type: string
-        }[]
-      }
       can_manage_project_members: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -2298,9 +2588,21 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_or_create_task_intake_link: {
+        Args: { p_sheet_name: string; p_task_type: string }
+        Returns: string
+      }
       get_project_role: {
         Args: { _project_id: string; _user_id: string }
         Returns: string
+      }
+      get_public_task_intake: {
+        Args: { p_token: string }
+        Returns: {
+          owner_display_name: string
+          sheet_name: string
+          task_type: string
+        }[]
       }
       has_role: {
         Args: {
@@ -2345,19 +2647,19 @@ export type Database = {
       set_pin: { Args: { input_pin: string }; Returns: undefined }
       submit_public_task_intake: {
         Args: {
-          p_category: string | null
-          p_company_website?: string | null
-          p_contact_email: string | null
-          p_contact_name: string | null
-          p_contact_phone: string | null
+          p_category: string
+          p_company_website?: string
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
           p_description: string
-          p_details: string | null
-          p_planned_end: string | null
-          p_progress: string | null
+          p_details: string
+          p_planned_end: string
+          p_progress: string
           p_requester_email: string
           p_requester_name: string
-          p_requester_phone: string | null
-          p_responsible: string | null
+          p_requester_phone: string
+          p_responsible: string
           p_token: string
           p_urgent: boolean
         }
@@ -2382,12 +2684,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2411,11 +2713,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2436,11 +2738,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2461,11 +2763,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2478,11 +2780,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

@@ -130,7 +130,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   const currentLanguage = fieldLabels.username[lang] ? lang : "en";
 
   const invoke = useCallback(
-    (action: string, payload: Record<string, unknown> = {}) => invokeFinanceBackend(action, payload),
+    <T = any>(action: string, payload: Record<string, unknown> = {}) => invokeFinanceBackend<T>(action, payload),
     [],
   );
 

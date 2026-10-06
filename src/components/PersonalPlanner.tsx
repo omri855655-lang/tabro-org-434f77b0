@@ -95,6 +95,8 @@ const buildSyntheticTask = (id: string, title: string, category: string, created
   plannedEnd: "",
   overdue: false,
   urgent: false,
+  parentTaskId: "",
+  textColor: "",
   sheetName: String(new Date().getFullYear()),
   archived: false,
   creatorEmail: "",

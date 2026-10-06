@@ -40,7 +40,8 @@ export function statementBillingDate(preamble: string[], parsed: ParsedTransacti
   const [, day, month, explicitYear] = match;
   const filePeriod = fileName.match(/^\d{4}[_-](\d{1,2})[_-](20\d{2})\./);
   const filePeriodMatches = Boolean(filePeriod && Number(filePeriod[1]) === Number(month));
-  const latestTransaction = parsed.map((row) => parseFinancialDate(row.transaction_date)).filter(Boolean).sort().at(-1);
+  const sortedTransactions = parsed.map((row) => parseFinancialDate(row.transaction_date)).filter(Boolean).sort();
+  const latestTransaction = sortedTransactions[sortedTransactions.length - 1];
   let year = explicitYear
     ? Number(explicitYear.length === 2 ? `20${explicitYear}` : explicitYear)
     : filePeriodMatches

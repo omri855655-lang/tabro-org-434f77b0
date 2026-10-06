@@ -1181,7 +1181,7 @@ const TabroAiAgent = () => {
                     הוסף משימה
                   </button>
                 </div>
-                <Button onClick={sendMessage} disabled={loading || !input.trim()} className="shrink-0">
+                <Button onClick={() => void sendMessage()} disabled={loading || !input.trim()} className="shrink-0">
                   <Send className="ml-2 h-4 w-4" />
                   שלח
                 </Button>

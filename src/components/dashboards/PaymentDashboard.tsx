@@ -119,6 +119,7 @@ interface DashboardEntry {
   notes: string | null;
   sheet_name: string;
   archived: boolean;
+  hidden?: boolean;
   created_at: string;
 }
 

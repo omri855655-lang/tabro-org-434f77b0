@@ -483,7 +483,7 @@ const collapseMasterNumber = (value: number, keepMasterNumbers: boolean) => {
 };
 
 const getLifePathNumber = (birthDate: string) => {
-  const digits = birthDate.replaceAll("-", "").split("").map(Number);
+  const digits = birthDate.replace(/-/g, "").split("").map(Number);
   return reduceNumber(digits.reduce((sum, digit) => sum + digit, 0));
 };
 
