@@ -82,7 +82,7 @@ const getStoredRooms = (): Room[] => {
   const stored = safeLocalStorage.getJSON<unknown>("zoneflow-together-rooms", INITIAL_ROOMS);
   if (!Array.isArray(stored)) return INITIAL_ROOMS;
   const rooms = stored.filter((room): room is Partial<Room> & Pick<Room, "id" | "name"> => Boolean(room) && typeof room === "object" && typeof (room as Room).id === "string" && typeof (room as Room).name === "string")
-    .map((room) => ({
+    .map((room): Room => ({
       id: room.id,
       name: room.name,
       topic: typeof room.topic === "string" ? room.topic : "Focus",
