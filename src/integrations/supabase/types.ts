@@ -104,11 +104,50 @@ export type Database = {
         }
         Relationships: []
       }
+      book_chapter_summaries: {
+        Row: {
+          book_id: string
+          chapter_title: string | null
+          created_at: string
+          id: string
+          sort_order: number
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          chapter_title?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          chapter_title?: string | null
+          created_at?: string
+          id?: string
+          sort_order?: number
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_chapter_summaries_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       books: {
         Row: {
           author: string | null
           created_at: string
           id: string
+          long_summary: string | null
           notes: string | null
           status: string | null
           status_changed_at: string | null
@@ -120,6 +159,7 @@ export type Database = {
           author?: string | null
           created_at?: string
           id?: string
+          long_summary?: string | null
           notes?: string | null
           status?: string | null
           status_changed_at?: string | null
@@ -131,6 +171,7 @@ export type Database = {
           author?: string | null
           created_at?: string
           id?: string
+          long_summary?: string | null
           notes?: string | null
           status?: string | null
           status_changed_at?: string | null
@@ -799,6 +840,57 @@ export type Database = {
           },
         ]
       }
+      financial_accounts: {
+        Row: {
+          account_type: string | null
+          available_balance: number | null
+          created_at: string
+          currency: string | null
+          current_balance: number | null
+          display_name: string | null
+          external_account_id: string | null
+          id: string
+          last_synced_at: string | null
+          masked_number: string | null
+          provider_name: string | null
+          raw_data: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type?: string | null
+          available_balance?: number | null
+          created_at?: string
+          currency?: string | null
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_synced_at?: string | null
+          masked_number?: string | null
+          provider_name?: string | null
+          raw_data?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string | null
+          available_balance?: number | null
+          created_at?: string
+          currency?: string | null
+          current_balance?: number | null
+          display_name?: string | null
+          external_account_id?: string | null
+          id?: string
+          last_synced_at?: string | null
+          masked_number?: string | null
+          provider_name?: string | null
+          raw_data?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       financial_sync_logs: {
         Row: {
           connection_id: string | null
@@ -848,6 +940,7 @@ export type Database = {
           description: string | null
           direction: string
           external_transaction_id: string | null
+          hidden: boolean
           id: string
           installment_number: number | null
           installment_total: number | null
@@ -872,6 +965,7 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
+          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -896,6 +990,7 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
+          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -1631,6 +1726,38 @@ export type Database = {
           },
         ]
       }
+      recurring_task_skips: {
+        Row: {
+          created_at: string
+          id: string
+          recurring_task_id: string
+          skipped_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          recurring_task_id: string
+          skipped_date: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          recurring_task_id?: string
+          skipped_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_task_skips_recurring_task_id_fkey"
+            columns: ["recurring_task_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_tasks: {
         Row: {
           created_at: string
@@ -1885,6 +2012,50 @@ export type Database = {
         }
         Relationships: []
       }
+      show_episode_notes: {
+        Row: {
+          created_at: string
+          episode_number: number | null
+          episode_title: string | null
+          id: string
+          season_number: number | null
+          show_id: string
+          sort_order: number
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          episode_number?: number | null
+          episode_title?: string | null
+          id?: string
+          season_number?: number | null
+          show_id: string
+          sort_order?: number
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          episode_number?: number | null
+          episode_title?: string | null
+          id?: string
+          season_number?: number | null
+          show_id?: string
+          sort_order?: number
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "show_episode_notes_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shows: {
         Row: {
           air_date: string | null
@@ -1956,6 +2127,53 @@ export type Database = {
           reason?: string
         }
         Relationships: []
+      }
+      task_edit_history: {
+        Row: {
+          action_type: string
+          changed_count: number
+          changed_fields: Json | null
+          created_at: string
+          edited_by_email: string | null
+          edited_by_name: string | null
+          edited_by_username: string | null
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          action_type?: string
+          changed_count?: number
+          changed_fields?: Json | null
+          created_at?: string
+          edited_by_email?: string | null
+          edited_by_name?: string | null
+          edited_by_username?: string | null
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          changed_count?: number
+          changed_fields?: Json | null
+          created_at?: string
+          edited_by_email?: string | null
+          edited_by_name?: string | null
+          edited_by_username?: string | null
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_edit_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_intake_links: {
         Row: {
@@ -2137,6 +2355,7 @@ export type Database = {
           last_editor_user_id: string | null
           last_editor_username: string | null
           overdue: boolean | null
+          parent_task_id: string | null
           planned_end: string | null
           progress: string | null
           responsible: string | null
@@ -2144,6 +2363,7 @@ export type Database = {
           status: string | null
           status_notes: string | null
           task_type: string
+          text_color: string | null
           updated_at: string
           urgent: boolean | null
           user_id: string
@@ -2163,6 +2383,7 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
+          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2170,6 +2391,7 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
+          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id: string
@@ -2189,6 +2411,7 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
+          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2196,11 +2419,20 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
+          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       telegram_users: {
         Row: {

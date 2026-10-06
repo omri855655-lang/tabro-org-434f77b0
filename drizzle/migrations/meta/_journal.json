@@ -8,6 +8,13 @@
       "when": 1791277529146,
       "tag": "0000_public_task_intake_links",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791277617312,
+      "tag": "0001_add_missing_app_tables_and_columns",
+      "breakpoints": true
     }
   ]
 }
