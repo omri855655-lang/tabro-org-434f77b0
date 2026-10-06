@@ -141,7 +141,7 @@ const AiDailyPlanner = () => {
   useEffect(() => {
     if (open && currentConversation) {
       setMessages(currentConversation.messages);
-      setAllTasks(currentConversation.tasks_snapshot);
+      setAllTasks(currentConversation.tasks_snapshot as PlannerTask[]);
       setSelectedConversationId(currentConversation.id);
     }
   }, [open, currentConversation]);
@@ -477,7 +477,7 @@ ${taskSummary}
     const todayConv = await loadTodayConversation();
     if (todayConv) {
       setMessages(todayConv.messages);
-      setAllTasks(todayConv.tasks_snapshot);
+      setAllTasks(todayConv.tasks_snapshot as PlannerTask[]);
       setSelectedConversationId(todayConv.id);
     } else if (mode === 'daily_plan') {
       generateDailyPlan();
