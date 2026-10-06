@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -799,51 +799,6 @@ export type Database = {
           },
         ]
       }
-      finance_club_assets: {
-        Row: {
-          archived: boolean
-          asset_type: string
-          balance: number
-          created_at: string
-          currency: string
-          expiry_date: string | null
-          id: string
-          label: string
-          notes: string | null
-          provider_name: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          archived?: boolean
-          asset_type?: string
-          balance?: number
-          created_at?: string
-          currency?: string
-          expiry_date?: string | null
-          id?: string
-          label: string
-          notes?: string | null
-          provider_name: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          archived?: boolean
-          asset_type?: string
-          balance?: number
-          created_at?: string
-          currency?: string
-          expiry_date?: string | null
-          id?: string
-          label?: string
-          notes?: string | null
-          provider_name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       financial_sync_logs: {
         Row: {
           connection_id: string | null
@@ -893,7 +848,6 @@ export type Database = {
           description: string | null
           direction: string
           external_transaction_id: string | null
-          hidden: boolean
           id: string
           installment_number: number | null
           installment_total: number | null
@@ -918,7 +872,6 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
-          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -943,7 +896,6 @@ export type Database = {
           description?: string | null
           direction?: string
           external_transaction_id?: string | null
-          hidden?: boolean
           id?: string
           installment_number?: number | null
           installment_total?: number | null
@@ -1160,9 +1112,6 @@ export type Database = {
           payment_type: string
           recurring: boolean
           recurring_frequency: string | null
-          recurrence_end_date: string | null
-          recurrence_source_transaction_id: string | null
-          recurrence_status: string
           sheet_name: string
           title: string
           updated_at: string
@@ -1186,9 +1135,6 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
-          recurrence_end_date?: string | null
-          recurrence_source_transaction_id?: string | null
-          recurrence_status?: string
           sheet_name?: string
           title: string
           updated_at?: string
@@ -1212,9 +1158,6 @@ export type Database = {
           payment_type?: string
           recurring?: boolean
           recurring_frequency?: string | null
-          recurrence_end_date?: string | null
-          recurrence_source_transaction_id?: string | null
-          recurrence_status?: string
           sheet_name?: string
           title?: string
           updated_at?: string
@@ -2101,7 +2044,6 @@ export type Database = {
           last_editor_user_id: string | null
           last_editor_username: string | null
           overdue: boolean | null
-          parent_task_id: string | null
           planned_end: string | null
           progress: string | null
           responsible: string | null
@@ -2109,7 +2051,6 @@ export type Database = {
           status: string | null
           status_notes: string | null
           task_type: string
-          text_color: string | null
           updated_at: string
           urgent: boolean | null
           user_id: string
@@ -2129,7 +2070,6 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
-          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2137,7 +2077,6 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
-          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id: string
@@ -2157,7 +2096,6 @@ export type Database = {
           last_editor_user_id?: string | null
           last_editor_username?: string | null
           overdue?: boolean | null
-          parent_task_id?: string | null
           planned_end?: string | null
           progress?: string | null
           responsible?: string | null
@@ -2165,20 +2103,11 @@ export type Database = {
           status?: string | null
           status_notes?: string | null
           task_type?: string
-          text_color?: string | null
           updated_at?: string
           urgent?: boolean | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "tasks_parent_task_id_fkey"
-            columns: ["parent_task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       telegram_users: {
         Row: {
@@ -2273,18 +2202,6 @@ export type Database = {
         Args: { _sheet_id: string; _user_id: string }
         Returns: boolean
       }
-      get_or_create_task_intake_link: {
-        Args: { p_sheet_name: string; p_task_type: string }
-        Returns: string
-      }
-      get_public_task_intake: {
-        Args: { p_token: string }
-        Returns: {
-          owner_display_name: string
-          sheet_name: string
-          task_type: string
-        }[]
-      }
       can_manage_project_members: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -2343,26 +2260,6 @@ export type Database = {
         }[]
       }
       set_pin: { Args: { input_pin: string }; Returns: undefined }
-      submit_public_task_intake: {
-        Args: {
-          p_category: string | null
-          p_company_website?: string | null
-          p_contact_email: string | null
-          p_contact_name: string | null
-          p_contact_phone: string | null
-          p_description: string
-          p_details: string | null
-          p_planned_end: string | null
-          p_progress: string | null
-          p_requester_email: string
-          p_requester_name: string
-          p_requester_phone: string | null
-          p_responsible: string | null
-          p_token: string
-          p_urgent: boolean
-        }
-        Returns: string
-      }
       verify_pin: { Args: { input_pin: string }; Returns: boolean }
     }
     Enums: {
@@ -2382,12 +2279,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2411,11 +2308,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2436,11 +2333,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2461,11 +2358,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2478,11 +2375,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
