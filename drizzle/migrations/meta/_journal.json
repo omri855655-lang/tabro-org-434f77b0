@@ -15,6 +15,13 @@
       "when": 1791277617312,
       "tag": "0001_add_missing_app_tables_and_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791277645185,
+      "tag": "0002_add_finance_club_assets_and_skip_timestamp",
+      "breakpoints": true
     }
   ]
 }

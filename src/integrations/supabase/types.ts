@@ -840,6 +840,51 @@ export type Database = {
           },
         ]
       }
+      finance_club_assets: {
+        Row: {
+          archived: boolean
+          asset_type: string
+          balance: number
+          created_at: string
+          currency: string
+          expiry_date: string | null
+          id: string
+          label: string
+          notes: string | null
+          provider_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          asset_type: string
+          balance?: number
+          created_at?: string
+          currency?: string
+          expiry_date?: string | null
+          id?: string
+          label: string
+          notes?: string | null
+          provider_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          asset_type?: string
+          balance?: number
+          created_at?: string
+          currency?: string
+          expiry_date?: string | null
+          id?: string
+          label?: string
+          notes?: string | null
+          provider_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       financial_accounts: {
         Row: {
           account_type: string | null
@@ -1731,6 +1776,7 @@ export type Database = {
           created_at: string
           id: string
           recurring_task_id: string
+          skipped_at: string
           skipped_date: string
           user_id: string
         }
@@ -1738,6 +1784,7 @@ export type Database = {
           created_at?: string
           id?: string
           recurring_task_id: string
+          skipped_at?: string
           skipped_date: string
           user_id: string
         }
@@ -1745,6 +1792,7 @@ export type Database = {
           created_at?: string
           id?: string
           recurring_task_id?: string
+          skipped_at?: string
           skipped_date?: string
           user_id?: string
         }
