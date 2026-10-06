@@ -7,11 +7,12 @@ import test from "node:test";
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const bundle = await readFile(path.join(root, "node_modules/@sergienko4/israeli-bank-scrapers/lib/index.mjs"), "utf8");
 
-test("Discount and Visa Cal start directly at their official login applications", () => {
+test("American Express, Discount and Visa Cal start directly at their official login applications", () => {
   assert.match(bundle, /\["discount" \/\* Discount \*\/\]: defineBank\("https:\/\/start\.telebank\.co\.il\/login\/"/);
   assert.match(bundle, /var DISCOUNT_LOGIN = \{\s+loginUrl: "https:\/\/start\.telebank\.co\.il\/login\/"/);
   assert.match(bundle, /\["visaCal" \/\* VisaCal \*\/\]: calConfig\("https:\/\/digital-web\.cal-online\.co\.il\/"/);
-  assert.match(bundle, /!\["visaCal", "discount"\]\.includes\(state\.options\.companyId\)/);
+  assert.match(bundle, /var AMEX_LOGIN = \{\s+loginUrl: "https:\/\/he\.americanexpress\.co\.il\/personalarea\/login\/"/);
+  assert.match(bundle, /!\["visaCal", "discount", "amex"\]\.includes\(state\.options\.companyId\)/);
 });
 
 test("unaffected providers keep their own login configuration", () => {

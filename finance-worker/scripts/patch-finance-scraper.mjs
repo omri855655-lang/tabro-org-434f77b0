@@ -12,7 +12,7 @@ const packageJsonPath = path.join(
 );
 const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
 
-if (packageJson.version !== "8.7.1") {
+if (packageJson.version !== "8.7.4") {
   throw new Error(`Unsupported israeli-bank-scrapers version: ${packageJson.version}`);
 }
 
@@ -47,8 +47,9 @@ replaceOnce(
   [
     '{ factory: makeHome, enabled: ifBrowser },',
     '{ factory: makeHome, enabled: (state) => state.hasBrowser && state.options.companyId !== "visaCal" },',
+    '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount"].includes(state.options.companyId) },',
   ],
-  '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount"].includes(state.options.companyId) },',
+  '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount", "amex"].includes(state.options.companyId) },',
   "direct login home-phase override",
 );
 replaceOnce(
@@ -70,6 +71,11 @@ replaceOnce(
   'var DISCOUNT_LOGIN = {\n  loginUrl: "https://www.discountbank.co.il",',
   'var DISCOUNT_LOGIN = {\n  loginUrl: "https://start.telebank.co.il/login/",',
   "Discount login URL",
+);
+replaceOnce(
+  'var AMEX_LOGIN = {\n  loginUrl: "",',
+  'var AMEX_LOGIN = {\n  loginUrl: "https://he.americanexpress.co.il/personalarea/login/",',
+  "American Express direct login URL",
 );
 
 if (patchedSource !== source) {

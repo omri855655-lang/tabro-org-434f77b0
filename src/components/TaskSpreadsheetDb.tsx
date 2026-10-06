@@ -32,6 +32,7 @@ import YearSelector from "@/components/YearSelector";
 import TaskTabs from "@/components/TaskTabs";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import SheetSharingDialog from "@/components/SheetSharingDialog";
+import PublicTaskIntakeLink from "@/components/PublicTaskIntakeLink";
 import FileImport from "@/components/FileImport";
 import ItemDetailDialog from "@/components/ItemDetailDialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -1185,34 +1186,37 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             />
           </div>
           {!readOnly && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                const sheetToShare = selectedSheet ?? MAIN_SHEET_NAME;
-                if (!user) return;
+            <div className="flex shrink-0 items-center gap-2">
+              <PublicTaskIntakeLink taskType={taskType} sheetName={selectedSheet ?? MAIN_SHEET_NAME} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const sheetToShare = selectedSheet ?? MAIN_SHEET_NAME;
+                  if (!user) return;
 
-                const { error } = await supabase.from("task_sheets").upsert(
-                  {
-                    user_id: user.id,
-                    task_type: taskType,
-                    sheet_name: sheetToShare,
-                  },
-                  { onConflict: "user_id,task_type,sheet_name" }
-                );
+                  const { error } = await supabase.from("task_sheets").upsert(
+                    {
+                      user_id: user.id,
+                      task_type: taskType,
+                      sheet_name: sheetToShare,
+                    },
+                    { onConflict: "user_id,task_type,sheet_name" }
+                  );
 
-                if (error) {
-                  toast.error("שגיאה בפתיחת שיתוף הגליון");
-                  return;
-                }
+                  if (error) {
+                    toast.error("שגיאה בפתיחת שיתוף הגליון");
+                    return;
+                  }
 
-                setSharingDialogOpen(true);
-              }}
-              className="gap-1 ml-2 mr-2 shrink-0"
-            >
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">שתף</span>
-            </Button>
+                  setSharingDialogOpen(true);
+                }}
+                className="gap-1 ml-2 shrink-0"
+              >
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline">שתף</span>
+              </Button>
+            </div>
           )}
         </div>
       )}

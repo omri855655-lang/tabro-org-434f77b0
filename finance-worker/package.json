@@ -12,14 +12,17 @@
     "postinstall": "node scripts/patch-finance-scraper.mjs"
   },
   "dependencies": {
-    "@sergienko4/israeli-bank-scrapers": "8.7.1",
+    "@sergienko4/israeli-bank-scrapers": "8.7.4",
     "@supabase/supabase-js": "^2.89.0",
     "express": "^5.1.0",
     "playwright-core": "1.63.0"
   },
   "overrides": {
     "adm-zip": "0.6.1",
+    "brace-expansion": "5.0.12",
     "js-yaml": "4.3.2",
+    "moment": "2.31.0",
+    "proxy-addr": "2.0.8",
     "qs": "6.16.0"
   }
 }

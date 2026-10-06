@@ -22,6 +22,7 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Accessibility from "./pages/Accessibility";
 import AgentWidget from "./pages/AgentWidget";
+import PublicTaskRequest from "./pages/PublicTaskRequest";
 
 const queryClient = new QueryClient();
 
@@ -82,6 +83,7 @@ const AppContent = () => {
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/accessibility" element={<Accessibility />} />
+        <Route path="/task-request/:token" element={<PublicTaskRequest />} />
         <Route
           path="/agent"
           element={

@@ -2273,6 +2273,18 @@ export type Database = {
         Args: { _sheet_id: string; _user_id: string }
         Returns: boolean
       }
+      get_or_create_task_intake_link: {
+        Args: { p_sheet_name: string; p_task_type: string }
+        Returns: string
+      }
+      get_public_task_intake: {
+        Args: { p_token: string }
+        Returns: {
+          owner_display_name: string
+          sheet_name: string
+          task_type: string
+        }[]
+      }
       can_manage_project_members: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -2331,6 +2343,26 @@ export type Database = {
         }[]
       }
       set_pin: { Args: { input_pin: string }; Returns: undefined }
+      submit_public_task_intake: {
+        Args: {
+          p_category: string | null
+          p_company_website?: string | null
+          p_contact_email: string | null
+          p_contact_name: string | null
+          p_contact_phone: string | null
+          p_description: string
+          p_details: string | null
+          p_planned_end: string | null
+          p_progress: string | null
+          p_requester_email: string
+          p_requester_name: string
+          p_requester_phone: string | null
+          p_responsible: string | null
+          p_token: string
+          p_urgent: boolean
+        }
+        Returns: string
+      }
       verify_pin: { Args: { input_pin: string }; Returns: boolean }
     }
     Enums: {

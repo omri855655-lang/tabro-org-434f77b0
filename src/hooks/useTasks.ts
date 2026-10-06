@@ -200,6 +200,23 @@ export function useTasks(
     fetchTasks();
   }, [fetchTasks]);
 
+  useEffect(() => {
+    if (!user) return;
+    const targetOwnerId = ownerId ?? user.id;
+    const channel = supabase
+      .channel(`tasks:${targetOwnerId}:${taskType}:${sheetName ?? "all"}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks", filter: `user_id=eq.${targetOwnerId}` },
+        () => void fetchTasks()
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchTasks, ownerId, sheetName, taskType, user]);
+
   const addTask = useCallback(
     async (targetSheetName?: string, initialValues?: Partial<Task>): Promise<Task | null> => {
       if (!user) return null;
