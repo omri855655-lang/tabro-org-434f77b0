@@ -78,7 +78,8 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
     const source = connections.find((connection) => connection.card_last_digits === fileCard)
       || connections.find((connection) => connection.id === selectedConnectionId);
     const preferredDay = source && suggestedBillingDayForCard?.(source);
-    const latestPurchase = providerRows.map((row) => row.transaction_date).filter(Boolean).sort().at(-1);
+    const sortedPurchaseDates = providerRows.map((row) => row.transaction_date).filter(Boolean).sort();
+    const latestPurchase = sortedPurchaseDates[sortedPurchaseDates.length - 1];
     const suggestedDate = preferredDay
       ? nextCsvBillingEstimateDate(latestPurchase || format(new Date(), "yyyy-MM-dd"), preferredDay)
       : "";
