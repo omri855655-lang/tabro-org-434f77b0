@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -95,6 +95,7 @@ export function useCalendarEvents() {
   const { user } = useAuth();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
 
   const fetchEvents = useCallback(async () => {
     if (!user) {
@@ -178,21 +179,35 @@ export function useCalendarEvents() {
   useEffect(() => {
     if (!user) return;
 
+    const scheduleRefresh = () => {
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        realtimeRefreshTimerRef.current = null;
+        void fetchEvents();
+      }, 180);
+    };
+
     const channel = supabase
-      .channel('calendar-realtime')
+      .channel(`calendar-realtime-${user.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'calendar_events' },
-        () => { fetchEvents(); }
+        scheduleRefresh
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'event_invitations' },
-        () => { fetchEvents(); }
+        scheduleRefresh
       )
       .subscribe();
 
     return () => {
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
   }, [user, fetchEvents]);

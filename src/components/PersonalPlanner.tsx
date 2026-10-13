@@ -6,7 +6,7 @@ import { useCustomCategories, COLOR_PALETTE } from "@/hooks/useCustomCategories"
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, addWeeks, isWithinInterval, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval } from "date-fns";
+import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, addWeeks, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval } from "date-fns";
 import { he } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles, EyeOff, Brain, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles, EyeOff, Brain, Loader2, Keyboard, ListChecks } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +25,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getHolidaysForDate } from "@/data/holidays";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
+import { eventOverlapsRange } from "@/lib/plannerEvents";
 
 interface AggregatedTask {
   id: string;
@@ -42,7 +43,7 @@ interface AggregatedTask {
 type TaskFilter = "all" | "work" | "personal" | "project" | "recurring" | "overdue" | "today" | "week" | "urgent" | "shows_series" | "shows_movies" | "courses" | "podcasts" | "books";
 
 
-type ViewMode = "day" | "week" | "month" | "year";
+type ViewMode = "day" | "week" | "month" | "agenda" | "year";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const DEFAULT_HOUR_HEIGHT = 60;
@@ -238,6 +239,7 @@ const PersonalPlanner = () => {
   const desktopTaskListRef = useRef<HTMLDivElement>(null);
   const quickEditorAnchorRef = useRef<HTMLButtonElement | null>(null);
   const quickDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const taskSearchInputRef = useRef<HTMLInputElement | null>(null);
   const dragImageRef = useRef<HTMLDivElement | null>(null);
   const dragStretchTimerRef = useRef<number | null>(null);
   const dragStretchAnchorRef = useRef<{
@@ -593,6 +595,11 @@ const PersonalPlanner = () => {
       const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
       return { start, end, days };
     }
+    if (viewMode === "agenda") {
+      const start = startOfDay(currentDate);
+      const end = endOfDay(addDays(currentDate, 29));
+      return { start, end, days: eachDayOfInterval({ start, end }) };
+    }
     if (viewMode === "year") {
       const start = startOfYear(currentDate);
       const end = endOfYear(currentDate);
@@ -611,7 +618,7 @@ const PersonalPlanner = () => {
   }, [currentDate, viewMode]);
 
   const recurringEvents = useMemo((): CalendarEvent[] => {
-    const projectedDays = viewMode === "day" || viewMode === "week"
+    const projectedDays = viewMode === "day" || viewMode === "week" || viewMode === "agenda"
       ? dateRange.days
       : dateRange.days.filter((day) => isSameMonth(day, currentDate));
 
@@ -647,15 +654,38 @@ const PersonalPlanner = () => {
 
   const filteredEvents = useMemo(() => {
     const calendarEvents = events.filter((e) => {
-      const eventStart = new Date(e.startTime);
-      const eventEnd = new Date(e.endTime);
-      return (
-        isWithinInterval(eventStart, { start: dateRange.start, end: dateRange.end }) ||
-        isWithinInterval(eventEnd, { start: dateRange.start, end: dateRange.end })
-      );
+      return eventOverlapsRange(e, dateRange.start, dateRange.end);
     });
     return [...calendarEvents, ...recurringEvents];
   }, [events, dateRange, recurringEvents]);
+
+  const eventsByDay = useMemo(() => {
+    const buckets = new Map<string, CalendarEvent[]>();
+    for (const event of filteredEvents) {
+      const key = format(new Date(event.startTime), "yyyy-MM-dd");
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(event);
+      else buckets.set(key, [event]);
+    }
+    for (const bucket of buckets.values()) {
+      bucket.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    }
+    return buckets;
+  }, [filteredEvents]);
+
+  const eventsByDayAndHour = useMemo(() => {
+    const buckets = new Map<string, CalendarEvent[]>();
+    for (const [dayKey, dayEvents] of eventsByDay) {
+      for (const event of dayEvents) {
+        const hour = new Date(event.startTime).getHours();
+        const key = `${dayKey}-${hour}`;
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(event);
+        else buckets.set(key, [event]);
+      }
+    }
+    return buckets;
+  }, [eventsByDay]);
 
   const taskCounts = useMemo(() => ({
     urgent: allTasks.filter((task) => task.urgent).length,
@@ -686,6 +716,7 @@ const PersonalPlanner = () => {
     if (viewMode === "day") setCurrentDate((d) => addDays(d, dir));
     else if (viewMode === "week") setCurrentDate((d) => addWeeks(d, dir));
     else if (viewMode === "month") setCurrentDate((d) => addMonths(d, dir));
+    else if (viewMode === "agenda") setCurrentDate((d) => addDays(d, dir * 30));
     else setCurrentDate((d) => dir > 0 ? addYears(d, 1) : subYears(d, 1));
   };
 
@@ -1463,6 +1494,16 @@ const PersonalPlanner = () => {
   };
 
   const handleEventCardDoubleClick = (mouseEvent: React.MouseEvent<HTMLElement>, event: CalendarEvent) => {
+    mouseEvent.stopPropagation();
+    const rect = mouseEvent.currentTarget.getBoundingClientRect();
+    void prepareEventForEditing(event, "full", {
+      top: rect.bottom + 10,
+      left: rect.right - 12,
+    });
+  };
+
+  const handleEventCardClick = (mouseEvent: React.MouseEvent<HTMLElement>, event: CalendarEvent) => {
+    mouseEvent.stopPropagation();
     const rect = mouseEvent.currentTarget.getBoundingClientRect();
     void prepareEventForEditing(event, "quick", {
       top: rect.bottom + 10,
@@ -1470,7 +1511,15 @@ const PersonalPlanner = () => {
     });
   };
 
-  const handleEventCardClick = (_event: CalendarEvent) => {};
+  const handleEventCardKeyDown = (keyboardEvent: React.KeyboardEvent<HTMLElement>, event: CalendarEvent) => {
+    if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return;
+    keyboardEvent.preventDefault();
+    const rect = keyboardEvent.currentTarget.getBoundingClientRect();
+    void prepareEventForEditing(event, "quick", {
+      top: rect.bottom + 10,
+      left: rect.right - 12,
+    });
+  };
 
   const openFullEventEditor = () => {
     setShowQuickEventDialog(false);
@@ -1532,6 +1581,53 @@ const PersonalPlanner = () => {
     }));
   };
 
+  useEffect(() => {
+    const handlePlannerShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTyping = target?.matches("input, textarea, select, [contenteditable='true']");
+      if (isTyping || showEventDialog || showQuickEventDialog) return;
+
+      if (event.key === "/") {
+        event.preventDefault();
+        taskSearchInputRef.current?.focus();
+        return;
+      }
+      if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        const now = new Date();
+        createQuickEventAt(currentDate, now.getHours(), Math.floor(now.getMinutes() / 15) * 15);
+        return;
+      }
+      if (event.key.toLowerCase() === "t") {
+        event.preventDefault();
+        setCurrentDate(new Date());
+        return;
+      }
+      const viewByKey: Record<string, ViewMode> = {
+        "1": "day",
+        "2": "week",
+        "3": "month",
+        "4": "agenda",
+        "5": "year",
+      };
+      if (viewByKey[event.key]) {
+        event.preventDefault();
+        setViewMode(viewByKey[event.key]);
+        return;
+      }
+      if (event.altKey && event.key === "ArrowRight") {
+        event.preventDefault();
+        navigate(-1);
+      } else if (event.altKey && event.key === "ArrowLeft") {
+        event.preventDefault();
+        navigate(1);
+      }
+    };
+
+    window.addEventListener("keydown", handlePlannerShortcut);
+    return () => window.removeEventListener("keydown", handlePlannerShortcut);
+  }, [createQuickEventAt, currentDate, navigate, showEventDialog, showQuickEventDialog, viewMode]);
+
   const handleDeleteEvent = async () => {
     if (!editingEvent) return;
 
@@ -1553,7 +1649,7 @@ const PersonalPlanner = () => {
         ? `${format(dateRange.start, "dd/MM")} - ${format(dateRange.end, "dd/MM/yyyy")}`
         : format(currentDate, "MMMM yyyy", { locale: he });
 
-    const eventsInRange = filteredEvents.sort(
+    const eventsInRange = [...filteredEvents].sort(
       (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     );
 
@@ -1588,7 +1684,7 @@ const PersonalPlanner = () => {
 
   // Export to ICS (calendar file)
   const exportToICS = () => {
-    const eventsInRange = filteredEvents.sort(
+    const eventsInRange = [...filteredEvents].sort(
       (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     );
 
@@ -1716,7 +1812,9 @@ const PersonalPlanner = () => {
         <div className="flex flex-1">
           {days.map((day, dayIndex) => {
             const isExpanded = expandedDayIndex === dayIndex;
-            const dayEventCount = filteredEvents.filter(e => isSameDay(new Date(e.startTime), day)).length;
+            const dayKey = format(day, "yyyy-MM-dd");
+            const dayEvents = eventsByDay.get(dayKey) || [];
+            const dayEventCount = dayEvents.length;
             const dayHourOffsets = HOURS.reduce<Record<number, number>>((acc, hour) => {
               acc[hour] = hour === 0 ? 0 : acc[hour - 1] + getHourHeight(hour - 1);
               return acc;
@@ -1766,6 +1864,15 @@ const PersonalPlanner = () => {
               <div
                 className={`min-h-[40px] border-b border-border flex flex-col items-center justify-center text-sm sticky top-0 bg-card z-10 cursor-pointer hover:bg-muted/50 transition-colors ${isSameDay(day, new Date()) ? "bg-primary/10 font-bold" : ""}`}
                 onClick={() => viewMode === "week" && setExpandedDayIndex(isExpanded ? null : dayIndex)}
+                onKeyDown={(event) => {
+                  if (viewMode === "week" && (event.key === "Enter" || event.key === " ")) {
+                    event.preventDefault();
+                    setExpandedDayIndex(isExpanded ? null : dayIndex);
+                  }
+                }}
+                role={viewMode === "week" ? "button" : undefined}
+                tabIndex={viewMode === "week" ? 0 : undefined}
+                aria-expanded={viewMode === "week" ? isExpanded : undefined}
                 title={viewMode === "week" ? (isExpanded ? "לחץ לכווץ" : `לחץ להרחיב (${dayEventCount} אירועים)`) : undefined}
               >
                 <span>{format(day, "EEEE", { locale: he })}</span>
@@ -1815,18 +1922,15 @@ const PersonalPlanner = () => {
 
               {/* Hour slots */}
               {HOURS.map((h) => {
-                const slotEvents = filteredEvents.filter((e) => {
-                  const eStart = new Date(e.startTime);
-                  return isSameDay(eStart, day) && eStart.getHours() === h;
-                });
+                const slotEvents = eventsByDayAndHour.get(`${dayKey}-${h}`) || [];
 
                 // Calculate overlapping groups for side-by-side display
-                const allDayEvents = filteredEvents.filter((e) => {
+                const overlappingHourEvents = dayEvents.filter((e) => {
                   const eStart = new Date(e.startTime);
                   const eEnd = new Date(e.endTime);
                   const slotStart = setMinutes(setHours(new Date(day), h), 0);
                   const slotEnd = addHours(slotStart, 1);
-                  return isSameDay(eStart, day) && eStart < slotEnd && eEnd > slotStart;
+                  return eStart < slotEnd && eEnd > slotStart;
                 });
                 return (
                   <div
@@ -1838,6 +1942,15 @@ const PersonalPlanner = () => {
                     onDragOver={(e) => handleSlotDragOver(e, day)}
                     onDrop={(e) => handleDrop(day, h, e)}
                     onClick={(e) => handleSlotClick(day, h, e)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        createQuickEventAt(day, h, 0);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`הוספת אירוע ביום ${format(day, "dd/MM/yyyy")} בשעה ${String(h).padStart(2, "0")}:00`}
                     onDragLeave={() => {}}
                   >
                     {/* Minute marks */}
@@ -1865,7 +1978,7 @@ const PersonalPlanner = () => {
                       const evStart = new Date(event.startTime);
                       const evEnd = new Date(event.endTime);
                       // Strict overlap: boundary-only (A ends at 20:00, B starts at 20:00) is NOT overlap
-                      const trueOverlaps = allDayEvents.filter(other => {
+                      const trueOverlaps = overlappingHourEvents.filter(other => {
                         if (other.id === event.id) return true;
                         const oStart = new Date(other.startTime);
                         const oEnd = new Date(other.endTime);
@@ -1883,6 +1996,9 @@ const PersonalPlanner = () => {
                           key={event.id}
                           draggable
                           data-event-card="true"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${event.title}, ${format(new Date(event.startTime), "HH:mm")} עד ${format(new Date(event.endTime), "HH:mm")}`}
                           onDragStart={(e) => {
                             e.stopPropagation();
                             setDraggingEvent(event);
@@ -1899,8 +2015,9 @@ const PersonalPlanner = () => {
                             left: `${leftPercent}%`,
                             width: `${widthPercent - 1}%`,
                           }}
-                          onClick={() => handleEventCardClick(event)}
+                          onClick={(e) => handleEventCardClick(e, event)}
                           onDoubleClick={(e) => handleEventCardDoubleClick(e, event)}
+                          onKeyDown={(e) => handleEventCardKeyDown(e, event)}
                         >
                           <div className="font-medium truncate" style={{ color: event.color }}>
                             {event.isInvited ? "📨 " : ""}{event.title}
@@ -1970,9 +2087,7 @@ const PersonalPlanner = () => {
         {weeks.map((week, wi) => (
           <div key={wi} className="grid grid-cols-7 min-h-[100px]">
             {week.map((day) => {
-              const dayEvents = filteredEvents.filter((e) =>
-                isSameDay(new Date(e.startTime), day)
-              );
+              const dayEvents = eventsByDay.get(format(day, "yyyy-MM-dd")) || [];
               const isCurrentMonth = day.getMonth() === currentDate.getMonth();
 
               return (
@@ -1990,6 +2105,7 @@ const PersonalPlanner = () => {
                       variant="ghost"
                       size="icon"
                       className="h-5 w-5"
+                      aria-label={`הוספת אירוע ב-${format(day, "dd/MM/yyyy")}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         createQuickEventAt(day, 9, 0);
@@ -2008,6 +2124,9 @@ const PersonalPlanner = () => {
                       key={event.id}
                       draggable
                       data-event-card="true"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${event.title}, ${format(new Date(event.startTime), "HH:mm")}`}
                       onDragStart={(e) => {
                         e.stopPropagation();
                         setDraggingEvent(event);
@@ -2016,8 +2135,9 @@ const PersonalPlanner = () => {
                       onDragEnd={() => setDraggingEvent(null)}
                       className={`text-xs truncate rounded px-1 mb-0.5 cursor-grab active:cursor-grabbing hover:opacity-80 ${draggingEvent?.id === event.id ? "opacity-50" : ""}`}
                       style={{ backgroundColor: event.color + "33", color: event.color }}
-                      onClick={() => handleEventCardClick(event)}
+                      onClick={(e) => handleEventCardClick(e, event)}
                       onDoubleClick={(e) => handleEventCardDoubleClick(e, event)}
+                      onKeyDown={(e) => handleEventCardKeyDown(e, event)}
                     >
                       {format(new Date(event.startTime), "HH:mm")} {event.title}
                     </div>
@@ -2031,6 +2151,85 @@ const PersonalPlanner = () => {
           </div>
         ))}
       </div>
+    );
+  };
+
+  const renderAgenda = () => {
+    const agendaDays = dateRange.days
+      .map((day) => ({ day, events: eventsByDay.get(format(day, "yyyy-MM-dd")) || [] }))
+      .filter(({ events: dayEvents }) => dayEvents.length > 0);
+
+    if (agendaDays.length === 0) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="rounded-2xl bg-primary/10 p-4 text-primary">
+            <ListChecks className="h-7 w-7" />
+          </div>
+          <div>
+            <h3 className="font-semibold">אין אירועים ב-30 הימים הקרובים</h3>
+            <p className="mt-1 text-sm text-muted-foreground">אפשר להוסיף אירוע חדש או לגרור משימה מהצד אל תצוגת יום או שבוע.</p>
+          </div>
+          <Button onClick={handleAddCustomEvent} className="gap-2">
+            <Plus className="h-4 w-4" />
+            אירוע חדש
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <ScrollArea className="flex-1">
+        <div className="mx-auto w-full max-w-5xl space-y-5 p-3 sm:p-6">
+          {agendaDays.map(({ day, events: dayEvents }) => (
+            <section key={format(day, "yyyy-MM-dd")} aria-labelledby={`agenda-${format(day, "yyyy-MM-dd")}`}>
+              <div className="sticky top-0 z-10 mb-2 flex items-center gap-3 rounded-xl border border-border/70 bg-background/95 px-3 py-2 backdrop-blur">
+                <div className={`flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl ${isSameDay(day, new Date()) ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  <span className="text-[10px] leading-none">{format(day, "EEE", { locale: he })}</span>
+                  <span className="text-lg font-bold leading-5">{format(day, "d")}</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 id={`agenda-${format(day, "yyyy-MM-dd")}`} className="font-semibold">
+                    {format(day, "EEEE, d בMMMM", { locale: he })}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">{dayEvents.length} אירועים</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="mr-auto h-8 w-8"
+                  aria-label={`הוספת אירוע ב-${format(day, "dd/MM/yyyy")}`}
+                  onClick={() => createQuickEventAt(day, 9, 0)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {dayEvents.map((event) => (
+                  <button
+                    key={event.id}
+                    type="button"
+                    className="group flex w-full items-start gap-3 rounded-xl border border-border/70 bg-card p-3 text-right shadow-sm transition-colors hover:border-primary/35 hover:bg-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    onClick={(mouseEvent) => handleEventCardClick(mouseEvent, event)}
+                    onDoubleClick={(mouseEvent) => handleEventCardDoubleClick(mouseEvent, event)}
+                  >
+                    <span className="mt-1 h-10 w-1 shrink-0 rounded-full" style={{ backgroundColor: event.color }} />
+                    <span className="w-24 shrink-0 text-xs font-medium text-muted-foreground sm:w-32">
+                      {event.allDay ? "כל היום" : `${format(new Date(event.startTime), "HH:mm")} - ${format(new Date(event.endTime), "HH:mm")}`}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{event.isInvited ? "הזמנה: " : ""}{event.title}</span>
+                      {event.description && <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">{event.description}</span>}
+                    </span>
+                    <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">{event.category}</Badge>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </ScrollArea>
     );
   };
 
@@ -2142,6 +2341,8 @@ const PersonalPlanner = () => {
           <div className="relative mt-3">
             <Search className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
+              ref={taskSearchInputRef}
+              data-planner-task-search
               value={taskSearch}
               onChange={(e) => setTaskSearch(e.target.value)}
               placeholder="חפש משימה, קטגוריה או מקור"
@@ -2636,39 +2837,53 @@ const PersonalPlanner = () => {
         {/* Calendar header */}
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 p-4 backdrop-blur-xl">
           {isMobile && (
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setSidebarOpen(true)}>
+            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="פתיחת מרכז המשימות" onClick={() => setSidebarOpen(true)}>
               <PanelRightOpen className="h-4 w-4" />
             </Button>
           )}
 
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}>
+            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="התקופה הקודמת" onClick={() => navigate(-1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" className="h-8" onClick={() => setCurrentDate(new Date())}>
               היום
             </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigate(1)}>
+            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="התקופה הבאה" onClick={() => navigate(1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </div>
+
+          <Input
+            type="date"
+            aria-label="מעבר לתאריך"
+            value={format(currentDate, "yyyy-MM-dd")}
+            className="h-8 w-[138px] text-xs"
+            onChange={(event) => {
+              const [year, month, day] = event.target.value.split("-").map(Number);
+              if (year && month && day) setCurrentDate(new Date(year, month - 1, day));
+            }}
+          />
 
           <h2 className="min-w-[150px] text-lg font-bold tracking-tight">
             {viewMode === "day" && format(currentDate, "EEEE, dd MMMM yyyy", { locale: he })}
             {viewMode === "week" && `${format(dateRange.start, "dd/MM")} - ${format(dateRange.end, "dd/MM/yyyy")}`}
             {viewMode === "month" && format(currentDate, "MMMM yyyy", { locale: he })}
+            {viewMode === "agenda" && `${format(dateRange.start, "dd/MM")} - ${format(dateRange.end, "dd/MM/yyyy")}`}
             {viewMode === "year" && format(currentDate, "yyyy")}
           </h2>
 
           <div className="mr-auto flex items-center gap-2">
             <div className="flex overflow-hidden rounded-xl border border-border bg-muted/30 p-1">
-              {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
+              {(["day", "week", "month", "agenda", "year"] as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
+                  type="button"
                   onClick={() => setViewMode(mode)}
+                  aria-pressed={viewMode === mode}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${viewMode === mode ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"}`}
                 >
-                  {mode === "day" ? "יומי" : mode === "week" ? "שבועי" : mode === "month" ? "חודשי" : "שנתי"}
+                  {mode === "day" ? "יומי" : mode === "week" ? "שבועי" : mode === "month" ? "חודשי" : mode === "agenda" ? "סדר יום" : "שנתי"}
                 </button>
               ))}
             </div>
@@ -2676,7 +2891,7 @@ const PersonalPlanner = () => {
             {/* Zoom control for day/week view */}
             {(viewMode === "day" || viewMode === "week") && (
               <div className="flex items-center gap-1.5">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setHourHeight(h => Math.max(MIN_HOUR_HEIGHT, h - 10))}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="הקטנת גובה השעות" onClick={() => setHourHeight(h => Math.max(MIN_HOUR_HEIGHT, h - 10))}>
                   <ZoomOut className="h-3.5 w-3.5" />
                 </Button>
                 <Slider
@@ -2687,7 +2902,7 @@ const PersonalPlanner = () => {
                   step={5}
                   className="w-20"
                 />
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setHourHeight(h => Math.min(MAX_HOUR_HEIGHT, h + 10))}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="הגדלת גובה השעות" onClick={() => setHourHeight(h => Math.min(MAX_HOUR_HEIGHT, h + 10))}>
                   <ZoomIn className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -2722,11 +2937,29 @@ const PersonalPlanner = () => {
               <CalendarRange className="h-3.5 w-3.5" />
               ICS
             </Button>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="קיצורי מקלדת">
+                  <Keyboard className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72" align="end" dir="rtl">
+                <div className="mb-3 font-semibold">קיצורי מקלדת</div>
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs">
+                  <kbd className="rounded border bg-muted px-2 py-0.5">N</kbd><span>אירוע חדש</span>
+                  <kbd className="rounded border bg-muted px-2 py-0.5">T</kbd><span>חזרה להיום</span>
+                  <kbd className="rounded border bg-muted px-2 py-0.5">/</kbd><span>חיפוש משימות</span>
+                  <kbd className="rounded border bg-muted px-2 py-0.5">1-5</kbd><span>מעבר בין התצוגות</span>
+                  <kbd className="rounded border bg-muted px-2 py-0.5">Alt + ←/→</kbd><span>התקופה הבאה או הקודמת</span>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
         <div className="border-b border-border/70 bg-primary/[0.035] px-4 py-2.5 text-[11px] leading-5 text-muted-foreground">
-          לחץ על משבצת ריקה כדי לפתוח אירוע חדש, גרור משימה מהצד כדי לשבץ אותה, ולחץ פעמיים בחודש כדי להוסיף אירוע ליום שבחרת.
+          לחץ על משבצת ריקה כדי ליצור אירוע, לחץ על אירוע כדי לערוך אותו, או גרור משימה מהצד כדי לשבץ אותה. אפשר גם להשתמש ב-N ליצירה מהירה.
         </div>
 
         <div className="border-b border-border bg-background px-3 py-2">
@@ -2764,7 +2997,7 @@ const PersonalPlanner = () => {
         </div>
 
         {/* Calendar grid */}
-        {viewMode === "year" ? renderYearGrid() : viewMode === "month" ? renderMonthGrid() : renderTimeGrid()}
+        {viewMode === "year" ? renderYearGrid() : viewMode === "month" ? renderMonthGrid() : viewMode === "agenda" ? renderAgenda() : renderTimeGrid()}
       </div>
 
       <Popover
