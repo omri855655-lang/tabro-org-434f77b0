@@ -167,7 +167,7 @@ Deno.serve(async (request) => {
         });
 
         const existingIds = new Set<string>();
-        for (const ids of batches(transactionRows.map((row) => row.external_transaction_id), 200)) {
+        for (const ids of batches(transactionRows.map((row: any) => row.external_transaction_id), 200)) {
           const { data, error } = await service.from("financial_transactions").select("external_transaction_id")
             .eq("user_id", device.user_id)
             .eq("source_type", "local_scraper")
@@ -176,7 +176,7 @@ Deno.serve(async (request) => {
           if (error) throw error;
           for (const row of data || []) existingIds.add(row.external_transaction_id);
         }
-        const rowsToInsert = transactionRows.filter((row) => !existingIds.has(row.external_transaction_id));
+        const rowsToInsert = transactionRows.filter((row: any) => !existingIds.has(row.external_transaction_id));
         for (const rows of batches(rowsToInsert, 250)) {
           const { error } = await service.from("financial_transactions").insert(rows);
           if (error) throw error;

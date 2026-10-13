@@ -178,7 +178,7 @@ async function callWorker(payload: Record<string, unknown>) {
 }
 
 async function enforceRateLimit(
-  service: ReturnType<typeof createClient>,
+  service: any,
   userId: string,
   action: "connect" | "sync",
   limit: number,

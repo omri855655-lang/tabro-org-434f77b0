@@ -91,7 +91,7 @@ function containsGenericPlanningTitle(action: any): boolean {
   }
 
   if (action.type === "multi" && Array.isArray(action.actions)) {
-    return action.actions.some((nestedAction) => containsGenericPlanningTitle(nestedAction));
+    return action.actions.some((nestedAction: any) => containsGenericPlanningTitle(nestedAction));
   }
 
   return false;
