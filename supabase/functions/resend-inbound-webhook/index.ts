@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Webhook } from "npm:svix@1.81.0";
+import { Webhook } from "https://esm.sh/svix@1.81.0";
 
 const jsonHeaders = { "Content-Type": "application/json" };
 const MAX_BODY_LENGTH = 50_000;
