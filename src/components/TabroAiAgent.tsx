@@ -313,6 +313,18 @@ const TabroAiAgent = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const openPlanningAgent = () => {
+      setAssistantMode("planning_agent");
+      setOpen(true);
+      setShowInsightsPanel(true);
+      setShowQuickActionsPanel(true);
+    };
+
+    window.addEventListener("tabro:open-planning-agent", openPlanningAgent);
+    return () => window.removeEventListener("tabro:open-planning-agent", openPlanningAgent);
+  }, []);
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }

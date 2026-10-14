@@ -62,7 +62,7 @@ const PublicTaskRequest = () => {
     event.preventDefault();
     setSubmitting(true);
     setErrorMessage("");
-    const { error } = await supabase.rpc("submit_public_task_intake", {
+    const { data: taskId, error } = await supabase.rpc("submit_public_task_intake", {
       p_token: token,
       p_requester_name: form.requesterName,
       p_requester_email: form.requesterEmail,
@@ -88,6 +88,13 @@ const PublicTaskRequest = () => {
     }
     setSubmitted(true);
     setForm(emptyForm);
+    if (taskId) {
+      void supabase.functions.invoke("notify-public-task-submission", {
+        body: { token, taskId },
+      }).then(({ error: notificationError }) => {
+        if (notificationError) console.warn("Public task push notification failed", notificationError);
+      });
+    }
   };
 
   if (loading) {
@@ -125,7 +132,7 @@ const PublicTaskRequest = () => {
               יש משהו שצריך לקרות?<br /><span className="text-[#b66b32]">כתבו אותו ברור.</span>
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#48635f]">
-              הבקשה תיכנס ישירות אל {meta.owner_display_name}, ללוח {boardLabel} ולגיליון „{meta.sheet_name}“.
+              הבקשה תיכנס ישירות אל {meta.owner_display_name}, ורק ללוח {boardLabel} בגיליון „{meta.sheet_name}“.
             </p>
           </div>
           <div className="flex items-center gap-3 rounded-2xl border border-white/70 bg-white/65 p-4 shadow-sm backdrop-blur">
@@ -139,7 +146,7 @@ const PublicTaskRequest = () => {
             <CardContent className="space-y-5 p-10 text-center md:p-16">
               <CheckCircle2 className="mx-auto h-16 w-16 text-[#f1c66f]" />
               <h2 className="text-3xl font-black">המשימה נשלחה ונוספה ללוח</h2>
-              <p className="mx-auto max-w-xl text-white/75">הפרטים ופרטי הקשר נשמרו עם המשימה, כדי שיהיה ברור מה צריך לעשות ולמי לפנות.</p>
+              <p className="mx-auto max-w-xl text-white/75">הפרטים ופרטי הקשר נשמרו עם המשימה בלוח {boardLabel}, כדי שיהיה ברור מה צריך לעשות ולמי לפנות.</p>
               <Button className="bg-[#f1c66f] text-[#173f3b] hover:bg-[#f7d58d]" onClick={() => setSubmitted(false)}>שליחת משימה נוספת</Button>
             </CardContent>
           </Card>
@@ -186,7 +193,7 @@ const PublicTaskRequest = () => {
               <Button type="submit" size="lg" disabled={submitting} className="h-14 w-full bg-[#b66b32] text-base font-black text-white hover:bg-[#995725]">
                 {submitting ? <Loader2 className="me-2 h-5 w-5 animate-spin" /> : <ArrowLeft className="me-2 h-5 w-5" />} שליחת המשימה
               </Button>
-              <p className="flex items-center justify-center gap-2 text-center text-xs text-[#60736f]"><ShieldCheck className="h-4 w-4" /> הקישור מאפשר רק הוספה. הוא אינו מציג משימות או מידע פרטי מהלוח.</p>
+              <p className="flex items-center justify-center gap-2 text-center text-xs text-[#60736f]"><ShieldCheck className="h-4 w-4" /> הקישור מאפשר רק הוספה ללוח {boardLabel}. הוא אינו מציג משימות או מידע פרטי מהלוח.</p>
               <p className="text-center text-xs text-muted-foreground"><Link className="underline" to="/privacy">מדיניות פרטיות</Link> · מופעל באמצעות Tabro</p>
             </div>
           </form>

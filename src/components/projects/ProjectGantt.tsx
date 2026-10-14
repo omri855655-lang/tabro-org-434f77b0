@@ -9,6 +9,7 @@ import {
   LayoutTemplate,
   ListFilter,
   Loader2,
+  Printer,
   Sparkles,
   Target,
 } from "lucide-react";
@@ -168,7 +169,7 @@ const ProjectGantt = ({
   const todayOffset = differenceInCalendarDays(today, windowStart);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4" dir="rtl">
+    <div className="gantt-print-surface flex min-h-0 flex-1 flex-col gap-4" dir="rtl">
       <section className="grid gap-3 md:grid-cols-4">
         <div className="rounded-2xl border bg-gradient-to-br from-sky-500/10 to-cyan-500/5 p-4">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -224,6 +225,10 @@ const ProjectGantt = ({
             </Select>
             <Button onClick={addTemplate} disabled={saving} size="sm" variant="outline">
               הוסף שלבים מוכנים
+            </Button>
+            <Button type="button" onClick={() => window.print()} size="sm" variant="outline" className="gap-2">
+              <Printer className="h-4 w-4" />
+              PDF / הדפסה
             </Button>
           </div>
 

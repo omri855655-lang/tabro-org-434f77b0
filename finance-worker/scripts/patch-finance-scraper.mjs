@@ -77,6 +77,11 @@ replaceOnce(
   'var AMEX_LOGIN = {\n  loginUrl: "https://he.americanexpress.co.il/personalarea/login/",',
   "American Express direct login URL",
 );
+replaceOnce(
+  "return createPipelineBuilder().withOptions(options).withBrowser().withDeclarativeLogin(AMEX_LOGIN).withPreLogin().withBrowserApiDirect(AMEX_SHAPE).build();",
+  "return createPipelineBuilder().withOptions(options).withBrowser().withDeclarativeLogin(AMEX_LOGIN).withBrowserApiDirect(AMEX_SHAPE).build();",
+  "American Express dynamic login pre-gate",
+);
 
 if (patchedSource !== source) {
   await writeFile(bundlePath, patchedSource);

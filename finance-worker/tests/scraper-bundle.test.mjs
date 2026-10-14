@@ -13,6 +13,9 @@ test("American Express, Discount and Visa Cal start directly at their official l
   assert.match(bundle, /\["visaCal" \/\* VisaCal \*\/\]: calConfig\("https:\/\/digital-web\.cal-online\.co\.il\/"/);
   assert.match(bundle, /var AMEX_LOGIN = \{\s+loginUrl: "https:\/\/he\.americanexpress\.co\.il\/personalarea\/login\/"/);
   assert.match(bundle, /!\["visaCal", "discount", "amex"\]\.includes\(state\.options\.companyId\)/);
+  const amexPipeline = bundle.match(/function buildAmexPipeline\(options\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  assert.doesNotMatch(amexPipeline, /withPreLogin/);
+  assert.match(amexPipeline, /withDeclarativeLogin\(AMEX_LOGIN\)/);
 });
 
 test("unaffected providers keep their own login configuration", () => {

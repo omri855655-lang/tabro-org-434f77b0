@@ -56,6 +56,8 @@ const typeLabels: Record<string, string> = {
   morning_summary: "☀️ סיכום בוקר",
   deadline_reminder: "📆 תזכורת דדליין",
   contact_form: "📨 פנייה חדשה",
+  public_task_submitted: "📥 משימה חדשה מהקישור",
+  project_task_submitted: "📁 משימה חדשה לפרויקט",
 };
 
 const NotificationBell = () => {

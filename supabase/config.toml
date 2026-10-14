@@ -51,3 +51,5 @@ project_id = "qfcuyrdxaambvppduslo"
     verify_jwt = false
   [functions.resend-inbound-webhook]
     verify_jwt = false
+  [functions.notify-public-task-submission]
+    verify_jwt = false

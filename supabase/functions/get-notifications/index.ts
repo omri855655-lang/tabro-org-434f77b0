@@ -77,7 +77,11 @@ serve(async (req) => {
     // Deduplicate: for same event_id + notification_type, keep only one (prefer push)
     const seen = new Map<string, any>();
     for (const n of (notifications || [])) {
-      const key = n.event_id ? `${n.event_id}_${n.notification_type}` : n.id;
+      const key = n.event_id
+        ? `${n.event_id}_${n.notification_type}`
+        : n.task_id && ["public_task_submitted", "project_task_submitted"].includes(n.notification_type)
+          ? `${n.task_id}_${n.notification_type}`
+          : n.id;
       if (!seen.has(key)) {
         seen.set(key, n);
       } else if (n.channel === "push") {
@@ -109,6 +113,35 @@ serve(async (req) => {
         
         if (eventData) {
           enriched.event_info = eventData;
+        }
+      }
+
+      if (n.notification_type === "public_task_submitted" && n.task_id) {
+        const { data: publicTask } = await supabase
+          .from("tasks")
+          .select("id, description, status, task_type")
+          .eq("id", n.task_id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (publicTask) enriched.task_info = { ...publicTask, source_type: "task" };
+      }
+
+      if (n.notification_type === "project_task_submitted" && n.task_id) {
+        const { data: projectTask } = await supabase
+          .from("project_tasks")
+          .select("id, title, status, project_id, projects!inner(title)")
+          .eq("id", n.task_id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (projectTask) {
+          const project = Array.isArray(projectTask.projects) ? projectTask.projects[0] : projectTask.projects;
+          enriched.task_info = {
+            id: projectTask.id,
+            description: `${project?.title ? `${project.title}: ` : ""}${projectTask.title}`,
+            status: projectTask.status,
+            task_type: "project",
+            source_type: "project_task",
+          };
         }
       }
 

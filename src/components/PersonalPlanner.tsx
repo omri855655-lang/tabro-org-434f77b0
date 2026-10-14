@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, Sparkles, EyeOff, Brain, Loader2, Keyboard, ListChecks } from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, GripVertical, Clock, Trash2, Download, Flame, AlertTriangle, CalendarRange, RotateCcw, ZoomIn, ZoomOut, Filter, Tv, Film, Search, PanelRightOpen, PanelRightClose, Sparkles, EyeOff, Brain, Loader2, Keyboard, ListChecks, Printer } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -153,6 +153,13 @@ const PersonalPlanner = () => {
   const [showBooksInPlanner, setShowBooksInPlanner] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [desktopTaskCenterOpen, setDesktopTaskCenterOpen] = useState(() => {
+    try {
+      return localStorage.getItem("planner-task-center-open") !== "false";
+    } catch {
+      return true;
+    }
+  });
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
@@ -212,6 +219,14 @@ const PersonalPlanner = () => {
   const [aiSuggestion, setAiSuggestion] = useState("");
   const [mentalTask, setMentalTask] = useState<Task | null>(null);
   const [mentalDialogOpen, setMentalDialogOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("planner-task-center-open", String(desktopTaskCenterOpen));
+    } catch {
+      // The planner remains usable when storage is blocked by the browser.
+    }
+  }, [desktopTaskCenterOpen]);
 
   // Resize state
   const [resizingEvent, setResizingEvent] = useState<{ eventId: string; startY: number; originalEndTime: string; edge: "top" | "bottom"; originalStartTime: string } | null>(null);
@@ -1504,21 +1519,15 @@ const PersonalPlanner = () => {
 
   const handleEventCardClick = (mouseEvent: React.MouseEvent<HTMLElement>, event: CalendarEvent) => {
     mouseEvent.stopPropagation();
-    const rect = mouseEvent.currentTarget.getBoundingClientRect();
-    void prepareEventForEditing(event, "quick", {
-      top: rect.bottom + 10,
-      left: rect.right - 12,
-    });
+    // The full dialog is stable even if realtime updates rerender the calendar
+    // while the user is opening an event.
+    void prepareEventForEditing(event, "full");
   };
 
   const handleEventCardKeyDown = (keyboardEvent: React.KeyboardEvent<HTMLElement>, event: CalendarEvent) => {
     if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return;
     keyboardEvent.preventDefault();
-    const rect = keyboardEvent.currentTarget.getBoundingClientRect();
-    void prepareEventForEditing(event, "quick", {
-      top: rect.bottom + 10,
-      left: rect.right - 12,
-    });
+    void prepareEventForEditing(event, "full");
   };
 
   const openFullEventEditor = () => {
@@ -2315,14 +2324,19 @@ const PersonalPlanner = () => {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-[radial-gradient(circle_at_80%_0%,hsl(var(--primary)/0.08),transparent_28%),hsl(var(--background))] shadow-[0_20px_55px_hsl(var(--foreground)/0.08)] md:flex-row" dir="rtl">
       {/* Right sidebar - Task list */}
-      <div className={`${isMobile ? "hidden" : "flex"} w-[21rem] flex-shrink-0 flex-col border-l border-border/70 bg-card/90 backdrop-blur-xl`}>
+      <div className={`${isMobile || !desktopTaskCenterOpen ? "hidden" : "flex"} w-[21rem] flex-shrink-0 flex-col border-l border-border/70 bg-card/90 backdrop-blur-xl`}>
         <div className="border-b border-border/70 p-4">
           <div className="flex items-start justify-between gap-2">
             <div>
               <h3 className="mb-1 text-base font-bold tracking-tight">מרכז המשימות</h3>
               <p className="text-[11px] leading-5 text-muted-foreground">גרור משימה ללוח, או חפש ותזמן אותה במהירות</p>
             </div>
-            <Badge variant="secondary" className="text-[10px]">{visibleTasks.length}/{allTasks.length}</Badge>
+            <div className="flex items-center gap-1">
+              <Badge variant="secondary" className="text-[10px]">{visibleTasks.length}/{allTasks.length}</Badge>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label="סגירת מרכז המשימות" onClick={() => setDesktopTaskCenterOpen(false)}>
+                <PanelRightClose className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <div className="rounded-xl border border-border bg-background/70 px-2 py-1.5">
@@ -2833,12 +2847,18 @@ const PersonalPlanner = () => {
       )}
 
       {/* Left side - Calendar */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="planner-print-surface flex-1 flex flex-col min-w-0">
         {/* Calendar header */}
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 p-4 backdrop-blur-xl">
           {isMobile && (
             <Button variant="outline" size="icon" className="h-8 w-8" aria-label="פתיחת מרכז המשימות" onClick={() => setSidebarOpen(true)}>
               <PanelRightOpen className="h-4 w-4" />
+            </Button>
+          )}
+          {!isMobile && !desktopTaskCenterOpen && (
+            <Button variant="outline" size="sm" className="h-8 gap-1" aria-label="פתיחת מרכז המשימות" onClick={() => setDesktopTaskCenterOpen(true)}>
+              <PanelRightOpen className="h-4 w-4" />
+              מרכז משימות
             </Button>
           )}
 
@@ -2936,6 +2956,11 @@ const PersonalPlanner = () => {
             <Button variant="outline" size="sm" className="gap-1 h-8" onClick={exportToICS}>
               <CalendarRange className="h-3.5 w-3.5" />
               ICS
+            </Button>
+
+            <Button variant="outline" size="sm" className="gap-1 h-8" onClick={() => window.print()}>
+              <Printer className="h-3.5 w-3.5" />
+              PDF / הדפסה
             </Button>
 
             <Popover>

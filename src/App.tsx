@@ -23,6 +23,7 @@ import Privacy from "./pages/Privacy";
 import Accessibility from "./pages/Accessibility";
 import AgentWidget from "./pages/AgentWidget";
 import PublicTaskRequest from "./pages/PublicTaskRequest";
+import PublicProjectTaskRequest from "./pages/PublicProjectTaskRequest";
 
 const queryClient = new QueryClient();
 
@@ -84,6 +85,7 @@ const AppContent = () => {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/accessibility" element={<Accessibility />} />
         <Route path="/task-request/:token" element={<PublicTaskRequest />} />
+        <Route path="/project-request/:token" element={<PublicProjectTaskRequest />} />
         <Route
           path="/agent"
           element={

@@ -21,6 +21,7 @@ import AiChatPanel from '@/components/AiChatPanel';
 import { useDashboardChatHistory } from '@/hooks/useDashboardChatHistory';
 import { invokeFinanceFunction } from '@/lib/financeBackend';
 import ProjectGantt from '@/components/projects/ProjectGantt';
+import ProjectTaskIntakeLink from '@/components/projects/ProjectTaskIntakeLink';
 
 interface Project {
   id: string;
@@ -1290,6 +1291,7 @@ ${message}
                                 <BarChart3 className="h-4 w-4" />
                                 פתח גאנט
                               </Button>
+                              {project.user_id === user?.id && <ProjectTaskIntakeLink projectId={project.id} projectTitle={project.title} />}
                               <Dialog open={addLinkDialogOpen === project.id} onOpenChange={(open) => setAddLinkDialogOpen(open ? project.id : null)}>
                                 <DialogTrigger asChild>
                                   <Button variant="outline" size="sm" className="gap-1.5">

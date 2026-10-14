@@ -1340,3 +1340,42 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
 .zoneflow-office-leaf { animation: zoneflow-office-leaf 4s ease-in-out infinite; transform-origin: bottom center; }
 .zoneflow-avatar-eye { animation: zoneflow-avatar-blink 5.5s ease-in-out infinite; transform-origin: center; }
 .zoneflow-avatar-shadow { animation: zoneflow-avatar-shadow 2.4s ease-in-out infinite; }
+
+@media print {
+  body:has(.planner-print-surface),
+  body:has(.gantt-print-surface) {
+    background: white !important;
+  }
+
+  body:has(.planner-print-surface) > * *,
+  body:has(.gantt-print-surface) > * * {
+    visibility: hidden !important;
+  }
+
+  .planner-print-surface,
+  .planner-print-surface *,
+  .gantt-print-surface,
+  .gantt-print-surface * {
+    visibility: visible !important;
+  }
+
+  .planner-print-surface,
+  .gantt-print-surface {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  .planner-print-surface button,
+  .planner-print-surface input,
+  .gantt-print-surface button,
+  .gantt-print-surface input,
+  [role="dialog"] > button {
+    display: none !important;
+  }
+}
