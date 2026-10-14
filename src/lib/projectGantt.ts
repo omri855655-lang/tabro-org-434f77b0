@@ -85,3 +85,27 @@ export const getGanttTaskPeriod = (
   };
 };
 
+export const formatProjectTaskTitle = (value: string) => {
+  const title = value.trim();
+  if (!title) return "משימה ללא שם";
+
+  try {
+    const parsed = JSON.parse(title) as { title?: unknown; description?: unknown };
+    if (typeof parsed.title === "string" && parsed.title.trim()) return parsed.title.trim();
+    if (typeof parsed.description === "string" && parsed.description.trim()) return parsed.description.trim();
+  } catch {
+    // Some older AI tasks contain only a JSON fragment rather than a full object.
+  }
+
+  const embeddedTitle = title.match(/"title"\s*:\s*"([^"]+)"/);
+  if (embeddedTitle?.[1]) return embeddedTitle[1].trim();
+
+  const embeddedDescription = title.match(/"description"\s*:\s*"([^"]+)"/);
+  if (embeddedDescription?.[1]) {
+    const description = embeddedDescription[1].trim();
+    return description.length > 100 ? `${description.slice(0, 97)}...` : description;
+  }
+
+  return title;
+};
+

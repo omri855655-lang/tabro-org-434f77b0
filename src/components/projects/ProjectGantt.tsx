@@ -23,6 +23,7 @@ import {
   buildAutomaticSchedule,
   createScheduleDates,
   differenceInCalendarDays,
+  formatProjectTaskTitle,
   getGanttTaskPeriod,
   parseLocalDate,
   toLocalDateKey,
@@ -326,6 +327,7 @@ const ProjectGantt = ({
               </div>
 
               {visibleTasks.map((task, index) => {
+                const displayTitle = formatProjectTaskTitle(task.title);
                 const period = getGanttTaskPeriod(task, windowStart, index);
                 const barStart = Math.max(0, differenceInCalendarDays(period.start, windowStart));
                 const barEnd = Math.min(zoom - 1, differenceInCalendarDays(period.end, windowStart));
@@ -344,13 +346,13 @@ const ProjectGantt = ({
                           "grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors",
                           task.completed ? "border-emerald-500 bg-emerald-500 text-white" : "hover:border-primary",
                         )}
-                        aria-label={task.completed ? `פתח מחדש את ${task.title}` : `סמן את ${task.title} כבוצעה`}
+                        aria-label={task.completed ? `פתח מחדש את ${displayTitle}` : `סמן את ${displayTitle} כבוצעה`}
                       >
                         {task.completed && <Check className="h-3.5 w-3.5" />}
                       </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className={cn("truncate text-sm font-medium", task.completed && "text-muted-foreground line-through")}>{task.title}</span>
+                          <span className={cn("truncate text-sm font-medium", task.completed && "text-muted-foreground line-through")}>{displayTitle}</span>
                           {task.urgent && <span className="h-2 w-2 shrink-0 rounded-full bg-rose-500" title="דחוף" />}
                         </div>
                         <div className="mt-1 flex items-center gap-2">
@@ -359,7 +361,7 @@ const ProjectGantt = ({
                             value={task.due_date || ""}
                             onChange={(event) => onUpdateTask(task.id, { due_date: event.target.value || null })}
                             className="h-6 w-[118px] border-0 bg-transparent p-0 text-[11px] shadow-none focus-visible:ring-0"
-                            aria-label={`תאריך יעד עבור ${task.title}`}
+                            aria-label={`תאריך יעד עבור ${displayTitle}`}
                           />
                           {late && <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 px-1.5 text-[9px] text-amber-700">באיחור</Badge>}
                           {period.isEstimated && <span className="text-[9px] text-muted-foreground">זמני</span>}
@@ -394,9 +396,9 @@ const ProjectGantt = ({
                             left: barStart * dayWidth + 3,
                             width: Math.max((barEnd - barStart + 1) * dayWidth - 6, 24),
                           }}
-                          title={`${task.title}${period.isEstimated ? " (תזמון זמני)" : ""}`}
+                          title={`${displayTitle}${period.isEstimated ? " (תזמון זמני)" : ""}`}
                         >
-                          <span className="block truncate">{task.title}</span>
+                          <span className="block truncate">{displayTitle}</span>
                         </div>
                       )}
                     </div>

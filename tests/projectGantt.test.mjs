@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildAutomaticSchedule,
   createScheduleDates,
+  formatProjectTaskTitle,
   getGanttTaskPeriod,
   parseLocalDate,
 } from "../src/lib/projectGantt.ts";
@@ -10,6 +11,12 @@ import {
 test("createScheduleDates spreads work through the project target", () => {
   const dates = createScheduleDates(3, new Date(2026, 9, 10), new Date(2026, 9, 20));
   assert.deepEqual(dates, ["2026-10-10", "2026-10-15", "2026-10-20"]);
+});
+
+test("legacy AI task JSON is displayed as a readable title", () => {
+  assert.equal(formatProjectTaskTitle('{"title":"בדיקות לפני השקה","description":"פרטים"}'), "בדיקות לפני השקה");
+  assert.equal(formatProjectTaskTitle('"title": "הכנת תוצר",'), "הכנת תוצר");
+  assert.equal(formatProjectTaskTitle("משימה רגילה"), "משימה רגילה");
 });
 
 test("createScheduleDates keeps one day per task when the target is too close", () => {
