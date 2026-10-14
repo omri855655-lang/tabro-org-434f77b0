@@ -16,6 +16,7 @@ test("createScheduleDates spreads work through the project target", () => {
 test("legacy AI task JSON is displayed as a readable title", () => {
   assert.equal(formatProjectTaskTitle('{"title":"בדיקות לפני השקה","description":"פרטים"}'), "בדיקות לפני השקה");
   assert.equal(formatProjectTaskTitle('"title": "הכנת תוצר",'), "הכנת תוצר");
+  assert.equal(formatProjectTaskTitle('"description": "תיאור ישן שנחתך באמצע'), "תיאור ישן שנחתך באמצע");
   assert.equal(formatProjectTaskTitle("משימה רגילה"), "משימה רגילה");
 });
 

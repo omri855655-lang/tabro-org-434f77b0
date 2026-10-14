@@ -106,6 +106,15 @@ export const formatProjectTaskTitle = (value: string) => {
     return description.length > 100 ? `${description.slice(0, 97)}...` : description;
   }
 
+  const truncatedDescription = title.match(/^"description"\s*:\s*"?([\s\S]*)$/);
+  if (truncatedDescription?.[1]) {
+    const description = truncatedDescription[1]
+      .replace(/["'},\s]+$/, "")
+      .replace(/\\n/g, " ")
+      .trim();
+    return description.length > 100 ? `${description.slice(0, 97)}...` : description;
+  }
+
   return title;
 };
 
