@@ -2592,10 +2592,6 @@ export type Database = {
         Args: { p_sheet_name: string; p_task_type: string }
         Returns: string
       }
-      get_or_create_project_task_intake_link: {
-        Args: { p_project_id: string }
-        Returns: string
-      }
       get_project_role: {
         Args: { _project_id: string; _user_id: string }
         Returns: string
@@ -2606,14 +2602,6 @@ export type Database = {
           owner_display_name: string
           sheet_name: string
           task_type: string
-        }[]
-      }
-      get_public_project_task_intake: {
-        Args: { p_token: string }
-        Returns: {
-          owner_display_name: string
-          project_description: string | null
-          project_title: string
         }[]
       }
       has_role: {
@@ -2672,21 +2660,6 @@ export type Database = {
           p_requester_name: string
           p_requester_phone: string
           p_responsible: string
-          p_token: string
-          p_urgent: boolean
-        }
-        Returns: string
-      }
-      submit_public_project_task: {
-        Args: {
-          p_company_website?: string
-          p_details: string
-          p_due_date: string
-          p_requester_email: string
-          p_requester_name: string
-          p_requester_phone: string
-          p_responsible: string
-          p_title: string
           p_token: string
           p_urgent: boolean
         }
