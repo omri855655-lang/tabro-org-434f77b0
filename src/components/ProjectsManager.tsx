@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Plus, Trash2, Search, FolderKanban, ChevronDown, ChevronLeft, Link2, ExternalLink, CheckCircle2, Circle, Sparkles, Loader2, Flame, Edit2, ArrowDownToLine } from 'lucide-react';
+import { Plus, Trash2, Search, FolderKanban, ChevronDown, ChevronLeft, Link2, ExternalLink, CheckCircle2, Circle, Sparkles, Loader2, Flame, Edit2, ArrowDownToLine, BarChart3 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,7 @@ import ProjectTaskDialog from '@/components/projects/ProjectTaskDialog';
 import AiChatPanel from '@/components/AiChatPanel';
 import { useDashboardChatHistory } from '@/hooks/useDashboardChatHistory';
 import { invokeFinanceFunction } from '@/lib/financeBackend';
+import ProjectGantt from '@/components/projects/ProjectGantt';
 
 interface Project {
   id: string;
@@ -166,6 +167,7 @@ const ProjectsManager = () => {
   ]);
   const [projectMilestoneCount, setProjectMilestoneCount] = useState<Record<string, string>>({});
   const [activeProjectMilestoneChatId, setActiveProjectMilestoneChatId] = useState<string | null>(null);
+  const [activeGanttProjectId, setActiveGanttProjectId] = useState<string | null>(null);
   const projectMilestoneChatHistory = useDashboardChatHistory(`projects-milestones-${activeProjectMilestoneChatId || "none"}`);
 
   useEffect(() => {
@@ -881,6 +883,68 @@ ${message}
     }
   };
 
+  const updateGanttTask = async (taskId: string, updates: Record<string, unknown>) => {
+    const { error } = await supabase
+      .from('project_tasks')
+      .update(updates as any)
+      .eq('id', taskId);
+
+    if (error) {
+      toast.error('לא הצלחנו לשמור את השינוי בגאנט');
+      throw error;
+    }
+
+    handleTaskUpdate(taskId, updates);
+  };
+
+  const bulkUpdateGanttDates = async (updates: Array<{ id: string; due_date: string }>) => {
+    const results = await Promise.all(updates.map((update) => (
+      supabase.from('project_tasks').update({ due_date: update.due_date } as any).eq('id', update.id)
+    )));
+    const failedUpdate = results.find((result) => result.error);
+    if (failedUpdate?.error) {
+      toast.error('חלק מהתאריכים לא נשמרו');
+      throw failedUpdate.error;
+    }
+
+    const datesByTask = new Map(updates.map((update) => [update.id, update.due_date]));
+    setProjectTasks((previous) => Object.fromEntries(
+      Object.entries(previous).map(([projectId, tasks]) => [
+        projectId,
+        tasks.map((task) => datesByTask.has(task.id)
+          ? { ...task, due_date: datesByTask.get(task.id) || null }
+          : task),
+      ]),
+    ));
+    toast.success('המשימות תוזמנו לאורך ציר הזמן');
+  };
+
+  const addGanttTemplateTasks = async (projectId: string, templateTasks: Array<{ title: string; due_date: string }>) => {
+    if (!user || templateTasks.length === 0) return;
+    const currentTasks = projectTasks[projectId] || [];
+    const maxOrder = currentTasks.length ? Math.max(...currentTasks.map((task) => task.sort_order ?? 0)) : 0;
+    const inserts = templateTasks.map((task, index) => ({
+      project_id: projectId,
+      user_id: user.id,
+      title: task.title,
+      due_date: task.due_date,
+      sort_order: maxOrder + index + 1,
+      status: 'לא התחיל',
+    }));
+    const { data, error } = await supabase.from('project_tasks').insert(inserts as any).select();
+
+    if (error) {
+      toast.error('לא הצלחנו להוסיף את שלבי הפרויקט');
+      throw error;
+    }
+
+    setProjectTasks((previous) => ({
+      ...previous,
+      [projectId]: [...(previous[projectId] || []), ...((data || []) as ProjectTask[])],
+    }));
+    toast.success(`נוספו ${templateTasks.length} שלבים מוכנים`);
+  };
+
   const toggleExpanded = (projectId: string) => {
     setExpandedProjects(prev => {
       const newSet = new Set(prev);
@@ -912,6 +976,7 @@ ${message}
   const totalTasks = Object.values(projectTasks).flat().length;
   const urgentTasks = Object.values(projectTasks).flat().filter(task => task.urgent && !task.completed).length;
   const overdueTasks = Object.values(projectTasks).flat().filter(task => task.due_date && !task.completed && new Date(task.due_date) < new Date()).length;
+  const activeGanttProject = projects.find((project) => project.id === activeGanttProjectId) || null;
 
   return (
     <div className="h-full flex flex-col gap-4 p-4 overflow-hidden bg-gradient-to-b from-background via-background to-muted/20" dir="rtl">
@@ -1216,6 +1281,15 @@ ${message}
                                 onChange={(e) => updateProjectTargetDate(project.id, e.target.value)}
                                 className="w-[160px]"
                               />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 border-sky-500/30 bg-sky-500/10 text-sky-800 hover:bg-sky-500/20"
+                                onClick={() => setActiveGanttProjectId(project.id)}
+                              >
+                                <BarChart3 className="h-4 w-4" />
+                                פתח גאנט
+                              </Button>
                               <Dialog open={addLinkDialogOpen === project.id} onOpenChange={(open) => setAddLinkDialogOpen(open ? project.id : null)}>
                                 <DialogTrigger asChild>
                                   <Button variant="outline" size="sm" className="gap-1.5">
@@ -1678,6 +1752,34 @@ ${message}
           )}
         </div>
       </div>
+
+      <Dialog open={Boolean(activeGanttProject)} onOpenChange={(open) => { if (!open) setActiveGanttProjectId(null); }}>
+        <DialogContent className="flex h-[92vh] w-[96vw] max-w-[1500px] flex-col overflow-hidden p-4 sm:rounded-2xl" dir="rtl">
+          {activeGanttProject && (
+            <>
+              <DialogHeader className="shrink-0 border-b pb-3 pr-10 text-right">
+                <DialogTitle className="flex items-center gap-2 text-xl">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500/10 text-sky-700">
+                    <BarChart3 className="h-5 w-5" />
+                  </span>
+                  גאנט: {activeGanttProject.title}
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                  תמונת מצב פשוטה של השלבים, התאריכים וההתקדמות. השינויים נשמרים מיד במשימות הפרויקט.
+                </p>
+              </DialogHeader>
+              <ProjectGantt
+                project={activeGanttProject}
+                tasks={projectTasks[activeGanttProject.id] || []}
+                onUpdateTask={updateGanttTask}
+                onBulkUpdate={bulkUpdateGanttDates}
+                onAddTemplate={(templateTasks) => addGanttTemplateTasks(activeGanttProject.id, templateTasks)}
+                onUpdateProjectTarget={(date) => updateProjectTargetDate(activeGanttProject.id, date)}
+              />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Multi-assign dialog */}
       <Dialog open={!!assignDialogTask} onOpenChange={(open) => { if (!open) setAssignDialogTask(null); }}>
