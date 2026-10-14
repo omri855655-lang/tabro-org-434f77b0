@@ -1605,6 +1605,92 @@ export type Database = {
           },
         ]
       }
+      project_task_intake_links: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          owner_id: string
+          project_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id: string
+          project_id: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id?: string
+          project_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_task_intake_links_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_task_intake_submissions: {
+        Row: {
+          created_at: string
+          id: string
+          link_id: string
+          owner_id: string
+          project_task_id: string | null
+          requester_email: string
+          requester_name: string
+          requester_phone: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          link_id: string
+          owner_id: string
+          project_task_id?: string | null
+          requester_email: string
+          requester_name: string
+          requester_phone?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          link_id?: string
+          owner_id?: string
+          project_task_id?: string | null
+          requester_email?: string
+          requester_name?: string
+          requester_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_task_intake_submissions_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "project_task_intake_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_task_intake_submissions_project_task_id_fkey"
+            columns: ["project_task_id"]
+            isOneToOne: false
+            referencedRelation: "project_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_tasks: {
         Row: {
           assigned_email: string | null
@@ -2588,6 +2674,10 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_or_create_project_task_intake_link: {
+        Args: { p_project_id: string }
+        Returns: string
+      }
       get_or_create_task_intake_link: {
         Args: { p_sheet_name: string; p_task_type: string }
         Returns: string
@@ -2595,6 +2685,14 @@ export type Database = {
       get_project_role: {
         Args: { _project_id: string; _user_id: string }
         Returns: string
+      }
+      get_public_project_task_intake: {
+        Args: { p_token: string }
+        Returns: {
+          owner_display_name: string
+          project_description: string
+          project_title: string
+        }[]
       }
       get_public_task_intake: {
         Args: { p_token: string }
@@ -2645,6 +2743,21 @@ export type Database = {
         }[]
       }
       set_pin: { Args: { input_pin: string }; Returns: undefined }
+      submit_public_project_task: {
+        Args: {
+          p_company_website?: string
+          p_details: string
+          p_due_date: string
+          p_requester_email: string
+          p_requester_name: string
+          p_requester_phone: string
+          p_responsible: string
+          p_title: string
+          p_token: string
+          p_urgent: boolean
+        }
+        Returns: string
+      }
       submit_public_task_intake: {
         Args: {
           p_category: string
