@@ -13,6 +13,10 @@ export interface CalendarEvent {
   endTime: string;
   allDay: boolean;
   color: string;
+  location: string;
+  meetingUrl: string;
+  recurrenceRule: "daily" | "weekly" | "monthly" | null;
+  recurrenceGroupId: string | null;
   sourceType: string | null;
   sourceId: string | null;
   createdAt: string;
@@ -32,6 +36,10 @@ interface DbCalendarEvent {
   end_time: string;
   all_day: boolean;
   color: string | null;
+  location: string | null;
+  meeting_url: string | null;
+  recurrence_rule: string | null;
+  recurrence_group_id: string | null;
   source_type: string | null;
   source_id: string | null;
   created_at: string;
@@ -79,6 +87,10 @@ const mapDbToEvent = (db: DbCalendarEvent, invitation?: { id: string; status: st
     endTime,
     allDay: db.all_day || false,
     color: db.color || getCategoryColor(category),
+    location: db.location || "",
+    meetingUrl: db.meeting_url || "",
+    recurrenceRule: db.recurrence_rule as CalendarEvent["recurrenceRule"],
+    recurrenceGroupId: db.recurrence_group_id,
     sourceType: db.source_type,
     sourceId: db.source_id,
     createdAt: db.created_at,
@@ -233,6 +245,10 @@ export function useCalendarEvents() {
           end_time: endTime,
           all_day: event.allDay || false,
           color: event.color || getCategoryColor(event.category || "משימה"),
+          location: event.location || null,
+          meeting_url: event.meetingUrl || null,
+          recurrence_rule: event.recurrenceRule || null,
+          recurrence_group_id: event.recurrenceGroupId || null,
           source_type: event.sourceType || "custom",
           source_id: event.sourceId || null,
         }])
@@ -247,6 +263,62 @@ export function useCalendarEvents() {
     } catch (error: any) {
       console.error("Error adding calendar event:", error);
       toast.error("שגיאה בהוספת אירוע");
+      return null;
+    }
+  }, [user]);
+
+  const addEventSeries = useCallback(async (
+    event: Partial<CalendarEvent>,
+    recurrenceRule: "daily" | "weekly" | "monthly",
+    occurrenceCount: number,
+  ): Promise<CalendarEvent | null> => {
+    if (!user) return null;
+    const startTime = normalizeEventDate(event.startTime);
+    const endTime = normalizeEventDate(event.endTime);
+    if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
+      toast.error("זמן האירוע אינו תקין");
+      return null;
+    }
+
+    const groupId = crypto.randomUUID();
+    const initialStart = new Date(startTime);
+    const duration = new Date(endTime).getTime() - initialStart.getTime();
+    const rows = Array.from({ length: Math.max(1, occurrenceCount) }, (_, index) => {
+      const occurrenceStart = new Date(initialStart);
+      if (recurrenceRule === "daily") occurrenceStart.setDate(occurrenceStart.getDate() + index);
+      if (recurrenceRule === "weekly") occurrenceStart.setDate(occurrenceStart.getDate() + (index * 7));
+      if (recurrenceRule === "monthly") occurrenceStart.setMonth(occurrenceStart.getMonth() + index);
+      const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+      return {
+        user_id: user.id,
+        title: event.title || "",
+        description: event.description || null,
+        category: event.category || "משימה",
+        start_time: occurrenceStart.toISOString(),
+        end_time: occurrenceEnd.toISOString(),
+        all_day: event.allDay || false,
+        color: event.color || getCategoryColor(event.category || "משימה"),
+        location: event.location || null,
+        meeting_url: event.meetingUrl || null,
+        recurrence_rule: recurrenceRule,
+        recurrence_group_id: groupId,
+        source_type: event.sourceType || "custom",
+        source_id: event.sourceId || null,
+      };
+    });
+
+    try {
+      const { data, error } = await supabase.from("calendar_events").insert(rows).select();
+      if (error) throw error;
+      const savedEvents = compactEvents((data as unknown as DbCalendarEvent[]).map((row) => mapDbToEvent(row)));
+      setEvents((previous) => [
+        ...previous.filter((existing) => !savedEvents.some((saved) => saved.id === existing.id)),
+        ...savedEvents,
+      ]);
+      return savedEvents[0] || null;
+    } catch (error) {
+      console.error("Error adding recurring calendar events:", error);
+      toast.error("שגיאה ביצירת סדרת האירועים");
       return null;
     }
   }, [user]);
@@ -272,6 +344,8 @@ export function useCalendarEvents() {
     }
     if (updates.allDay !== undefined) dbUpdates.all_day = updates.allDay;
     if (updates.color !== undefined) dbUpdates.color = updates.color;
+    if (updates.location !== undefined) dbUpdates.location = updates.location || null;
+    if (updates.meetingUrl !== undefined) dbUpdates.meeting_url = updates.meetingUrl || null;
 
     try {
       const { error } = await supabase
@@ -335,5 +409,5 @@ export function useCalendarEvents() {
     }
   }, [user]);
 
-  return { events, loading, addEvent, updateEvent, deleteEvent, respondToInvitation, refetch: fetchEvents };
+  return { events, loading, addEvent, addEventSeries, updateEvent, deleteEvent, respondToInvitation, refetch: fetchEvents };
 }

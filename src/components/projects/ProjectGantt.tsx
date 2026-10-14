@@ -38,7 +38,7 @@ export interface ProjectGanttTask {
   status: string | null;
   due_date: string | null;
   sort_order: number;
-  assigned_email: string | null;
+  assigned_email?: string | null;
 }
 
 export interface ProjectGanttProject {
@@ -51,10 +51,11 @@ export interface ProjectGanttProject {
 interface ProjectGanttProps {
   project: ProjectGanttProject;
   tasks: ProjectGanttTask[];
-  onUpdateTask: (taskId: string, updates: Partial<ProjectGanttTask>) => Promise<void>;
-  onBulkUpdate: (updates: Array<{ id: string; due_date: string }>) => Promise<void>;
-  onAddTemplate: (tasks: Array<{ title: string; due_date: string }>) => Promise<void>;
-  onUpdateProjectTarget: (date: string) => Promise<void>;
+  onUpdateTask?: (taskId: string, updates: Partial<ProjectGanttTask>) => Promise<void>;
+  onBulkUpdate?: (updates: Array<{ id: string; due_date: string }>) => Promise<void>;
+  onAddTemplate?: (tasks: Array<{ title: string; due_date: string }>) => Promise<void>;
+  onUpdateProjectTarget?: (date: string) => Promise<void>;
+  readOnly?: boolean;
 }
 
 type GanttFilter = "all" | "open" | "late" | "urgent";
@@ -101,6 +102,7 @@ const ProjectGantt = ({
   onBulkUpdate,
   onAddTemplate,
   onUpdateProjectTarget,
+  readOnly = false,
 }: ProjectGanttProps) => {
   const today = useMemo(startOfToday, []);
   const [zoom, setZoom] = useState<ZoomLevel>(30);
@@ -135,7 +137,7 @@ const ProjectGantt = ({
 
   const runAutomaticSchedule = async () => {
     const openTasks = orderedTasks.filter((task) => !task.completed);
-    if (!openTasks.length) return;
+    if (!openTasks.length || !onBulkUpdate) return;
 
     setSaving(true);
     try {
@@ -147,6 +149,7 @@ const ProjectGantt = ({
   };
 
   const addTemplate = async () => {
+    if (!onAddTemplate) return;
     const template = TEMPLATES[templateId];
     const dueDates = createScheduleDates(template.tasks.length, today, targetDate);
     setSaving(true);
@@ -208,24 +211,26 @@ const ProjectGantt = ({
       <section className="rounded-2xl border bg-muted/20 p-3">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={runAutomaticSchedule} disabled={saving || tasks.every((task) => task.completed)} size="sm">
-              {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Sparkles className="ml-1 h-4 w-4" />}
-              תזמון אוטומטי
-            </Button>
-            <Select value={templateId} onValueChange={(value) => setTemplateId(value as keyof typeof TEMPLATES)}>
-              <SelectTrigger className="h-9 w-[160px] bg-background">
-                <LayoutTemplate className="ml-2 h-4 w-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(TEMPLATES).map(([id, template]) => (
-                  <SelectItem key={id} value={id}>{template.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={addTemplate} disabled={saving} size="sm" variant="outline">
-              הוסף שלבים מוכנים
-            </Button>
+            {!readOnly && <>
+              <Button onClick={runAutomaticSchedule} disabled={saving || tasks.every((task) => task.completed)} size="sm">
+                {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Sparkles className="ml-1 h-4 w-4" />}
+                תזמון אוטומטי
+              </Button>
+              <Select value={templateId} onValueChange={(value) => setTemplateId(value as keyof typeof TEMPLATES)}>
+                <SelectTrigger className="h-9 w-[160px] bg-background">
+                  <LayoutTemplate className="ml-2 h-4 w-4" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TEMPLATES).map(([id, template]) => (
+                    <SelectItem key={id} value={id}>{template.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={addTemplate} disabled={saving} size="sm" variant="outline">
+                הוסף שלבים מוכנים
+              </Button>
+            </>}
             <Button type="button" onClick={() => window.print()} size="sm" variant="outline" className="gap-2">
               <Printer className="h-4 w-4" />
               PDF / הדפסה
@@ -234,17 +239,25 @@ const ProjectGantt = ({
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">יעד הפרויקט</span>
-            <Input
-              type="date"
-              value={project.target_date || ""}
-              onChange={(event) => onUpdateProjectTarget(event.target.value)}
-              className="h-9 w-[150px] bg-background"
-              aria-label="תאריך יעד לפרויקט"
-            />
+            {readOnly ? (
+              <Badge variant="outline" className="h-9 px-3 text-sm">
+                {project.target_date ? new Date(`${project.target_date}T00:00:00`).toLocaleDateString("he-IL") : "לא הוגדר"}
+              </Badge>
+            ) : (
+              <Input
+                type="date"
+                value={project.target_date || ""}
+                onChange={(event) => void onUpdateProjectTarget?.(event.target.value)}
+                className="h-9 w-[150px] bg-background"
+                aria-label="תאריך יעד לפרויקט"
+              />
+            )}
           </div>
         </div>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          תזמון אוטומטי מסדר רק משימות פתוחות מהיום ועד יעד הפרויקט. אפשר לשנות כל תאריך ידנית בכל רגע.
+          {readOnly
+            ? "תצוגה ציבורית לקריאה בלבד. הנתונים מתעדכנים מתוך הפרויקט ב־Tabro."
+            : "תזמון אוטומטי מסדר רק משימות פתוחות מהיום ועד יעד הפרויקט. אפשר לשנות כל תאריך ידנית בכל רגע."}
         </p>
       </section>
 
@@ -343,13 +356,18 @@ const ProjectGantt = ({
                   <div key={task.id} className="group flex min-h-[58px] border-b last:border-b-0" dir="rtl">
                     <div className="sticky right-0 z-10 flex w-[270px] shrink-0 items-center gap-2 border-l bg-background px-3 py-2 group-hover:bg-muted/35">
                       <button
-                        onClick={() => onUpdateTask(task.id, {
-                          completed: !task.completed,
-                          status: !task.completed ? "בוצע" : "לא התחיל",
-                        })}
+                        onClick={() => {
+                          if (readOnly || !onUpdateTask) return;
+                          void onUpdateTask(task.id, {
+                            completed: !task.completed,
+                            status: !task.completed ? "בוצע" : "לא התחיל",
+                          });
+                        }}
+                        disabled={readOnly}
                         className={cn(
                           "grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors",
                           task.completed ? "border-emerald-500 bg-emerald-500 text-white" : "hover:border-primary",
+                          readOnly && "cursor-default",
                         )}
                         aria-label={task.completed ? `פתח מחדש את ${displayTitle}` : `סמן את ${displayTitle} כבוצעה`}
                       >
@@ -361,13 +379,19 @@ const ProjectGantt = ({
                           {task.urgent && <span className="h-2 w-2 shrink-0 rounded-full bg-rose-500" title="דחוף" />}
                         </div>
                         <div className="mt-1 flex items-center gap-2">
-                          <Input
-                            type="date"
-                            value={task.due_date || ""}
-                            onChange={(event) => onUpdateTask(task.id, { due_date: event.target.value || null })}
-                            className="h-6 w-[118px] border-0 bg-transparent p-0 text-[11px] shadow-none focus-visible:ring-0"
-                            aria-label={`תאריך יעד עבור ${displayTitle}`}
-                          />
+                          {readOnly ? (
+                            <span className="text-[11px] text-muted-foreground">
+                              {task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString("he-IL") : "ללא תאריך"}
+                            </span>
+                          ) : (
+                            <Input
+                              type="date"
+                              value={task.due_date || ""}
+                              onChange={(event) => void onUpdateTask?.(task.id, { due_date: event.target.value || null })}
+                              className="h-6 w-[118px] border-0 bg-transparent p-0 text-[11px] shadow-none focus-visible:ring-0"
+                              aria-label={`תאריך יעד עבור ${displayTitle}`}
+                            />
+                          )}
                           {late && <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 px-1.5 text-[9px] text-amber-700">באיחור</Badge>}
                           {period.isEstimated && <span className="text-[9px] text-muted-foreground">זמני</span>}
                         </div>

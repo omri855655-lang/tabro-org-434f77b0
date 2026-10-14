@@ -130,7 +130,7 @@ const PersonalPlanner = () => {
     isTaskCompletedOnDate,
     toggleSkipForDate,
   } = useRecurringTasks();
-  const { events, addEvent, updateEvent, deleteEvent, respondToInvitation, refetch: refetchCalendarEvents } = useCalendarEvents();
+  const { events, addEvent, addEventSeries, updateEvent, deleteEvent, respondToInvitation, refetch: refetchCalendarEvents } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
   const isMobile = useIsMobile();
@@ -182,6 +182,9 @@ const PersonalPlanner = () => {
     sourceType: "custom" as string,
     sourceId: null as string | null,
     inviteeEmails: "" as string,
+    location: "" as string,
+    meetingUrl: "" as string,
+    recurrence: "none" as "none" | "daily" | "weekly" | "monthly",
   });
 
   const [sendingInvites, setSendingInvites] = useState(false);
@@ -1143,6 +1146,9 @@ const PersonalPlanner = () => {
       sourceType,
       sourceId,
       inviteeEmails: "",
+      location: "",
+      meetingUrl: "",
+      recurrence: "none",
     });
     setQuickEditorAnchor(mode === "quick" ? clampQuickEditorAnchor(anchor) : null);
     setShowQuickEventDialog(mode === "quick");
@@ -1384,6 +1390,16 @@ const PersonalPlanner = () => {
       return;
     }
 
+    if (newEventData.meetingUrl.trim()) {
+      try {
+        const meetingUrl = new URL(newEventData.meetingUrl.trim());
+        if (meetingUrl.protocol !== "https:") throw new Error("HTTPS required");
+      } catch {
+        toast.error("קישור הפגישה חייב להיות כתובת HTTPS תקינה");
+        return;
+      }
+    }
+
     if (editingEvent?.id.startsWith("recurring-")) {
       toast.info("כדי לערוך משימה קבועה, עדכן אותה במסך הלוז היומי");
       return;
@@ -1400,6 +1416,8 @@ const PersonalPlanner = () => {
           startTime: newEventData.startTime,
           endTime: newEventData.endTime,
           color: newEventData.color || getDynCategoryColor(newEventData.category),
+          location: newEventData.location,
+          meetingUrl: newEventData.meetingUrl,
         });
         if (!updated) return;
       } else {
@@ -1419,7 +1437,7 @@ const PersonalPlanner = () => {
           }
         }
 
-        const savedEvent = await addEvent({
+        const eventPayload = {
           title: newEventData.title,
           description: newEventData.description,
           category: newEventData.category,
@@ -1428,7 +1446,13 @@ const PersonalPlanner = () => {
           color: newEventData.color || getDynCategoryColor(newEventData.category),
           sourceType: newEventData.sourceType,
           sourceId: newEventData.sourceId,
-        });
+          location: newEventData.location,
+          meetingUrl: newEventData.meetingUrl,
+        };
+        const recurrenceCounts = { daily: 30, weekly: 26, monthly: 12 } as const;
+        const savedEvent = newEventData.recurrence === "none"
+          ? await addEvent(eventPayload)
+          : await addEventSeries(eventPayload, newEventData.recurrence, recurrenceCounts[newEventData.recurrence]);
 
         if (!savedEvent) return;
 
@@ -1501,6 +1525,9 @@ const PersonalPlanner = () => {
       sourceType: event.sourceType || "custom",
       sourceId: event.sourceId,
       inviteeEmails: existingEmails,
+      location: event.location || "",
+      meetingUrl: event.meetingUrl || "",
+      recurrence: "none",
     });
 
     setQuickEditorAnchor(mode === "quick" ? clampQuickEditorAnchor(anchor) : null);
@@ -1711,6 +1738,8 @@ const PersonalPlanner = () => {
       ics += `UID:${e.id}@personal-planner\r\n`;
       ics += `SUMMARY:${e.title.replace(/[,;\\]/g, " ")}\r\n`;
       if (e.description) ics += `DESCRIPTION:${e.description.replace(/\n/g, "\\n").replace(/[,;\\]/g, " ")}\r\n`;
+      if (e.location) ics += `LOCATION:${e.location.replace(/[,;\\]/g, " ")}\r\n`;
+      if (e.meetingUrl) ics += `URL:${e.meetingUrl.replace(/[,;\\]/g, "")}\r\n`;
       ics += `CATEGORIES:${e.category}\r\n`;
       ics += "END:VEVENT\r\n";
     });
@@ -2230,6 +2259,11 @@ const PersonalPlanner = () => {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">{event.isInvited ? "הזמנה: " : ""}{event.title}</span>
                       {event.description && <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">{event.description}</span>}
+                      {(event.location || event.meetingUrl) && (
+                        <span className="mt-1 block truncate text-xs text-primary/80">
+                          {[event.location, event.meetingUrl ? "קישור לפגישה" : ""].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
                     </span>
                     <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">{event.category}</Badge>
                   </button>
@@ -3342,6 +3376,66 @@ const PersonalPlanner = () => {
                     <SelectContent>{Array.from({ length: 60 }, (_, i) => i).map(m => <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium">מיקום</label>
+                <Input
+                  value={newEventData.location}
+                  onChange={(event) => setNewEventData((previous) => ({ ...previous, location: event.target.value }))}
+                  placeholder="חדר, משרד או כתובת"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">קישור לפגישה</label>
+                <Input
+                  type="url"
+                  value={newEventData.meetingUrl}
+                  onChange={(event) => setNewEventData((previous) => ({ ...previous, meetingUrl: event.target.value }))}
+                  placeholder="https://meet..."
+                  dir="ltr"
+                  className="text-left"
+                />
+              </div>
+            </div>
+
+            {!editingEvent && (
+              <div>
+                <label className="text-sm font-medium">חזרתיות</label>
+                <Select
+                  value={newEventData.recurrence}
+                  onValueChange={(value) => setNewEventData((previous) => ({
+                    ...previous,
+                    recurrence: value as typeof previous.recurrence,
+                  }))}
+                >
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">ללא חזרה</SelectItem>
+                    <SelectItem value="daily">כל יום, 30 מופעים</SelectItem>
+                    <SelectItem value="weekly">כל שבוע, 26 מופעים</SelectItem>
+                    <SelectItem value="monthly">כל חודש, 12 מופעים</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">כל מופע ניתן לעריכה או מחיקה בנפרד, כדי למנוע שינוי מקרי של סדרה שלמה.</p>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium">צבע האירוע</label>
+              <div className="mt-2 flex flex-wrap gap-2" aria-label="בחירת צבע אירוע">
+                {["#2563eb", "#0891b2", "#059669", "#65a30d", "#d97706", "#dc2626", "#db2777", "#7c3aed"].map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setNewEventData((previous) => ({ ...previous, color }))}
+                    className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 ${newEventData.color === color ? "border-foreground ring-2 ring-primary/30" : "border-background"}`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`בחר צבע ${color}`}
+                  />
+                ))}
               </div>
             </div>
 

@@ -626,7 +626,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = (key: TranslationKey): string => {
-    return translations[lang]?.[key] || translations.he[key] || key;
+    // Keep non-Hebrew interfaces readable while a newly added key is waiting
+    // for a native translation instead of leaking Hebrew into the screen.
+    return translations[lang]?.[key] || translations.en[key] || translations.he[key] || key;
   };
 
   const dir = RTL_LANGS.includes(lang) ? "rtl" : "ltr";
