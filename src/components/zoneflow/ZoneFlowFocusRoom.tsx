@@ -23,7 +23,7 @@ export function ZoneFlowFocusRoom({ running, progress, level, timer, onToggle, o
       participants={[{ userId: 'local-user', displayName: copy.me, ...position, status: running ? 'focusing' : 'setting-up', isMe: true, activity, seated }]}
       timer={timer} active={running} onToggle={onToggle} onReset={onReset}
       onMove={next => { setPosition(clampRoomPosition(next)); setSeated(false); }} activity={activity} onActivityChange={setActivity}
-      onSit={() => setSeated(true)} onSelectSeat={next => { setPosition(next); setSeated(true); }} />
+      onSelectSeat={next => { setPosition(next); setSeated(true); }} />
     <div className="flex items-center gap-3 text-xs text-muted-foreground"><span>{copy.level} {level}</span><progress className="h-2 flex-1" max={100} value={progress} aria-label={`${Math.round(progress)}%`} /><span>{Math.round(progress)}%</span></div>
   </div>;
 }

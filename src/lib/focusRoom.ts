@@ -13,3 +13,8 @@ export function clampRoomPosition(position: { x: number; y: number }) {
     y: Math.min(77, Math.max(28, Number.isFinite(position.y) ? position.y : 62)),
   };
 }
+
+export function nearestAvailableFocusSeat(position: { x: number; y: number }, people: { x: number; y: number; seated?: boolean; isMe?: boolean }[]) {
+  return [...FOCUS_SEATS].filter(seat => !occupiedFocusSeat(seat, people))
+    .sort((a, b) => Math.hypot(a.x - position.x, a.y - position.y) - Math.hypot(b.x - position.x, b.y - position.y))[0];
+}

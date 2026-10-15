@@ -600,7 +600,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} activity={activity} onActivityChange={setActivity} onSit={() => setSeated(true)} onSelectSeat={(position) => { moveAvatar(position); setSeated(true); }} /> : pendingRoom ? (
+        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} activity={activity} onActivityChange={setActivity} onSelectSeat={(position) => { moveAvatar(position); setSeated(true); }} /> : pendingRoom ? (
           <Card className={cn("overflow-hidden border", panel)}>
             <CardContent className="grid gap-6 bg-gradient-to-br from-cyan-500/10 via-transparent to-amber-500/10 p-6 md:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[2rem] bg-gradient-to-br from-[#172554] to-[#0f766e] p-6 text-white">

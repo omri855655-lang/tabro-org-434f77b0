@@ -1,195 +1,109 @@
-import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
-import { BookOpen, Coffee, Headphones, Laptop, Library, LogOut, MicOff, NotebookPen, Pause, Plane, Play, RotateCcw, Users } from "lucide-react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useId, useRef, useState } from 'react';
+import { BookOpen, Laptop, LogOut, Maximize2, MicOff, Minus, NotebookPen, Pause, Play, RotateCcw, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { useLanguage } from '@/hooks/useLanguage';
+import { focusRoomCopy } from '@/lib/focusRoomCopy';
+import { FOCUS_SEATS, clampRoomPosition, nearestAvailableFocusSeat, occupiedFocusSeat } from '@/lib/focusRoom';
+import { FocusRoomWorld } from './FocusRoomWorld';
 
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useLanguage } from "@/hooks/useLanguage";
-import { focusRoomCopy } from "@/lib/focusRoomCopy";
-import { FOCUS_SEATS, occupiedFocusSeat } from "@/lib/focusRoom";
-import cozyLibraryRoom from "@/assets/zoneflow/cozy-library-room-v2.png";
-import focusFlightRoom from "@/assets/zoneflow/focus-flight-room-v2.png";
-import cozyCafeRoom from "@/assets/zoneflow/cozy-cafe-room-v2.png";
-import biophilicOfficeRoom from "@/assets/zoneflow/biophilic-office-room-v2.png";
-
-export type FocusRoomScene = "library" | "plane" | "cafe" | "office";
-export type FocusActivity = "computer" | "notebook" | "book";
-export const FOCUS_ACTIVITIES = {
-  computer: { label: "מחשב", icon: Laptop },
-  notebook: { label: "מחברת", icon: NotebookPen },
-  book: { label: "ספר", icon: BookOpen },
-} as const;
-
+export type FocusRoomScene = 'library' | 'plane' | 'cafe' | 'office';
+export type FocusActivity = 'computer' | 'notebook' | 'book';
+const ACTIVITIES = { computer: Laptop, notebook: NotebookPen, book: BookOpen };
 export interface FocusRoomParticipant {
-  userId: string;
-  displayName: string;
-  x: number;
-  y: number;
-  status: "setting-up" | "focusing" | "break" | "away";
-  color?: string;
-  avatarStyle?: number;
-  isMe?: boolean;
-  activity?: FocusActivity;
-  seated?: boolean;
-  durationMinutes?: number;
+  userId: string; displayName: string; x: number; y: number;
+  status: 'setting-up' | 'focusing' | 'break' | 'away';
+  color?: string; avatarStyle?: number; isMe?: boolean; activity?: FocusActivity; seated?: boolean; durationMinutes?: number;
 }
 
-const SCENES = {
-  library: { icon: Library, background: cozyLibraryRoom, sky: "from-[#20140f] via-[#714224] to-[#d39a59]", glow: "bg-amber-200/35", label: "Tabro Library" },
-  plane: { icon: Plane, background: focusFlightRoom, sky: "from-[#071c39] via-[#184d77] to-[#86d2e8]", glow: "bg-cyan-100/40", label: "Focus Flight" },
-  cafe: { icon: Coffee, background: cozyCafeRoom, sky: "from-[#341d2a] via-[#9a4f48] to-[#f0b66f]", glow: "bg-orange-100/35", label: "Quiet Cafe" },
-  office: { icon: Users, background: biophilicOfficeRoom, sky: "from-[#10263b] via-[#276b73] to-[#9dd5c2]", glow: "bg-emerald-100/35", label: "Tabro Cowork" },
-} as const;
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-const avatarVariant = (userId: string) => [...userId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 4;
-const AVATAR_STYLES = [
-  { skin: "bg-[#f2b68b]", hair: "bg-slate-950", shirt: "bg-cyan-400" },
-  { skin: "bg-[#d9986b]", hair: "bg-amber-950", shirt: "bg-rose-400" },
-  { skin: "bg-[#8c593f]", hair: "bg-slate-900", shirt: "bg-amber-400" },
-  { skin: "bg-[#f6c6a2]", hair: "bg-orange-950", shirt: "bg-emerald-400" },
-  { skin: "bg-[#b97855]", hair: "bg-stone-950", shirt: "bg-violet-400" },
-  { skin: "bg-[#f0b58d]", hair: "bg-yellow-950", shirt: "bg-blue-400" },
-  { skin: "bg-[#70462f]", hair: "bg-zinc-950", shirt: "bg-lime-400" },
-  { skin: "bg-[#e3a278]", hair: "bg-red-950", shirt: "bg-pink-400" },
-] as const;
-
-export function FocusRoomInterior({ scene, name, topic, participants, timer, active, onToggle, onReset, onLeave, onMove, activity, onActivityChange, onSit, onSelectSeat }: {
-  scene: FocusRoomScene;
-  name: string;
-  topic: string;
-  participants: FocusRoomParticipant[];
-  timer: string;
-  active: boolean;
-  onToggle: () => void;
-  onReset: () => void;
-  onLeave?: () => void;
-  onMove: (position: { x: number; y: number }) => void;
-  activity: FocusActivity;
-  onActivityChange: (activity: FocusActivity) => void;
-  onSit: () => void;
-  onSelectSeat: (position: { x: number; y: number }) => void;
+export function FocusRoomInterior({ scene, name, topic, participants, timer, active, onToggle, onReset, onLeave, onMove, activity, onActivityChange, onSelectSeat }: {
+  scene: FocusRoomScene; name: string; topic: string; participants: FocusRoomParticipant[];
+  timer: string; active: boolean; onToggle: () => void; onReset: () => void; onLeave?: () => void;
+  onMove: (position: { x: number; y: number }) => void; activity: FocusActivity;
+  onActivityChange: (activity: FocusActivity) => void; onSelectSeat: (position: { x: number; y: number }) => void;
 }) {
   const { lang, dir } = useLanguage();
   const copy = focusRoomCopy[lang];
-  const statusLabels = { 'setting-up': copy.preparing, focusing: copy.focusing, break: copy.break, away: copy.away };
+  const peopleId = useId();
   const [peopleOpen, setPeopleOpen] = useState(false);
-  const config = SCENES[scene];
-  const SceneIcon = config.icon;
-  const me = participants.find((participant) => participant.isMe);
+  const [zoomed, setZoomed] = useState(false);
   const [walking, setWalking] = useState(false);
-  const walkingTimerRef = useRef<number | null>(null);
+  const walkingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const me = participants.find(person => person.isMe);
+  const selectedSeat = me?.seated ? FOCUS_SEATS.findIndex(seat => Math.hypot(seat.x - me.x, seat.y - me.y) < 12) : -1;
+  const statusLabels = { 'setting-up': copy.preparing, focusing: copy.focusing, break: copy.break, away: copy.away };
+  useEffect(() => () => { if (walkingTimer.current) clearTimeout(walkingTimer.current); }, []);
 
-  useEffect(() => () => {
-    if (walkingTimerRef.current) window.clearTimeout(walkingTimerRef.current);
-  }, []);
-
-  const move = (position: { x: number; y: number }) => {
+  const animateWalk = () => {
     setWalking(true);
-    if (walkingTimerRef.current) window.clearTimeout(walkingTimerRef.current);
-    walkingTimerRef.current = window.setTimeout(() => setWalking(false), 650);
-    onMove(position);
+    if (walkingTimer.current) clearTimeout(walkingTimer.current);
+    walkingTimer.current = setTimeout(() => setWalking(false), 650);
   };
-
+  const chooseSeat = (seat: typeof FOCUS_SEATS[number]) => {
+    if (occupiedFocusSeat(seat, participants)) return;
+    animateWalk();
+    onSelectSeat(seat);
+  };
+  const move = (position: { x: number; y: number }) => {
+    animateWalk();
+    onMove(clampRoomPosition(position));
+  };
   const moveFromPointer = (event: MouseEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest("button")) return;
+    const deskIndex = (event.target as Element).closest('[data-seat-index]')?.getAttribute('data-seat-index');
+    if (deskIndex !== null && deskIndex !== undefined) {
+      const seat = FOCUS_SEATS[Number(deskIndex)];
+      if (seat) chooseSeat(seat);
+      return;
+    }
     const rect = event.currentTarget.getBoundingClientRect();
-    move({
-      x: clamp(((event.clientX - rect.left) / rect.width) * 100, 7, 93),
-      y: clamp(((event.clientY - rect.top) / rect.height) * 100, 28, 77),
-    });
+    move({ x: (event.clientX - rect.left) / rect.width * 100, y: (event.clientY - rect.top) / rect.height * 100 });
   };
-
   const moveFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('button, input, textarea, select, [contenteditable="true"]')) return;
-    if (!me || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    if (!me || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     event.preventDefault();
-    const delta = 4;
-    move({
-      x: clamp(me.x + (event.key === "ArrowRight" ? delta : event.key === "ArrowLeft" ? -delta : 0), 7, 93),
-      y: clamp(me.y + (event.key === "ArrowDown" ? delta : event.key === "ArrowUp" ? -delta : 0), 28, 77),
-    });
+    move({ x: me.x + (event.key === 'ArrowRight' ? 4 : event.key === 'ArrowLeft' ? -4 : 0), y: me.y + (event.key === 'ArrowDown' ? 4 : event.key === 'ArrowUp' ? -4 : 0) });
+  };
+  const toggle = () => {
+    if (!active && selectedSeat < 0) {
+      const seat = nearestAvailableFocusSeat(me || { x: 50, y: 70 }, participants);
+      if (seat) chooseSeat(seat);
+    }
+    onToggle();
   };
 
-  return (
-    <section
-      className={cn("relative isolate min-h-[820px] sm:min-h-[640px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br text-white shadow-2xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky, scene === "plane" && "zoneflow-flight-cabin")}
-      aria-label={name}
-      tabIndex={0}
-      dir={dir}
-      onKeyDown={moveFromKeyboard}
-    >
-      <img src={config.background} alt="" className="zoneflow-room-background absolute inset-0 h-full w-full object-cover object-center" />
-      <div className={cn("absolute inset-0 bg-gradient-to-b via-transparent", scene === "office" ? "from-white/5 to-[#10251d]/65" : "from-black/10 to-black/75")} />
-      {scene === "library" && <>
-          <div className="zoneflow-library-light absolute left-[13%] top-[19%] h-64 w-32 -rotate-12 bg-gradient-to-b from-amber-100/30 to-transparent blur-2xl" />
-          {Array.from({ length: 14 }, (_, index) => (
-            <span
-              key={`library-dust-${index}`}
-              className="zoneflow-library-dust absolute h-1.5 w-1.5 rounded-full bg-amber-100/80 shadow-[0_0_8px_rgba(254,243,199,.9)]"
-              style={{ left: `${8 + ((index * 17) % 82)}%`, top: `${25 + ((index * 23) % 48)}%`, animationDelay: `${index * -0.72}s`, animationDuration: `${7 + (index % 5)}s` }}
-            />
-          ))}
-        </>}
-      {scene === "cafe" && Array.from({ length: 18 }, (_, index) => <span key={`rain-${index}`} className="zoneflow-cafe-rain absolute top-0 h-16 w-px bg-gradient-to-b from-transparent via-sky-100/45 to-transparent" style={{ left: `${3 + ((index * 13) % 94)}%`, animationDelay: `${index * -0.31}s`, animationDuration: `${2.2 + (index % 4) * .4}s` }} />)}
-      {scene === "office" && <><div className="zoneflow-office-sunbeam absolute -top-20 left-[18%] h-[90%] w-40 -rotate-[18deg] bg-gradient-to-b from-amber-100/35 to-transparent blur-2xl" />{[18, 48, 78].map((left, index) => <span key={left} className="zoneflow-office-leaf absolute top-[15%] h-8 w-4 rounded-[80%_20%] bg-emerald-300/35" style={{ left: `${left}%`, animationDelay: `${index * -.8}s` }} />)}</>}
-      {scene === "plane" && <><div className="zoneflow-flight-sun absolute -end-16 top-24 h-64 w-64 rounded-full bg-amber-100/25 blur-3xl" /><div className="zoneflow-flight-route absolute bottom-28 left-1/2 top-48 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-cyan-100/60 to-transparent shadow-[0_0_24px_rgba(165,243,252,.7)]" /></>}
-      <div className={cn("absolute -start-24 -top-24 h-72 w-72 rounded-full blur-3xl", config.glow)} />
-      <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-
-      <div className="relative z-20 flex flex-wrap items-start justify-between gap-3 p-5 sm:p-6">
-        <div><div className="inline-flex items-center gap-2 rounded-full bg-black/25 px-3 py-1 text-xs backdrop-blur"><span className="h-2 w-2 animate-pulse rounded-full bg-rose-400" /> LIVE · {config.label}</div><h2 className="mt-3 text-2xl font-black sm:text-3xl">{name}</h2><p className="mt-1 text-sm text-white/75">{topic}</p></div>
-        <div className="flex flex-wrap gap-2"><Button variant="secondary" className="gap-2 rounded-full bg-white/15 text-white hover:bg-white/25" onClick={() => setPeopleOpen(value => !value)} aria-expanded={peopleOpen}><Users className="h-4 w-4" />{copy.people} · {participants.length}</Button><span className="flex items-center rounded-full bg-black/25 p-2" title={copy.quiet}><MicOff aria-label={copy.quiet} className="h-4 w-4" /></span>{onLeave && <Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" onClick={onLeave} aria-label={copy.leave}><LogOut className="h-4 w-4" /></Button>}</div>
+  return <section className="focus-room-studio overflow-hidden rounded-[1.75rem] border shadow-sm outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/60" aria-label={name} tabIndex={0} dir={dir} onKeyDown={moveFromKeyboard}>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#dce3d7] bg-[#fcfaf4] px-4 py-4 sm:px-6">
+      <div className="min-w-0"><div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.2em] text-[#527063]"><span className="h-1.5 w-1.5 rounded-full bg-[#4d9278]" />ZONEFLOW / {scene}</div><h2 className="text-xl font-bold tracking-tight text-[#2c473d] sm:text-2xl">{name}</h2><p className="mt-1 max-w-lg text-xs text-[#65786a]">{topic}</p></div>
+      <div className="flex items-center gap-1.5"><Button variant="ghost" className="gap-2 rounded-full text-[#38594b]" onClick={() => setPeopleOpen(value => !value)} aria-expanded={peopleOpen} aria-controls={peopleId}><Users className="h-4 w-4" />{copy.people} · {participants.length}</Button><span className="p-2 text-[#7b8c7d]" title={copy.quiet}><MicOff aria-label={copy.quiet} className="h-4 w-4" /></span>{onLeave && <Button size="icon" variant="ghost" className="rounded-full text-[#65786a]" onClick={onLeave} aria-label={copy.leave}><LogOut className="h-4 w-4" /></Button>}</div>
+    </header>
+    {peopleOpen && <aside id={peopleId} className="border-b border-[#dce3d7] bg-[#f4f5eb] px-4 py-3"><div className="flex flex-wrap gap-2">{participants.map(person => <div key={person.userId} className="flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs text-[#38594b]"><span className={cn('h-2 w-2 rounded-full', person.status === 'focusing' ? 'bg-emerald-500' : 'bg-amber-400')} /><span>{person.displayName}</span><span className="text-[#79897b]">{statusLabels[person.status]}</span></div>)}</div><p className="mt-2 text-xs text-[#738171]">{copy.quiet}</p></aside>}
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f3f3e9] px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap gap-1 rounded-2xl bg-white/80 p-1">{(Object.keys(ACTIVITIES) as FocusActivity[]).map(value => {
+        const Icon = ACTIVITIES[value];
+        return <Button key={value} size="sm" variant="ghost" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn('gap-1.5 rounded-xl text-[#607568]', activity === value && 'bg-[#dce9dd] text-[#2c5744] hover:bg-[#d4e2d4]')}><Icon className="h-3.5 w-3.5" />{copy[value]}</Button>;
+      })}</div>
+      <Button size="sm" variant="ghost" className="gap-2 rounded-full text-[#527063]" aria-label={zoomed ? copy.zoomOut : copy.zoomIn} aria-pressed={zoomed} onClick={() => setZoomed(value => !value)}>{zoomed ? <Minus className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}{zoomed ? '100%' : '150%'}</Button>
+    </div>
+    <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
+      <div className="relative mx-auto cursor-crosshair" style={{ width: zoomed ? '150%' : '100%', maxWidth: zoomed ? undefined : '900px' }} onClick={moveFromPointer} aria-label={copy.space}>
+        <FocusRoomWorld scene={scene} participants={participants} walking={walking} deskLabel={copy.desk} selectedSeat={selectedSeat} />
       </div>
-
-      {peopleOpen && <aside className="absolute bottom-32 end-3 top-32 z-40 w-52 overflow-auto rounded-3xl border border-white/15 bg-slate-950/95 p-3 backdrop-blur-xl"><div className="flex items-center justify-between text-xs font-bold"><span>{copy.people}</span><span>{participants.length}</span></div><div className="mt-3 space-y-2">{participants.map(participant => <div key={participant.userId} className="flex items-center gap-2 rounded-xl bg-white/10 p-2"><div className={cn("h-8 w-8 rounded-full border-2 border-white/30", participant.color || "bg-sky-300")} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{participant.displayName}</div><div className="text-[10px] text-white/70">{statusLabels[participant.status]}</div></div>{participant.status === 'focusing' && <Headphones className="h-3.5 w-3.5 text-emerald-300" />}</div>)}</div><p className="mt-4 text-xs leading-5 text-white/70">{copy.hint}</p></aside>}
-
-      <div className="absolute bottom-48 top-56 sm:bottom-32 sm:top-36 end-4 start-4 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem]" onClick={moveFromPointer} aria-label={copy.space}>
-        <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap justify-center gap-2 rounded-2xl bg-slate-950/75 p-2 backdrop-blur">
-          {(Object.keys(FOCUS_ACTIVITIES) as FocusActivity[]).map((value) => {
-            const ItemIcon = FOCUS_ACTIVITIES[value].icon;
-            return <Button key={value} size="sm" variant="secondary" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn("gap-2 rounded-xl", activity === value && "bg-cyan-300 text-slate-950")}><ItemIcon className="h-4 w-4" />{copy[value]}</Button>;
-          })}
-          <Button size="sm" variant="secondary" onClick={onSit} disabled={me?.seated}>{copy.sit}</Button>
-        </div>
-        <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%] bg-black/15" : scene === "library" ? "rounded-[42%] bg-transparent" : "rounded-[42%] bg-black/15")} />
-        {FOCUS_SEATS.map((seat, index) => {
-          const occupied = occupiedFocusSeat(seat, participants);
-          return <button key={index} type="button" disabled={occupied} onClick={() => onSelectSeat(seat)} aria-label={`${copy.desk} ${index + 1}: ${occupied ? copy.occupied : copy.sit}`} className="absolute z-10 -translate-x-1/2 rounded-full border border-white/30 bg-slate-950/75 px-3 py-1 text-[10px] text-white hover:bg-cyan-800 disabled:opacity-40" style={{ left: `${seat.x}%`, top: `${seat.y + 21}%` }}>{copy.desk} {index + 1}{occupied ? ` · ${copy.occupied}` : ''}</button>;
-        })}
-        {participants.map((participant) => (
-          (() => {
-            const variant = Number.isInteger(participant.avatarStyle) && participant.avatarStyle! >= 0 ? participant.avatarStyle! : avatarVariant(participant.userId);
-            const avatar = AVATAR_STYLES[variant % AVATAR_STYLES.length];
-            const work = FOCUS_ACTIVITIES[participant.activity || "computer"] || FOCUS_ACTIVITIES.computer;
-            const WorkIcon = work.icon;
-            return <div
-              key={participant.userId}
-              className="absolute flex w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-[left,top] duration-500 ease-out"
-              style={{ left: `${participant.x}%`, top: `${participant.y}%` }}
-            >
-            <div className="mb-1 max-w-24 truncate rounded-full bg-black/55 px-2 py-0.5 text-[10px] backdrop-blur">{participant.displayName}</div>
-            <div className={cn("zoneflow-avatar-idle relative h-[92px] w-[68px]", participant.isMe && walking && "zoneflow-avatar-walking", participant.seated && "zoneflow-avatar-seated")}>
-              <span className="zoneflow-avatar-shadow absolute bottom-0 left-1/2 h-3 w-14 -translate-x-1/2 rounded-full bg-black/45 blur-[2px]" />
-              <div className={cn("absolute left-1/2 top-0 h-14 w-14 -translate-x-1/2 overflow-hidden rounded-[48%_48%_44%_44%] border-[3px] shadow-xl", avatar.skin, participant.isMe ? "border-cyan-300 ring-4 ring-cyan-300/25" : "border-white/65")}>
-                <span className={cn("absolute inset-x-0 top-0", avatar.hair, variant % 4 === 0 ? "h-5 rounded-b-[55%]" : variant % 4 === 1 ? "h-6 -rotate-6 rounded-br-full" : variant % 4 === 2 ? "h-4 rounded-b-lg" : "start-1 h-6 w-9 rounded-br-full")} />
-                <span className="zoneflow-avatar-eye absolute start-2.5 top-[27px] h-2 w-2 rounded-full bg-slate-900" /><span className="zoneflow-avatar-eye absolute end-2.5 top-[27px] h-2 w-2 rounded-full bg-slate-900" /><span className="absolute left-1/2 top-[40px] h-1.5 w-4 -translate-x-1/2 rounded-b-full border-b-2 border-slate-700" />
-              </div>
-              <div className={cn("absolute bottom-3 left-1/2 h-10 w-14 -translate-x-1/2 rounded-t-[42%] border-2 border-white/35 shadow-lg", participant.color || avatar.shirt)}><span className="zoneflow-avatar-limb-start absolute -start-2 top-2 h-8 w-3 rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-end absolute -end-2 top-2 h-8 w-3 -rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-start absolute bottom-[-13px] start-2.5 h-5 w-3 rounded-b-full bg-slate-800" /><span className="zoneflow-avatar-limb-end absolute bottom-[-13px] end-2.5 h-5 w-3 rounded-b-full bg-slate-800" /></div>
-              {participant.status === "focusing" && <span className="absolute -end-2 -top-2 h-3 w-3 animate-ping rounded-full bg-emerald-300" />}
-              {participant.seated && <div className={cn("absolute -bottom-1 -left-3 flex h-10 w-[92px] items-center justify-center rounded-xl border-b-4 border-amber-950 bg-amber-800 shadow-xl", participant.status === "focusing" && "zoneflow-work-surface")}><WorkIcon aria-label={copy[participant.activity || 'computer']} className={cn("h-9 w-12 rounded-md p-1", participant.activity === "computer" ? "bg-slate-900 text-cyan-200" : "bg-amber-50 text-amber-900")} /></div>}
-            </div>
-            {participant.seated && <div className="mt-2 whitespace-nowrap rounded-full bg-slate-950/80 px-2 py-1 text-[10px]">{copy[participant.activity || 'computer']} · {participant.durationMinutes || 25} {copy.minutes}</div>}
-            <div className={cn("mt-1 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{statusLabels[participant.status]}</div>
-          </div>;
-          })()
-        ))}
-        <div className="absolute bottom-0 start-3 rounded-full bg-black/50 px-3 py-1 text-[10px] text-white/80">{copy.move}</div>
-      </div>
-
-      <div className="absolute inset-x-0 bottom-4 z-30 mx-auto flex w-[min(92%,620px)] flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/15 bg-slate-950/80 p-4 backdrop-blur-xl">
-        <div className="flex items-center gap-3"><SceneIcon className="h-5 w-5 text-cyan-300" /><div><div className="font-mono text-3xl font-black tracking-tight sm:text-4xl">{timer}</div><div className="text-xs text-white/70">{participants.length} {copy.connected}</div></div></div>
-        <div className="flex gap-2"><Button onClick={onToggle} className="gap-2 rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300">{active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{active ? copy.pause : copy.start}</Button><Button size="icon" variant="secondary" className="rounded-full" onClick={onReset} aria-label={copy.reset}><RotateCcw className="h-4 w-4" /></Button></div>
-      </div>
-    </section>
-  );
+    </div>
+    <div className="border-t border-[#dce3d7] bg-[#fcfaf4] px-4 py-4 sm:px-6">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#65786a]"><span>{copy.chooseDesk}</span><span>{selectedSeat >= 0 ? `${copy.desk} ${selectedSeat + 1} · ${copy[activity]} · ${me?.durationMinutes || 25} ${copy.minutes}` : copy.move}</span></div>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">{FOCUS_SEATS.map((seat, index) => {
+        const occupied = occupiedFocusSeat(seat, participants);
+        return <button key={index} type="button" disabled={occupied} aria-current={selectedSeat === index ? 'true' : undefined}
+          onClick={() => chooseSeat(seat)} aria-label={`${copy.desk} ${index + 1}: ${occupied ? copy.occupied : copy.sit}`}
+          className={cn('rounded-xl border border-[#dae1d4] px-2 py-2.5 text-xs text-[#5f7566] transition-colors hover:bg-[#e9eee1] disabled:cursor-not-allowed disabled:opacity-45', selectedSeat === index && 'border-[#68917c] bg-[#dce9dd] font-semibold text-[#28553e]')}>
+          {copy.desk} {index + 1}{occupied ? ` · ${copy.occupied}` : ''}
+        </button>;
+      })}</div>
+    </div>
+    <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[#dce3d7] bg-[#eef1e6] px-4 py-4 sm:px-6">
+      <div className="flex items-center gap-4"><div className="font-mono text-3xl font-semibold tracking-tight text-[#304c3e] sm:text-4xl" role="timer">{timer}</div><div className="text-[11px] leading-5 text-[#6d816f]"><div>{active ? copy.focusing : copy.preparing}</div><div>{participants.length} {copy.connected}</div></div></div>
+      <div className="flex gap-2"><Button onClick={toggle} className="gap-2 rounded-full bg-[#365f49] px-5 text-[#fffcf1] hover:bg-[#284d3a]">{active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{active ? copy.pause : copy.start}</Button><Button size="icon" variant="ghost" className="rounded-full text-[#607568]" onClick={onReset} aria-label={copy.reset}><RotateCcw className="h-4 w-4" /></Button></div>
+    </footer>
+  </section>;
 }

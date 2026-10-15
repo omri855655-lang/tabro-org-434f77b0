@@ -1335,6 +1335,29 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
   50% { transform: translateX(-50%) scaleX(.86); opacity: .38; }
 }
 .zoneflow-room-background { animation: zoneflow-room-breathe 18s ease-in-out infinite; }
+
+.focus-room-studio {
+  --room-ink: #304c3e;
+  --room-paper: #fcfaf4;
+  color-scheme: light;
+  font-family: 'Rubik', sans-serif;
+}
+.focus-world-person { transition: transform .6s cubic-bezier(.22, 1, .36, 1); }
+.focus-world-eyes { transform-box: fill-box; transform-origin: center; animation: focus-world-blink 6s infinite; }
+.focus-world-person.is-walking .focus-world-body { animation: focus-world-step .3s ease-in-out infinite alternate; }
+.focus-world-person.is-walking .focus-world-leg-left { animation: focus-world-limb .3s ease-in-out infinite alternate; }
+.focus-world-person.is-walking .focus-world-leg-right { animation: focus-world-limb .3s ease-in-out infinite alternate-reverse; }
+.focus-world-reading { transform-box: fill-box; transform-origin: center; animation: focus-world-page 7s ease-in-out infinite; }
+.focus-world-writing { animation: focus-world-pencil 1.6s ease-in-out infinite; }
+@keyframes focus-world-blink { 0%, 43%, 47%, 100% { transform: scaleY(1); } 45% { transform: scaleY(.1); } }
+@keyframes focus-world-step { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+@keyframes focus-world-limb { from { transform: translateY(-3px); } to { transform: translateY(3px); } }
+@keyframes focus-world-page { 0%, 85%, 100% { transform: scaleX(1); } 91% { transform: scaleX(.94); } }
+@keyframes focus-world-pencil { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-4px, 2px); } }
+@media (prefers-reduced-motion: reduce) {
+  .focus-world-person { transition: none; }
+  .focus-world-svg * { animation: none !important; }
+}
 .zoneflow-cafe-rain { animation: zoneflow-cafe-rain 3s linear infinite; }
 .zoneflow-office-sunbeam { animation: zoneflow-office-sunbeam 8s ease-in-out infinite; }
 .zoneflow-office-leaf { animation: zoneflow-office-leaf 4s ease-in-out infinite; transform-origin: bottom center; }

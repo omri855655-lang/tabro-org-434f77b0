@@ -95,13 +95,33 @@ const configuredAmexLogin = `var AMEX_LOGIN = {
   preAction: async (page) => {
     const loginUrl = "https://he.americanexpress.co.il/personalarea/login/";
     if (!page.url().startsWith(loginUrl)) {
-      await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+      const response = await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+      if ([403, 429].includes(response?.status())) {
+        throw new Error("WAF_BLOCKED: institution refused the login page before credentials were submitted");
+      }
     }
-    await page.locator("#otpLoginPwd, #flip").first().waitFor({ state: "attached", timeout: 30000 });
+    const assertTrustedOrigin = () => {
+      const host = new URL(page.url()).hostname;
+      if (!["he.americanexpress.co.il", "www.americanexpress.co.il"].includes(host)) {
+        throw new Error("LOGIN_UNTRUSTED_REDIRECT: credentials were not submitted");
+      }
+    };
+    assertTrustedOrigin();
+    try {
+      await page.locator("#otpLoginPwd, #flip").first().waitFor({ state: "attached", timeout: 30000 });
+    } catch {
+      const pageText = await page.locator("body").innerText({ timeout: 3000 }).catch(() => "");
+      if (/access denied|sorry.{0,30}blocked|request rejected|attention required|verify you are human/i.test(pageText)) {
+        throw new Error("WAF_BLOCKED: institution refused the login page before credentials were submitted");
+      }
+      throw new Error("LOGIN_FORM_UNAVAILABLE: credentials were not submitted");
+    }
+    assertTrustedOrigin();
     if (!(await page.locator("#otpLoginPwd").isVisible())) {
       await page.locator("#flip").click({ timeout: 15000 });
     }
     await page.locator("#otpLoginPwd").waitFor({ state: "visible", timeout: 30000 });
+    assertTrustedOrigin();
   },
   fields: [
     { credentialKey: "id", selectors: [{ kind: "css", value: "#otpLoginId_ID" }] },

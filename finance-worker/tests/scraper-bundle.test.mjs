@@ -33,11 +33,11 @@ test("unaffected providers keep their own login configuration", () => {
 test('Amex preAction navigates away from marketing homepage before looking for password controls', async () => {
   const block = bundle.match(/var AMEX_LOGIN = (\{[\s\S]*?\n\});/)?.[1];
   assert.ok(block);
-  const config = vm.runInNewContext(`(${block})`);
+  const config = vm.runInNewContext(`(${block})`, { URL });
   const events = [];
   const page = {
     url: () => 'https://www.americanexpress.co.il/',
-    goto: async url => events.push(['navigate', url]),
+    goto: async url => { events.push(['navigate', url]); return { status: () => 200 }; },
     locator: selector => ({
       first() { return this; },
       waitFor: async options => events.push(['wait', selector, options.state]),
@@ -49,4 +49,36 @@ test('Amex preAction navigates away from marketing homepage before looking for p
   assert.deepEqual(events[0], ['navigate', 'https://he.americanexpress.co.il/personalarea/login/']);
   assert.ok(events.some(event => event[0] === 'click' && event[1] === '#flip'));
   assert.deepEqual(events.at(-1), ['wait', '#otpLoginPwd', 'visible']);
+});
+
+test('Amex stops on HTTP blocks and never touches password fields', async () => {
+  const block = bundle.match(/var AMEX_LOGIN = (\{[\s\S]*?\n\});/)?.[1];
+  const config = vm.runInNewContext(`(${block})`, { URL });
+  let accessedField = false;
+  await assert.rejects(config.preAction({
+    url: () => 'https://www.americanexpress.co.il/',
+    goto: async () => ({ status: () => 403 }),
+    locator: () => { accessedField = true; throw new Error('unexpected field access'); },
+  }), /WAF_BLOCKED/);
+  assert.equal(accessedField, false);
+});
+
+test('Amex detects an HTML block without including page content in errors', async () => {
+  const block = bundle.match(/var AMEX_LOGIN = (\{[\s\S]*?\n\});/)?.[1];
+  const config = vm.runInNewContext(`(${block})`, { URL });
+  await assert.rejects(config.preAction({
+    url: () => 'https://he.americanexpress.co.il/personalarea/login/',
+    locator: () => ({ first() { return this; }, waitFor: async () => { throw new Error('Timeout'); },
+      innerText: async () => 'Sorry, you have been blocked. Private request reference: fixture-secret',
+    }),
+  }), error => /WAF_BLOCKED/.test(error.message) && !error.message.includes('fixture-secret'));
+});
+
+test('Amex never fills credentials after an unrelated-origin redirect', async () => {
+  const block = bundle.match(/var AMEX_LOGIN = (\{[\s\S]*?\n\});/)?.[1];
+  const config = vm.runInNewContext(`(${block})`, { URL });
+  await assert.rejects(config.preAction({
+    url: () => 'https://unexpected.example/login', goto: async () => ({ status: () => 200 }),
+    locator: () => { throw new Error('unexpected field access'); },
+  }), /LOGIN_UNTRUSTED_REDIRECT/);
 });
