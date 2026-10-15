@@ -1,12 +1,16 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { translationComplements } from '@/lib/translationComplements';
+import { parseAppLanguage, type AppLanguage } from '@/lib/appLanguage';
 
-type Language = "he" | "en" | "es" | "zh" | "ar" | "ru";
+type Language = AppLanguage;
 
 const getStoredLanguage = (): Language => {
-  const stored = localStorage.getItem("ui-language") as Language | null;
-  const fallback = localStorage.getItem("app-language") as Language | null;
-  return stored || fallback || "he";
+  try {
+    return parseAppLanguage(localStorage.getItem('ui-language'))
+      || parseAppLanguage(localStorage.getItem('app-language')) || 'he';
+  } catch {
+    return 'he';
+  }
 };
 
 const translations = {
