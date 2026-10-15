@@ -112,7 +112,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
 
   return (
     <section
-      className={cn("relative isolate min-h-[640px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br text-white shadow-2xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky, scene === "plane" && "zoneflow-flight-cabin")}
+      className={cn("relative isolate min-h-[820px] sm:min-h-[640px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br text-white shadow-2xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky, scene === "plane" && "zoneflow-flight-cabin")}
       aria-label={name}
       tabIndex={0}
       dir={dir}
@@ -143,7 +143,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
 
       {peopleOpen && <aside className="absolute bottom-32 end-3 top-32 z-40 w-52 overflow-auto rounded-3xl border border-white/15 bg-slate-950/95 p-3 backdrop-blur-xl"><div className="flex items-center justify-between text-xs font-bold"><span>{copy.people}</span><span>{participants.length}</span></div><div className="mt-3 space-y-2">{participants.map(participant => <div key={participant.userId} className="flex items-center gap-2 rounded-xl bg-white/10 p-2"><div className={cn("h-8 w-8 rounded-full border-2 border-white/30", participant.color || "bg-sky-300")} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{participant.displayName}</div><div className="text-[10px] text-white/70">{statusLabels[participant.status]}</div></div>{participant.status === 'focusing' && <Headphones className="h-3.5 w-3.5 text-emerald-300" />}</div>)}</div><p className="mt-4 text-xs leading-5 text-white/70">{copy.hint}</p></aside>}
 
-      <div className="absolute bottom-32 end-4 start-4 top-36 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem]" onClick={moveFromPointer} aria-label={copy.space}>
+      <div className="absolute bottom-48 top-56 sm:bottom-32 sm:top-36 end-4 start-4 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem]" onClick={moveFromPointer} aria-label={copy.space}>
         <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap justify-center gap-2 rounded-2xl bg-slate-950/75 p-2 backdrop-blur">
           {(Object.keys(FOCUS_ACTIVITIES) as FocusActivity[]).map((value) => {
             const ItemIcon = FOCUS_ACTIVITIES[value].icon;
