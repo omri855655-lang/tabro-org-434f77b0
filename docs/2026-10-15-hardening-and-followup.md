@@ -52,6 +52,10 @@ remain separate possible blockers, not incorrect-password evidence.
   no critical findings. Tailwind 3 / braces / PostCSS and legacy tooling need a
   separately tested build-system migration; no forced incompatible upgrades.
 - This is a code/dependency review, not a full penetration test or security certification.
+- A fresh hosted security scan found no critical issues, one warning about disabled
+  leaked-password protection, and two informational public-content/storage findings.
+  Public landing content is intentional. An additional migration restricts email
+  asset catalog listing to admins without changing public logo URLs.
 - Still outstanding: full legacy-screen localization, complete Outlook-style
   invitations/calendar workflows, voice interaction, and system-level scheduled
   blocking while the browser is closed. Do not imply these are implemented.
