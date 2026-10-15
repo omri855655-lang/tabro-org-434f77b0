@@ -19,6 +19,8 @@
 - Fix LearningStudio's AI request field (customPrompt, not prompt), reset its
   running timer when generating another lesson, and guard repeated completion.
 - Lazy-load six heavier workspace sections and keep failures inside the panel.
+- Replace the fixed desktop sidebar with an accessible, full-dashboard drawer on
+  small screens. Reserve separate mobile room space for the header, desks and timer.
 - Update vulnerable dependencies, remove unused PWA tooling, keep actual push
   service worker support. SheetJS comes from the official 0.20.3 distribution.
 - Render decoded news entities as text and add Chinese article translation.
@@ -45,8 +47,9 @@ remain separate possible blockers, not incorrect-password evidence.
 ## Validation And Limits
 
 - App TypeScript and production build pass after Vite 6.4.4 / React Router 7.18.4.
-- Finance import tests: 15 passing; focused frontend tests: 20 passing;
-  worker tests: 7 passing.
+- Full frontend suite: 48 passing; worker tests: 7 passing. Production build and
+  app TypeScript pass. Live phone-width navigation opens, selects and closes;
+  all six room desks remain available.
 - Browser-runtime audit and worker production audit: 0 reported vulnerabilities.
 - Full app audit: 14 development/build dependency findings (9 moderate, 5 high),
   no critical findings. Tailwind 3 / braces / PostCSS and legacy tooling need a
