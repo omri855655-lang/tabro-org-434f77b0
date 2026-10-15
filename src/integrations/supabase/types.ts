@@ -2686,6 +2686,7 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: string
       }
+      get_public_project_gantt: { Args: { p_token: string }; Returns: Json }
       get_public_project_task_intake: {
         Args: { p_token: string }
         Returns: {

@@ -36,6 +36,13 @@
       "when": 1792005887969,
       "tag": "0004_project_task_intake_links",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792048703157,
+      "tag": "0005_public_project_gantt",
+      "breakpoints": true
     }
   ]
 }
