@@ -2698,6 +2698,7 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: string
       }
+      get_public_project_gantt: { Args: { p_token: string }; Returns: Json }
       get_public_project_task_intake: {
         Args: { p_token: string }
         Returns: {
@@ -2713,10 +2714,6 @@ export type Database = {
           sheet_name: string
           task_type: string
         }[]
-      }
-      get_public_project_gantt: {
-        Args: { p_token: string }
-        Returns: Json
       }
       has_role: {
         Args: {

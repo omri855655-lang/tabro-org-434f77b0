@@ -74,6 +74,9 @@ serve(async (request) => {
       supabase.from("push_subscriptions").select("id, endpoint, p256dh, auth").eq("user_id", link.owner_id),
     ]);
     if (!task) return json({ error: "Task not found" }, 404);
+    const taskSummary = isProject
+      ? (task as { title: string }).title
+      : (task as { description: string }).description;
 
     const vapid: VapidKeys = {
       subject: "mailto:push@lovable.app",
@@ -85,7 +88,7 @@ serve(async (request) => {
       try {
         await sendPush(subscription, {
           title: isProject ? "משימה חדשה נוספה לפרויקט" : "משימה חדשה נוספה מהקישור",
-          body: `${submission.requester_name}: ${isProject ? task.title : task.description}`.slice(0, 180),
+          body: `${submission.requester_name}: ${taskSummary}`.slice(0, 180),
           tag: `${isProject ? "project" : "public"}-task-${taskId}`,
           url: "/personal",
           icon: "/app-icon.png",
