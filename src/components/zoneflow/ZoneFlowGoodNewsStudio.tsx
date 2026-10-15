@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
+import { newsText } from '@/lib/newsText';
 
 interface GoodNewsItem { title: string; link: string; pubDate: string; description: string; source: string; thumbnail?: string }
 const SOURCES = [
@@ -14,7 +15,8 @@ const SOURCES = [
   { name: "Good Good Good", feed: "https://www.goodgoodgood.co/articles/rss.xml" },
   { name: "Reasons to be Cheerful", feed: "https://reasonstobecheerful.world/feed/" },
 ];
-const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+const stripHtml = newsText;
+const cleanItem = (item: GoodNewsItem): GoodNewsItem => ({ ...item, title: newsText(item.title), description: newsText(item.description) });
 const cacheKey = () => `zoneflow-good-news:${new Date().toISOString().slice(0, 10)}`;
 const TRANSLATION_LANGUAGES = {
   he: "עברית",
@@ -23,6 +25,7 @@ const TRANSLATION_LANGUAGES = {
   ru: "Русский",
   es: "Español",
   fr: "Français",
+  zh: "简体中文",
 } as const;
 type TranslationLanguage = keyof typeof TRANSLATION_LANGUAGES;
 type Translation = { title: string; description: string };
@@ -57,7 +60,7 @@ const parseTranslation = (payload: unknown): Translation => {
 
 export function ZoneFlowGoodNewsStudio() {
   const { lang } = useLanguage();
-  const [items, setItems] = useState<GoodNewsItem[]>(() => safeLocalStorage.getJSON(cacheKey(), []));
+  const [items, setItems] = useState<GoodNewsItem[]>(() => safeLocalStorage.getJSON<GoodNewsItem[]>(cacheKey(), []).map(cleanItem));
   const [loading, setLoading] = useState(items.length === 0);
   const [error, setError] = useState("");
   const defaultTranslationLanguage = (lang in TRANSLATION_LANGUAGES ? lang : "he") as TranslationLanguage;
@@ -98,7 +101,8 @@ export function ZoneFlowGoodNewsStudio() {
     try {
       const { data: serverFeed, error: serverError } = await supabase.functions.invoke('good-news');
       if (!serverError && Array.isArray(serverFeed?.items) && serverFeed.items.length) {
-        setItems(serverFeed.items); safeLocalStorage.setJSON(cacheKey(), serverFeed.items); return;
+        const cleanItems = serverFeed.items.map(cleanItem);
+        setItems(cleanItems); safeLocalStorage.setJSON(cacheKey(), cleanItems); return;
       }
       const responses = await Promise.allSettled(SOURCES.map(async (source) => {
         const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.feed)}`;

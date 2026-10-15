@@ -3,11 +3,17 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { safeLocalStorage } from '@/lib/safeLocalStorage';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
+import { planningToolsCopy } from '@/lib/planningToolsCopy';
 
 type Schedule = { start: string; minutes: number; started: boolean };
 export function FocusSchedule({ active, canStart, onToggle }: { active: boolean; canStart: boolean; onToggle: () => Promise<void> }) {
   const { user } = useAuth();
-  const key = `focus-schedule:${user?.id || 'guest'}`;
+  return <ScheduleForm key={user?.id || 'guest'} storageKey={`focus-schedule:${user?.id || 'guest'}`} active={active} canStart={canStart} onToggle={onToggle} />;
+}
+function ScheduleForm({ storageKey: key, active, canStart, onToggle }: { storageKey: string; active: boolean; canStart: boolean; onToggle: () => Promise<void> }) {
+  const { lang, dir } = useLanguage();
+  const copy = planningToolsCopy[lang];
   const [schedule, setSchedule] = useState<Schedule | null>(() => safeLocalStorage.getJSON(key, null));
   const [start, setStart] = useState('');
   const [minutes, setMinutes] = useState(25);
@@ -31,9 +37,9 @@ export function FocusSchedule({ active, canStart, onToggle }: { active: boolean;
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
   }, [schedule]);
-  return <div className="rounded-2xl border bg-card p-4 text-card-foreground">
-    <h3 className="font-semibold">תזמון סשן פוקוס</h3><p className="my-2 text-xs text-muted-foreground">הסשן יתחיל כשהמסך הזה פתוח. חסימת אפליקציות בפועל תלויה ברכיב המערכת ובהרשאה שמוצגים למעלה; סגירת האתר אינה מפעילה חסימה מתוזמנת.</p>
-    <div className="flex flex-wrap items-end gap-3"><label className="text-sm">תחילה<Input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label className="text-sm">דקות<Input type="number" min="5" max="240" value={minutes} onChange={e => setMinutes(Math.min(240, Math.max(5, Number(e.target.value) || 25)))} className="w-24" /></label><Button disabled={!canStart || !start || new Date(start).getTime() <= Date.now()} onClick={() => setSchedule({ start: new Date(start).toISOString(), minutes, started: false })}>שמור תזמון</Button></div>
-    {schedule && <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><span>{schedule.started ? 'הסשן המתוזמן התחיל' : `תחילה: ${new Date(schedule.start).toLocaleString('he-IL')}`} · {schedule.minutes} דקות</span><Button variant="outline" size="sm" onClick={() => { setSchedule(null); if (schedule.started && active) void onToggle(); }}>בטל תזמון</Button></div>}
+  return <div className="rounded-2xl border bg-card p-4 text-card-foreground" dir={dir}>
+    <h3 className="font-semibold">{copy.schedule}</h3><p className="my-2 text-xs text-muted-foreground">{copy.scheduleHint}</p>
+    <div className="flex flex-wrap items-end gap-3"><label className="text-sm">{copy.start}<Input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label className="text-sm">{copy.minutes}<Input type="number" min="5" max="240" value={minutes} onChange={e => setMinutes(Math.min(240, Math.max(5, Number(e.target.value) || 25)))} className="w-24" /></label><Button disabled={!canStart || !start || !Number.isFinite(new Date(start).getTime()) || new Date(start).getTime() <= Date.now()} onClick={() => setSchedule({ start: new Date(start).toISOString(), minutes, started: false })}>{copy.saveSchedule}</Button></div>
+    {schedule && <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><span>{schedule.started ? copy.started : `${copy.start}: ${new Date(schedule.start).toLocaleString(lang)}`} · {schedule.minutes} {copy.minutes}</span><Button variant="outline" size="sm" onClick={() => { setSchedule(null); if (schedule.started && active) void onToggle(); }}>{copy.cancelSchedule}</Button></div>}
   </div>;
 }

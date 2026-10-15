@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import vm from 'node:vm';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const bundle = await readFile(path.join(root, "node_modules/@sergienko4/israeli-bank-scrapers/lib/index.mjs"), "utf8");
@@ -12,6 +13,7 @@ test("American Express, Discount and Visa Cal start directly at their official l
   assert.match(bundle, /var DISCOUNT_LOGIN = \{\s+loginUrl: "https:\/\/start\.telebank\.co\.il\/login\/"/);
   assert.match(bundle, /\["visaCal" \/\* VisaCal \*\/\]: calConfig\("https:\/\/digital-web\.cal-online\.co\.il\/"/);
   assert.match(bundle, /var AMEX_LOGIN = \{\s+loginUrl: "https:\/\/he\.americanexpress\.co\.il\/personalarea\/login\/"/);
+  assert.match(bundle, /\["amex" \/\* Amex \*\/\]: \{\s+urls: \{ base: "https:\/\/he\.americanexpress\.co\.il\/personalarea\/login\/" \}/);
   assert.match(bundle, /!\["visaCal", "discount", "amex"\]\.includes\(state\.options\.companyId\)/);
   const amexPipeline = bundle.match(/function buildAmexPipeline\(options\) \{([\s\S]*?)\n\}/)?.[1] || "";
   assert.doesNotMatch(amexPipeline, /withPreLogin/);
@@ -25,6 +27,26 @@ test("American Express, Discount and Visa Cal start directly at their official l
 });
 
 test("unaffected providers keep their own login configuration", () => {
-  assert.match(bundle, /\["amex" \/\* Amex \*\/\]: \{\s+urls: \{ base: "https:\/\/www\.americanexpress\.co\.il" \}/);
   assert.match(bundle, /\["hapoalim" \/\* Hapoalim \*\/\]: defineBank\("https:\/\/www\.bankhapoalim\.co\.il"/);
+});
+
+test('Amex preAction navigates away from marketing homepage before looking for password controls', async () => {
+  const block = bundle.match(/var AMEX_LOGIN = (\{[\s\S]*?\n\});/)?.[1];
+  assert.ok(block);
+  const config = vm.runInNewContext(`(${block})`);
+  const events = [];
+  const page = {
+    url: () => 'https://www.americanexpress.co.il/',
+    goto: async url => events.push(['navigate', url]),
+    locator: selector => ({
+      first() { return this; },
+      waitFor: async options => events.push(['wait', selector, options.state]),
+      isVisible: async () => false,
+      click: async () => events.push(['click', selector]),
+    }),
+  };
+  await config.preAction(page);
+  assert.deepEqual(events[0], ['navigate', 'https://he.americanexpress.co.il/personalarea/login/']);
+  assert.ok(events.some(event => event[0] === 'click' && event[1] === '#flip'));
+  assert.deepEqual(events.at(-1), ['wait', '#otpLoginPwd', 'visible']);
 });

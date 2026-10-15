@@ -215,7 +215,7 @@ export function ZoneFlowFocusDeck({
 
       <div className={`grid gap-6 p-5 sm:p-7 ${mode === "gamified" ? "lg:grid-cols-[1.05fr_0.95fr]" : "lg:grid-cols-[1fr_0.72fr]"}`}>
         <div className="space-y-5">
-          {mode === "gamified" && <ZoneFlowFocusRoom running={status === "running"} progress={progress} level={level} />}
+          {mode === "gamified" && <ZoneFlowFocusRoom running={status === "running"} progress={progress} level={level} timer={formatClock(timeLeft)} onToggle={startOrPause} onReset={() => resetTimer()} />}
           <div className={`rounded-[1.75rem] border p-5 sm:p-7 ${mode === "simple" ? "border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.04]" : "border-emerald-900/15 bg-emerald-950 text-white shadow-[0_18px_50px_rgba(6,78,59,0.22)]"}`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>

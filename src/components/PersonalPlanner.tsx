@@ -1006,10 +1006,13 @@ const PersonalPlanner = () => {
       dragGhost.style.maxWidth = "220px";
       dragGhost.style.borderInlineStart = `4px solid ${getSourceColor(task.source)}`;
       dragGhost.style.color = "hsl(var(--foreground))";
-      dragGhost.innerHTML = `
-        <div style="font-size:10px;opacity:.72;margin-bottom:4px;">${getSourceLabel(task.source)}</div>
-        <div style="font-weight:600;line-height:1.4;">${task.title || "(ללא כותרת)"}</div>
-      `;
+      const sourceLabel = document.createElement('div');
+      sourceLabel.style.cssText = 'font-size:10px;opacity:.72;margin-bottom:4px';
+      sourceLabel.textContent = getSourceLabel(task.source);
+      const taskLabel = document.createElement('div');
+      taskLabel.style.cssText = 'font-weight:600;line-height:1.4';
+      taskLabel.textContent = task.title || '(ללא כותרת)';
+      dragGhost.append(sourceLabel, taskLabel);
       document.body.appendChild(dragGhost);
       dragImageRef.current = dragGhost;
       event.dataTransfer.setDragImage(dragGhost, 20, 20);

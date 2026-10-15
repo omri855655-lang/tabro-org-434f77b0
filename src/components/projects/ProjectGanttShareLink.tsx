@@ -25,7 +25,7 @@ export default function ProjectGanttShareLink({ projectId, projectTitle }: Proje
     setOpen(true);
     if (url || loading) return;
     setLoading(true);
-    const { data, error } = await supabase.rpc("get_or_create_project_task_intake_link", { p_project_id: projectId });
+    const { data, error } = await supabase.rpc("get_or_create_project_gantt_link", { p_project_id: projectId });
     setLoading(false);
     if (error || !data) {
       toast.error("לא הצלחנו ליצור קישור לגאנט");
@@ -71,6 +71,11 @@ export default function ProjectGanttShareLink({ projectId, projectTitle }: Proje
               <Button variant="outline" onClick={() => void share()} className="gap-2">
                 <Link2 className="h-4 w-4" />שיתוף
               </Button>
+              <Button variant="ghost" onClick={async () => {
+                const { error } = await supabase.rpc('disable_project_gantt_link', { p_project_id: projectId });
+                if (error) return void toast.error('ביטול השיתוף נכשל');
+                setUrl(''); setOpen(false); toast.success('קישור הצפייה בוטל');
+              }}>בטל שיתוף</Button>
             </div>
           </div>
         )}

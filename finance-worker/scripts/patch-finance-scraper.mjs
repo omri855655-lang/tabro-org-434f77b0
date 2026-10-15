@@ -78,6 +78,11 @@ replaceOnce(
   "American Express direct login URL",
 );
 replaceOnce(
+  '["amex" /* Amex */]: {\n    urls: { base: "https://www.americanexpress.co.il" },',
+  '["amex" /* Amex */]: {\n    urls: { base: "https://he.americanexpress.co.il/personalarea/login/" },',
+  "American Express initial browser navigation",
+);
+replaceOnce(
   "return createPipelineBuilder().withOptions(options).withBrowser().withDeclarativeLogin(AMEX_LOGIN).withPreLogin().withBrowserApiDirect(AMEX_SHAPE).build();",
   "return createPipelineBuilder().withOptions(options).withBrowser().withDeclarativeLogin(AMEX_LOGIN).withBrowserApiDirect(AMEX_SHAPE).build();",
   "American Express dynamic login pre-gate",
@@ -88,8 +93,13 @@ if (!amexLoginBlock) throw new Error("American Express login configuration not f
 const configuredAmexLogin = `var AMEX_LOGIN = {
   loginUrl: "https://he.americanexpress.co.il/personalarea/login/",
   preAction: async (page) => {
+    const loginUrl = "https://he.americanexpress.co.il/personalarea/login/";
+    if (!page.url().startsWith(loginUrl)) {
+      await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+    }
+    await page.locator("#otpLoginPwd, #flip").first().waitFor({ state: "attached", timeout: 30000 });
     if (!(await page.locator("#otpLoginPwd").isVisible())) {
-      await page.locator("#flip").click();
+      await page.locator("#flip").click({ timeout: 15000 });
     }
     await page.locator("#otpLoginPwd").waitFor({ state: "visible", timeout: 30000 });
   },

@@ -2669,6 +2669,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_or_create_project_gantt_link: { Args: { p_project_id: string }; Returns: string }
+      disable_project_gantt_link: { Args: { p_project_id: string }; Returns: undefined }
       can_edit_sheet: {
         Args: { _sheet_id: string; _user_id: string }
         Returns: boolean

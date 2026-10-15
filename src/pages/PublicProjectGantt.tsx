@@ -69,7 +69,7 @@ export default function PublicProjectGantt() {
           </p>
         </div>
         <Button asChild className="shrink-0 gap-2 bg-sky-800 hover:bg-sky-900">
-          <Link to={`/project-request/${token}`}><ArrowLeft className="h-4 w-4" />הצעת משימה לפרויקט</Link>
+          <Link to="/"><ArrowLeft className="h-4 w-4" />Tabro</Link>
         </Button>
       </header>
 

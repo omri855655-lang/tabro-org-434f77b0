@@ -16,6 +16,8 @@ import { safeLocalStorage } from "@/lib/safeLocalStorage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { FocusRoomInterior, type FocusActivity, type FocusRoomParticipant } from "./FocusRoomInterior";
+import { clampRoomPosition } from "@/lib/focusRoom";
+import { focusRoomCopy } from "@/lib/focusRoomCopy";
 
 type TogetherTab = "rooms" | "competitions" | "progress";
 type CompetitionKind = "focus" | "distractions";
@@ -199,31 +201,24 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       return;
     }
 
-    const channel = supabase.channel(`zoneflow-room-${selectedRoom.id}`, { config: { presence: { key: user.id } } });
+    const channel = supabase.channel(`zoneflow-room-${selectedRoom.id}`, { config: { private: true, presence: { key: user.id } } });
     roomChannelRef.current = channel;
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<RoomPresencePayload>();
         const people = Object.values(state).flat().map((participant) => ({
           userId: participant.userId,
-          displayName: participant.displayName,
-          x: Number.isFinite(participant.x) ? participant.x : 50,
-          y: Number.isFinite(participant.y) ? participant.y : 62,
-          status: participant.status || "setting-up",
+          displayName: String(participant.displayName || 'Tabro learner').slice(0, 80),
+          ...clampRoomPosition(participant),
+          status: participant.status === 'focusing' || participant.status === 'break' || participant.status === 'away' ? participant.status : 'setting-up',
           color: participant.color,
           avatarStyle: Number.isFinite(participant.avatarStyle) ? participant.avatarStyle : 0,
           activity: participant.activity === "book" || participant.activity === "notebook" ? participant.activity : "computer",
           seated: participant.seated === true,
-          durationMinutes: Number.isFinite(participant.durationMinutes) ? participant.durationMinutes : 25,
+          durationMinutes: Math.min(240, Math.max(1, Number(participant.durationMinutes) || 25)),
           isMe: participant.userId === user.id,
         } satisfies FocusRoomParticipant));
         setRoomParticipants(people);
-      })
-      .on("broadcast", { event: "avatar_move" }, ({ payload }) => {
-        const moved = payload as RoomPresencePayload;
-        if (!moved?.userId || moved.userId === user.id) return;
-        if (!Number.isFinite(moved.x) || !Number.isFinite(moved.y)) return;
-        setRoomParticipants((people) => people.map((person) => person.userId === moved.userId ? { ...person, x: Math.max(7, Math.min(93, moved.x)), y: Math.max(28, Math.min(77, moved.y)), seated: false } : person));
       })
       .subscribe(async (status) => {
         if (status !== "SUBSCRIBED") return;
@@ -260,6 +255,18 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     });
     if (roomChannelRef.current) void roomChannelRef.current.track(participant);
   }, [activity, seated, sessionDuration, avatarStyle, focusActive, myPosition, selectedRoom, user?.id, username]);
+
+  useEffect(() => {
+    if (!selectedRoom || !isUuid(selectedRoom.id) || !user) return;
+    const client = supabase as unknown as FocusRoomClient;
+    const touch = () => void client.rpc('update_zoneflow_room_presence', { p_room_id: selectedRoom.id, p_online: true });
+    touch();
+    const timer = window.setInterval(touch, 60_000);
+    return () => {
+      window.clearInterval(timer);
+      void client.rpc('update_zoneflow_room_presence', { p_room_id: selectedRoom.id, p_online: false });
+    };
+  }, [selectedRoom?.id, user?.id]);
 
   const recordCompletedSession = useCallback(async () => {
     if (!sessionStartedAt.current) return;
@@ -482,7 +489,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
         await applyBlockingPolicy({
           appIds: blockedApps.flatMap((item) => item.name && !item.name.includes(".") ? [item.name] : []),
           websiteHosts: blockedApps.flatMap((item) => item.name?.includes(".") ? [item.name] : []),
-          endsAt: new Date(Date.now() + remainingSeconds * 1000).toISOString(),
+          endsAt: new Date(Date.now() + nextSeconds * 1000).toISOString(),
         });
         toast.success("החסימה הופעלה למשך חדר הריכוז");
       } catch { toast.info("הטיימר התחיל. חסימה מלאה דורשת את רכיב Tabro במכשיר."); }
@@ -539,22 +546,9 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
   const moveAvatar = (position: { x: number; y: number }) => {
     setSeated(false);
-    setMyPosition(position);
-    safeLocalStorage.setJSON("zoneflow-together-avatar-position", position);
-    const channel = roomChannelRef.current;
-    if (!channel || !user) return;
-    void channel.send({
-      type: "broadcast",
-      event: "avatar_move",
-      payload: {
-        userId: user.id,
-        displayName: username.trim() || "Tabro learner",
-        ...position,
-        status: focusActive ? "focusing" : "setting-up",
-        avatarStyle,
-        onlineAt: new Date().toISOString(),
-      } satisfies RoomPresencePayload,
-    });
+    const next = clampRoomPosition(position);
+    setMyPosition(next);
+    safeLocalStorage.setJSON("zoneflow-together-avatar-position", next);
   };
 
   const leaveRoom = () => {
@@ -579,7 +573,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} activity={activity} onActivityChange={(value) => { setActivity(value); setSeated(true); }} onSit={() => setSeated(true)} /> : pendingRoom ? (
+        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} activity={activity} onActivityChange={setActivity} onSit={() => setSeated(true)} onSelectSeat={(position) => { moveAvatar(position); setSeated(true); }} /> : pendingRoom ? (
           <Card className={cn("overflow-hidden border", panel)}>
             <CardContent className="grid gap-6 bg-gradient-to-br from-cyan-500/10 via-transparent to-amber-500/10 p-6 md:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[2rem] bg-gradient-to-br from-[#172554] to-[#0f766e] p-6 text-white">
@@ -637,7 +631,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
                 <Button className="w-full" onClick={() => void createRoom()}><Plus className="h-4 w-4" /> {copy.create}</Button>
               </CardContent>
             </Card>
-            <Card className={cn("border", panel)}><CardContent className="space-y-3 p-4"><Input value={friendCode} onChange={(event) => setFriendCode(event.target.value)} placeholder={roomCopy.friendCode} /><Button className="w-full" variant="outline" onClick={() => void joinByCode()}>{roomCopy.joinCode}</Button><p className={cn("text-xs leading-5", muted)}>{roomCopy.voiceNote}</p></CardContent></Card>
+            <Card className={cn("border", panel)}><CardContent className="space-y-3 p-4"><Input value={friendCode} onChange={(event) => setFriendCode(event.target.value)} placeholder={roomCopy.friendCode} /><Button className="w-full" variant="outline" onClick={() => void joinByCode()}>{roomCopy.joinCode}</Button><p className={cn("text-xs leading-5", muted)}>{focusRoomCopy[lang].quiet}</p></CardContent></Card>
           </div>
         </div>
       </div>

@@ -1,8 +1,11 @@
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
-import { BookOpen, Coffee, Headphones, Laptop, Library, LogOut, MicOff, NotebookPen, Pause, Plane, Play, Radio, RotateCcw, Sparkles, Users } from "lucide-react";
+import { BookOpen, Coffee, Headphones, Laptop, Library, LogOut, MicOff, NotebookPen, Pause, Plane, Play, RotateCcw, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/hooks/useLanguage";
+import { focusRoomCopy } from "@/lib/focusRoomCopy";
+import { FOCUS_SEATS, occupiedFocusSeat } from "@/lib/focusRoom";
 import cozyLibraryRoom from "@/assets/zoneflow/cozy-library-room-v2.png";
 import focusFlightRoom from "@/assets/zoneflow/focus-flight-room-v2.png";
 import cozyCafeRoom from "@/assets/zoneflow/cozy-cafe-room-v2.png";
@@ -37,7 +40,6 @@ const SCENES = {
   office: { icon: Users, background: biophilicOfficeRoom, sky: "from-[#10263b] via-[#276b73] to-[#9dd5c2]", glow: "bg-emerald-100/35", label: "Tabro Cowork" },
 } as const;
 
-const STATUS_LABELS = { "setting-up": "מתארגן", focusing: "בפוקוס", break: "בהפסקה", away: "לא זמין" } as const;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const avatarVariant = (userId: string) => [...userId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 4;
 const AVATAR_STYLES = [
@@ -51,7 +53,7 @@ const AVATAR_STYLES = [
   { skin: "bg-[#e3a278]", hair: "bg-red-950", shirt: "bg-pink-400" },
 ] as const;
 
-export function FocusRoomInterior({ scene, name, topic, participants, timer, active, onToggle, onReset, onLeave, onMove, activity, onActivityChange, onSit }: {
+export function FocusRoomInterior({ scene, name, topic, participants, timer, active, onToggle, onReset, onLeave, onMove, activity, onActivityChange, onSit, onSelectSeat }: {
   scene: FocusRoomScene;
   name: string;
   topic: string;
@@ -60,12 +62,17 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   active: boolean;
   onToggle: () => void;
   onReset: () => void;
-  onLeave: () => void;
+  onLeave?: () => void;
   onMove: (position: { x: number; y: number }) => void;
   activity: FocusActivity;
   onActivityChange: (activity: FocusActivity) => void;
   onSit: () => void;
+  onSelectSeat: (position: { x: number; y: number }) => void;
 }) {
+  const { lang, dir } = useLanguage();
+  const copy = focusRoomCopy[lang];
+  const statusLabels = { 'setting-up': copy.preparing, focusing: copy.focusing, break: copy.break, away: copy.away };
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const config = SCENES[scene];
   const SceneIcon = config.icon;
   const me = participants.find((participant) => participant.isMe);
@@ -93,6 +100,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   };
 
   const moveFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest('button, input, textarea, select, [contenteditable="true"]')) return;
     if (!me || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
     event.preventDefault();
     const delta = 4;
@@ -107,6 +115,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       className={cn("relative isolate min-h-[640px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br text-white shadow-2xl outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/60", config.sky, scene === "plane" && "zoneflow-flight-cabin")}
       aria-label={name}
       tabIndex={0}
+      dir={dir}
       onKeyDown={moveFromKeyboard}
     >
       <img src={config.background} alt="" className="zoneflow-room-background absolute inset-0 h-full w-full object-cover object-center" />
@@ -129,20 +138,24 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
 
       <div className="relative z-20 flex flex-wrap items-start justify-between gap-3 p-5 sm:p-6">
         <div><div className="inline-flex items-center gap-2 rounded-full bg-black/25 px-3 py-1 text-xs backdrop-blur"><span className="h-2 w-2 animate-pulse rounded-full bg-rose-400" /> LIVE · {config.label}</div><h2 className="mt-3 text-2xl font-black sm:text-3xl">{name}</h2><p className="mt-1 text-sm text-white/75">{topic}</p></div>
-        <div className="flex flex-wrap gap-2"><div className="hidden items-center gap-2 rounded-full bg-black/25 px-3 py-2 text-xs backdrop-blur sm:flex"><Radio className="h-4 w-4 text-amber-300" />Ambient focus</div><Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" title="חדר שקט. קול יתווסף רק בחדרים ייעודיים"><MicOff className="h-4 w-4" /></Button><Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" onClick={onLeave} aria-label="צא מהחדר"><LogOut className="h-4 w-4" /></Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="secondary" className="gap-2 rounded-full bg-white/15 text-white hover:bg-white/25" onClick={() => setPeopleOpen(value => !value)} aria-expanded={peopleOpen}><Users className="h-4 w-4" />{copy.people} · {participants.length}</Button><span className="flex items-center rounded-full bg-black/25 p-2" title={copy.quiet}><MicOff aria-label={copy.quiet} className="h-4 w-4" /></span>{onLeave && <Button size="icon" variant="secondary" className="rounded-full bg-white/15 text-white hover:bg-white/25" onClick={onLeave} aria-label={copy.leave}><LogOut className="h-4 w-4" /></Button>}</div>
       </div>
 
-      <div className="absolute bottom-28 end-3 top-28 z-30 hidden w-52 rounded-3xl border border-white/15 bg-slate-950/65 p-3 backdrop-blur-xl lg:block"><div className="flex items-center justify-between text-xs font-bold"><span className="flex items-center gap-2"><Users className="h-4 w-4 text-cyan-300" />בחדר עכשיו</span><span>{participants.length}</span></div><div className="mt-3 space-y-2">{participants.map((participant) => <div key={participant.userId} className="flex items-center gap-2 rounded-xl bg-white/8 p-2"><div className={cn("h-8 w-8 rounded-full border-2 border-white/30", participant.color || "bg-sky-300")} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{participant.displayName}</div><div className="text-[9px] text-white/55">{STATUS_LABELS[participant.status]}</div></div>{participant.status === "focusing" && <Headphones className="h-3.5 w-3.5 text-emerald-300" />}</div>)}</div><div className="mt-4 rounded-2xl bg-white/8 p-3 text-[10px] leading-5 text-white/60"><Sparkles className="mb-1 h-4 w-4 text-amber-300" />עובדים יחד בשקט. אפשר לזוז לשולחן אחר בלי להפריע לאחרים.</div></div>
+      {peopleOpen && <aside className="absolute bottom-32 end-3 top-32 z-40 w-52 overflow-auto rounded-3xl border border-white/15 bg-slate-950/95 p-3 backdrop-blur-xl"><div className="flex items-center justify-between text-xs font-bold"><span>{copy.people}</span><span>{participants.length}</span></div><div className="mt-3 space-y-2">{participants.map(participant => <div key={participant.userId} className="flex items-center gap-2 rounded-xl bg-white/10 p-2"><div className={cn("h-8 w-8 rounded-full border-2 border-white/30", participant.color || "bg-sky-300")} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-semibold">{participant.displayName}</div><div className="text-[10px] text-white/70">{statusLabels[participant.status]}</div></div>{participant.status === 'focusing' && <Headphones className="h-3.5 w-3.5 text-emerald-300" />}</div>)}</div><p className="mt-4 text-xs leading-5 text-white/70">{copy.hint}</p></aside>}
 
-      <div className="absolute bottom-28 end-4 start-4 top-24 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem] lg:end-60" onClick={moveFromPointer} aria-label="מרחב החדר. לחץ כדי להזיז את הדמות">
-        <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap justify-center gap-2 rounded-2xl bg-slate-950/75 p-2 backdrop-blur" dir="rtl">
+      <div className="absolute bottom-32 end-4 start-4 top-36 z-10 cursor-crosshair overflow-hidden rounded-[1.5rem]" onClick={moveFromPointer} aria-label={copy.space}>
+        <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap justify-center gap-2 rounded-2xl bg-slate-950/75 p-2 backdrop-blur">
           {(Object.keys(FOCUS_ACTIVITIES) as FocusActivity[]).map((value) => {
             const ItemIcon = FOCUS_ACTIVITIES[value].icon;
-            return <Button key={value} size="sm" variant="secondary" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn("gap-2 rounded-xl", activity === value && "bg-cyan-300 text-slate-950")}><ItemIcon className="h-4 w-4" />{FOCUS_ACTIVITIES[value].label}</Button>;
+            return <Button key={value} size="sm" variant="secondary" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn("gap-2 rounded-xl", activity === value && "bg-cyan-300 text-slate-950")}><ItemIcon className="h-4 w-4" />{copy[value]}</Button>;
           })}
-          <Button size="sm" variant="secondary" onClick={onSit} disabled={me?.seated}>שב כאן</Button>
+          <Button size="sm" variant="secondary" onClick={onSit} disabled={me?.seated}>{copy.sit}</Button>
         </div>
         <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%] bg-black/15" : scene === "library" ? "rounded-[42%] bg-transparent" : "rounded-[42%] bg-black/15")} />
+        {FOCUS_SEATS.map((seat, index) => {
+          const occupied = occupiedFocusSeat(seat, participants);
+          return <button key={index} type="button" disabled={occupied} onClick={() => onSelectSeat(seat)} aria-label={`${copy.desk} ${index + 1}: ${occupied ? copy.occupied : copy.sit}`} className="absolute z-10 -translate-x-1/2 rounded-full border border-white/30 bg-slate-950/75 px-3 py-1 text-[10px] text-white hover:bg-cyan-800 disabled:opacity-40" style={{ left: `${seat.x}%`, top: `${seat.y + 15}%` }}>{copy.desk} {index + 1}{occupied ? ` · ${copy.occupied}` : ''}</button>;
+        })}
         {participants.map((participant) => (
           (() => {
             const variant = Number.isInteger(participant.avatarStyle) && participant.avatarStyle! >= 0 ? participant.avatarStyle! : avatarVariant(participant.userId);
@@ -163,20 +176,20 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
               </div>
               <div className={cn("absolute bottom-3 left-1/2 h-10 w-14 -translate-x-1/2 rounded-t-[42%] border-2 border-white/35 shadow-lg", participant.color || avatar.shirt)}><span className="zoneflow-avatar-limb-start absolute -start-2 top-2 h-8 w-3 rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-end absolute -end-2 top-2 h-8 w-3 -rotate-12 rounded-full bg-inherit" /><span className="zoneflow-avatar-limb-start absolute bottom-[-13px] start-2.5 h-5 w-3 rounded-b-full bg-slate-800" /><span className="zoneflow-avatar-limb-end absolute bottom-[-13px] end-2.5 h-5 w-3 rounded-b-full bg-slate-800" /></div>
               {participant.status === "focusing" && <span className="absolute -end-2 -top-2 h-3 w-3 animate-ping rounded-full bg-emerald-300" />}
-              {participant.seated && <div className={cn("absolute -bottom-1 -left-3 flex h-10 w-[92px] items-center justify-center rounded-xl border-b-4 border-amber-950 bg-amber-800 shadow-xl", participant.status === "focusing" && "zoneflow-work-surface")}><WorkIcon aria-label={work.label} className={cn("h-9 w-12 rounded-md p-1", participant.activity === "computer" ? "bg-slate-900 text-cyan-200" : "bg-amber-50 text-amber-900")} /></div>}
+              {participant.seated && <div className={cn("absolute -bottom-1 -left-3 flex h-10 w-[92px] items-center justify-center rounded-xl border-b-4 border-amber-950 bg-amber-800 shadow-xl", participant.status === "focusing" && "zoneflow-work-surface")}><WorkIcon aria-label={copy[participant.activity || 'computer']} className={cn("h-9 w-12 rounded-md p-1", participant.activity === "computer" ? "bg-slate-900 text-cyan-200" : "bg-amber-50 text-amber-900")} /></div>}
             </div>
-            {participant.seated && <div className="mt-2 rounded-full bg-slate-950/80 px-2 py-1 text-[10px]">{work.label} · {participant.durationMinutes || 25} דקות{participant.isMe && <span className="ms-2 font-mono">{timer}</span>}</div>}
-            <div className={cn("mt-1 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{STATUS_LABELS[participant.status]}</div>
+            {participant.seated && <div className="mt-2 rounded-full bg-slate-950/80 px-2 py-1 text-[10px]">{copy[participant.activity || 'computer']} · {participant.durationMinutes || 25} {copy.minutes}{participant.isMe && <span className="ms-2 font-mono">{timer}</span>}</div>}
+            <div className={cn("mt-1 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{statusLabels[participant.status]}</div>
           </div>;
           })()
         ))}
-        {participants.length <= 1 && <div className="absolute inset-x-0 top-[46%] text-center text-xs text-white/55">החדר פתוח. משתתפים אמיתיים יופיעו כאן כשהם יצטרפו.</div>}
-        <div className="absolute bottom-2 start-3 rounded-full bg-black/35 px-3 py-1 text-[10px] text-white/65">{scene === "plane" ? "הטיסה בעיצומה · בחר מושב והתחל פוקוס" : "לחץ במרחב או השתמש בחצים כדי לזוז"}</div>
+        <div className="absolute inset-x-0 top-[29%] text-center text-[10px] text-white/70">{onLeave && participants.length <= 1 ? copy.empty : ''}</div>
+        <div className="absolute bottom-0 start-3 rounded-full bg-black/50 px-3 py-1 text-[10px] text-white/80">{copy.move}</div>
       </div>
 
       <div className="absolute inset-x-0 bottom-4 z-30 mx-auto flex w-[min(92%,620px)] flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/15 bg-slate-950/80 p-4 backdrop-blur-xl">
-        <div className="flex items-center gap-3"><SceneIcon className="h-5 w-5 text-cyan-300" /><div><div className="font-mono text-3xl font-black tracking-tight sm:text-4xl">{timer}</div><div className="text-xs text-white/55">{participants.length} מחוברים עכשיו</div></div></div>
-        <div className="flex gap-2"><Button onClick={onToggle} className="rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300">{active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{active ? "השהה" : "התחל פוקוס"}</Button><Button size="icon" variant="secondary" className="rounded-full" onClick={onReset}><RotateCcw className="h-4 w-4" /></Button></div>
+        <div className="flex items-center gap-3"><SceneIcon className="h-5 w-5 text-cyan-300" /><div><div className="font-mono text-3xl font-black tracking-tight sm:text-4xl">{timer}</div><div className="text-xs text-white/70">{participants.length} {copy.connected}</div></div></div>
+        <div className="flex gap-2"><Button onClick={onToggle} className="gap-2 rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300">{active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{active ? copy.pause : copy.start}</Button><Button size="icon" variant="secondary" className="rounded-full" onClick={onReset} aria-label={copy.reset}><RotateCcw className="h-4 w-4" /></Button></div>
       </div>
     </section>
   );

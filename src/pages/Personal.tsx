@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,13 +14,10 @@ import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
 import BooksManager from "@/components/BooksManager";
 import ShowsManager from "@/components/ShowsManager";
 import PodcastsManager from "@/components/PodcastsManager";
-import ProjectsManager from "@/components/ProjectsManager";
-import CoursesManager from "@/components/CoursesManager";
 import Dashboard from "@/components/Dashboard";
 import DailyRoutine from "@/components/DailyRoutine";
-import PersonalPlanner from "@/components/PersonalPlanner";
 import PlannerErrorBoundary from "@/components/PlannerErrorBoundary";
-import ZoneFlowDashboard from "@/components/zoneflow/ZoneFlowDashboard";
+import WorkspacePanelBoundary from '@/components/WorkspacePanelBoundary';
 import { ZoneFlowMiniPlayer } from "@/components/zoneflow/ZoneFlowMiniPlayer";
 import { GlobalZoneFlowYouTubePlayer } from "@/components/zoneflow/GlobalZoneFlowYouTubePlayer";
 import PushNotificationToggle from "@/components/PushNotificationToggle";
@@ -31,8 +28,6 @@ import ChallengesManager from "@/components/ChallengesManager";
 import SharingManagement from "@/components/SharingManagement";
 import NutritionDashboard from "@/components/dashboards/NutritionDashboard";
 import DreamRoadmapDashboard from "@/components/dashboards/DreamRoadmapDashboard";
-import ShoppingDashboard from "@/components/dashboards/ShoppingDashboard";
-import PaymentDashboard from "@/components/dashboards/PaymentDashboard";
 import ContactForm from "@/components/ContactForm";
 import NotesDashboard from "@/components/dashboards/NotesDashboard";
 import EmailIntegration from "@/components/EmailIntegration";
@@ -49,6 +44,13 @@ import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, List
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+
+const ProjectsManager = lazy(() => import('@/components/ProjectsManager'));
+const CoursesManager = lazy(() => import('@/components/CoursesManager'));
+const PersonalPlanner = lazy(() => import('@/components/PersonalPlanner'));
+const ZoneFlowDashboard = lazy(() => import('@/components/zoneflow/ZoneFlowDashboard'));
+const ShoppingDashboard = lazy(() => import('@/components/dashboards/ShoppingDashboard'));
+const PaymentDashboard = lazy(() => import('@/components/dashboards/PaymentDashboard'));
 
 interface SharedSheet {
   sheet_id: string;
@@ -477,11 +479,11 @@ const Personal = () => {
   const showOnboarding = !localStorage.getItem("tabro_onboarded");
 
   // Render the active content
-  const renderContent = () => {
+  const renderContentBody = () => {
     switch (activeTab) {
       case "dashboard": return <Dashboard />;
-      case "tasks": return <TaskSpreadsheetDb title="משימות אישיות" taskType="personal" showYearSelector />;
-      case "work": return <TaskSpreadsheetDb title="משימות עבודה" taskType="work" showYearSelector />;
+      case "tasks": return <TaskSpreadsheetDb title={t('personalTasks')} taskType="personal" showYearSelector />;
+      case "work": return <TaskSpreadsheetDb title={t('workTasks')} taskType="work" showYearSelector />;
       case "books": return <BooksManager />;
       case "shows": return <ShowsManager />;
       case "podcasts": return <PodcastsManager />;
@@ -536,6 +538,8 @@ const Personal = () => {
         return null;
     }
   };
+
+  const renderContent = () => <WorkspacePanelBoundary resetKey={activeTab}><Suspense fallback={<div role="status" className="p-8 text-center text-muted-foreground">{t('loading')}</div>}>{renderContentBody()}</Suspense></WorkspacePanelBoundary>;
 
   // Header right-side controls
   const headerControls = (

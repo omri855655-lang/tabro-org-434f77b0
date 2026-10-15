@@ -19,3 +19,15 @@ test('print report renders event text in an isolated document and escapes suppli
     assert.ok(!html.includes('visibility:hidden'));
   } finally { delete globalThis.document; }
 });
+
+test('print report respects selected language, direction and escaped empty-state text', () => {
+  let html = '';
+  const frame = { style: {}, contentDocument: { open() {}, write(value) { html = value; }, close() {} }, contentWindow: { addEventListener() {}, requestAnimationFrame(fn) { fn(); }, focus() {}, print() {} }, remove() {} };
+  globalThis.document = { createElement: () => frame, body: { append() {} } };
+  try {
+    module.printDocument('Plan', ['Task'], [], '', { lang: 'es', dir: 'ltr', emptyMessage: '<Empty>' });
+    assert.ok(html.includes('lang="es" dir="ltr"'));
+    assert.ok(html.includes('&lt;Empty&gt;'));
+    assert.ok(!html.includes('<Empty>'));
+  } finally { delete globalThis.document; }
+});

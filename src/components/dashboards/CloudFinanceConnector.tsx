@@ -190,6 +190,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
       await onChanged?.();
     } catch (error) {
       toast.error(financeErrorMessage(error, lang, "Connection failed"));
+      await load();
     } finally {
       setBusy(null);
     }
