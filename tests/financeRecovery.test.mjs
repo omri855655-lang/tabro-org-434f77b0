@@ -47,6 +47,7 @@ function financeHarness() {
     setLoading: (value) => { state.loading = value; },
     setFinanceUnavailable: (value) => { state.unavailable = value; },
     setPayments: () => {},
+    setCsvCardSources: () => {},
     setTransactions: (value) => { state.transactions = value; },
     setFinancialAccounts: (value) => { state.accounts = value; },
     transactionDisplayKey: (value) => value.id,

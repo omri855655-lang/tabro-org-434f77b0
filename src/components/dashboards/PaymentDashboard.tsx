@@ -437,11 +437,7 @@ const PaymentDashboard = () => {
           .from("credit_card_connections")
           .select("id,provider,display_name,card_last_digits")
           .eq("user_id", user.id),
-        invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list")
-          .catch((error) => {
-            console.warn("Cloud finance is unavailable; continuing with imported statements", error);
-            return { transactions: [], accounts: [] };
-          }),
+        invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list"),
       ]);
 
       let transactionsResult = await supabase

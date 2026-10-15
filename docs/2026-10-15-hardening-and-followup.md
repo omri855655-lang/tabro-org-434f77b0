@@ -56,6 +56,14 @@ remain separate possible blockers, not incorrect-password evidence.
   leaked-password protection, and two informational public-content/storage findings.
   Public landing content is intentional. An additional migration restricts email
   asset catalog listing to admins without changing public logo URLs.
+- Hosted deployment enabled leaked-password protection on the existing plan.
+  Its configuration tool also saved signups enabled, anonymous sign-in disabled,
+  and email confirmation required. It could not read the prior values; those
+  three settings cannot honestly be claimed unchanged. No password reset or
+  billing change was performed.
+- Full-suite validation exposed a cloud-finance outage being swallowed into
+  empty arrays. Restore failure propagation so existing data is retained and the
+  explicit unavailable/retry state is shown instead of incomplete zero totals.
 - Still outstanding: full legacy-screen localization, complete Outlook-style
   invitations/calendar workflows, voice interaction, and system-level scheduled
   blocking while the browser is closed. Do not imply these are implemented.

@@ -140,6 +140,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const pausedAt = useRef<number | null>(null);
   const accumulatedPauseSeconds = useRef(0);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const joinRequestId = useRef(0);
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? (activeRoomSnapshot?.id === selectedRoomId ? activeRoomSnapshot : null);
 
@@ -345,9 +346,11 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     setSessionGoal(room.topic === "Focus" ? "" : room.topic);
   };
   const joinRoom = async (room: Room, inviteCode?: string) => {
+    const requestId = ++joinRequestId.current;
     if (user && liveRoomsAvailable && INITIAL_ROOMS.some(template => template.id === room.id)) {
       const client = supabase as unknown as FocusRoomClient;
       const { data, error } = await client.rpc('get_or_create_zoneflow_template_room', { p_template_key: room.id });
+      if (requestId !== joinRequestId.current) return;
       if (error || typeof data !== 'string') {
         toast.error(error?.message || 'Could not open shared room');
         return;
@@ -361,12 +364,14 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
         p_display_name: username.trim() || "Tabro member",
         p_invite_code: inviteCode || room.inviteCode || null,
       });
+      if (requestId !== joinRequestId.current) return;
       if (error) {
         toast.error(error.message);
         return;
       }
       void fetchLiveRooms();
     }
+    if (requestId !== joinRequestId.current) return;
     setSelectedRoomId(room.id);
     setActiveRoomSnapshot(room);
     const entryPositions: Record<RoomScene, { x: number; y: number }> = {
@@ -381,6 +386,18 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       safeLocalStorage.setJSON("zoneflow-together-joined", next);
     }
   };
+  useEffect(() => {
+    const template = INITIAL_ROOMS.find(room => room.id === selectedRoomId);
+    if (!template || !user || !liveRoomsAvailable) return;
+    const requestId = joinRequestId.current + 1;
+    void joinRoom(template);
+    return () => {
+      if (joinRequestId.current === requestId) joinRequestId.current += 1;
+    };
+    // Upgrade a previously saved local template once the shared backend is ready.
+    // Position/timer renders must not restart an in-flight join request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoomId, liveRoomsAvailable, user?.id]);
   const createRoom = async () => {
     if (!roomName.trim()) return;
     const inviteCode = roomAccess === "friends" ? makeInviteCode() : undefined;
@@ -561,6 +578,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   };
 
   const leaveRoom = () => {
+    joinRequestId.current += 1;
     setFocusActive(false);
     void cancelSession();
     setSelectedRoomId("");
