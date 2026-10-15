@@ -15,6 +15,9 @@ import { useRecycleBin } from '@/hooks/useRecycleBin';
 import InlineNotesTextarea from '@/components/InlineNotesTextarea';
 import { extractLessonsFromSyllabus } from '@/components/courses/syllabusLessonParser';
 import { useLanguage } from '@/hooks/useLanguage';
+import PlanningAdvisor from '@/components/PlanningAdvisor';
+import ProjectGantt from '@/components/projects/ProjectGantt';
+import { readSyllabusFile } from '@/components/courses/readSyllabusFile';
 
 interface Course {
   id: string;
@@ -619,6 +622,7 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
                             <DialogHeader>
                               <DialogTitle>{copy.syllabusFor} - {course.title}</DialogTitle>
                             </DialogHeader>
+                            <label className="text-sm font-medium">העלאת סילבוס (PDF / TXT)<Input type="file" accept=".pdf,.txt,.md" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { setSyllabusInput(await readSyllabusFile(file)); } catch (error) { toast.error(error instanceof Error ? error.message : 'קריאת הקובץ נכשלה'); } event.target.value = ''; }} /></label>
                             <Textarea
                               placeholder={copy.pasteSyllabus}
                               value={syllabusInput}
@@ -699,6 +703,8 @@ ${lessons.length > 0 ? `שיעורים: ${lessons.map(l => l.title).join(', ')}`
 
                     <CollapsibleContent>
                       <div className="bg-muted/30 p-4 mr-11 border-t border-border">
+                        <PlanningAdvisor id={`course:${course.id}`} title={course.title} context={`סילבוס: ${course.syllabus || ''}\nשיעורים: ${lessons.map(l => `${l.title} | ${l.scheduled_date || 'ללא תאריך'} | ${l.completed ? 'הושלם' : 'פתוח'}`).join('\n')}`} />
+                        {lessons.length > 0 && <details className="my-4 rounded-2xl border bg-card p-4"><summary className="cursor-pointer font-semibold">גאנט לימודים והדפסה</summary><div className="mt-4"><ProjectGantt project={{ id: course.id, title: course.title, description: 'תוכנית לימודים לפי הסילבוס והשיעורים', target_date: null }} tasks={lessons.map(l => ({ id: l.id, title: l.title, completed: l.completed, urgent: l.urgent, status: l.completed ? 'הושלם' : 'בלמידה', due_date: l.scheduled_date?.slice(0, 10) || null, sort_order: l.sort_order }))} readOnly /></div></details>}
                         {/* Lessons list */}
                         {lessons.length === 0 ? (
                           <p className="text-sm text-muted-foreground">{copy.noLessons}</p>

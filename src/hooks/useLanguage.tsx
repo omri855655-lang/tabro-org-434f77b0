@@ -1,4 +1,5 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import { translationComplements } from '@/lib/translationComplements';
 
 type Language = "he" | "en" | "es" | "zh" | "ar" | "ru";
 
@@ -628,7 +629,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const t = (key: TranslationKey): string => {
     // Keep non-Hebrew interfaces readable while a newly added key is waiting
     // for a native translation instead of leaking Hebrew into the screen.
-    return translations[lang]?.[key] || translations.en[key] || translations.he[key] || key;
+    return translations[lang]?.[key] || translationComplements[lang]?.[key] || translations.en[key] || translations.he[key] || key;
   };
 
   const dir = RTL_LANGS.includes(lang) ? "rtl" : "ltr";

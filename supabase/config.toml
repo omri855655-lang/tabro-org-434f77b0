@@ -53,3 +53,5 @@ project_id = "qfcuyrdxaambvppduslo"
     verify_jwt = false
   [functions.notify-public-task-submission]
     verify_jwt = false
+  [functions.good-news]
+    verify_jwt = false

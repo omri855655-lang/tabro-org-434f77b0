@@ -23,6 +23,7 @@ import { invokeFinanceFunction } from '@/lib/financeBackend';
 import ProjectGantt from '@/components/projects/ProjectGantt';
 import ProjectTaskIntakeLink from '@/components/projects/ProjectTaskIntakeLink';
 import ProjectGanttShareLink from '@/components/projects/ProjectGanttShareLink';
+import PlanningAdvisor from '@/components/PlanningAdvisor';
 
 interface Project {
   id: string;
@@ -1362,6 +1363,7 @@ ${message}
                         </div>
                       </div>
 
+                      <PlanningAdvisor id={`project:${project.id}`} title={project.title} context={`תיאור: ${project.description || ''}\nמשימות: ${(projectTasks[project.id] || []).map(task => `${task.title} | ${task.due_date || ''} | ${task.status || ''}`).join('\n')}`} />
                       {/* AI Milestones Controls */}
                       <div className="mr-11 mt-2 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">

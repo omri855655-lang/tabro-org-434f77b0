@@ -17,6 +17,7 @@ import AiChatPanel from "@/components/AiChatPanel";
 import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
 import { useLanguage } from "@/hooks/useLanguage";
+import { printDocument } from '@/lib/printDocument';
 
 interface ShoppingItem {
   id: string;
@@ -671,6 +672,7 @@ const ShoppingDashboard = () => {
         <ShoppingCart className="h-6 w-6 text-primary" />
         <h2 className="text-2xl font-bold flex-1">{copy.title}</h2>
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
+        <Button variant="outline" size="sm" onClick={() => { const list = (activeTab === 'supermarket' ? supermarketItems : activeTab === 'dreams' ? dreamItems : shoppingItems).filter(item => item.status !== 'נקנה').sort((a, b) => (a.category || '').localeCompare(b.category || '')); printDocument(copy.title, ['פריט', 'קטגוריה', 'כמות', 'מחיר', 'הערות'], list.map(item => [item.title, item.category, item.quantity, item.price === null ? '' : `₪${item.price}`, item.notes]), 'פריטים שעדיין צריך לקנות · מסודרים לפי קטגוריה'); }}>PDF / הדפסה</Button>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
           items.map(i => ({ title: i.title, category: i.category || '', quantity: i.quantity || '', price: i.price, status: i.status, notes: i.notes || '' })),
           [{ key: 'title', label: 'פריט' }, { key: 'category', label: 'קטגוריה' }, { key: 'quantity', label: 'כמות' }, { key: 'price', label: 'מחיר' }, { key: 'status', label: 'סטטוס' }, { key: 'notes', label: 'הערות' }],

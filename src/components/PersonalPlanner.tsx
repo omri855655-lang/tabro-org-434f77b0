@@ -26,6 +26,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { getHolidaysForDate } from "@/data/holidays";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import { eventOverlapsRange } from "@/lib/plannerEvents";
+import { printDocument } from "@/lib/printDocument";
 
 interface AggregatedTask {
   id: string;
@@ -2996,7 +2997,7 @@ const PersonalPlanner = () => {
               ICS
             </Button>
 
-            <Button variant="outline" size="sm" className="gap-1 h-8" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" className="gap-1 h-8" onClick={() => printDocument("תוכנית העבודה והפגישות שלי", ["תאריך", "שעות", "אירוע", "קטגוריה", "מיקום / פגישה", "פרטים"], Array.from(eventsByDay.entries()).sort(([a], [b]) => a.localeCompare(b)).flatMap(([day, entries]) => entries.map(event => [day, event.allDay ? "כל היום" : `${format(new Date(event.startTime), "HH:mm")}–${format(new Date(event.endTime), "HH:mm")}`, event.title, event.category, [event.location, event.meetingUrl].filter(Boolean).join("\n"), event.description])), "יומן מסודר להדפסה או לשמירה כ-PDF")}>
               <Printer className="h-3.5 w-3.5" />
               PDF / הדפסה
             </Button>
@@ -3063,31 +3064,16 @@ const PersonalPlanner = () => {
         {viewMode === "year" ? renderYearGrid() : viewMode === "month" ? renderMonthGrid() : viewMode === "agenda" ? renderAgenda() : renderTimeGrid()}
       </div>
 
-      <Popover
+      <Dialog
         open={showQuickEventDialog}
         onOpenChange={(open) => {
           if (!open) closeEventEditors();
           else setShowQuickEventDialog(true);
         }}
       >
-        <PopoverTrigger asChild>
-          <button
-            ref={quickEditorAnchorRef}
-            type="button"
-            aria-hidden="true"
-            tabIndex={-1}
-            className="pointer-events-none fixed h-px w-px opacity-0"
-            style={{
-              top: quickEditorAnchor?.top ?? -9999,
-              left: quickEditorAnchor?.left ?? -9999,
-            }}
-          />
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-[320px] p-3"
+        <DialogContent
+          className="max-w-md max-h-[90dvh] overflow-y-auto p-5"
           dir="rtl"
-          align="end"
-          sideOffset={10}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => {
             // The trigger is a hidden positioning anchor, not a focus destination.
@@ -3097,12 +3083,12 @@ const PersonalPlanner = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold">
+                <DialogTitle className="text-sm font-semibold">
                   {editingEvent?.id ? "עריכה מהירה" : "אירוע מהיר"}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
+                </DialogTitle>
+                <DialogDescription className="text-[11px] text-muted-foreground">
                   כתיבה מהירה בלי לפתוח את חלון הפרטים המלא
-                </div>
+                </DialogDescription>
               </div>
               <Button
                 type="button"
@@ -3207,8 +3193,8 @@ const PersonalPlanner = () => {
               </Button>
             </div>
           </div>
-        </PopoverContent>
-      </Popover>
+        </DialogContent>
+      </Dialog>
 
       {/* Event Dialog */}
       <Dialog

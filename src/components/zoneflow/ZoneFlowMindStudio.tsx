@@ -42,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ZoneFlowMindUnfreeze } from "./ZoneFlowMindUnfreeze";
 import { ProcrastinationAssessment } from "./ProcrastinationAssessment";
+import { MindDailyCheckin } from './MindDailyCheckin';
 
 type MindTab = "home" | "journeys" | "coach" | "progress" | "numbers" | "birthchart" | "stars";
 type CoachIntensity = 1 | 2 | 3 | 4 | 5;
@@ -994,6 +995,7 @@ function ZoneFlowMindStudioContent({ isLight }: ZoneFlowMindStudioProps) {
 
   return (
     <div className="min-h-0 space-y-4" dir={dir}>
+      <MindDailyCheckin />
       <Card className={cn("overflow-hidden border", shellCard)}>
         <CardContent className="p-0">
           <div className="bg-gradient-to-br from-[#1f1acb] via-[#3f33ff] to-[#8f95ff] px-5 py-6 text-white">

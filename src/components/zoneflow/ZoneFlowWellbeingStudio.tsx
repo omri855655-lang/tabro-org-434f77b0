@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ZoneFlowRewardHistory } from "./ZoneFlowRewardHistory";
+import { FocusSchedule } from './FocusSchedule';
 
 type DeviceKind = "computer" | "iphone" | "android";
 interface Device { id: string; kind: DeviceKind; name: string; minutes: number; connected: boolean; }
@@ -268,6 +269,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
       </Card>
 
       <ZoneFlowRewardHistory limit={20} className={panel} />
+      <FocusSchedule active={focusActive} canStart={consentGranted} onToggle={toggleFocusPolicy} />
 
       <Card className={cn("border", panel)}>
         <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><ShieldCheck className="h-5 w-5 text-emerald-600" />{permissionCopy.title}</CardTitle></CardHeader>

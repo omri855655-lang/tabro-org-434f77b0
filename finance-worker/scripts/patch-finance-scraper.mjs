@@ -83,6 +83,26 @@ replaceOnce(
   "American Express dynamic login pre-gate",
 );
 
+const amexLoginBlock = patchedSource.match(/var AMEX_LOGIN = \{[\s\S]*?\n\};/)?.[0];
+if (!amexLoginBlock) throw new Error("American Express login configuration not found");
+const configuredAmexLogin = `var AMEX_LOGIN = {
+  loginUrl: "https://he.americanexpress.co.il/personalarea/login/",
+  preAction: async (page) => {
+    if (!(await page.locator("#otpLoginPwd").isVisible())) {
+      await page.locator("#flip").click();
+    }
+    await page.locator("#otpLoginPwd").waitFor({ state: "visible", timeout: 30000 });
+  },
+  fields: [
+    { credentialKey: "id", selectors: [{ kind: "css", value: "#otpLoginId_ID" }] },
+    { credentialKey: "password", selectors: [{ kind: "css", value: "#otpLoginPwd" }] },
+    { credentialKey: "card6Digits", selectors: [{ kind: "css", value: "#cardnum" }] }
+  ],
+  submit: [{ kind: "css", value: "#otpLobbyFormPassword button[type=submit]" }],
+  possibleResults: { success: ["https://he.americanexpress.co.il/personalarea/dashboard/", "https://web.americanexpress.co.il/transactions"] }
+};`;
+patchedSource = patchedSource.replace(amexLoginBlock, configuredAmexLogin);
+
 if (patchedSource !== source) {
   await writeFile(bundlePath, patchedSource);
 }

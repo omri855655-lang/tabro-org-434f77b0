@@ -16,6 +16,12 @@ test("American Express, Discount and Visa Cal start directly at their official l
   const amexPipeline = bundle.match(/function buildAmexPipeline\(options\) \{([\s\S]*?)\n\}/)?.[1] || "";
   assert.doesNotMatch(amexPipeline, /withPreLogin/);
   assert.match(amexPipeline, /withDeclarativeLogin\(AMEX_LOGIN\)/);
+  const login = bundle.match(/var AMEX_LOGIN = \{([\s\S]*?)\n\};/)?.[1] || '';
+  assert.match(login, /#flip/);
+  assert.match(login, /#otpLoginPwd/);
+  assert.match(login, /#otpLoginId_ID/);
+  assert.match(login, /#cardnum/);
+  assert.doesNotMatch(login, /selectors: \[\]/);
 });
 
 test("unaffected providers keep their own login configuration", () => {

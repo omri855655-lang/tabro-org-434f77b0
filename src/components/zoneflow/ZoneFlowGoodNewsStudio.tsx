@@ -10,6 +10,9 @@ interface GoodNewsItem { title: string; link: string; pubDate: string; descripti
 const SOURCES = [
   { name: "Good News Network", feed: "https://www.goodnewsnetwork.org/feed/" },
   { name: "Positive News", feed: "https://www.positive.news/feed/" },
+  { name: "The Optimist Daily", feed: "https://www.optimistdaily.com/feed/" },
+  { name: "Good Good Good", feed: "https://www.goodgoodgood.co/articles/rss.xml" },
+  { name: "Reasons to be Cheerful", feed: "https://reasonstobecheerful.world/feed/" },
 ];
 const stripHtml = (value = "") => value.replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 const cacheKey = () => `zoneflow-good-news:${new Date().toISOString().slice(0, 10)}`;
@@ -93,14 +96,18 @@ export function ZoneFlowGoodNewsStudio() {
   const refresh = async () => {
     setLoading(true); setError("");
     try {
-      const responses = await Promise.all(SOURCES.map(async (source) => {
+      const { data: serverFeed, error: serverError } = await supabase.functions.invoke('good-news');
+      if (!serverError && Array.isArray(serverFeed?.items) && serverFeed.items.length) {
+        setItems(serverFeed.items); safeLocalStorage.setJSON(cacheKey(), serverFeed.items); return;
+      }
+      const responses = await Promise.allSettled(SOURCES.map(async (source) => {
         const endpoint = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.feed)}`;
-        const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
+        const response = await fetch(endpoint, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) });
         if (!response.ok) throw new Error(`${source.name}: ${response.status}`);
         const payload = await response.json();
         return (payload.items || []).slice(0, 8).map((item: any) => ({ title: stripHtml(item.title), link: item.link, pubDate: item.pubDate, description: stripHtml(item.description || item.content).slice(0, 360), source: source.name, thumbnail: item.thumbnail || item.enclosure?.link }));
       }));
-      const next = responses.flat().filter((item) => item.title && item.link).sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()).slice(0, 12);
+      const next = responses.flatMap(result => result.status === 'fulfilled' ? result.value : []).filter((item) => item.title && /^https?:\/\//i.test(item.link)).sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()).slice(0, 30);
       if (!next.length) throw new Error("No current articles returned");
       setItems(next); safeLocalStorage.setJSON(cacheKey(), next);
     } catch (cause) {

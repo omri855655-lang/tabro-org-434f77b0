@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { printDocument } from "@/lib/printDocument";
 import {
   addCalendarDays,
   buildAutomaticSchedule,
@@ -231,7 +232,7 @@ const ProjectGantt = ({
                 הוסף שלבים מוכנים
               </Button>
             </>}
-            <Button type="button" onClick={() => window.print()} size="sm" variant="outline" className="gap-2">
+            <Button type="button" onClick={() => printDocument(`גאנט · ${project.title}`, ["משימה", "תחילה", "יעד", "מצב", "עדיפות"], visibleTasks.map((task, index) => { const period = getGanttTaskPeriod(task, windowStart, index); return [formatProjectTaskTitle(task.title), `${toLocalDateKey(period.start)}${period.isEstimated ? " (משוער)" : ""}`, toLocalDateKey(period.end), task.completed ? "הושלם" : task.status || "פתוח", task.urgent ? "דחוף" : "רגיל"]; }), project.description || "תוכנית פרויקט")} size="sm" variant="outline" className="gap-2">
               <Printer className="h-4 w-4" />
               PDF / הדפסה
             </Button>

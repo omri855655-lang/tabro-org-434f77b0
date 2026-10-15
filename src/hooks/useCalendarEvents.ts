@@ -13,10 +13,10 @@ export interface CalendarEvent {
   endTime: string;
   allDay: boolean;
   color: string;
-  location: string;
-  meetingUrl: string;
-  recurrenceRule: "daily" | "weekly" | "monthly" | null;
-  recurrenceGroupId: string | null;
+  location?: string;
+  meetingUrl?: string;
+  recurrenceRule?: "daily" | "weekly" | "monthly" | null;
+  recurrenceGroupId?: string | null;
   sourceType: string | null;
   sourceId: string | null;
   createdAt: string;
