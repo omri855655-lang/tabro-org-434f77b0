@@ -74,6 +74,9 @@ serve(async (request) => {
       supabase.from("push_subscriptions").select("id, endpoint, p256dh, auth").eq("user_id", link.owner_id),
     ]);
     if (!task) return json({ error: "Task not found" }, 404);
+    const taskSummary = isProject
+      ? (task as { title: string }).title
+      : (task as { description: string }).description;
 
     const vapid: VapidKeys = {
       subject: "mailto:push@lovable.app",
