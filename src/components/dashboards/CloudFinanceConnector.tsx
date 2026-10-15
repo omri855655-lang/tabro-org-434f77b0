@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Cloud, FileSpreadsheet, KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { financeErrorMessage } from '@/lib/financeErrors';
 
 interface ProviderDefinition {
   name: string;
@@ -80,35 +81,6 @@ const copy = {
   },
 } as const;
 
-function financeErrorMessage(error: unknown, language: string, fallback: string) {
-  const message = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
-  if (/PRE-LOGIN: no password field|Login field not found on page|sign-in form did not load/i.test(message)) {
-    return language === "he"
-      ? "טופס הכניסה של החברה לא נטען. הסיסמה שלך לא נבדקה, ושלב האימות הדו־שלבי עדיין לא התחיל."
-      : "The institution's sign-in form did not load. Your password was not checked, and two-factor authentication has not started.";
-  }
-  if (language !== "he") return message;
-  if (/rejected the login details|INVALID_PASSWORD|LOGIN_FAILED/i.test(message)) {
-    return "החברה דחתה את פרטי ההתחברות. כדאי לבדוק שוב את תעודת הזהות, 6 הספרות האחרונות והסיסמה.";
-  }
-  if (/account is blocked|ACCOUNT_BLOCKED/i.test(message)) {
-    return "החשבון חסום אצל החברה. יש להיכנס קודם לאתר החברה ולשחרר את החסימה.";
-  }
-  if (/temporarily blocked automated access|WAF_BLOCKED|Cloudflare/i.test(message)) {
-    return "החברה חסמה זמנית את החיבור האוטומטי. אפשר לנסות שוב מאוחר יותר.";
-  }
-  if (/did not respond in time|TIMEOUT|timed out/i.test(message)) {
-    return "החברה לא השיבה בזמן. אפשר לנסות שוב בעוד כמה דקות.";
-  }
-  if (/not configured|not ready|unavailable/i.test(message)) {
-    return "שירות הסנכרון אינו זמין כרגע. החיבור הקיים והנתונים שלך נשמרו.";
-  }
-  if (/Too many attempts/i.test(message)) {
-    return "בוצעו יותר מדי ניסיונות. יש להמתין 15 דקות ולנסות שוב.";
-  }
-  return "לא הצלחנו לסנכרן את החברה. כדאי לבדוק את הפרטים ולנסות שוב.";
-}
-
 const CARD_COMPANIES = new Set(["amex", "isracard", "visaCal", "max", "beyahadBishvilha", "behatsdaa"]);
 
 export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
@@ -175,6 +147,8 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   const connect = async () => {
     if (!canConnect) return;
     setBusy("connect");
+    setConnections(current => current.map(connection => connection.metadata?.company_id === companyId && connection.status === 'error'
+      ? { ...connection, status: 'syncing', last_error: null } : connection));
     try {
       const result = await invoke("connect", { companyId, credentials, storeCredentials: credentialMode === "automatic" });
       toast.success(
@@ -273,7 +247,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
           <div className="space-y-4 rounded-2xl border bg-muted/15 p-4">
             <div className="space-y-1.5">
               <Label>{labels.provider}</Label>
-              <Select value={companyId} onValueChange={setCompanyId}>
+              <Select value={companyId} onValueChange={setCompanyId} disabled={busy === 'connect'}>
                 <SelectTrigger><SelectValue placeholder={labels.choose} /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(providers).map(([id, provider]) => (
@@ -309,6 +283,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
                         value={credentials[field] || ""}
                         onChange={(event) => setCredentials((current) => ({ ...current, [field]: event.target.value }))}
                         dir="ltr"
+                        disabled={busy === 'connect'}
                       />
                     </div>
                   </div>
@@ -349,7 +324,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
                       </p>
                     </div>
                     <Badge variant={connection.status === "active" ? "default" : connection.status === "error" ? "destructive" : "secondary"}>
-                      {connection.metadata?.credential_storage === "none" ? (lang === "he" ? "ייבוא חד־פעמי" : "One-time import") : statusLabel(connection.status)}
+                      {connection.status === 'active' && connection.metadata?.credential_storage === "none" ? (lang === "he" ? "ייבוא חד־פעמי" : "One-time import") : statusLabel(connection.status)}
                     </Badge>
                   </div>
                   {connection.last_error && <p className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{financeErrorMessage(connection.last_error, lang, connection.last_error)}</p>}

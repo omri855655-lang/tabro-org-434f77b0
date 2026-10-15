@@ -31,6 +31,13 @@ configuration URL had not changed the pipeline's initial bank URL. Patch both
 the initial URL and explicit preAction navigation; wait for the password controls.
 A behavioral regression test covers navigation before selector access.
 
+The retry on revision 00017-khj still timed out waiting for the public password
+controls at 09:07 UTC. The same official page exposes them in the normal browser.
+No successful account import is verified. Cloud access restrictions are a possible
+cause, not yet a proven diagnosis. UI now refreshes failed attempts, displays error
+status even for one-time imports, sanitizes errors in all six languages, and bounds
+network waits instead of leaving the connection button indefinitely busy.
+
 Do not claim a successful account synchronization until a real attempt imports
 accounts/transactions. OTP continuation and upstream anti-automation restrictions
 remain separate possible blockers, not incorrect-password evidence.

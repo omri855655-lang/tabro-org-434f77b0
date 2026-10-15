@@ -1,0 +1,21 @@
+const messages = {
+  he: ['טופס הכניסה לא נטען בשרת הסנכרון. הסיסמה טרם נבדקה. אפשר לייבא CSV / Excel בינתיים.', 'החברה דחתה את פרטי ההתחברות. בדוק את פרטי הזיהוי, ספרות הכרטיס והסיסמה.', 'החשבון חסום אצל החברה. יש להיכנס לאתר החברה ולשחרר אותו.', 'החברה חסמה את הגישה האוטומטית. אפשר לייבא CSV / Excel בינתיים.', 'הבקשה ארכה יותר מדי זמן. מצב החיבור מתעדכן; סנכרון שכבר התחיל עשוי להמשיך ברקע.', 'שירות הסנכרון אינו זמין כרגע. הנתונים הקיימים נשמרו.', 'בוצעו יותר מדי ניסיונות. המתן 15 דקות לפני ניסיון נוסף.', 'לא הצלחנו לסנכרן את החברה. הנתונים הקיימים נשמרו.'],
+  en: ['The login form did not load on the sync server. Your password has not been checked. You can import CSV / Excel meanwhile.', 'The institution rejected the login details. Check the identifier, card digits and password.', 'The account is blocked. Sign in directly with the institution to restore access.', 'The institution blocked automated access. You can import CSV / Excel meanwhile.', 'The request took too long. Connection status is being refreshed; a started sync may continue in the background.', 'The sync service is unavailable. Existing data is preserved.', 'Too many attempts. Wait 15 minutes before trying again.', 'The institution could not be synchronized. Existing data is preserved.'],
+  es: ['El formulario no se cargó en el servidor de sincronización. No se comprobó tu contraseña. Puedes importar CSV / Excel mientras tanto.', 'La entidad rechazó los datos. Comprueba la identificación, los dígitos y la contraseña.', 'La cuenta está bloqueada. Accede al sitio de la entidad para recuperarla.', 'La entidad bloqueó el acceso automático. Puedes importar CSV / Excel.', 'La solicitud tardó demasiado. Se actualiza el estado; la sincronización iniciada puede continuar en segundo plano.', 'El servicio no está disponible. Los datos existentes se conservan.', 'Demasiados intentos. Espera 15 minutos.', 'No se pudo sincronizar. Los datos existentes se conservan.'],
+  zh: ['同步服务器未能加载登录表单。密码尚未验证。你可以先导入 CSV / Excel。', '机构拒绝了登录信息。请检查证件号、卡号末位和密码。', '账户已被锁定。请直接登录机构网站恢复访问。', '机构阻止了自动访问。你可以先导入 CSV / Excel。', '请求时间过长。正在刷新连接状态；已开始的同步可能仍在后台运行。', '同步服务暂不可用。现有数据已保留。', '尝试次数过多。请等待15分钟。', '未能完成同步。现有数据已保留。'],
+  ar: ['لم يتم تحميل نموذج الدخول على خادم المزامنة. لم تُفحص كلمة المرور. يمكنك استيراد CSV / Excel مؤقتاً.', 'رفضت المؤسسة بيانات الدخول. تحقق من الهوية وأرقام البطاقة وكلمة المرور.', 'الحساب محظور. ادخل إلى موقع المؤسسة لاستعادة الوصول.', 'حظرت المؤسسة الوصول الآلي. يمكنك استيراد CSV / Excel مؤقتاً.', 'استغرق الطلب وقتاً طويلاً. يتم تحديث الحالة وقد تستمر المزامنة في الخلفية.', 'خدمة المزامنة غير متاحة. تم الاحتفاظ بالبيانات الحالية.', 'محاولات كثيرة. انتظر 15 دقيقة.', 'تعذرت المزامنة. تم الاحتفاظ بالبيانات الحالية.'],
+  ru: ['Форма входа не загрузилась на сервере синхронизации. Пароль ещё не проверялся. Пока можно импортировать CSV / Excel.', 'Организация отклонила данные входа. Проверьте идентификатор, цифры карты и пароль.', 'Счёт заблокирован. Войдите на сайт организации для восстановления доступа.', 'Организация заблокировала автоматический доступ. Пока можно импортировать CSV / Excel.', 'Запрос занял слишком много времени. Статус обновляется; начатая синхронизация может продолжаться в фоне.', 'Сервис синхронизации недоступен. Существующие данные сохранены.', 'Слишком много попыток. Подождите 15 минут.', 'Не удалось синхронизировать. Существующие данные сохранены.'],
+};
+
+export function financeErrorMessage(error: unknown, language: string, _fallback = '') {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const copy = messages[language as keyof typeof messages] || messages.en;
+  if (/WAF_BLOCKED|Cloudflare|temporarily blocked automated access/i.test(message)) return copy[3];
+  if (/PRE-LOGIN: no password field|Login field not found on page|sign-in form did not load|LOGIN PRE: preAction|LOGIN_FORM_UNAVAILABLE/i.test(message)) return copy[0];
+  if (/rejected the login|INVALID_PASSWORD|LOGIN_FAILED/i.test(message)) return copy[1];
+  if (/account is blocked|ACCOUNT_BLOCKED/i.test(message)) return copy[2];
+  if (/TIMEOUT|TimeoutError|timed out|too long|did not respond/i.test(message)) return copy[4];
+  if (/not configured|not ready|unavailable/i.test(message)) return copy[5];
+  if (/Too many attempts|RATE_LIMITED/i.test(message)) return copy[6];
+  return copy[7];
+}

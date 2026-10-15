@@ -24,6 +24,7 @@ export async function invokeFinanceFunction<T = unknown>(
 
   const response = await fetch(`${financeBackendUrl}/functions/v1/${functionName}`, {
     method: "POST",
+    signal: AbortSignal.timeout(90_000),
     headers: {
       apikey: financeBackendKey,
       Authorization: `Bearer ${session.access_token}`,
