@@ -220,6 +220,10 @@ export type Database = {
           description: string | null
           end_time: string
           id: string
+          location: string | null
+          meeting_url: string | null
+          recurrence_group_id: string | null
+          recurrence_rule: string | null
           source_id: string | null
           source_type: string | null
           start_time: string
@@ -235,6 +239,10 @@ export type Database = {
           description?: string | null
           end_time: string
           id?: string
+          location?: string | null
+          meeting_url?: string | null
+          recurrence_group_id?: string | null
+          recurrence_rule?: string | null
           source_id?: string | null
           source_type?: string | null
           start_time: string
@@ -250,6 +258,10 @@ export type Database = {
           description?: string | null
           end_time?: string
           id?: string
+          location?: string | null
+          meeting_url?: string | null
+          recurrence_group_id?: string | null
+          recurrence_rule?: string | null
           source_id?: string | null
           source_type?: string | null
           start_time?: string
