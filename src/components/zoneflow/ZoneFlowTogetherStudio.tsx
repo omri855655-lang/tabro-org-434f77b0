@@ -162,7 +162,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       inviteCode: room.invite_code || undefined,
     }));
     setLiveRoomsAvailable(true);
-    const merged = new Map(INITIAL_ROOMS.map((room) => [room.id, room]));
+    const merged = new Map(INITIAL_ROOMS.filter(template => !liveRooms.some(room => room.access === 'public' && room.name === template.name && room.scene === template.scene)).map((room) => [room.id, room]));
     liveRooms.forEach((room) => merged.set(room.id, room));
     setRooms(Array.from(merged.values()));
     return liveRooms;
@@ -345,6 +345,15 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
     setSessionGoal(room.topic === "Focus" ? "" : room.topic);
   };
   const joinRoom = async (room: Room, inviteCode?: string) => {
+    if (user && liveRoomsAvailable && INITIAL_ROOMS.some(template => template.id === room.id)) {
+      const client = supabase as unknown as FocusRoomClient;
+      const { data, error } = await client.rpc('get_or_create_zoneflow_template_room', { p_template_key: room.id });
+      if (error || typeof data !== 'string') {
+        toast.error(error?.message || 'Could not open shared room');
+        return;
+      }
+      room = { ...room, id: data };
+    }
     if (user && isUuid(room.id)) {
       const client = supabase as unknown as FocusRoomClient;
       const { error } = await client.rpc("join_zoneflow_focus_room", {
