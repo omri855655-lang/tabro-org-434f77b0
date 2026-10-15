@@ -2712,6 +2712,7 @@ export type Database = {
           name: string
           owner_id: string
           scene: string
+          template_key: string | null
           topic: string
         }
         Insert: {
@@ -2723,6 +2724,7 @@ export type Database = {
           name: string
           owner_id: string
           scene?: string
+          template_key?: string | null
           topic?: string
         }
         Update: {
@@ -2734,6 +2736,7 @@ export type Database = {
           name?: string
           owner_id?: string
           scene?: string
+          template_key?: string | null
           topic?: string
         }
         Relationships: []
@@ -2853,6 +2856,10 @@ export type Database = {
       }
       get_or_create_task_intake_link: {
         Args: { p_sheet_name: string; p_task_type: string }
+        Returns: string
+      }
+      get_or_create_zoneflow_template_room: {
+        Args: { p_template_key: string }
         Returns: string
       }
       get_project_role: {
