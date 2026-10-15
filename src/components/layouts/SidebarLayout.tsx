@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { useLanguage } from '@/hooks/useLanguage';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PanelLeftClose, PanelLeft, GripVertical, ChevronDown, ChevronUp } from "lucide-react";
+import { PanelLeftClose, PanelLeft, GripVertical, ChevronDown, ChevronUp, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardTabGroup, DashboardTabItem } from "./dashboardGrouping";
 
@@ -20,6 +22,16 @@ interface SidebarLayoutProps {
 
 const SidebarLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTab, onTabChange, onReorder, header, children, dir = "rtl" }: SidebarLayoutProps) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { lang } = useLanguage();
+  const navigation = {
+    he: ['פתיחת תפריט הניווט', 'ניווט', 'בחר דשבורד כדי לעבור אליו'],
+    en: ['Open navigation menu', 'Navigation', 'Choose a dashboard'],
+    es: ['Abrir menú', 'Navegación', 'Elige un panel'],
+    zh: ['打开导航菜单', '导航', '选择仪表板'],
+    ar: ['فتح قائمة التنقل', 'التنقل', 'اختر لوحة'],
+    ru: ['Открыть меню', 'Навигация', 'Выберите панель'],
+  }[lang];
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const isRtl = dir === "rtl";
@@ -77,10 +89,10 @@ const SidebarLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTa
   };
 
   return (
-    <div className="flex h-screen bg-background" dir={dir}>
+    <div className="flex h-dvh bg-background" dir={dir}>
       <aside
         className={cn(
-          "flex flex-col border-border bg-card transition-all duration-200 shrink-0",
+          "hidden flex-col border-border bg-card transition-all duration-200 shrink-0 md:flex",
           isRtl ? "border-l" : "border-r",
           collapsed ? "w-14" : "w-56"
         )}
@@ -119,7 +131,35 @@ const SidebarLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTa
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 flex items-center gap-3 px-4 border-b border-border bg-card shrink-0">
+        <header className="h-14 flex items-center gap-1 px-2 sm:gap-3 sm:px-4 border-b border-border bg-card shrink-0">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 md:hidden" aria-label={navigation[0]}>
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side={isRtl ? 'right' : 'left'} dir={dir} className="w-[min(85vw,320px)] p-0">
+              <SheetHeader className="border-b p-5">
+                <SheetTitle>Tabro · {navigation[1]}</SheetTitle>
+                <SheetDescription className="sr-only">{navigation[2]}</SheetDescription>
+              </SheetHeader>
+              <ScrollArea className="h-[calc(100dvh-72px)]">
+                <nav aria-label={navigation[1]} className="grid gap-1 p-3">
+                  {tabs.map(tab => {
+                    const Icon = tab.icon;
+                    return (
+                      <Button key={tab.id} variant={activeTab === tab.id ? 'secondary' : 'ghost'}
+                        className="h-auto justify-start gap-3 whitespace-normal py-3 text-start"
+                        aria-current={activeTab === tab.id ? 'page' : undefined}
+                        onClick={() => { onTabChange(tab.id); setMobileOpen(false); }}>
+                        <Icon className="h-4 w-4 shrink-0" />{tab.label}
+                      </Button>
+                    );
+                  })}
+                </nav>
+              </ScrollArea>
+            </SheetContent>
+          </Sheet>
           {header}
         </header>
         <main className="flex-1 min-h-0 overflow-auto">

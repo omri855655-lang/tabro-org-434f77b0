@@ -543,7 +543,7 @@ const Personal = () => {
 
   // Header right-side controls
   const headerControls = (
-    <div className={`${dir === "rtl" ? "mr-auto" : "ml-auto"} flex items-center gap-2`}>
+    <div className={`${dir === "rtl" ? "mr-auto" : "ml-auto"} flex items-center gap-1 sm:gap-2`}>
       <Button variant="outline" size="sm" onClick={() => navigate("/install")} className="gap-2">
         <Download className="h-4 w-4" />
         <span className="hidden sm:inline">{t("installApp")}</span>
@@ -563,7 +563,7 @@ const Personal = () => {
   const headerLeft = (
     <>
       <span className="text-2xl font-black text-primary tracking-tight">T</span>
-      <h1 className="text-xl font-bold text-foreground">{t("personalArea")}</h1>
+      <h1 className="sr-only sm:not-sr-only sm:text-xl sm:font-bold sm:text-foreground">{t("personalArea")}</h1>
     </>
   );
 
