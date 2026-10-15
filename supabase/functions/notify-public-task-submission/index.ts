@@ -88,7 +88,7 @@ serve(async (request) => {
       try {
         await sendPush(subscription, {
           title: isProject ? "משימה חדשה נוספה לפרויקט" : "משימה חדשה נוספה מהקישור",
-          body: `${submission.requester_name}: ${isProject ? task.title : task.description}`.slice(0, 180),
+          body: `${submission.requester_name}: ${taskSummary}`.slice(0, 180),
           tag: `${isProject ? "project" : "public"}-task-${taskId}`,
           url: "/personal",
           icon: "/app-icon.png",
