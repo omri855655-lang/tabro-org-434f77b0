@@ -1621,6 +1621,8 @@ export type Database = {
         Row: {
           created_at: string
           enabled: boolean
+          gantt_enabled: boolean
+          gantt_token: string
           id: string
           owner_id: string
           project_id: string
@@ -1630,6 +1632,8 @@ export type Database = {
         Insert: {
           created_at?: string
           enabled?: boolean
+          gantt_enabled?: boolean
+          gantt_token?: string
           id?: string
           owner_id: string
           project_id: string
@@ -1639,6 +1643,8 @@ export type Database = {
         Update: {
           created_at?: string
           enabled?: boolean
+          gantt_enabled?: boolean
+          gantt_token?: string
           id?: string
           owner_id?: string
           project_id?: string
@@ -2681,10 +2687,18 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      disable_project_gantt_link: {
+        Args: { p_project_id: string }
+        Returns: undefined
+      }
       email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      get_or_create_project_gantt_link: {
+        Args: { p_project_id: string }
+        Returns: string
       }
       get_or_create_project_task_intake_link: {
         Args: { p_project_id: string }
