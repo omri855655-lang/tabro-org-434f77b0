@@ -2670,6 +2670,153 @@ export type Database = {
         }
         Relationships: []
       }
+      zoneflow_focus_room_members: {
+        Row: {
+          display_name: string
+          joined_at: string
+          last_seen_at: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          display_name?: string
+          joined_at?: string
+          last_seen_at?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          display_name?: string
+          joined_at?: string
+          last_seen_at?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoneflow_focus_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "zoneflow_focus_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoneflow_focus_rooms: {
+        Row: {
+          access: string
+          created_at: string
+          id: string
+          invite_code: string | null
+          is_active: boolean
+          name: string
+          owner_id: string
+          scene: string
+          topic: string
+        }
+        Insert: {
+          access?: string
+          created_at?: string
+          id?: string
+          invite_code?: string | null
+          is_active?: boolean
+          name: string
+          owner_id: string
+          scene?: string
+          topic?: string
+        }
+        Update: {
+          access?: string
+          created_at?: string
+          id?: string
+          invite_code?: string | null
+          is_active?: boolean
+          name?: string
+          owner_id?: string
+          scene?: string
+          topic?: string
+        }
+        Relationships: []
+      }
+      zoneflow_focus_sessions: {
+        Row: {
+          accumulated_pause_seconds: number
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          duration_seconds: number
+          ended_at: string
+          goal_text: string | null
+          id: string
+          linked_goal_id: string | null
+          linked_task_id: string | null
+          paused_at: string | null
+          planned_end_at: string | null
+          room_id: string | null
+          started_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          accumulated_pause_seconds?: number
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds: number
+          ended_at?: string
+          goal_text?: string | null
+          id?: string
+          linked_goal_id?: string | null
+          linked_task_id?: string | null
+          paused_at?: string | null
+          planned_end_at?: string | null
+          room_id?: string | null
+          started_at: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          accumulated_pause_seconds?: number
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number
+          ended_at?: string
+          goal_text?: string | null
+          id?: string
+          linked_goal_id?: string | null
+          linked_task_id?: string | null
+          paused_at?: string | null
+          planned_end_at?: string | null
+          room_id?: string | null
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoneflow_focus_sessions_linked_goal_id_fkey"
+            columns: ["linked_goal_id"]
+            isOneToOne: false
+            referencedRelation: "dream_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoneflow_focus_sessions_linked_task_id_fkey"
+            columns: ["linked_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoneflow_focus_sessions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "zoneflow_focus_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2752,6 +2899,19 @@ export type Database = {
         Args: { _sheet_id: string; _user_id: string }
         Returns: boolean
       }
+      is_zoneflow_room_member: { Args: { p_topic: string }; Returns: boolean }
+      join_zoneflow_focus_room: {
+        Args: {
+          p_display_name?: string
+          p_invite_code?: string
+          p_room_id: string
+        }
+        Returns: undefined
+      }
+      join_zoneflow_focus_room_by_code: {
+        Args: { p_display_name?: string; p_invite_code: string }
+        Returns: string
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -2805,7 +2965,24 @@ export type Database = {
         }
         Returns: string
       }
+      update_zoneflow_room_presence: {
+        Args: { p_online?: boolean; p_room_id: string }
+        Returns: undefined
+      }
       verify_pin: { Args: { input_pin: string }; Returns: boolean }
+      zoneflow_focus_room_directory: {
+        Args: never
+        Returns: {
+          access: string
+          country: string
+          id: string
+          invite_code: string
+          name: string
+          scene: string
+          topic: string
+          users: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
