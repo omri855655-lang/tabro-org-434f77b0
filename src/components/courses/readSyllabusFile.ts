@@ -5,7 +5,7 @@ export async function readSyllabusFile(file: File): Promise<string> {
   const pdfjs = await import('pdfjs-dist');
   const { default: worker } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
   pdfjs.GlobalWorkerOptions.workerSrc = worker;
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false } as Parameters<typeof pdfjs.getDocument>[0]).promise;
   try {
     const pages: string[] = [];
     for (let pageNumber = 1; pageNumber <= Math.min(pdf.numPages, 60); pageNumber++) {
