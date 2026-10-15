@@ -154,7 +154,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
         <div className={cn("absolute inset-x-[4%] bottom-[3%] top-[38%] border border-white/10 shadow-[inset_0_30px_80px_rgba(255,255,255,0.08)]", scene === "plane" ? "rounded-[50%_50%_20%_20%] bg-black/15" : scene === "library" ? "rounded-[42%] bg-transparent" : "rounded-[42%] bg-black/15")} />
         {FOCUS_SEATS.map((seat, index) => {
           const occupied = occupiedFocusSeat(seat, participants);
-          return <button key={index} type="button" disabled={occupied} onClick={() => onSelectSeat(seat)} aria-label={`${copy.desk} ${index + 1}: ${occupied ? copy.occupied : copy.sit}`} className="absolute z-10 -translate-x-1/2 rounded-full border border-white/30 bg-slate-950/75 px-3 py-1 text-[10px] text-white hover:bg-cyan-800 disabled:opacity-40" style={{ left: `${seat.x}%`, top: `${seat.y + 15}%` }}>{copy.desk} {index + 1}{occupied ? ` · ${copy.occupied}` : ''}</button>;
+          return <button key={index} type="button" disabled={occupied} onClick={() => onSelectSeat(seat)} aria-label={`${copy.desk} ${index + 1}: ${occupied ? copy.occupied : copy.sit}`} className="absolute z-10 -translate-x-1/2 rounded-full border border-white/30 bg-slate-950/75 px-3 py-1 text-[10px] text-white hover:bg-cyan-800 disabled:opacity-40" style={{ left: `${seat.x}%`, top: `${seat.y + 21}%` }}>{copy.desk} {index + 1}{occupied ? ` · ${copy.occupied}` : ''}</button>;
         })}
         {participants.map((participant) => (
           (() => {
@@ -178,12 +178,11 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
               {participant.status === "focusing" && <span className="absolute -end-2 -top-2 h-3 w-3 animate-ping rounded-full bg-emerald-300" />}
               {participant.seated && <div className={cn("absolute -bottom-1 -left-3 flex h-10 w-[92px] items-center justify-center rounded-xl border-b-4 border-amber-950 bg-amber-800 shadow-xl", participant.status === "focusing" && "zoneflow-work-surface")}><WorkIcon aria-label={copy[participant.activity || 'computer']} className={cn("h-9 w-12 rounded-md p-1", participant.activity === "computer" ? "bg-slate-900 text-cyan-200" : "bg-amber-50 text-amber-900")} /></div>}
             </div>
-            {participant.seated && <div className="mt-2 rounded-full bg-slate-950/80 px-2 py-1 text-[10px]">{copy[participant.activity || 'computer']} · {participant.durationMinutes || 25} {copy.minutes}{participant.isMe && <span className="ms-2 font-mono">{timer}</span>}</div>}
+            {participant.seated && <div className="mt-2 whitespace-nowrap rounded-full bg-slate-950/80 px-2 py-1 text-[10px]">{copy[participant.activity || 'computer']} · {participant.durationMinutes || 25} {copy.minutes}</div>}
             <div className={cn("mt-1 rounded-full px-2 py-0.5 text-[9px]", participant.status === "focusing" ? "bg-emerald-400/90 text-emerald-950" : "bg-white/20")}>{statusLabels[participant.status]}</div>
           </div>;
           })()
         ))}
-        <div className="absolute inset-x-0 top-[29%] text-center text-[10px] text-white/70">{onLeave && participants.length <= 1 ? copy.empty : ''}</div>
         <div className="absolute bottom-0 start-3 rounded-full bg-black/50 px-3 py-1 text-[10px] text-white/80">{copy.move}</div>
       </div>
 
