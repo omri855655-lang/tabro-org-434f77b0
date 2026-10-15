@@ -25,6 +25,13 @@ interface CloudConnection {
   last_error: string | null;
   metadata: { company_id?: string; credential_storage?: "encrypted" | "none"; sync_interval_minutes?: number | null } | null;
 }
+interface FinanceResult {
+  providers?: Record<string, ProviderDefinition>;
+  connections?: CloudConnection[];
+  pending?: boolean;
+  accounts_count?: number;
+  transactions_count?: number;
+}
 
 const fieldLabels: Record<string, Record<string, string>> = {
   username: { he: "שם משתמש", en: "Username", es: "Usuario", zh: "用户名", ar: "اسم المستخدم", ru: "Имя пользователя" },
@@ -102,7 +109,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   const currentLanguage = fieldLabels.username[lang] ? lang : "en";
 
   const invoke = useCallback(
-    <T = any>(action: string, payload: Record<string, unknown> = {}) => invokeFinanceBackend<T>(action, payload),
+    <T = FinanceResult>(action: string, payload: Record<string, unknown> = {}) => invokeFinanceBackend<T>(action, payload),
     [],
   );
 
