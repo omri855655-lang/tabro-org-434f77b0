@@ -220,10 +220,6 @@ export type Database = {
           description: string | null
           end_time: string
           id: string
-          location: string | null
-          meeting_url: string | null
-          recurrence_group_id: string | null
-          recurrence_rule: string | null
           source_id: string | null
           source_type: string | null
           start_time: string
@@ -239,10 +235,6 @@ export type Database = {
           description?: string | null
           end_time: string
           id?: string
-          location?: string | null
-          meeting_url?: string | null
-          recurrence_group_id?: string | null
-          recurrence_rule?: string | null
           source_id?: string | null
           source_type?: string | null
           start_time: string
@@ -258,10 +250,6 @@ export type Database = {
           description?: string | null
           end_time?: string
           id?: string
-          location?: string | null
-          meeting_url?: string | null
-          recurrence_group_id?: string | null
-          recurrence_rule?: string | null
           source_id?: string | null
           source_type?: string | null
           start_time?: string
@@ -2713,10 +2701,6 @@ export type Database = {
           sheet_name: string
           task_type: string
         }[]
-      }
-      get_public_project_gantt: {
-        Args: { p_token: string }
-        Returns: Json
       }
       has_role: {
         Args: {
