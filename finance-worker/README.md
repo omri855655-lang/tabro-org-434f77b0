@@ -1,6 +1,10 @@
 # Tabro Cloud Finance Worker
 
-This service runs the Camoufox-based `@sergienko4/israeli-bank-scrapers` package in an isolated Firefox process and writes normalized accounts and transactions to Tabro's existing Supabase tables. Camoufox is used for every institution so WAF-protected login flows such as American Express and Isracard do not fall back to the blocked Chromium endpoint.
+This service runs the pinned `@sergienko4/israeli-bank-scrapers` package using
+Playwright Chromium and writes normalized accounts and transactions to Tabro's
+existing Supabase tables. American Express has an optional, process-isolated
+Puppeteer/DigitalV3 candidate described below. Neither engine guarantees that
+an institution will permit automated access.
 
 ## Required environment variables
 
@@ -25,7 +29,8 @@ The worker does not initiate payments. It signs into supported institutions with
 The Edge Function exposes the banks, card companies, and clubs supported by the installed scraper release, including Hapoalim, Leumi, Mizrahi, Discount, Mercantile, Otsar Hahayal, Beinleumi, Massad, Yahav, Pagi, MAX, Visa Cal, Isracard, Amex, Beyahad Bishvilha, and Behatsdaa. Union Bank is intentionally omitted because it is no longer supported by the maintained scraper.
 
 One Zero is intentionally not exposed by the regular credentials form. Its scraper requires an interactive SMS OTP exchange before a long-term token can be issued. Add it only through a dedicated two-step endpoint that encrypts the resulting long-term token; never ask users to reverse-engineer or paste browser session data.
-# Isolated American Express Engine
+
+## Isolated American Express Engine
 
 American Express can use a separate Puppeteer/DigitalV3 adapter without changing
 the Playwright scraper or credentials contract for any other institution.

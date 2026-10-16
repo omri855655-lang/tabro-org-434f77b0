@@ -1,0 +1,8 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_IMAGE}', '.']
+  - name: gcr.io/cloud-builders/docker
+    args: ['run', '--rm', '--entrypoint', 'node', '${_IMAGE}', 'scripts/browser-smoke.mjs']
+images:
+  - '${_IMAGE}'
+timeout: 1200s
