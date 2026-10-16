@@ -25,3 +25,25 @@ The worker does not initiate payments. It signs into supported institutions with
 The Edge Function exposes the banks, card companies, and clubs supported by the installed scraper release, including Hapoalim, Leumi, Mizrahi, Discount, Mercantile, Otsar Hahayal, Beinleumi, Massad, Yahav, Pagi, MAX, Visa Cal, Isracard, Amex, Beyahad Bishvilha, and Behatsdaa. Union Bank is intentionally omitted because it is no longer supported by the maintained scraper.
 
 One Zero is intentionally not exposed by the regular credentials form. Its scraper requires an interactive SMS OTP exchange before a long-term token can be issued. Add it only through a dedicated two-step endpoint that encrypts the resulting long-term token; never ask users to reverse-engineer or paste browser session data.
+# Isolated American Express Engine
+
+American Express can use a separate Puppeteer/DigitalV3 adapter without changing
+the Playwright scraper or credentials contract for any other institution.
+It runs in its own child process to isolate global timezone/library changes.
+
+- `FINANCE_AMEX_ENGINE=puppeteer-digitalv3` selects the candidate for Amex only.
+- `FINANCE_AMEX_ENGINE=legacy` rolls Amex back to its previous path.
+- The Docker image sets the candidate flag; a plain local Node process defaults
+  to legacy unless the flag is explicitly set.
+- There is no automatic fallback after authentication failure and no second
+  credential submission through another engine.
+- Existing account/transaction persistence, encryption, worker signatures and
+  private Cloud Run IAM are unchanged. No database migration is required.
+- Run `npm ci`, `npm run check` and `npm audit --omit=dev` before building.
+- See `vendor/amex/README.md` for pinned upstream sources, deliberate security
+  differences, and the limits of upstream live-test reports.
+
+Local/mock tests do not establish successful bank authentication. Publish a new
+Cloud Run revision without traffic first, retain the previous revision and its
+configuration, then verify the candidate with a single user-initiated Amex sync.
+Do not expose the private worker publicly for testing. Stop on a WAF rejection.

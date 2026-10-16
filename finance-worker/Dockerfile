@@ -10,11 +10,14 @@ RUN apt-get update \
 
 ENV NODE_ENV=production
 ENV PII_REDACTION=on
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV FINANCE_BROWSER_EXECUTABLE=/usr/bin/chromium
+ENV FINANCE_AMEX_ENGINE=puppeteer-digitalv3
 
 WORKDIR /app
 COPY package*.json ./
 COPY scripts ./scripts
+COPY vendor ./vendor
 RUN npm ci --omit=dev
 RUN mkdir -p /home/node/.cache \
   && chown -R node:node /home/node /app

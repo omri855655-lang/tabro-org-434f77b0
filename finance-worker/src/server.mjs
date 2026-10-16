@@ -8,6 +8,7 @@ import {
   SCRAPERS,
 } from "@sergienko4/israeli-bank-scrapers";
 import { credentialsForScraper } from "./scraper-policy.mjs";
+import { scrapeWithProviderEngine } from "./engine-router.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -324,7 +325,7 @@ function scraperOptions(companyId) {
   };
 }
 
-async function scrapeInstitution(companyId, credentials) {
+async function scrapeLegacyInstitution(companyId, credentials) {
   if (!PROVIDERS[companyId]) throw new Error(`Unsupported financial institution: ${companyId}`);
   const browser = await chromium.launch({
     executablePath: env("FINANCE_BROWSER_EXECUTABLE"),
@@ -339,11 +340,28 @@ async function scrapeInstitution(companyId, credentials) {
   }
 }
 
+async function scrapeInstitution(companyId, credentials) {
+  if (!PROVIDERS[companyId]) throw new Error(`Unsupported financial institution: ${companyId}`);
+  return scrapeWithProviderEngine(companyId, credentials, {
+    amexEngine: process.env.FINANCE_AMEX_ENGINE || 'legacy',
+    legacyScrape: scrapeLegacyInstitution,
+    amexScrape: async value => {
+      const { scrapeAmexIsolated } = await import('./amex-process.mjs');
+      return scrapeAmexIsolated(value, {
+        executablePath: env('FINANCE_BROWSER_EXECUTABLE'),
+        startDate: scraperOptions('amex').startDate,
+      });
+    },
+  });
+}
+
 app.get("/health", (_request, response) => response.json({
   ok: true,
   service: "tabro-finance-worker",
-  version: "0.2.0",
+  version: "0.3.0",
   engine: WORKER_ENGINE,
+  amex_engine: ['legacy', 'puppeteer-digitalv3'].includes(process.env.FINANCE_AMEX_ENGINE || 'legacy')
+    ? process.env.FINANCE_AMEX_ENGINE || 'legacy' : 'misconfigured',
 }));
 
 async function syncConnection({ userId, connectionId, companyId, credentials: submittedCredentials, storeCredentials = true }) {
