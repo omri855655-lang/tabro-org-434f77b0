@@ -81,7 +81,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f3f3e9] px-4 py-3 sm:px-6">
       <div className="flex flex-wrap gap-1 rounded-2xl bg-white/80 p-1">{(Object.keys(ACTIVITIES) as FocusActivity[]).map(value => {
         const Icon = ACTIVITIES[value];
-        return <Button key={value} size="sm" variant="ghost" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn('gap-1.5 rounded-xl text-[#607568]', activity === value && 'bg-[#dce9dd] text-[#2c5744] hover:bg-[#d4e2d4]')}><Icon className="h-3.5 w-3.5" />{copy[value]}</Button>;
+        return <Button key={value} size="sm" variant="ghost" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn('gap-1.5 rounded-xl text-[#607568] hover:text-[#2c5744]', activity === value && 'bg-[#dce9dd] text-[#2c5744] hover:bg-[#d4e2d4]')}><Icon className="h-3.5 w-3.5" />{copy[value]}</Button>;
       })}</div>
       <Button size="sm" variant="ghost" className="gap-2 rounded-full text-[#527063]" aria-label={zoomed ? copy.zoomOut : copy.zoomIn} aria-pressed={zoomed} onClick={() => setZoomed(value => !value)}>{zoomed ? <Minus className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}{zoomed ? '100%' : '150%'}</Button>
     </div>

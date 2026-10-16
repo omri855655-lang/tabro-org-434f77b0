@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Clock3, Coffee, Flame, Globe2, Library, LockKeyhole, Medal, Pause, Plane, Play, Plus, RotateCcw, Shuffle, Trophy, Users } from "lucide-react";
+import { Clock3, Coffee, Flame, Library, LockKeyhole, Medal, Plane, Plus, Shuffle, Trophy, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivityEvents } from "@/hooks/useActivityEvents";
@@ -18,6 +17,8 @@ import { toast } from "sonner";
 import { FocusRoomInterior, type FocusActivity, type FocusRoomParticipant } from "./FocusRoomInterior";
 import { clampRoomPosition } from "@/lib/focusRoom";
 import { focusRoomCopy } from "@/lib/focusRoomCopy";
+import { togetherCopy } from "@/lib/togetherCopy";
+import { TogetherProfile } from './TogetherProfile';
 
 type TogetherTab = "rooms" | "competitions" | "progress";
 type CompetitionKind = "focus" | "distractions";
@@ -58,9 +59,9 @@ const ROOM_COPY = {
   ru: { random: "Случайная комната", friendCode: "Код комнаты друзей", joinCode: "Войти по коду", duration: "Длительность", timer: "Общий таймер", pause: "Пауза", resume: "Продолжить", reset: "Сбросить", leave: "Выйти", publicRoom: "Открытая комната", friendsRoom: "Только друзья", scene: "Обстановка", library: "Тихая библиотека", plane: "Фокус-самолет", cafe: "Кафе", office: "Коворкинг", activeRoom: "Активная комната", noRoom: "Выберите комнату для совместной работы", voiceNote: "Аудио доступно после разрешения микрофона в поддерживаемой комнате." },
 } as const;
 
-const COMPETITIONS: { id: CompetitionKind; icon: typeof Trophy; title: string; detail: string; value: string }[] = [
-  { id: "focus", icon: Clock3, title: "מרתון ריכוז", detail: "השבוע מודדים דקות ריכוז מאומתות", value: "1,284 דק׳" },
-  { id: "distractions", icon: LockKeyhole, title: "פחות הסחות", detail: "זמן שנחסך מהסחות ברשימה", value: "684 שעות" },
+const COMPETITIONS: { id: CompetitionKind; icon: typeof Trophy }[] = [
+  { id: "focus", icon: Clock3 },
+  { id: "distractions", icon: LockKeyhole },
 ];
 
 const INITIAL_ROOMS: Room[] = [
@@ -75,10 +76,6 @@ const INITIAL_ROOMS: Room[] = [
 ];
 
 const SCENE_ICONS = { library: Library, plane: Plane, cafe: Coffee, office: Users };
-const AVATAR_CHOICES = [
-  "bg-cyan-400", "bg-rose-400", "bg-amber-400", "bg-emerald-400",
-  "bg-violet-400", "bg-blue-400", "bg-lime-400", "bg-pink-400",
-] as const;
 
 const getStoredRooms = (): Room[] => {
   const stored = safeLocalStorage.getJSON<unknown>("zoneflow-together-rooms", INITIAL_ROOMS);
@@ -111,6 +108,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const { reportActivity } = useActivityEvents();
   const copy = COPY[lang] ?? COPY.en;
   const roomCopy = ROOM_COPY[lang] ?? ROOM_COPY.en;
+  const extra = togetherCopy[lang];
   const [tab, setTab] = useState<TogetherTab>("rooms");
   const [rooms, setRooms] = useState<Room[]>(getStoredRooms);
   const [joinedRooms, setJoinedRooms] = useState<string[]>(() => safeLocalStorage.getJSON("zoneflow-together-joined", []));
@@ -126,7 +124,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const [sessionGoal, setSessionGoal] = useState("");
   const [sessionDuration, setSessionDuration] = useState(25);
   const [remainingSeconds, setRemainingSeconds] = useState(25 * 60);
-  const [focusMinutes, setFocusMinutes] = useState(90);
+  const [focusMinutes, setFocusMinutes] = useState(0);
+  const [manualMinutes, setManualMinutes] = useState(0);
   const [focusActive, setFocusActive] = useState(false);
   const [liveRoomsAvailable, setLiveRoomsAvailable] = useState(false);
   const [roomParticipants, setRoomParticipants] = useState<FocusRoomParticipant[]>([]);
@@ -292,6 +291,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       }
       rewardEventId = savedSessionId;
     }
+    setFocusMinutes(minutes => minutes + sessionDuration);
     const reward = await reportActivity({
       eventType: "focus_session_completed",
       source: "zoneflow_together",
@@ -318,7 +318,6 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
         const seconds = plannedEndAt.current ? Math.max(0, Math.ceil((plannedEndAt.current - Date.now()) / 1000)) : 0;
         if (seconds > 0) return seconds;
         setFocusActive(false);
-        setFocusMinutes((minutes) => minutes + sessionDuration);
         void recordCompletedSession();
         return 0;
       });
@@ -338,7 +337,11 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const unlockMinutes = balance;
   const panel = isLight ? "border-slate-200 bg-white" : "border-white/10 bg-white/5";
   const muted = isLight ? "text-slate-500" : "text-white/60";
-  const competitionCards = COMPETITIONS;
+  const competitionCards = COMPETITIONS.map(item => ({ ...item,
+    title: item.id === 'focus' ? extra.focusTitle : extra.unlockTitle,
+    detail: item.id === 'focus' ? extra.focusDetail : extra.unlockDetail,
+    value: `${item.id === 'focus' ? focusMinutes : unlockMinutes} ${copy.minutes}`,
+  }));
 
   const persistRooms = (next: Room[]) => { setRooms(next); safeLocalStorage.setJSON("zoneflow-together-rooms", next); };
   const requestJoinRoom = (room: Room) => {
@@ -589,12 +592,9 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   };
 
   return <div className="space-y-4" dir={dir}>
-    <Card className={cn("overflow-hidden border", panel)}>
-      <CardContent className="bg-gradient-to-br from-[#13234d] via-[#3b35ae] to-[#0ea5a6] p-6 text-white">
-        <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs"><Globe2 className="h-3.5 w-3.5" /> ZoneFlow Together</div><h2 className="mt-3 text-2xl font-bold">{copy.title}</h2><p className="mt-2 max-w-2xl text-sm leading-7 text-white/80">{copy.subtitle}</p></div><div className="rounded-3xl bg-white/15 p-4 text-center"><div className="text-xs text-white/70">{copy.points}</div><div className="text-4xl font-bold">{points}</div></div></div>
-        <div className="mt-5 flex flex-wrap gap-3"><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">{copy.username}</div><Input value={username} onChange={(event) => { setUsername(event.target.value); safeLocalStorage.setString("zoneflow-together-username", event.target.value); }} className="mt-1 h-8 border-white/20 bg-white/10 text-white placeholder:text-white/50" /></div><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">בחר דמות</div><div className="mt-2 flex flex-wrap gap-2">{AVATAR_CHOICES.map((shirt, index) => <button key={shirt} type="button" aria-label={`דמות ${index + 1}`} aria-pressed={avatarStyle === index} onClick={() => { setAvatarStyle(index); safeLocalStorage.setJSON("zoneflow-together-avatar-style", index); }} className={cn("relative h-9 w-9 rounded-full border-2 transition hover:scale-110", avatarStyle === index ? "border-white ring-2 ring-cyan-300" : "border-white/25")}><span className={cn("absolute bottom-1 left-1/2 h-4 w-6 -translate-x-1/2 rounded-t-full", shirt)} /><span className="absolute left-1/2 top-1 h-4 w-4 -translate-x-1/2 rounded-full bg-[#e3a278]" /></button>)}</div></div><div className="rounded-2xl bg-white/12 px-4 py-3"><div className="text-xs text-white/70">{copy.unlock}</div><div className="mt-1 text-xl font-bold">{unlockMinutes} {copy.minutes}</div></div></div>
-      </CardContent>
-    </Card>
+    <TogetherProfile title={copy.title} subtitle={copy.subtitle} labels={copy} username={username} avatarStyle={avatarStyle} points={points} unlockMinutes={unlockMinutes}
+      onUsernameChange={value => { setUsername(value); safeLocalStorage.setString('zoneflow-together-username', value); }}
+      onAvatarChange={value => { setAvatarStyle(value); safeLocalStorage.setJSON('zoneflow-together-avatar-style', value); }} />
 
     <Tabs value={tab} onValueChange={(value) => setTab(value as TogetherTab)}><TabsList className="grid h-auto w-full grid-cols-3"><TabsTrigger value="rooms">{copy.rooms}</TabsTrigger><TabsTrigger value="competitions">{copy.competitions}</TabsTrigger><TabsTrigger value="progress">{copy.progress}</TabsTrigger></TabsList></Tabs>
 
@@ -664,8 +664,8 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       </div>
     )}
 
-    {tab === "competitions" && <div className="grid gap-4 xl:grid-cols-2">{competitionCards.map((competition) => { const Icon = competition.icon; return <Card key={competition.id} className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-amber-500" />{competition.title}</CardTitle></CardHeader><CardContent><p className={cn("text-sm leading-6", muted)}>{competition.detail}</p><div className="mt-5 text-2xl font-bold">{competition.value}</div><div className={cn("mt-1 text-xs", muted)}>הניקוד מחובר ליומן האתגרים ולזמן הפתיחה שנצבר.</div><Progress value={competition.id === "focus" ? Math.min(100, focusMinutes / 3) : Math.min(100, unlockMinutes)} className="mt-4 h-2" /></CardContent></Card> })}</div>}
+    {tab === "competitions" && <div className="grid gap-4 xl:grid-cols-2">{competitionCards.map((competition) => { const Icon = competition.icon; return <Card key={competition.id} className={cn("border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5 text-amber-500" />{competition.title}</CardTitle></CardHeader><CardContent><p className={cn("text-sm leading-6", muted)}>{competition.detail}</p><div className="mt-5 text-2xl font-bold">{competition.value}</div><div className={cn("mt-2 text-xs", muted)}>{extra.personal}</div></CardContent></Card> })}</div>}
 
-    {tab === "progress" && <Card className={cn("mx-auto max-w-3xl border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-orange-500" />{copy.focus}</CardTitle></CardHeader><CardContent className="space-y-4"><div className="text-3xl font-bold">{focusMinutes} {copy.minutes}</div><Input type="number" min="0" value={focusMinutes} onChange={(event) => setFocusMinutes(Math.max(0, Number(event.target.value)))} /><Button className="w-full" variant={focusActive ? "destructive" : "default"} onClick={() => setFocusActive((value) => !value)}>{focusActive ? copy.joined : copy.start}</Button><div className={cn("rounded-2xl bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100", muted)}><Medal className="mr-1 inline h-4 w-4" />{copy.unlockText}</div><p className={cn("text-xs", muted)}>תחרות הספרים והדיווחים על ספרים נמצאים רק בדשבורד הספרים.</p></CardContent></Card>}
+    {tab === "progress" && <Card className={cn("mx-auto max-w-3xl border", panel)}><CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-orange-500" />{copy.focus}</CardTitle></CardHeader><CardContent className="space-y-4"><div><p className="mb-1 text-xs text-muted-foreground">{extra.measured}</p><div className="text-3xl font-bold">{focusMinutes} {copy.minutes}</div></div><label className="block space-y-2 text-xs text-muted-foreground"><span>{extra.manual}</span><Input type="number" min="0" max="1440" value={manualMinutes} onChange={(event) => setManualMinutes(Math.min(1440, Math.max(0, Number(event.target.value) || 0)))} /></label><Button className="w-full" variant={focusActive ? "destructive" : "default"} onClick={() => selectedRoom ? (focusActive ? pauseTimer() : void startTimer()) : setTab('rooms')}>{!selectedRoom ? extra.selectRoom : focusActive ? roomCopy.pause : copy.start}</Button><div className={cn("rounded-2xl bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:bg-amber-500/10 dark:text-amber-100", muted)}><Medal className="mr-1 inline h-4 w-4" />{copy.unlockText}</div><p className={cn("text-xs", muted)}>{extra.books}</p></CardContent></Card>}
   </div>;
 }
