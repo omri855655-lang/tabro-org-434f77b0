@@ -276,7 +276,7 @@ Deno.serve(async (request) => {
         }));
 
         let transactionsResult = await service.from("financial_transactions")
-          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data, hidden")
+          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
           .eq("user_id", user.id)
           .eq("source_type", "cloud_scraper")
           .in("source_connection_id", connectionIds)
@@ -284,7 +284,7 @@ Deno.serve(async (request) => {
 
         if (transactionsResult.error && /hidden/i.test(transactionsResult.error.message || "")) {
           const fallbackResult = await service.from("financial_transactions")
-            .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, raw_data")
+            .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data")
             .eq("user_id", user.id)
             .eq("source_type", "cloud_scraper")
             .in("source_connection_id", connectionIds)

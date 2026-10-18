@@ -1,157 +1,68 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, CalendarClock, CircleHelp, CreditCard, Landmark, Store, Tags, WalletCards } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { cleanMerchantName, getFinanceCategoryGroup } from "@/lib/financeCategorization";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { analyzeFinanceInsights, financeCalendarDate, financeEntryCurrency, type FinanceInsightEntry } from "@/lib/financeInsights";
 
-export interface FinanceInsightEntry {
-  id: string;
-  title: string;
-  amount: number;
-  category: string | null;
-  subcategory: string | null;
-  payment_type: "income" | "expense";
-  source_channel: "credit_card" | "bank" | "manual";
-  account_label: string | null;
-  account_last_four: string | null;
-  payment_method: string | null;
-  created_at: string;
-  recurring: boolean;
-  paid: boolean;
-}
+export type { FinanceInsightEntry } from "@/lib/financeInsights";
 
 interface FinanceInsightsProps {
   entries: FinanceInsightEntry[];
   isRtl: boolean;
-  onCreateRecurring?: (entry: FinanceInsightEntry) => void;
-  onCategorySelect?: (category: string) => void;
-  confirmedRecurringTitles?: string[];
+  selectedMonth?: string;
+  onCreateRecurring?: (entry: FinanceInsightEntry, expectedDate: string) => void;
+  onCategorySelect?: (category: string, currency: string) => void;
+  onMerchantSelect?: (merchant: string, currency: string) => void;
+  confirmedRecurringSourceIds?: string[];
 }
 
-const money = (value: number) => `₪${Math.round(value).toLocaleString("he-IL")}`;
-
-function monthKey(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-const FinanceInsights = ({ entries, isRtl, onCreateRecurring, onCategorySelect, confirmedRecurringTitles = [] }: FinanceInsightsProps) => {
-  const analysis = useMemo(() => {
-    const now = new Date();
-    const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const previousDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const previousKey = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, "0")}`;
-    const actual = entries.filter((entry) => entry.paid);
-    const expenses = actual.filter((entry) => entry.payment_type === "expense");
-    const currentExpenses = expenses.filter((entry) => monthKey(entry.created_at) === currentKey);
-    const previousExpenses = expenses.filter((entry) => monthKey(entry.created_at) === previousKey);
-    const currentIncome = actual
-      .filter((entry) => entry.payment_type === "income" && monthKey(entry.created_at) === currentKey)
-      .reduce((sum, entry) => sum + entry.amount, 0);
-    const currentSpend = currentExpenses.reduce((sum, entry) => sum + entry.amount, 0);
-    const previousSpend = previousExpenses.reduce((sum, entry) => sum + entry.amount, 0);
-    const change = previousSpend > 0 ? ((currentSpend - previousSpend) / previousSpend) * 100 : null;
-
-    const categories = new Map<string, { total: number; subcategories: Map<string, number> }>();
-    const merchants = new Map<string, number>();
-    const channels = new Map<FinanceInsightEntry["source_channel"], number>();
-    const cards = new Map<string, number>();
-    for (const entry of currentExpenses) {
-      const category = getFinanceCategoryGroup(entry.category);
-      const currentCategory = categories.get(category) || { total: 0, subcategories: new Map<string, number>() };
-      currentCategory.total += entry.amount;
-      const subcategory = entry.subcategory || entry.category || "אחר";
-      currentCategory.subcategories.set(subcategory, (currentCategory.subcategories.get(subcategory) || 0) + entry.amount);
-      categories.set(category, currentCategory);
-      const merchant = cleanMerchantName(entry.title);
-      merchants.set(merchant, (merchants.get(merchant) || 0) + entry.amount);
-      channels.set(entry.source_channel, (channels.get(entry.source_channel) || 0) + entry.amount);
-      if (entry.source_channel === "credit_card") {
-        const cardName = [entry.account_label || entry.payment_method || "כרטיס אשראי", entry.account_last_four ? `•••• ${entry.account_last_four}` : ""]
-          .filter(Boolean)
-          .join(" ");
-        cards.set(cardName, (cards.get(cardName) || 0) + entry.amount);
-      }
-    }
-
-    const topCategories = [...categories.entries()]
-      .sort((a, b) => b[1].total - a[1].total)
-      .slice(0, 6)
-      .map(([name, value]) => ({
-        name,
-        total: value.total,
-        subcategories: [...value.subcategories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4),
-      }));
-    const topMerchants = [...merchants.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-    const channelTotals = [...channels.entries()].sort((a, b) => b[1] - a[1]);
-    const cardTotals = [...cards.entries()].sort((a, b) => b[1] - a[1]);
-    const uncategorized = expenses.filter((entry) => !entry.category || entry.category === "אחר").length;
-
-    const recurringCandidates = new Map<string, { entries: FinanceInsightEntry[]; months: Set<string> }>();
-    for (const entry of expenses) {
-      const merchant = cleanMerchantName(entry.title);
-      const candidate = recurringCandidates.get(merchant) || { entries: [], months: new Set<string>() };
-      candidate.entries.push(entry);
-      candidate.months.add(monthKey(entry.created_at));
-      recurringCandidates.set(merchant, candidate);
-    }
-    const recurring = [...recurringCandidates.entries()]
-      .map(([name, value]) => {
-        const amounts = value.entries.map((entry) => entry.amount);
-        const average = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length;
-        const amountSpread = Math.max(...amounts) - Math.min(...amounts);
-        const days = value.entries.map((entry) => new Date(entry.created_at).getDate());
-        const daySpread = Math.max(...days) - Math.min(...days);
-        const entry = [...value.entries].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-        return { name, average, months: value.months.size, amountSpread, daySpread, entry };
-      })
-      .filter((value) => value.months >= 2 && value.amountSpread <= Math.max(15, value.average * 0.15) && value.daySpread <= 7)
-      .sort((a, b) => b.months - a.months || b.average - a.average)
-      .slice(0, 4)
-
-    return {
-      currentIncome,
-      currentSpend,
-      previousSpend,
-      change,
-      topCategories,
-      topMerchants,
-      channelTotals,
-      cardTotals,
-      uncategorized,
-      recurring,
-      dailyAverage: currentSpend / Math.max(now.getDate(), 1),
-    };
-  }, [entries]);
-
-  if (!entries.length) return null;
-
-  const maxCategory = analysis.topCategories[0]?.total || 1;
+const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onCategorySelect, onMerchantSelect, confirmedRecurringSourceIds = [] }: FinanceInsightsProps) => {
+  const [currency, setCurrency] = useState("ILS");
+  const currencies = [...new Set(entries.filter(entry => !entry.hidden).map(financeEntryCurrency))].sort();
+  const activeCurrency = currencies.includes(currency) ? currency : currencies[0] || "ILS";
+  const month = selectedMonth || financeCalendarDate(new Date())!.slice(0, 7);
+  const analysis = useMemo(() => analyzeFinanceInsights(entries, month, activeCurrency), [entries, month, activeCurrency]);
+  const money = (value: number) => activeCurrency === "UNKNOWN"
+    ? value.toLocaleString(isRtl ? "he-IL" : "en-US", { maximumFractionDigits: 2 })
+    : new Intl.NumberFormat(isRtl ? "he-IL" : "en-US", { style: "currency", currency: activeCurrency, maximumFractionDigits: 2 }).format(value);
+  const dateLabel = (value: string) => `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}`;
+  const periodLabel = new Date(`${month}-01T12:00:00Z`).toLocaleDateString(isRtl ? "he-IL" : "en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   const changeIsUp = (analysis.change || 0) > 0;
   const channelLabels = {
     credit_card: isRtl ? "כרטיסי אשראי" : "Credit cards",
     bank: isRtl ? "בנק, העברות והוראות קבע" : "Bank and transfers",
-    manual: isRtl ? "תכנון ידני" : "Manual planning",
+    manual: isRtl ? "רישום ידני" : "Manual entries",
   };
 
+  if (!entries.length) return null;
+
   return (
-    <section className="space-y-4" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-primary">{isRtl ? "התמונה הפיננסית שלך" : "Your financial picture"}</p>
-          <h3 className="text-lg font-semibold">{isRtl ? "פילוח אוטומטי מהתנועות שסונכרנו" : "Automatic synced transaction insights"}</h3>
+    <section className="space-y-4 rounded-2xl border bg-gradient-to-br from-sky-50/60 via-background to-background p-4 sm:p-5 dark:from-sky-950/10" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-primary">{isRtl ? "התמונה הפיננסית שלך" : "Your financial picture"} · {periodLabel}</p>
+          <h3 className="text-lg font-semibold">{isRtl ? "פילוח ותובנות, במקום אחד" : "Breakdowns and insights, together"}</h3>
+          <p className="max-w-2xl text-xs leading-5 text-muted-foreground">{isRtl ? "מבוסס על תנועות ששולמו עד היום. כל מטבע מוצג בנפרד, ללא המרה משוערת." : "Based on paid transactions through today. Currencies are shown separately, without estimated conversion."}</p>
         </div>
-        <span className="text-xs text-muted-foreground">{isRtl ? "מתעדכן בכל סנכרון" : "Updates after every sync"}</span>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isRtl ? "מטבע לפילוח" : "Analysis currency"}
+          <Select value={activeCurrency} onValueChange={setCurrency}>
+            <SelectTrigger className="h-9 w-28" aria-label={isRtl ? "מטבע לפילוח" : "Analysis currency"}><SelectValue /></SelectTrigger>
+            <SelectContent>{currencies.map(value => <SelectItem key={value} value={value}>{value === "UNKNOWN" ? (isRtl ? "לא מזוהה" : "Unknown") : value}</SelectItem>)}</SelectContent>
+          </Select>
+        </label>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-emerald-200/70 bg-emerald-50/60 dark:bg-emerald-950/10"><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">{isRtl ? "הכנסות החודש" : "Income this month"}</p>
+          <p className="text-xs text-muted-foreground">{isRtl ? "הכנסות בתקופה" : "Period income"}</p>
           <p className="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-400">{money(analysis.currentIncome)}</p>
         </CardContent></Card>
         <Card className="border-orange-200/70 bg-orange-50/60 dark:bg-orange-950/10"><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">{isRtl ? "הוצאות החודש" : "Spending this month"}</p>
+          <p className="text-xs text-muted-foreground">{isRtl ? "הוצאות בתקופה" : "Period spending"}</p>
           <p className="mt-1 text-xl font-semibold text-orange-700 dark:text-orange-400">{money(analysis.currentSpend)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
@@ -159,99 +70,84 @@ const FinanceInsights = ({ entries, isRtl, onCreateRecurring, onCategorySelect, 
           <p className="mt-1 text-xl font-semibold">{money(analysis.dailyAverage)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">{isRtl ? "מול החודש הקודם" : "Versus last month"}</p>
+          <p className="text-xs text-muted-foreground">{isRtl ? "מול התקופה הקודמת" : "Versus previous period"}</p>
           <div className="mt-1 flex items-center gap-1.5">
             {analysis.change === null ? <CircleHelp className="h-5 w-5 text-muted-foreground" /> : changeIsUp ? <ArrowUpRight className="h-5 w-5 text-red-500" /> : <ArrowDownRight className="h-5 w-5 text-emerald-500" />}
             <span className={`text-xl font-semibold ${analysis.change === null ? "" : changeIsUp ? "text-red-600" : "text-emerald-600"}`}>
               {analysis.change === null ? (isRtl ? "אין בסיס להשוואה" : "No baseline") : `${Math.abs(analysis.change).toFixed(0)}%`}
             </span>
           </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">{analysis.comparisonIsPartial
+            ? (isRtl ? `ימים 1–${analysis.previousDays} בחודש הקודם` : `Days 1–${analysis.previousDays} of last month`)
+            : (isRtl ? "השוואת חודשים מלאים" : "Full-month comparison")}</p>
+          <p className="text-[11px] text-muted-foreground">{isRtl ? "בסיס ההשוואה: " : "Comparison baseline: "}{money(analysis.previousSpend)}</p>
         </CardContent></Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card><CardContent className="p-5">
-          <h4 className="mb-4 flex items-center gap-2 font-semibold"><Tags className="h-4 w-4 text-primary" />{isRtl ? "קטגוריות מובילות החודש" : "Top categories this month"}</h4>
-          <div className="space-y-3">
-            {analysis.topCategories.map((category) => (
-              <button type="button" key={category.name} className="block w-full rounded-xl border border-border/60 p-3 text-start transition-colors hover:border-primary/50 hover:bg-muted/30" onClick={() => onCategorySelect?.(category.name)}>
+      <Tabs defaultValue="breakdown" dir={isRtl ? "rtl" : "ltr"}>
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
+          <TabsTrigger value="breakdown">{isRtl ? "קטגוריות ובתי עסק" : "Categories & merchants"}</TabsTrigger>
+          <TabsTrigger value="sources">{isRtl ? "כרטיסים ומקורות" : "Cards & sources"}</TabsTrigger>
+          <TabsTrigger value="recurring">{isRtl ? "חיובים חוזרים לבדיקה" : "Recurring charges to review"} · {analysis.recurring.length}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="breakdown" className="mt-4 grid gap-4 lg:grid-cols-2 data-[state=inactive]:hidden">
+          <Card><CardContent className="p-5">
+            <h4 className="mb-4 flex items-center gap-2 font-semibold"><Tags className="h-4 w-4 text-primary" />{isRtl ? "קטגוריות מובילות" : "Top categories"}</h4>
+            <div className="space-y-3">{analysis.topCategories.map(category => (
+              <button type="button" key={category.name} className="block w-full rounded-xl border border-border/60 p-3 text-start transition-colors hover:border-primary/50 hover:bg-muted/30" onClick={() => onCategorySelect?.(category.name, activeCurrency)}>
                 <div className="mb-1 flex justify-between gap-3 text-sm"><strong>{category.name}</strong><strong>{money(category.total)}</strong></div>
-                <Progress value={(category.total / maxCategory) * 100} className="h-2" />
-                {category.subcategories.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {category.subcategories.map(([name, value]) => (
-                      <span key={name} className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                        {name} · {money(value)}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <Progress value={analysis.currentSpend > 0 ? category.total / analysis.currentSpend * 100 : 0} className="h-2" />
+                <div className="mt-2 flex flex-wrap gap-1.5">{category.subcategories.map(([name, value]) => <span key={name} className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">{name} · {money(value)}</span>)}</div>
               </button>
-            ))}
-            {!analysis.topCategories.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין הוצאות בחודש הנוכחי." : "No expenses this month."}</p>}
-          </div>
-        </CardContent></Card>
+            ))}{!analysis.topCategories.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין הוצאות בתקופה ובמטבע שנבחרו." : "No expenses for this period and currency."}</p>}</div>
+          </CardContent></Card>
+          <Card><CardContent className="p-5">
+            <h4 className="mb-4 flex items-center gap-2 font-semibold"><Store className="h-4 w-4 text-primary" />{isRtl ? "בתי עסק מובילים" : "Top merchants"}</h4>
+            <div className="divide-y divide-border/60">{analysis.topMerchants.map(([name, value], index) => (
+              <button type="button" key={name} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-start text-sm hover:bg-muted/30" onClick={() => onMerchantSelect?.(name, activeCurrency)}>
+                <span className="min-w-0 truncate"><span className="me-2 text-xs text-muted-foreground">{index + 1}</span>{name}</span><strong className="shrink-0">{money(value)}</strong>
+              </button>
+            ))}{!analysis.topMerchants.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין בתי עסק להצגה בתקופה זו." : "No merchants for this period."}</p>}</div>
+          </CardContent></Card>
+        </TabsContent>
 
-        <Card><CardContent className="p-5">
-          <h4 className="mb-4 flex items-center gap-2 font-semibold"><Store className="h-4 w-4 text-primary" />{isRtl ? "בתי עסק מובילים החודש" : "Top merchants this month"}</h4>
-          <div className="divide-y divide-border/60">
-            {analysis.topMerchants.map(([name, value], index) => (
-              <div key={name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                <span className="min-w-0 truncate"><span className="me-2 text-xs text-muted-foreground">{index + 1}</span>{name}</span>
-                <strong>{money(value)}</strong>
-              </div>
-            ))}
-            {!analysis.topMerchants.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין עדיין בתי עסק להצגה." : "No merchants to show yet."}</p>}
-          </div>
-        </CardContent></Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card><CardContent className="p-5">
-          <h4 className="mb-4 flex items-center gap-2 font-semibold"><Landmark className="h-4 w-4 text-primary" />{isRtl ? "מאיפה יצא הכסף" : "Where the money came from"}</h4>
-          <div className="space-y-3">
-            {analysis.channelTotals.map(([channel, value]) => {
+        <TabsContent value="sources" className="mt-4 grid gap-4 lg:grid-cols-2 data-[state=inactive]:hidden">
+          <Card><CardContent className="p-5">
+            <h4 className="mb-4 flex items-center gap-2 font-semibold"><Landmark className="h-4 w-4 text-primary" />{isRtl ? "מקורות החיוב" : "Spending sources"}</h4>
+            <div className="space-y-3">{analysis.channelTotals.map(([channel, value]) => {
               const Icon = channel === "credit_card" ? CreditCard : channel === "bank" ? Landmark : WalletCards;
-              const share = analysis.currentSpend > 0 ? (value / analysis.currentSpend) * 100 : 0;
-              return <div key={channel} className="rounded-xl border border-border/60 p-3">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="flex items-center gap-2"><Icon className="h-4 w-4 text-muted-foreground" />{channelLabels[channel]}</span>
-                  <strong>{money(value)} · {share.toFixed(0)}%</strong>
-                </div>
+              return <div key={channel} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 p-3 text-sm"><span className="flex items-center gap-2"><Icon className="h-4 w-4 text-muted-foreground" />{channelLabels[channel]}</span><strong>{money(value)} · {(value / analysis.currentSpend * 100).toFixed(0)}%</strong></div>;
+            })}{!analysis.channelTotals.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין חיובים להצגה." : "No charges to show."}</p>}</div>
+          </CardContent></Card>
+          <Card><CardContent className="p-5">
+            <h4 className="mb-4 flex items-center gap-2 font-semibold"><CreditCard className="h-4 w-4 text-primary" />{isRtl ? "פילוח לפי כרטיס" : "Credit card breakdown"}</h4>
+            <div className="divide-y divide-border/60">{analysis.cardTotals.map(([name, value]) => <div key={name} className="flex items-center justify-between gap-3 py-3 text-sm"><span className="min-w-0 truncate">{name}</span><strong>{money(value)}</strong></div>)}{!analysis.cardTotals.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין הוצאות כרטיס בתקופה זו." : "No card spending for this period."}</p>}</div>
+          </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="recurring" className="mt-4">
+          <Card><CardContent className="space-y-4 p-5">
+            <div><h4 className="flex items-center gap-2 font-semibold"><CalendarClock className="h-4 w-4 text-primary" />{isRtl ? "דפוסים שדורשים אישור שלך" : "Patterns that need your confirmation"}</h4>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">{isRtl ? "לפחות שלושה חודשים רצופים, חיוב אחד בחודש ובאותו חשבון ומטבע. תשלומים וחיוב בנק של חברת אשראי אינם מוצעים כמנוי חדש. אלה הצעות בלבד, לא חיובים מאושרים." : "At least three consecutive months, one charge per month, in the same account and currency. Installments and bank card settlements are not suggested as new subscriptions. These are suggestions, not confirmed bills."}</p></div>
+            {analysis.recurring.slice(0, 8).map(item => {
+              const confirmed = item.historyIds.some(id => confirmedRecurringSourceIds.includes(id));
+              return <div key={item.key} className="rounded-xl border border-border/70 bg-muted/10 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><strong className="block break-words text-sm">{item.name}</strong><p className="mt-1 text-xs text-muted-foreground">{[item.entry.account_label || item.entry.payment_method, item.entry.account_last_four ? `•••• ${item.entry.account_last_four}` : "", `${item.months} ${isRtl ? "חודשים רצופים" : "consecutive months"}`].filter(Boolean).join(" · ")}</p></div><strong className="text-base">{money(item.entry.amount)}</strong></div>
+                <p className="mt-3 text-xs text-muted-foreground">{isRtl ? "המועד הבא לפי הדפוס, משוער: " : "Next pattern-based date, estimated: "}{dateLabel(item.nextExpectedDate)}</p>
+                {item.increase !== null && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">{isRtl ? "הסכום עלה לעומת החיוב הרגיל: " : "Amount increased from the usual charge: "}{money(item.previousAmount)} → {money(item.entry.amount)}</p>}
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-muted-foreground">{isRtl ? "אין שינוי בתחזית ללא אישור" : "Forecast unchanged until confirmed"}</span>{confirmed
+                  ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">{isRtl ? "כבר אושר" : "Already confirmed"}</span>
+                  : onCreateRecurring && activeCurrency === "ILS" && <Button size="sm" variant="outline" onClick={() => onCreateRecurring(item.entry, item.nextExpectedDate)}>{isRtl ? "בדוק ואשר כהוצאה קבועה" : "Review & confirm recurring"}</Button>}</div>
               </div>;
             })}
-          </div>
-        </CardContent></Card>
+            {!analysis.recurring.length && <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">{isRtl ? "אין כרגע מספיק ראיות לדפוס חודשי יציב. לא נוצרה הוצאה קבועה חדשה." : "Not enough evidence of a stable monthly pattern. No recurring payment was created."}</p>}
+            {activeCurrency !== "ILS" && <p className="text-xs text-muted-foreground">{isRtl ? "התחזית הקיימת היא בשקלים; חיוב במטבע אחר לא יתווסף אליה ללא המרה מאומתת." : "The existing forecast is in ILS; foreign-currency charges are not added without a verified conversion."}</p>}
+          </CardContent></Card>
+        </TabsContent>
+      </Tabs>
 
-        <Card><CardContent className="p-5">
-          <h4 className="mb-4 flex items-center gap-2 font-semibold"><CreditCard className="h-4 w-4 text-primary" />{isRtl ? "פילוח לפי כרטיס אשראי" : "Credit card breakdown"}</h4>
-          <div className="divide-y divide-border/60">
-            {analysis.cardTotals.map(([name, value]) => (
-              <div key={name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                <span className="min-w-0 truncate">{name}</span>
-                <strong>{money(value)}</strong>
-              </div>
-            ))}
-            {!analysis.cardTotals.length && <p className="text-sm text-muted-foreground">{isRtl ? "לא נמצאו החודש הוצאות ששויכו לכרטיס אשראי." : "No credit card expenses were identified this month."}</p>}
-          </div>
-        </CardContent></Card>
-      </div>
-
-      {(analysis.recurring.length > 0 || analysis.uncategorized > 0) && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {analysis.recurring.length > 0 && <Card><CardContent className="p-5">
-            <h4 className="mb-3 flex items-center gap-2 font-semibold"><CalendarClock className="h-4 w-4 text-primary" />{isRtl ? "חיובים קבועים שזוהו" : "Detected recurring charges"}</h4>
-            <div className="space-y-2 text-sm">{analysis.recurring.map((item) => {
-              const confirmed = confirmedRecurringTitles.includes(item.entry.title);
-              return <div key={item.name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 p-2.5"><span className="min-w-0 flex-1 truncate">{item.name} <small className="text-muted-foreground">({item.months} {isRtl ? "חודשים" : "months"})</small></span><strong>~{money(item.average)}</strong>{confirmed ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">✓ {isRtl ? "אושר" : "Confirmed"}</span> : onCreateRecurring && !item.entry.recurring && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCreateRecurring(item.entry)}>{isRtl ? "אשר כהוצאה קבועה" : "Confirm recurring"}</Button>}</div>;
-            })}</div>
-          </CardContent></Card>}
-          {analysis.uncategorized > 0 && <Card className="border-amber-200/70"><CardContent className="p-5">
-            <h4 className="font-semibold">{isRtl ? "עסקאות שדורשות בדיקה" : "Transactions to review"}</h4>
-            <p className="mt-2 text-sm text-muted-foreground">{isRtl ? `${analysis.uncategorized} עסקאות עדיין מסווגות כ״אחר״. אפשר לערוך קטגוריה מתוך רשימת התנועות, והפילוחים יתעדכנו מיד.` : `${analysis.uncategorized} transactions are still categorized as Other. Edit them in the transaction list to update all insights.`}</p>
-          </CardContent></Card>}
-        </div>
-      )}
+      {(analysis.uncategorized > 0 || analysis.invalidCount > 0) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/70 bg-amber-50/40 p-3 text-xs dark:bg-amber-950/10"><p>{isRtl ? `${analysis.uncategorized} תנועות בתקופה דורשות סיווג · ${analysis.invalidCount} רשומות עם סכום או תאריך לא תקין לא נכללו בחישוב.` : `${analysis.uncategorized} period transactions need a category · ${analysis.invalidCount} invalid amount/date records excluded from calculations.`}</p>{analysis.uncategorized > 0 && <Button size="sm" variant="outline" onClick={() => onCategorySelect?.("אחר", activeCurrency)}>{isRtl ? "פתח תנועות לבדיקה" : "Review transactions"}</Button>}</div>}
     </section>
   );
 };

@@ -26,8 +26,10 @@ import AiChatPanel from "@/components/AiChatPanel";
 import BudgetCharts from "@/components/dashboards/BudgetCharts";
 import ManualTransactionForm from "@/components/ManualTransactionForm";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
+import RecurringPaymentReview, { type RecurringPaymentDraft } from "@/components/dashboards/RecurringPaymentReview";
 import FinanceOverview from "@/components/dashboards/FinanceOverview";
-import { inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
+import { cleanMerchantName, getFinanceCategoryGroup, inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
+import { financeCalendarDate, financeEntryCurrency, formatFinanceMoney } from "@/lib/financeInsights";
 import { futureStatementCharges } from "@/lib/cardStatement";
 import { summarizeLiquidBalances } from "@/lib/financeBalances";
 
@@ -56,6 +58,8 @@ interface Payment {
 interface FinancialTransaction {
   id: string;
   amount: number;
+  currency?: string | null;
+  installment_total?: number | null;
   category: string | null;
   subcategory?: string | null;
   direction: "income" | "expense";
@@ -101,6 +105,8 @@ interface DashboardEntry {
   source: "payment_tracking" | "financial_transactions" | "cloud_financial_transactions";
   title: string;
   amount: number;
+  currency?: string | null;
+  installment_total?: number | null;
   category: string | null;
   subcategory: string | null;
   payment_type: "income" | "expense";
@@ -188,7 +194,7 @@ function normalizeSalarySource(value: string) {
 
 function transactionDisplayKey(transaction: FinancialTransaction) {
   const title = `${transaction.description || transaction.merchant || ""}`.toLocaleLowerCase("he").replace(/\s+/g, " ").trim();
-  return [transaction.transaction_date?.slice(0, 10), transaction.direction, Number(transaction.amount).toFixed(2), title,
+  return [transaction.transaction_date?.slice(0, 10), transaction.direction, financeEntryCurrency(transaction), Number(transaction.amount).toFixed(2), title,
     transaction.account_external_id || transaction.source_connection_id || transaction.provider || ""].join("|");
 }
 
@@ -303,6 +309,9 @@ const PaymentDashboard = () => {
   const [transactionSearch, setTransactionSearch] = useState("");
   const [showHidden, setShowHidden] = useState(false);
   const [transactionsOpen, setTransactionsOpen] = useState(false);
+  const [insightCurrencyFilter, setInsightCurrencyFilter] = useState<string | null>(null);
+  const [recurringReview, setRecurringReview] = useState<RecurringPaymentDraft | null>(null);
+  const [savingRecurring, setSavingRecurring] = useState(false);
   const [clubAssets, setClubAssets] = useState<ClubAsset[]>([]);
   const [clubProvider, setClubProvider] = useState("");
   const [clubAssetType, setClubAssetType] = useState<ClubAsset["asset_type"]>("voucher");
@@ -442,7 +451,7 @@ const PaymentDashboard = () => {
 
       let transactionsResult = await supabase
         .from("financial_transactions")
-          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
+          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false });
 
@@ -451,7 +460,7 @@ const PaymentDashboard = () => {
       if (transactionsResult.error) {
         const fallbackResult = await supabase
           .from("financial_transactions")
-          .select("id, amount, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data")
+          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data")
           .eq("user_id", user.id)
           .order("transaction_date", { ascending: false });
         transactionsResult = {
@@ -639,31 +648,49 @@ const PaymentDashboard = () => {
     toast.success(hidden ? (isRtl ? "התנועה הוסתרה מהדוחות" : "Transaction hidden from reports") : (isRtl ? "התנועה הוחזרה לדוחות" : "Transaction restored"));
   };
 
-  const handleToggleRecurring = async (entry: DashboardEntry) => {
+  const handleToggleRecurring = async (entry: DashboardEntry, approvedPlan?: { amount: number; dueDate: string }) => {
+    if (approvedPlan && (!user || financeEntryCurrency(entry) !== "ILS" || !Number.isFinite(approvedPlan.amount) || approvedPlan.amount <= 0
+      || financeCalendarDate(approvedPlan.dueDate) !== approvedPlan.dueDate || approvedPlan.dueDate < financeCalendarDate(new Date())!)) return false;
     if (entry.source === "payment_tracking") {
       const newRecurring = !entry.recurring;
       const recurrenceStatus = newRecurring ? "active" : "paused";
-      const { error } = await supabase.from("payment_tracking").update({ recurring: newRecurring, recurrence_status: recurrenceStatus }).eq("id", entry.id);
+      const approvedFields = approvedPlan ? { due_date: approvedPlan.dueDate, amount: approvedPlan.amount } : {};
+      const { error } = await supabase.from("payment_tracking").update({ recurring: newRecurring, recurrence_status: recurrenceStatus, ...approvedFields }).eq("id", entry.id);
       if (error) {
         toast.error(isRtl ? "לא הצלחנו לעדכן את התשלום הקבוע" : "Could not update the recurring payment");
         return;
       }
-      setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring, recurrence_status: recurrenceStatus } : p));
+      setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring, recurrence_status: recurrenceStatus, ...approvedFields } : p));
       toast.success(newRecurring ? t("fixedPayment" as any) : t("variableExpenses" as any));
+      return true;
     } else if (entry.source === "financial_transactions" || entry.source === "cloud_financial_transactions") {
-      if (payments.some((payment) => payment.recurring && (payment.recurrence_source_transaction_id === entry.id || payment.title === entry.title))) {
-        toast.info(isRtl ? "כבר קיים תכנון קבוע עבור תנועה זו." : "A recurring plan already exists for this transaction.");
-        return;
+      if (financeEntryCurrency(entry) !== "ILS") {
+        toast.info(isRtl ? "התחזית בשקלים. לא נוסיף מטבע אחר ללא המרה מאומתת." : "The forecast is in ILS. A verified conversion is required for other currencies.");
+        return false;
       }
-      const nextDueDate = nextMonthlyOccurrence(entry.due_date).toISOString().slice(0, 10);
+      if (payments.some((payment) => payment.recurring && payment.recurrence_status !== "paused" && payment.recurrence_status !== "ended" && (payment.recurrence_source_transaction_id === entry.id || transactions.some((transaction) =>
+        transaction.id === payment.recurrence_source_transaction_id
+        && (transaction.account_external_id || (transaction.source_type === "credit_card_import" && transaction.source_connection_id ? `csv-card:${transaction.source_connection_id}` : null)) === entry.account_external_id
+        && transaction.provider === entry.payment_method
+        && financeEntryCurrency(transaction) === financeEntryCurrency(entry)
+        && cleanMerchantName(transaction.description || transaction.merchant) === cleanMerchantName(entry.title))))) {
+        toast.info(isRtl ? "כבר קיים תכנון קבוע עבור תנועה זו." : "A recurring plan already exists for this transaction.");
+        return false;
+      }
+      if (!approvedPlan) {
+        setRecurringReview({ entryId: entry.id, amount: String(entry.amount), dueDate: format(nextMonthlyOccurrence(entry.due_date), "yyyy-MM-dd") });
+        return false;
+      }
+      if (!user || !Number.isFinite(approvedPlan.amount) || approvedPlan.amount <= 0 || financeCalendarDate(approvedPlan.dueDate) !== approvedPlan.dueDate) return false;
       const { error: insertErr } = await supabase.from("payment_tracking").insert({
-        user_id: user!.id,
+        user_id: user.id,
         title: entry.title,
-        amount: entry.amount,
+        amount: approvedPlan.amount,
+        currency: "ILS",
         category: entry.category,
         payment_type: entry.payment_type,
         payment_method: entry.payment_method,
-        due_date: nextDueDate,
+        due_date: approvedPlan.dueDate,
         recurring: true,
         recurring_frequency: "monthly",
         recurrence_status: "active",
@@ -671,9 +698,10 @@ const PaymentDashboard = () => {
         paid: false,
         notes: isRtl ? "זוהה ואושר כתנועה חודשית קבועה" : "Detected and approved as a monthly recurring transaction",
       });
-      if (insertErr) { toast.error(t("error" as any)); return; }
+      if (insertErr) { toast.error(t("error" as any)); return false; }
       toast.success(isRtl ? "נוסף לתחזית כהוצאה קבועה. התנועה המקורית נשמרה." : "Added to the forecast. The original transaction was preserved.");
-      fetchFinanceData();
+      await fetchFinanceData();
+      return true;
     }
   };
 
@@ -683,6 +711,7 @@ const PaymentDashboard = () => {
       source: "payment_tracking",
       title: payment.title,
       amount: payment.amount,
+      currency: payment.currency || "ILS",
       category: payment.category,
       subcategory: payment.category,
       payment_type: payment.payment_type === "income" ? "income" : "expense",
@@ -729,6 +758,8 @@ const PaymentDashboard = () => {
       source: transaction.backend === "cloud" ? "cloud_financial_transactions" : "financial_transactions",
       title: transaction.description || transaction.merchant || (transaction.direction === "income" ? t("incomeType" as any) : t("expenseType" as any)),
       amount: transaction.amount,
+      currency: transaction.currency || account?.currency || "ILS",
+      installment_total: transaction.installment_total,
       category: normalizedCategory,
       subcategory: transaction.direction === "expense"
         ? transaction.subcategory || inferFinanceSubcategory(transaction.description || transaction.merchant, normalizedCategory)
@@ -773,7 +804,7 @@ const PaymentDashboard = () => {
     .map((entry) => `${entry.account_label || (isRtl ? "חשבון" : "Account")}${entry.account_last_four ? ` •••• ${entry.account_last_four}` : ""}`))]
     .sort(), [dashboardEntries, isRtl]);
 
-  const categoryOptions = useMemo(() => [...new Set(dashboardEntries.map((entry) => entry.category).filter(Boolean) as string[])].sort(), [dashboardEntries]);
+  const categoryOptions = useMemo(() => [...new Set(dashboardEntries.flatMap((entry) => [entry.category, getFinanceCategoryGroup(entry.category)]).filter(Boolean) as string[])].sort(), [dashboardEntries]);
 
   const filteredViewEntries = useMemo(() => {
     const query = transactionSearch.trim().toLocaleLowerCase(lang === "he" ? "he" : "en");
@@ -782,14 +813,19 @@ const PaymentDashboard = () => {
       const entryMonth = Number.isNaN(date.getTime()) ? "" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const accountName = `${entry.account_label || (isRtl ? "חשבון" : "Account")}${entry.account_last_four ? ` •••• ${entry.account_last_four}` : ""}`;
       if (entryMonth !== viewMonth) return false;
+      if (insightCurrencyFilter) {
+        const actualDate = financeCalendarDate(entry.created_at);
+        if (!entry.paid || entry.payment_type !== "expense" || financeEntryCurrency(entry) !== insightCurrencyFilter
+          || !Number.isFinite(entry.amount) || entry.amount <= 0 || !actualDate || actualDate > financeCalendarDate(new Date())!) return false;
+      }
       if (!showHidden && entry.hidden) return false;
       if (sourceFilter !== "all" && entry.source_channel !== sourceFilter) return false;
       if (accountFilter !== "all" && accountName !== accountFilter) return false;
-      if (categoryFilter !== "all" && entry.category !== categoryFilter) return false;
-      if (query && !`${entry.title} ${entry.category || ""} ${entry.subcategory || ""} ${accountName}`.toLocaleLowerCase(lang === "he" ? "he" : "en").includes(query)) return false;
+      if (categoryFilter !== "all" && entry.category !== categoryFilter && getFinanceCategoryGroup(entry.category) !== categoryFilter) return false;
+      if (query && !`${entry.title} ${cleanMerchantName(entry.title)} ${entry.category || ""} ${entry.subcategory || ""} ${accountName}`.toLocaleLowerCase(lang === "he" ? "he" : "en").includes(query)) return false;
       return true;
     });
-  }, [accountFilter, categoryFilter, dashboardEntries, isRtl, lang, showHidden, sourceFilter, transactionSearch, viewMonth]);
+  }, [accountFilter, categoryFilter, dashboardEntries, insightCurrencyFilter, isRtl, lang, showHidden, sourceFilter, transactionSearch, viewMonth]);
 
   // Filter entries by budget period for accurate budget calculations
   // Get current week range (Sunday-Saturday) for display
@@ -828,17 +864,17 @@ const PaymentDashboard = () => {
   }, [dashboardEntries, budgetPeriod, viewMonth, weekRange]);
 
   // Financial calculations
-  const visiblePeriodEntries = useMemo(() => periodFilteredEntries.filter((entry) => !entry.hidden), [periodFilteredEntries]);
+  const visiblePeriodEntries = useMemo(() => periodFilteredEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS"), [periodFilteredEntries]);
   const totalExpenses = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense").reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries]);
   const totalIncome = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "income").reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries]);
   const totalSpending = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category)).reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries, isSavingsCategory]);
   // Period-filtered spending for budget comparison (excludes fixed/recurring)
-  const periodSpending = useMemo(() => periodFilteredEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category) && !p.recurring).reduce((s, p) => s + p.amount, 0), [periodFilteredEntries, isSavingsCategory]);
+  const periodSpending = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category) && !p.recurring).reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries, isSavingsCategory]);
   const dedicatedSavings = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense" && isSavingsCategory(p.category)).reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries, isSavingsCategory]);
   const balance = totalIncome - totalExpenses;
   const availableToSave = totalIncome - totalSpending;
   const unpaidExpenses = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense" && !p.paid).reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries]);
-  const fixedExpenses = useMemo(() => payments.filter(p => p.payment_type === "expense" && p.recurring && p.recurrence_status !== "paused" && p.recurrence_status !== "ended").reduce((s, p) => s + p.amount, 0), [payments]);
+  const fixedExpenses = useMemo(() => payments.filter(p => financeEntryCurrency(p) === "ILS" && p.payment_type === "expense" && p.recurring && p.recurrence_status !== "paused" && p.recurrence_status !== "ended").reduce((s, p) => s + p.amount, 0), [payments]);
   const variableExpenses = Math.max(totalSpending - fixedExpenses, 0);
   const recurringExpenseEntries = useMemo(() => dashboardEntries.filter(p => p.payment_type === "expense" && p.recurring), [dashboardEntries]);
 
@@ -846,7 +882,7 @@ const PaymentDashboard = () => {
     const salaryPattern = /משכורת|שכר|salary|payroll|עובדי\s*מדינ/i;
     const historicalIncome = dashboardEntries
       .filter((entry) => {
-        if (entry.hidden || !entry.paid || entry.payment_type !== "income") return false;
+        if (entry.hidden || !entry.paid || entry.payment_type !== "income" || financeEntryCurrency(entry) !== "ILS") return false;
         const date = new Date(entry.due_date || entry.created_at);
         if (Number.isNaN(date.getTime()) || date > new Date()) return false;
         return Math.abs(entry.amount) >= 500;
@@ -932,6 +968,7 @@ const PaymentDashboard = () => {
     const liquidBalance = summarizeLiquidBalances(financialAccounts).liquid;
 
     const plannedUpcoming = payments.flatMap((payment) => {
+      if (financeEntryCurrency(payment) !== "ILS") return [];
       if (payment.recurrence_status === "paused" || payment.recurrence_status === "ended") return [];
       if (!payment.due_date || (!payment.recurring && payment.paid)) return [];
       const sourceDate = dateOnly(new Date(payment.due_date));
@@ -954,7 +991,7 @@ const PaymentDashboard = () => {
     });
 
     const creditCardUpcoming: Array<{ payment: Payment; occurrence: Date }> = csvCardSources.flatMap((card) =>
-      futureStatementCharges(transactions, `csv-card:${card.id}`, format(now, "yyyy-MM-dd"), format(horizonEnd, "yyyy-MM-dd"))
+      futureStatementCharges(transactions.filter(transaction => financeEntryCurrency(transaction) === "ILS"), `csv-card:${card.id}`, format(now, "yyyy-MM-dd"), format(horizonEnd, "yyyy-MM-dd"))
         .map(({ amount, billingDate }) => ({
           payment: {
             id: `card-statement-csv-card:${card.id}-${billingDate}`,
@@ -1083,7 +1120,7 @@ const PaymentDashboard = () => {
   const proactiveFinanceInsights = useMemo(() => {
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const actualExpenses = dashboardEntries.filter((entry) => !entry.hidden && entry.paid && entry.payment_type === "expense");
+    const actualExpenses = dashboardEntries.filter((entry) => !entry.hidden && entry.paid && entry.payment_type === "expense" && financeEntryCurrency(entry) === "ILS");
     const currentExpenses = actualExpenses.filter((entry) => new Date(entry.created_at) >= currentMonthStart);
     const historicalExpenses = actualExpenses.filter((entry) => new Date(entry.created_at) < currentMonthStart);
     const historicalByCategory = new Map<string, { total: number; months: Set<string> }>();
@@ -1160,6 +1197,7 @@ const PaymentDashboard = () => {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       if (!months[key]) months[key] = { income: 0, expenses: 0, items: [] };
       months[key].items.push(p);
+      if (financeEntryCurrency(p) !== "ILS") return;
       if (p.payment_type === "income") months[key].income += p.amount;
       else months[key].expenses += p.amount;
     });
@@ -1287,7 +1325,7 @@ ${context}
               </div>
             </div>
             <span className={`font-bold text-sm whitespace-nowrap ${colorClass}`}>
-              {p.payment_type === "income" ? "+" : "-"}₪{p.amount.toLocaleString()}
+              {p.payment_type === "income" ? "+" : "-"}{formatFinanceMoney(p.amount, financeEntryCurrency(p), isRtl ? "he-IL" : "en-US")}
             </span>
             {p.source === "payment_tracking" && p.recurring && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void handleToggleRecurring(p)}>{isRtl ? "השהה" : "Pause"}</Button>}
             <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
@@ -1343,13 +1381,29 @@ ${context}
 
   return (
     <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
+      <RecurringPaymentReview draft={recurringReview} title={dashboardEntries.find(item => item.id === recurringReview?.entryId)?.title} isRtl={isRtl} saving={savingRecurring}
+          onChange={setRecurringReview} onClose={() => setRecurringReview(null)} onConfirm={async () => {
+            if (savingRecurring || !recurringReview) return;
+            const entry = dashboardEntries.find(item => item.id === recurringReview.entryId);
+            const amount = Number(recurringReview.amount);
+            if (!entry || !Number.isFinite(amount) || amount <= 0 || financeCalendarDate(recurringReview.dueDate) !== recurringReview.dueDate || recurringReview.dueDate < financeCalendarDate(new Date())!) {
+              toast.error(isRtl ? "יש להזין סכום חיובי ותאריך תקין מהיום והלאה." : "Enter a positive amount and a valid date from today onward.");
+              return;
+            }
+            setSavingRecurring(true);
+            try {
+              if (await handleToggleRecurring(entry, { amount, dueDate: recurringReview.dueDate })) setRecurringReview(null);
+            } catch {
+              toast.error(isRtl ? "לא הצלחנו לשמור. התנועה המקורית לא שונתה." : "Could not save. The original transaction was not changed.");
+            } finally { setSavingRecurring(false); }
+          }} />
       <div className="flex items-center gap-3 mb-2 flex-wrap">
         <Wallet className="h-6 w-6 text-primary" />
         <h2 className="text-2xl font-bold">{t("incomeAndExpenses" as any)}</h2>
         <div className="flex-1" />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          dashboardEntries.map(p => ({ title: p.title, amount: p.amount, type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '', source: p.source !== 'payment_tracking' ? t("importedLabel" as any) : t("plannedLabel" as any) })),
-          [{ key: 'title', label: t("descriptionCol" as any) }, { key: 'amount', label: t("amountCol" as any) }, { key: 'type', label: t("typeCol" as any) }, { key: 'category', label: t("categoryCol" as any) }, { key: 'paid', label: t("paidCol" as any) }, { key: 'due_date', label: t("dateCol" as any) }, { key: 'recurring', label: t("recurringCol" as any) }, { key: 'method', label: t("methodCol" as any) }],
+          dashboardEntries.map(p => ({ title: p.title, amount: p.amount, currency: financeEntryCurrency(p), type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '', source: p.source !== 'payment_tracking' ? t("importedLabel" as any) : t("plannedLabel" as any) })),
+          [{ key: 'title', label: t("descriptionCol" as any) }, { key: 'amount', label: t("amountCol" as any) }, { key: 'currency', label: isRtl ? "מטבע" : "Currency" }, { key: 'type', label: t("typeCol" as any) }, { key: 'category', label: t("categoryCol" as any) }, { key: 'paid', label: t("paidCol" as any) }, { key: 'due_date', label: t("dateCol" as any) }, { key: 'recurring', label: t("recurringCol" as any) }, { key: 'method', label: t("methodCol" as any) }],
           t("paymentsSheet" as any)
         )}>
           <Download className="h-3.5 w-3.5" />{t("exportLabel" as any)}
@@ -1383,10 +1437,12 @@ ${context}
               <div className="relative"><Search className="absolute start-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={transactionSearch} onChange={(event) => setTransactionSearch(event.target.value)} placeholder={isRtl ? "חיפוש ספק או עסקה" : "Search merchant"} className="h-9 ps-9" /></div>
             </div>
             <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />{isRtl ? "הצג גם תנועות שהוסתרו" : "Include hidden transactions"}</label>
+            {insightCurrencyFilter && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span>{isRtl ? "חיתוך מהפילוח: הוצאות ששולמו במטבע " : "Insight filter: paid expenses in "}{insightCurrencyFilter}</span><Button size="sm" variant="ghost" onClick={() => { setInsightCurrencyFilter(null); setCategoryFilter("all"); setTransactionSearch(""); }}>{isRtl ? "נקה חיתוך" : "Clear insight filter"}</Button></div>}
           </CardContent>
         </Card>
 
-        <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden)} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} />
+        <p className="text-xs leading-5 text-muted-foreground">{isRtl ? "התקציב והתחזית מסוכמים בשקלים בלבד. תנועות במטבע אחר נשמרות ברשימה ובפילוחים לפי מטבע, ללא המרה משוערת. סיכומי התנועות אינם מבטלים אוטומטית חיובי סליקה מול עסקאות הכרטיס." : "Budgets and forecasts use ILS only. Other currencies remain in the ledger and currency breakdowns without estimated conversion. Transaction totals do not automatically reconcile card settlements against card purchases."}</p>
+        <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} />
 
         <Card className="border-sky-200/70 bg-sky-50/40 dark:bg-sky-950/10">
           <CardContent className="space-y-4 p-5">
@@ -1446,11 +1502,13 @@ ${context}
         <FinanceInsights
           entries={dashboardEntries.filter((entry) => !entry.hidden)}
           isRtl={isRtl}
-          confirmedRecurringTitles={payments.filter((payment) => payment.recurring && payment.recurrence_status === "active").map((payment) => payment.title)}
-          onCategorySelect={(category) => { setCategoryFilter("all"); setTransactionSearch(category); setTransactionsOpen(true); }}
-          onCreateRecurring={(entry) => {
+          selectedMonth={viewMonth}
+          confirmedRecurringSourceIds={payments.filter((payment) => payment.recurring && payment.recurrence_status === "active").flatMap((payment) => payment.recurrence_source_transaction_id ? [payment.recurrence_source_transaction_id] : [])}
+          onCategorySelect={(category, currency) => { setCategoryFilter(category); setTransactionSearch(""); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setTransactionsOpen(true); }}
+          onMerchantSelect={(merchant, currency) => { setCategoryFilter("all"); setTransactionSearch(merchant); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setTransactionsOpen(true); }}
+          onCreateRecurring={(entry, expectedDate) => {
             const fullEntry = dashboardEntries.find((candidate) => candidate.id === entry.id);
-            if (fullEntry) void handleToggleRecurring(fullEntry);
+            if (fullEntry) setRecurringReview({ entryId: fullEntry.id, amount: String(fullEntry.amount), dueDate: expectedDate });
           }}
         />
 
@@ -1591,7 +1649,7 @@ ${context}
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2" style={{ textAlign: isRtl ? "right" : "left" }}>
               {t("fixedExpenses" as any)}
-              <Badge variant="outline" className="text-[10px]">{recurringExpenseEntries.length} | ₪{recurringExpenseEntries.reduce((s, p) => s + p.amount, 0).toLocaleString()}</Badge>
+              <Badge variant="outline" className="text-[10px]">{recurringExpenseEntries.length} | ₪{recurringExpenseEntries.filter(p => financeEntryCurrency(p) === "ILS").reduce((s, p) => s + p.amount, 0).toLocaleString()} ILS</Badge>
             </h3>
             <p className="text-xs text-muted-foreground">{isRtl
               ? "כאן מוצגים רק תשלומים שנשמרו כקבועים. חיבור כרטיס אינו יוצר אותם אוטומטית; אפשר להשהות רשומה שגויה ישירות מהרשימה."
@@ -1609,6 +1667,7 @@ ${context}
       </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
+          <p className="text-xs text-muted-foreground">{isRtl ? "הסיכומים החודשיים כאן הם בשקלים בלבד. ברשימת התנועות נשמר המטבע המקורי של כל תנועה." : "Monthly summaries here use ILS only. Each transaction retains its original currency in the list."}</p>
           {monthlyHistory.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">{t("noHistoryYet" as any)}</p>
           ) : (
@@ -1647,7 +1706,7 @@ ${context}
                 if (!monthData) return null;
                 const [, data] = monthData;
                 const monthCats: Record<string, number> = {};
-                data.items.filter(p => p.payment_type === "expense").forEach(p => {
+                data.items.filter(p => p.payment_type === "expense" && financeEntryCurrency(p) === "ILS").forEach(p => {
                   const cat = p.category || t("catOther" as any);
                   monthCats[cat] = (monthCats[cat] || 0) + p.amount;
                 });
@@ -1699,7 +1758,7 @@ ${context}
                               {p.category && <Badge variant="outline" className="text-[9px]">{getCategoryLabel(p.category)}</Badge>}
                             </div>
                             <span className={`font-medium ${p.payment_type === "income" ? "text-green-600" : "text-red-600"}`}>
-                              {p.payment_type === "income" ? "+" : "-"}₪{p.amount.toLocaleString()}
+                              {p.payment_type === "income" ? "+" : "-"}{formatFinanceMoney(p.amount, financeEntryCurrency(p), isRtl ? "he-IL" : "en-US")}
                             </span>
                           </div>
                         ))}
