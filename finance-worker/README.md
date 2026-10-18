@@ -50,5 +50,14 @@ It runs in its own child process to isolate global timezone/library changes.
 
 Local/mock tests do not establish successful bank authentication. Publish a new
 Cloud Run revision without traffic first, retain the previous revision and its
-configuration, then verify the candidate with a single user-initiated Amex sync.
-Do not expose the private worker publicly for testing. Stop on a WAF rejection.
+configuration, then verify startup and access controls. Before requesting bank
+credentials, run `cloudbuild-amex-preflight.yaml` with `--no-source` and `_IMAGE`
+set to the successfully built candidate image. It visits only the public login
+page, uses no worker secrets or account credentials, and prints a sanitized
+status/form-readiness result. Failure exits 2 and must block promotion.
+
+The 2026-10-18 preflight returned HTTP 403 / `WAF_BLOCKED`; the private candidate
+was not promoted, and the existing production revision retains all traffic.
+See `../docs/2026-10-16-isolated-amex-adapter.md` for build IDs and verification.
+Do not expose the private worker publicly, request repeated passwords against a
+blocked preflight, or treat a passing preflight as proof of account connectivity.

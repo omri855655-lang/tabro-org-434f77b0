@@ -45,18 +45,58 @@ extraction, new third-party data service, or public worker exposure.
 - Currency, installments and Israeli calendar-day handling are tested, including
   midnight/DST dates that otherwise shift to the preceding day in UTC.
 
-## Not Yet Verified / Deployed
+## Cloud Verification - 2026-10-18
 
+The user explicitly authorized Cloud Shell's Google Cloud API permission.
+Cloud Shell was authorized through its UI. An expired development VM/session
+needed recovery; no production service was restarted as part of that recovery.
 No new bank credentials were requested, read, or submitted during this work.
-No live account synchronization has succeeded with the candidate.
-No Docker image was built locally (Docker is unavailable), and no new Cloud Run
-revision was deployed. The Cloud Run console opened without loading project/
-service content; activating Cloud Shell also did not load a shell. No active
-local gcloud executable was available. User sign-in/service access was requested
-asynchronously while local work continued.
 
-Production remains on its previous worker revision. Next: regain deployment
-access, build a no-traffic revision using the existing private service identity
-and secrets, inspect health and startup, then perform one user-initiated Amex
-trial. Retain revision 00018-qd5 for rollback. If the institution still rejects
-the browser, stop: this code is a candidate, not a confirmed connectivity fix.
+- Uploaded an explicit code-only archive and verified its SHA-256 remotely:
+  `cbd398a17f464714c9a8b04ac48d6c5569ca633d14d35d0f75e5dca01bed35a0`.
+- Cloud Build `c4b40fc5-9716-4dee-bb9f-1873c136ca2f` in `me-west1` succeeded.
+  Both existing Playwright and isolated Puppeteer smoke tests passed against
+  container Chromium `155.0.8059.79`, using only a local HTML fixture.
+- Built image digest:
+  `sha256:04eca67549782a206342ed7ed3d47ea9b4cef4872591700000138d655a8919c8`.
+- Deployed private, tagged, zero-traffic revision
+  `tabro-finance-worker-secure-amex-54a82fe` using that build's image tag.
+  All readiness conditions became true. An earlier malformed digest argument
+  was rejected before deployment; the successful deployment used the build tag.
+- Authenticated candidate `/health`: HTTP 200, version `0.3.0`,
+  `amex_engine=puppeteer-digitalv3`.
+- Google-authenticated but unsigned `/sync` with an empty body: HTTP 401.
+  Unauthenticated candidate `/health`: HTTP 403. IAM has no `allUsers` or
+  `allAuthenticatedUsers` binding.
+- Compared the complete revision specs in memory without printing secrets:
+  unchanged except for the image and `FINANCE_AMEX_ENGINE` flag. This includes
+  existing secrets/environment, service identity, concurrency and resources.
+- Re-ran `npm run check`: 29 passed. Live `npm audit --omit=dev`: zero findings.
+
+## Actual Access Block - Not A Connectivity Fix
+
+Credential-free Cloud Build `3c8caadd-1b25-4300-b1e1-aa64dd9d5e40`, also in
+`me-west1`, ran the exact built image with the candidate browser preparation.
+It only visited the public official login page; it did not invoke the scraper's
+credential login path, provide identity/card/password fields, or import accounts.
+Its sanitized result was:
+
+```json
+{"credentialFree":true,"loginFormReady":false,"httpStatus":403,"code":"WAF_BLOCKED"}
+```
+
+The diagnostic deliberately exited 2, so that diagnostic build is `FAILURE`.
+This is a bank-origin access refusal, not an image-build or startup failure.
+Cloud Build and Cloud Run do not necessarily have identical egress IPs; this is
+not a real account test or a claim about every possible bank access path.
+The reproducible configuration is `finance-worker/cloudbuild-amex-preflight.yaml`.
+
+The candidate was NOT promoted. Production traffic remains 100% on
+`tabro-finance-worker-secure-00018-qd5`; the candidate has only its private tag.
+No frontend publication, scheduler change, database migration or IAM weakening
+was performed. No live Amex account synchronization has succeeded.
+
+Do not ask the user to repeat credentials against this failing preflight, hide
+automation to evade the block, or claim the bank connection is repaired. A next
+integration needs a bank-permitted access route or a provider with verified
+American Express Israel coverage before switching production traffic.

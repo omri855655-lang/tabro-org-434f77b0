@@ -1,0 +1,45 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - --entrypoint
+      - node
+      - '${_IMAGE}'
+      - --input-type=module
+      - -e
+      - |
+        import { createRequire } from 'node:module';
+        import { loadAmexDependencies } from './src/amex-adapter.mjs';
+        const require = createRequire(import.meta.url);
+        const adapterRequire = createRequire(require.resolve('amex-scraper/package.json'));
+        const { prepareAmexPage, assertAmexPage } = adapterRequire('./lib/helpers/tabro-amex-browser.js');
+        const outcome = { credentialFree: true, loginFormReady: false, httpStatus: null, code: 'NOT_STARTED' };
+        let browser;
+        try {
+          browser = await loadAmexDependencies().launch({
+            executablePath: process.env.FINANCE_BROWSER_EXECUTABLE,
+            headless: true, args: ['--disable-dev-shm-usage', '--no-sandbox'],
+          });
+          const page = await browser.newPage();
+          await prepareAmexPage(page);
+          const response = await page.goto('https://he.americanexpress.co.il/personalarea/Login', {
+            waitUntil: 'domcontentloaded', timeout: 60000,
+          });
+          outcome.httpStatus = response?.status() ?? null;
+          if ([403, 429].includes(outcome.httpStatus)) throw new Error('WAF_BLOCKED');
+          await assertAmexPage(page);
+          if (!response?.ok()) throw new Error('HTTP_ERROR');
+          await page.waitForSelector('input[type="password"]', { timeout: 20000 });
+          await assertAmexPage(page);
+          outcome.loginFormReady = true;
+          outcome.code = 'PUBLIC_LOGIN_FORM_READY';
+        } catch (error) {
+          outcome.code = String(error?.message ?? '').startsWith('WAF_BLOCKED')
+            ? 'WAF_BLOCKED' : 'PUBLIC_LOGIN_FORM_NOT_READY';
+        } finally {
+          await browser?.close().catch(() => undefined);
+        }
+        console.log(JSON.stringify(outcome));
+        process.exitCode = outcome.loginFormReady ? 0 : 2;
+timeout: 240s
