@@ -109,7 +109,7 @@ test("recurring evidence isolates accounts, providers and currencies", () => {
     assert.equal(analyze(entries).recurring.length, 0, field);
   }
   assert.equal(analyze(history({ account_external_id: null, account_last_four: null })).recurring.length, 0);
-  assert.equal(analyze(history({ source_channel: "manual", account_external_id: null, account_last_four: null })).recurring.length, 1);
+  assert.equal(analyze(history({ source_channel: "manual", account_external_id: null, account_last_four: null })).recurring.length, 0);
 });
 
 test("installments and bank card settlements never become subscription suggestions", () => {

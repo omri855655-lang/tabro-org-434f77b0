@@ -129,7 +129,7 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
         <TabsContent value="recurring" className="mt-4">
           <Card><CardContent className="space-y-4 p-5">
             <div><h4 className="flex items-center gap-2 font-semibold"><CalendarClock className="h-4 w-4 text-primary" />{isRtl ? "דפוסים שדורשים אישור שלך" : "Patterns that need your confirmation"}</h4>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">{isRtl ? "לפחות שלושה חודשים רצופים, חיוב אחד בחודש ובאותו חשבון ומטבע. תשלומים וחיוב בנק של חברת אשראי אינם מוצעים כמנוי חדש. אלה הצעות בלבד, לא חיובים מאושרים." : "At least three consecutive months, one charge per month, in the same account and currency. Installments and bank card settlements are not suggested as new subscriptions. These are suggestions, not confirmed bills."}</p></div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">{isRtl ? "על בסיס תנועות מיובאות: לפחות שלושה חודשים רצופים, חיוב אחד בחודש ובאותו חשבון ומטבע. תשלומים וחיוב בנק של חברת אשראי אינם מוצעים כמנוי חדש. אלה הצעות בלבד, לא חיובים מאושרים." : "Based on imported transactions: at least three consecutive months, one charge per month, in the same account and currency. Installments and bank card settlements are not suggested as new subscriptions. These are suggestions, not confirmed bills."}</p></div>
             {analysis.recurring.slice(0, 8).map(item => {
               const confirmed = item.historyIds.some(id => confirmedRecurringSourceIds.includes(id));
               return <div key={item.key} className="rounded-xl border border-border/70 bg-muted/10 p-4">

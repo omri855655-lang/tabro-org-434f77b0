@@ -69,7 +69,7 @@ function identity(entry: FinanceInsightEntry) {
 }
 
 function mayBeSubscription(entry: FinanceInsightEntry) {
-  if (entry.recurring || Number(entry.installment_total) > 1) return false;
+  if (entry.source_channel === "manual" || entry.recurring || Number(entry.installment_total) > 1) return false;
   if (/תשלום\s*\d+\s*(?:מתוך|\/|מ-)\s*\d+|\binstallment\b/i.test(entry.title)) return false;
   // A bank settlement is not a new merchant subscription. Keep it in the ledger.
   return !(entry.source_channel === "bank" && /כרטיס.*אשראי|ישראכרט|כאל|אמריקן|\b(?:amex|isracard|max|visa|credit card)\b/i.test(`${entry.title} ${entry.category || ""}`));

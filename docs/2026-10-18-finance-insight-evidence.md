@@ -23,7 +23,8 @@ References reviewed: https://github.com/enudler/nudlers and its LICENSE/package.
   Foreign rows remain accessible; no estimated FX rate is invented.
 - Monthly-pattern suggestions require one charge in each of at least three
   consecutive months, compatible day/amount, and the same merchant, account,
-  provider and currency. Missing card/bank account identity, installments,
+  provider and currency. Manual records are not subscription evidence and are not
+  rewritten by confirmation. Missing card/bank account identity, installments,
   ambiguous months and bank card-settlement charges are excluded from suggestions.
 - Show evidence length, next estimated date and significant price increases.
   Nothing is written automatically. Confirmation opens a reusable dialog where

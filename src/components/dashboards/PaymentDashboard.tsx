@@ -654,13 +654,12 @@ const PaymentDashboard = () => {
     if (entry.source === "payment_tracking") {
       const newRecurring = !entry.recurring;
       const recurrenceStatus = newRecurring ? "active" : "paused";
-      const approvedFields = approvedPlan ? { due_date: approvedPlan.dueDate, amount: approvedPlan.amount } : {};
-      const { error } = await supabase.from("payment_tracking").update({ recurring: newRecurring, recurrence_status: recurrenceStatus, ...approvedFields }).eq("id", entry.id);
+      const { error } = await supabase.from("payment_tracking").update({ recurring: newRecurring, recurrence_status: recurrenceStatus }).eq("id", entry.id);
       if (error) {
         toast.error(isRtl ? "לא הצלחנו לעדכן את התשלום הקבוע" : "Could not update the recurring payment");
         return;
       }
-      setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring, recurrence_status: recurrenceStatus, ...approvedFields } : p));
+      setPayments(prev => prev.map(p => p.id === entry.id ? { ...p, recurring: newRecurring, recurrence_status: recurrenceStatus } : p));
       toast.success(newRecurring ? t("fixedPayment" as any) : t("variableExpenses" as any));
       return true;
     } else if (entry.source === "financial_transactions" || entry.source === "cloud_financial_transactions") {
@@ -808,15 +807,15 @@ const PaymentDashboard = () => {
 
   const filteredViewEntries = useMemo(() => {
     const query = transactionSearch.trim().toLocaleLowerCase(lang === "he" ? "he" : "en");
+    const today = financeCalendarDate(new Date())!;
     return dashboardEntries.filter((entry) => {
-      const date = new Date(entry.due_date || entry.created_at);
-      const entryMonth = Number.isNaN(date.getTime()) ? "" : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const entryMonth = financeCalendarDate(entry.due_date || entry.created_at)?.slice(0, 7) || "";
       const accountName = `${entry.account_label || (isRtl ? "חשבון" : "Account")}${entry.account_last_four ? ` •••• ${entry.account_last_four}` : ""}`;
       if (entryMonth !== viewMonth) return false;
       if (insightCurrencyFilter) {
         const actualDate = financeCalendarDate(entry.created_at);
         if (!entry.paid || entry.payment_type !== "expense" || financeEntryCurrency(entry) !== insightCurrencyFilter
-          || !Number.isFinite(entry.amount) || entry.amount <= 0 || !actualDate || actualDate > financeCalendarDate(new Date())!) return false;
+          || !Number.isFinite(entry.amount) || entry.amount <= 0 || !actualDate || actualDate > today) return false;
       }
       if (!showHidden && entry.hidden) return false;
       if (sourceFilter !== "all" && entry.source_channel !== sourceFilter) return false;
@@ -1508,7 +1507,7 @@ ${context}
           onMerchantSelect={(merchant, currency) => { setCategoryFilter("all"); setTransactionSearch(merchant); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setTransactionsOpen(true); }}
           onCreateRecurring={(entry, expectedDate) => {
             const fullEntry = dashboardEntries.find((candidate) => candidate.id === entry.id);
-            if (fullEntry) setRecurringReview({ entryId: fullEntry.id, amount: String(fullEntry.amount), dueDate: expectedDate });
+            if (fullEntry && fullEntry.source !== "payment_tracking") setRecurringReview({ entryId: fullEntry.id, amount: String(fullEntry.amount), dueDate: expectedDate });
           }}
         />
 
