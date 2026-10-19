@@ -12,6 +12,71 @@ No working automatic American Express Israel connection has been verified.
 Do not interpret an available library, successful browser launch, catalog entry,
 or a vendor's generic "all cards" claim as successful account connectivity.
 
+Follow-up on 2026-10-19: a credential-free probe now also ran inside the actual
+Cloud Run service's zero-traffic revision and returned the same HTTP 403 /
+WAF_BLOCKED. The worker startup configuration was restored and production traffic
+verified unchanged. See `2026-10-19-amex-cloudrun-probe.md` for evidence and limits.
+
+## Fresh Source Review And Retry
+
+At the user's request, cloned the current public `mottibec/israeli-bank-mcp`
+repository for static review only. No dependency install, server execution,
+environment-variable credential loading or MCP connection was performed.
+
+- Current main: `36f69204509d037ecbc80f7eb4250962f74f8309`, dated 2026-05-02.
+  Its latest changes are credential/error security hardening, not an Amex login fix.
+- The complete implementation is `src/server.ts`. Fetching delegates to
+  `israeli-bank-scrapers` with `^6.7.3`; this is a semver range, not a new transport
+  or a guarantee that 6.7.3 will be installed. There is no lockfile in that repo.
+- Live npm metadata and GitHub releases still list 6.12.2, released 2026-09-29.
+  That version is already the base of our isolated adapter.
+- Reviewed all 39 currently open upstream pull requests by metadata. The Amex
+  changes remain #1159 and #1186, with the exact previously reviewed heads
+  `41021421497a531493d8c569c453f29db0cd0997` and
+  `7708d9fba17d7e6927e32ee41ba6f1a980616f04`. Neither is merged. The Hapoalim OTP
+  proposal #1084 is for another bank, not an Amex implementation.
+- The MCP's `two-factor-auth` tool delegates to generic scraper methods. Amex's
+  underlying base does not implement them; a local no-network call on the actual
+  isolated class returned `NOT_IMPLEMENTED_BY_AMEX` for both methods. OneZero
+  does implement those generic methods. A generic 2FA tool is not evidence of
+  Amex SMS support. No OTP was sent, read or submitted.
+- The linked MCP repo itself has an open Amex HTTP 403 issue, #6, dating to
+  2026-08-21. There is no newly verified solution in that issue.
+
+The ordinary in-app browser loaded the official login page on this retry, with
+SMS and permanent-password options. Switching to the password view showed the
+visible `input[type=password]` with ID `otpLoginPwd`. No input values were read,
+no credentials were entered, no login/SMS action was submitted, and no CAPTCHA
+was solved. This is a form-availability check, not an authenticated connection.
+
+After refreshing the already authorized Cloud Shell session, reconstructed only
+the old diagnostic build's code-only steps/timeout from its recorded metadata.
+Submitted one credential-free retry in the same project/region:
+
+- Build: `942c6c57-b5f7-4e04-954b-76832ecc5412`, created 2026-10-18 15:46:30 UTC.
+- Docker pull verified the same immutable image digest as the prior test:
+  `sha256:04eca67549782a206342ed7ed3d47ea9b4cef4872591700000138d655a8919c8`.
+- Result: `credentialFree=true`, `loginFormReady=false`, `httpStatus=403`,
+  `code=WAF_BLOCKED`. The diagnostic exited 2 deliberately after the refusal.
+- No source deployment, production traffic switch, environment/secret change,
+  scheduler change, permission weakening, account import or password attempt.
+- Worker regression suite re-run: 29 passing. These mock tests do not establish
+  successful bank connectivity.
+
+Cloud Build and Cloud Run can have different egress; this retry confirms failure
+of the recorded cloud diagnostic, not a new real-account test. Local public-form
+success is not permission or evidence to promote the failed automated candidate.
+The restriction is still before the password/2FA stage. Do not retry stored
+credentials repeatedly, disable security scripts, hide automation, or extract
+cookies/session tokens as a workaround.
+
+Sources:
+- https://github.com/mottibec/israeli-bank-mcp/commit/36f69204509d037ecbc80f7eb4250962f74f8309
+- https://github.com/mottibec/israeli-bank-mcp/issues/6
+- https://github.com/eshaham/israeli-bank-scrapers/releases/tag/v6.12.2
+- https://github.com/eshaham/israeli-bank-scrapers/pull/1159
+- https://github.com/eshaham/israeli-bank-scrapers/pull/1186
+
 ## Options Checked
 
 ### Pending Open-Source Changes
