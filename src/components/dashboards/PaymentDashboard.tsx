@@ -1999,11 +1999,23 @@ ${context}
           <BankConnect onChanged={fetchFinanceData} />
           <CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} />
           <div id="credit-card-csv-fallback" className="space-y-4 scroll-mt-6">
+            <Button onClick={() => openCsvFallback("amex")} className="gap-2">
+              {isRtl ? "אמריקן אקספרס · ייבוא CSV זמני" : "American Express · temporary CSV import"}
+            </Button>
             <Button variant="outline" onClick={() => openCsvFallback()}>
               {isRtl ? "סנכרון הכרטיס לא עובד? ייבוא CSV / Excel" : "Card sync not working? Import CSV / Excel"}
             </Button>
             {(showCsvFallback || csvCardSources.length > 0) && (
               <div className="space-y-4">
+                {requestedCsvProvider === "amex" && <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 text-sm dark:border-sky-900 dark:bg-sky-950/20">
+                  <h3 className="font-semibold">{isRtl ? "פירוט Amex בתוך הכנסות והוצאות" : "Amex statements in your finances"}</h3>
+                  <p className="mt-1 text-muted-foreground">{isRtl
+                    ? "1. צור או בחר כרטיס Amex לפי ארבע הספרות האחרונות. 2. העלה CSV או Excel. 3. בדוק קטגוריות ומועד פירעון ואשר. העסקאות יופיעו לצד שאר המקורות עם סינון לפי כרטיס ומטבע; החיוב העתידי מבוסס רק על מה שמופיע בקובץ. אין שינוי בחיבורים של שאר החברות."
+                    : "1. Create or select your Amex card by its last four digits. 2. Upload CSV or Excel. 3. Review categories and due date, then confirm. Transactions join other sources with card and currency filters. Future charges use only imported amounts. Other connections are unchanged."}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{isRtl
+                    ? "לא נוצרת הוצאה קבועה אוטומטית. הימנע מייבוא אותה תקופה לכמה מקורות: חיוב הבנק המרוכז ופירוט הכרטיס אינם מקוזזים זה מזה בסך העסקאות."
+                    : "No recurring expense is created automatically. Avoid importing the same period into multiple sources: the bank settlement and card purchases are not netted against each other in transaction totals."}</p>
+                </div>}
                 {csvCardForecasts.length > 0 && (
                   <div className="grid gap-3 md:grid-cols-2">
                     {csvCardForecasts.map(({ card, next }) => (
@@ -2024,7 +2036,7 @@ ${context}
                 )}
                 <div className="grid gap-4 md:grid-cols-2">
                   <CreditCardConnect requestedProvider={requestedCsvProvider} />
-                  <CreditCardImport onImported={fetchFinanceData} suggestedBillingDayForCard={(card) => {
+                  <CreditCardImport key={requestedCsvProvider || "all-cards"} requestedProvider={requestedCsvProvider} onImported={fetchFinanceData} suggestedBillingDayForCard={(card) => {
                     const matchingAccount = forecastCardAccounts.find((account) =>
                       cardIssuerKey(account.provider_name) === cardIssuerKey(card.provider)
                       && account.masked_number?.endsWith(card.card_last_digits || "----"));

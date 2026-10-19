@@ -281,12 +281,22 @@ export function detectProvider(headers: string[], firstRows: string[][]): Financ
 
 export function parseCSV(text: string): { headers: string[]; rows: string[][] } {
   const source = text.replace(/^\uFEFF/, "");
-  const firstLine = source.split(/\r?\n/, 1)[0] || "";
-  const separatorCounts = { "\t": 0, ";": 0, ",": 0 };
+  // Statements can start with a one-cell title before the actual delimited table.
+  const firstLine = source.split(/\r?\n/).slice(0, 20).join("\n");
+  const separatorCounts = { ",": 0, ";": 0, "\t": 0 };
   let inQuotes = false;
-  for (const char of firstLine) {
-    if (char === '"') inQuotes = !inQuotes;
-    else if (!inQuotes && char in separatorCounts) separatorCounts[char as keyof typeof separatorCounts] += 1;
+  let fieldStart = true;
+  for (let i = 0; i < firstLine.length; i += 1) {
+    const char = firstLine[i];
+    if (char === '"') {
+      if (inQuotes && firstLine[i + 1] === '"') i += 1;
+      else if (inQuotes || fieldStart) inQuotes = !inQuotes;
+      fieldStart = false;
+    } else if (!inQuotes && char in separatorCounts) {
+      separatorCounts[char as keyof typeof separatorCounts] += 1;
+      fieldStart = true;
+    } else if (!inQuotes && /[\r\n]/.test(char)) fieldStart = true;
+    else if (!/\s/.test(char)) fieldStart = false;
   }
   const delimiter = (Object.entries(separatorCounts) as Array<[keyof typeof separatorCounts, number]>)
     .sort((a, b) => b[1] - a[1])[0][0];
@@ -301,8 +311,10 @@ export function parseCSV(text: string): { headers: string[]; rows: string[][] } 
       if (quoted && source[index + 1] === '"') {
         cell += '"';
         index += 1;
-      } else {
+      } else if (quoted || !cell.trim()) {
         quoted = !quoted;
+      } else {
+        cell += char;
       }
     } else if (char === delimiter && !quoted) {
       row.push(cell.trim());

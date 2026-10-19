@@ -264,7 +264,14 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
               </Select>
             </div>
 
-            {selected && (
+            {companyId === "amex" && onCsvFallback && <Alert>
+              <FileSpreadsheet className="h-4 w-4" />
+              <AlertTitle>{lang === "he" ? "אמריקן אקספרס: ייבוא CSV זמני" : "American Express: temporary CSV import"}</AlertTitle>
+              <AlertDescription>{lang === "he"
+                ? "החיבור הישיר עדיין חסום. אפשר לייבא פירוט, לבדוק פילוח ולאשר מועד חיוב בלי להזין סיסמה. שאר הבנקים וחברות האשראי ממשיכים כרגיל."
+                : "The direct connection is still blocked. Import a statement, review categories and confirm the due date without entering a password. Other banks and cards are unchanged."}</AlertDescription>
+            </Alert>}
+            {selected && !(companyId === "amex" && onCsvFallback) && (
               <div className="space-y-3">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <button type="button" className={`rounded-xl border p-3 text-start ${credentialMode === "one_time" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" : "border-border"}`} onClick={() => setCredentialMode("one_time")}>
@@ -299,10 +306,10 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
               </div>
             )}
 
-            <Button onClick={connect} disabled={!canConnect || busy === "connect"} className="gap-2">
+            {!(companyId === "amex" && onCsvFallback) && <Button onClick={connect} disabled={!canConnect || busy === "connect"} className="gap-2">
               {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
               {labels.connect}
-            </Button>
+            </Button>}
             {CARD_COMPANIES.has(companyId) && onCsvFallback && (
               <Button type="button" variant="outline" onClick={() => onCsvFallback(companyId)} className="ms-2 gap-2">
                 <FileSpreadsheet className="h-4 w-4" />
@@ -336,11 +343,11 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
                   </div>
                   {connection.last_error && <p className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{financeErrorMessage(connection.last_error, lang, connection.last_error)}</p>}
                   <div className="flex flex-wrap gap-2">
-                    {connection.metadata?.credential_storage !== "none" && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={busy === connection.id}>
+                    {connection.metadata?.credential_storage !== "none" && !(connection.metadata?.company_id === "amex" && onCsvFallback) && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={busy === connection.id}>
                       {busy === connection.id ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="me-1 h-3.5 w-3.5" />}
                       {labels.sync}
                     </Button>}
-                    {(connection.status === "error" || connection.last_error) && CARD_COMPANIES.has(connection.metadata?.company_id || "") && onCsvFallback && (
+                    {(connection.metadata?.company_id === "amex" || connection.status === "error" || connection.last_error) && CARD_COMPANIES.has(connection.metadata?.company_id || "") && onCsvFallback && (
                       <Button size="sm" variant="outline" onClick={() => onCsvFallback(connection.metadata?.company_id)} className="gap-1">
                         <FileSpreadsheet className="h-3.5 w-3.5" />{lang === "he" ? "ייבוא CSV / Excel" : "Import CSV / Excel"}
                       </Button>

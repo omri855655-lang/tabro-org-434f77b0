@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,17 +13,20 @@ import { format } from "date-fns";
 import { detectProvider, financialProviders, parseCSV, type ParsedTransaction } from "@/lib/financialProviders";
 import { applyStatementBillingDate, findStatementTable, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "@/lib/cardStatement";
 import { importParsedFinancialTransactions } from "@/lib/financialImport";
+import { AMEX_CSV_TEMPLATE, decodeStatementText, parseAmexStatement } from "@/lib/amexStatement";
+import { AmexStatementPreview } from "./AmexStatementPreview";
 
 type CreditCardConnection = Pick<Database["public"]["Tables"]["credit_card_connections"]["Row"],
   "id" | "provider" | "display_name" | "card_last_digits">;
 const CREDIT_CARD_CONNECTIONS_EVENT = "tabro-credit-card-connections-changed";
 
 interface CreditCardImportProps {
+  requestedProvider?: string;
   onImported?: () => void | Promise<void>;
   suggestedBillingDayForCard?: (card: CreditCardConnection) => number | undefined;
 }
 
-const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCardImportProps) => {
+const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedProvider }: CreditCardImportProps) => {
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -35,11 +38,34 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
   const [selectedConnectionId, setSelectedConnectionId] = useState("");
   const [confirmUnidentified, setConfirmUnidentified] = useState(false);
   const [billingDateChoice, setBillingDateChoice] = useState("");
+  const [skippedRows, setSkippedRows] = useState(0);
+  const [fileError, setFileError] = useState("");
+  const readVersion = useRef(0);
 
   const isRtl = lang === "he" || lang === "ar";
 
+  const resetFile = useCallback(() => {
+    readVersion.current += 1;
+    setTransactions([]);
+    setFileName("");
+    setFileError("");
+    setSkippedRows(0);
+    setConfirmUnidentified(false);
+    setBillingDateChoice("");
+    if (fileRef.current) fileRef.current.value = "";
+  }, []);
+
+  useEffect(() => { resetFile(); }, [selectedConnectionId, resetFile]);
+
   useEffect(() => {
-    if (!user) return;
+    const candidates = connections.filter((card) => !requestedProvider || card.provider === requestedProvider);
+    setSelectedConnectionId((current) => candidates.some((card) => card.id === current)
+      ? current : candidates.length === 1 ? candidates[0].id : "");
+  }, [connections, requestedProvider]);
+
+  useEffect(() => {
+    if (!user) { setConnections([]); return; }
+    let active = true;
 
     const loadConnections = async () => {
       const { data, error } = await supabase
@@ -48,7 +74,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (!error) {
+      if (!error && active) {
         setConnections(data || []);
       }
     };
@@ -60,11 +86,16 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
     };
 
     window.addEventListener(CREDIT_CARD_CONNECTIONS_EVENT, handleConnectionsChanged);
-    return () => window.removeEventListener(CREDIT_CARD_CONNECTIONS_EVENT, handleConnectionsChanged);
+    return () => {
+      active = false;
+      window.removeEventListener(CREDIT_CARD_CONNECTIONS_EVENT, handleConnectionsChanged);
+    };
   }, [user]);
 
   const processText = (text: string, name: string) => {
     const { headers, rows, preamble } = findStatementTable(parseCSV(text));
+    const source = connections.find((connection) => connection.id === selectedConnectionId);
+    const amex = source?.provider === "amex";
     const provider = detectProvider(headers, rows.slice(0, 3)) || financialProviders.find((item) => item.id === "custom");
 
     if (!provider) {
@@ -73,10 +104,12 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
       return;
     }
 
-    const providerRows = provider.parse(rows, headers);
-    const fileCard = statementFileCardLastFour(name);
-    const source = connections.find((connection) => connection.card_last_digits === fileCard)
-      || connections.find((connection) => connection.id === selectedConnectionId);
+    const amexResult = amex ? parseAmexStatement(rows, headers) : null;
+    const providerRows = amexResult ? amexResult.transactions : provider.parse(rows, headers);
+    setSkippedRows(amexResult?.skipped || 0);
+    setFileError(amexResult?.unsupported ? (isRtl
+      ? "לא זוהו עמודות תאריך עסקה, בית עסק וסכום. אפשר להשתמש בתבנית CSV למטה."
+      : "Transaction date, merchant and amount columns were not found. Use the CSV template below.") : "");
     const preferredDay = source && suggestedBillingDayForCard?.(source);
     const sortedPurchaseDates = providerRows.map((row) => row.transaction_date).filter(Boolean).sort();
     const latestPurchase = sortedPurchaseDates[sortedPurchaseDates.length - 1];
@@ -84,24 +117,27 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
       ? nextCsvBillingEstimateDate(latestPurchase || format(new Date(), "yyyy-MM-dd"), preferredDay)
       : "";
     setBillingDateChoice(statementBillingDate(preamble, providerRows, name) || suggestedDate);
-    const parsed = statementRows(providerRows);
-    setProviderId(provider.id);
+    const parsed = amex ? providerRows : statementRows(providerRows);
+    setProviderId(amex ? "amex" : provider.id);
     setTransactions(parsed);
     setConfirmUnidentified(false);
 
     if (parsed.length === 0) {
-      toast.error(isRtl ? "לא נמצאו הוצאות עם סכום חיוב בשקלים בקובץ" : "No expenses with an ILS billing amount were found");
+      toast.error(amex ? (isRtl ? "לא נמצאו עסקאות תקינות. בדוק תאריך, סכום ומטבע חיוב בקובץ." : "No valid transactions. Check dates, amounts and billing currencies.")
+        : isRtl ? "לא נמצאו הוצאות עם סכום חיוב בשקלים בקובץ" : "No expenses with an ILS billing amount were found");
     }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
+    resetFile();
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError(isRtl ? "אפשר לייבא קובץ עד 10MB" : "Maximum file size is 10MB");
+      return;
+    }
+    const version = readVersion.current;
     setFileName(file.name);
-    const fileCard = statementFileCardLastFour(file.name);
-    const matchingConnection = connections.find((connection) => connection.card_last_digits === fileCard);
-    if (matchingConnection) setSelectedConnectionId(matchingConnection.id);
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     if (ext === "xlsx" || ext === "xls") {
@@ -111,7 +147,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
         const workbook = read(buffer);
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const csvText = utils.sheet_to_csv(worksheet);
-        processText(csvText, file.name);
+        if (version === readVersion.current) processText(csvText, file.name);
       } catch (error) {
         console.error("Credit card excel parse error:", error);
         toast.error(isRtl ? "שגיאה בקריאת קובץ Excel" : "Error reading Excel file");
@@ -119,12 +155,12 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      processText(text, file.name);
-    };
-    reader.readAsText(file, "UTF-8");
+    try {
+      const text = decodeStatementText(await file.arrayBuffer());
+      if (version === readVersion.current) processText(text, file.name);
+    } catch {
+      if (version === readVersion.current) setFileError(isRtl ? "לא ניתן לקרוא את הקובץ" : "Unable to read file");
+    }
   };
 
   const importTransactions = async () => {
@@ -145,8 +181,8 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
       await onImported?.();
       toast.success(
         isRtl
-          ? `${result.imported} הוצאות אשראי נשמרו`
-          : `${result.imported} credit card transactions saved`,
+          ? `${result.imported} עסקאות נשמרו · ${result.skipped} עסקאות קיימות דולגו`
+          : `${result.imported} transactions saved · ${result.skipped} existing transactions skipped`,
       );
       setTransactions([]);
       setProviderId("");
@@ -163,6 +199,8 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
   };
 
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
+  const isAmex = selectedConnection?.provider === "amex" || requestedProvider === "amex";
+  const visibleConnections = connections.filter((card) => !requestedProvider || card.provider === requestedProvider);
   const fileCard = statementFileCardLastFour(fileName);
   const fileCardMismatch = Boolean(fileCard && selectedConnection && selectedConnection.card_last_digits !== fileCard);
   const cardRows = selectedConnection?.card_last_digits
@@ -177,24 +215,26 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <FileSpreadsheet className="h-4 w-4" />
-          {t("importCreditCard")}
+          {isAmex ? "American Express · CSV" : t("importCreditCard")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {isRtl
+            {isAmex ? (isRtl
+              ? "פתרון זמני ללא סיסמה: ייצא פירוט מאמריקן אקספרס, בחר את הכרטיס וסקור את הפילוח לפני שמירה. זהו ייבוא ידני, לא סנכרון חי."
+              : "Temporary, password-free import: export your Amex statement, select the card and review categories before saving. This is manual, not live sync.") : isRtl
               ? "בחר את הכרטיס המדויק. ייובאו רק הוצאות שלו עם סכום חיוב בשקלים; רק מועד פירעון שתאשר ייצור חיוב עתידי בתחזית."
               : "Choose the exact card. Only its expenses with an ILS billing amount are imported; a future charge needs a confirmed payment date."}
           </p>
-          <Select value={selectedConnectionId} onValueChange={(value) => { setSelectedConnectionId(value); setConfirmUnidentified(false); }}>
+          <Select value={selectedConnectionId} disabled={importing} onValueChange={(value) => { resetFile(); setSelectedConnectionId(value); }}>
             <SelectTrigger className="text-sm">
               <SelectValue
                 placeholder={isRtl ? "בחר מקור כרטיס לשיוך הייבוא" : "Choose a card source for this import"}
               />
             </SelectTrigger>
             <SelectContent>
-              {connections.map((connection) => (
+              {visibleConnections.map((connection) => (
                 <SelectItem key={connection.id} value={connection.id}>
                   {connection.display_name || connection.provider}
                   {connection.card_last_digits ? ` • ****${connection.card_last_digits}` : ""}
@@ -202,12 +242,22 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
               ))}
             </SelectContent>
           </Select>
-          {connections.length === 0 && <p className="text-xs text-amber-700">{isRtl ? "קודם צור מקור כרטיס עם ארבע ספרות אחרונות למעלה." : "First create a card source with its last four digits above."}</p>}
+          {visibleConnections.length === 0 && <p className="text-xs text-amber-700">{isRtl ? "קודם צור מקור כרטיס עם ארבע ספרות אחרונות בטופס מקורות הכרטיסים." : "First create a card source with its last four digits in the card sources form."}</p>}
         </div>
         <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls" className="hidden" onChange={handleFileChange} />
-        <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+        <Button variant="outline" size="sm" disabled={!selectedConnection || importing} onClick={() => fileRef.current?.click()}>
           <Upload className="h-3 w-3 mr-1" />{isRtl ? "ייבוא CSV / Excel" : "Import CSV / Excel"}
         </Button>
+        {isAmex && <Button variant="ghost" size="sm" disabled={importing} onClick={() => {
+          const url = URL.createObjectURL(new Blob([AMEX_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" }));
+          const link = document.createElement("a");
+          link.href = url; link.download = "amex-template.csv"; link.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }}>{isRtl ? "הורדת תבנית CSV ריקה" : "Download blank CSV template"}</Button>}
+        {fileError && <p role="alert" className="text-sm text-destructive">{fileError}</p>}
+        {skippedRows > 0 && <p role="status" className="text-xs text-amber-700">{isRtl
+          ? `${skippedRows} שורות לא ייובאו (למשל סיכומים, ביטולים או סכום, תאריך או מטבע חסרים). בדוק מול הפירוט המקורי לפני אישור.`
+          : `${skippedRows} rows excluded (such as totals, voids or missing amount, date or currency). Compare with the original statement before confirming.`}</p>}
 
         {transactions.length > 0 && (
           <div className="space-y-2">
@@ -218,11 +268,11 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
               <Badge>{selectedRows.length} {t("transactions")}</Badge>
               {providerId && (
                 <Badge variant="secondary">
-                  {(financialProviders.find((item) => item.id === providerId)?.nameHe) || providerId}
+                  {providerId === "amex" ? "American Express" : (financialProviders.find((item) => item.id === providerId)?.nameHe) || providerId}
                 </Badge>
               )}
               <Badge variant="outline">
-                {isRtl ? "הוצאות בלבד" : "Expenses only"}
+                {isAmex ? (isRtl ? "הוצאות וזיכויים" : "Expenses and credits") : isRtl ? "הוצאות בלבד" : "Expenses only"}
               </Badge>
             </div>
             {cardRows && cardRows.excluded > 0 && <p className="text-xs text-amber-700">{isRtl ? `${cardRows.excluded} שורות של כרטיסים אחרים לא ייובאו.` : `${cardRows.excluded} rows from other cards will be excluded.`}</p>}
@@ -236,12 +286,14 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
             )}
             <label className="block space-y-1 rounded-lg border p-3 text-xs">
               <span className="block font-semibold">{isRtl ? "מתי ייפרע החיוב של הפירוט הזה?" : "When will this statement be charged?"}</span>
-              <input type="date" value={billingDateChoice} onChange={(event) => setBillingDateChoice(event.target.value)} className="h-9 rounded-md border bg-background px-2" dir="ltr" />
+              <input type="date" value={billingDateChoice} onInput={(event) => setBillingDateChoice(event.currentTarget.value)} onChange={(event) => setBillingDateChoice(event.target.value)} className="h-9 rounded-md border bg-background px-2" dir="ltr" disabled={importing} />
               <span className="block text-muted-foreground">{isRtl
                 ? "אפשר לתקן את התאריך שזוהה בקובץ. אם הוא לא ידוע, השאר ריק: ההוצאות ייובאו, אך לא ייווצר חיוב עתידי. תאריכי חיוב מפורשים לכל עסקה נשמרים בנפרד."
                 : "You can correct the detected date. Leave it blank if unknown: expenses import without a future charge. Per-transaction due dates remain separate."}</span>
             </label>
-            <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
+            {isAmex ? <AmexStatementPreview rows={selectedRows} isHe={isRtl} onCategoryChange={(row, category) => {
+              if (!importing) setTransactions((current) => current.map((item) => item === row ? { ...item, category } : item));
+            }} /> : <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
               {selectedRows.slice(0, 20).map((tx, i) => (
                 <div key={i} className="flex items-center justify-between p-2 text-sm">
                   <div>
@@ -256,7 +308,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard }: CreditCard
               {selectedRows.length > 20 && (
                 <div className="p-2 text-xs text-muted-foreground text-center">+{selectedRows.length - 20} more</div>
               )}
-            </div>
+            </div>}
             <Button size="sm" onClick={importTransactions} disabled={importing || selectedRows.length === 0}>
               {importing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
               {t("confirm")} ({selectedRows.length})

@@ -13,7 +13,7 @@ export interface StatementChargeInput {
   account_external_id?: string | null;
   direction: string;
   amount: number;
-  raw_data?: { billing_date?: string | null } | null;
+  raw_data?: { billing_date?: string | null; statement_credit?: boolean } | null;
 }
 
 export function statementFileCardLastFour(fileName: string): string | null {
@@ -25,7 +25,7 @@ export function findStatementTable(csv: { headers: string[]; rows: string[][] })
   const headerIndex = records.findIndex((row) =>
     row.some((value) => /תאריך\s*(?:ה?עסקה|רכישה)|transaction\s*date|purchase\s*date|^date$/i.test(value))
     && row.some((value) => /שם\s*בית\s*(?:ה?עסק)|תיאור|description|merchant|^name$/i.test(value))
-    && row.some((value) => /סכום\s*(?:חיוב|עסקה)|amount|חובה|charge|sum/i.test(value)));
+    && row.some((value) => /סכום\s*(?:ה?חיוב|ה?עסקה|לחיוב)|amount|חובה|charge|sum/i.test(value)));
   if (headerIndex < 0) return { ...csv, preamble: [] as string[] };
   return {
     headers: records[headerIndex],
@@ -130,15 +130,19 @@ export function futureStatementCharges(
 ) {
   const charges = new Map<string, number>();
   for (const transaction of transactions) {
-    if (transaction.source_type !== "credit_card_import" || transaction.direction !== "expense") continue;
+    if (transaction.source_type !== "credit_card_import") continue;
+    const credit = transaction.direction === "income"
+      && transaction.raw_data?.statement_credit === true;
+    if (transaction.direction !== "expense" && !credit) continue;
     const accountId = transaction.account_external_id || (transaction.source_connection_id
       ? `csv-card:${transaction.source_connection_id}` : null);
     if (accountId !== accountExternalId) continue;
     const billingDate = transaction.raw_data?.billing_date;
     if (!billingDate || parseFinancialDate(billingDate) !== billingDate || billingDate < fromDate || billingDate > throughDate) continue;
-    charges.set(billingDate, (charges.get(billingDate) || 0) + Math.abs(transaction.amount));
+    charges.set(billingDate, (charges.get(billingDate) || 0) + Math.abs(transaction.amount) * (credit ? -1 : 1));
   }
-  return [...charges].map(([billingDate, amount]) => ({ billingDate, amount }));
+  return [...charges].filter(([, amount]) => amount > 0)
+    .map(([billingDate, amount]) => ({ billingDate, amount: Math.round(amount * 100) / 100 }));
 }
 
 export function nextCsvBillingEstimateDate(today: string, billingDay: number) {
