@@ -89,7 +89,7 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
       </div>
 
       <Tabs defaultValue="breakdown" dir={isRtl ? "rtl" : "ltr"}>
-        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 lg:grid-cols-4 [&>button]:whitespace-normal [&>button]:text-xs sm:[&>button]:text-sm">
           <TabsTrigger value="breakdown">{isRtl ? "קטגוריות ובתי עסק" : "Categories & merchants"}</TabsTrigger>
           <TabsTrigger value="sources">{isRtl ? "כרטיסים ומקורות" : "Cards & sources"}</TabsTrigger>
           <TabsTrigger value="recurring">{isRtl ? "חיובים חוזרים לבדיקה" : "Recurring charges to review"} · {analysis.recurring.length}</TabsTrigger>

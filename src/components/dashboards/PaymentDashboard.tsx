@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import AutocompleteInput from "@/components/AutocompleteInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Plus, Trash2, CreditCard, TrendingUp, TrendingDown, DollarSign, Check, Calendar, Sparkles, MessageCircle, ChevronDown, ChevronUp, BookOpen, PiggyBank, AlertTriangle, Lightbulb, Wallet, BarChart3, Download, History, Pencil, X, EyeOff, Eye, Filter, Search, Gift, Ticket, Coins } from "lucide-react";
@@ -28,6 +28,7 @@ import ManualTransactionForm from "@/components/ManualTransactionForm";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
 import RecurringPaymentReview, { type RecurringPaymentDraft } from "@/components/dashboards/RecurringPaymentReview";
 import FinanceOverview from "@/components/dashboards/FinanceOverview";
+import FinanceWorkspace from "@/components/dashboards/FinanceWorkspace";
 import { cleanMerchantName, getFinanceCategoryGroup, inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
 import { financeCalendarDate, financeEntryCurrency, formatFinanceMoney } from "@/lib/financeInsights";
 import { futureStatementCharges } from "@/lib/cardStatement";
@@ -312,7 +313,6 @@ const PaymentDashboard = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [transactionSearch, setTransactionSearch] = useState("");
   const [showHidden, setShowHidden] = useState(false);
-  const [transactionsOpen, setTransactionsOpen] = useState(false);
   const [insightCurrencyFilter, setInsightCurrencyFilter] = useState<string | null>(null);
   const [recurringReview, setRecurringReview] = useState<RecurringPaymentDraft | null>(null);
   const [savingRecurring, setSavingRecurring] = useState(false);
@@ -543,6 +543,7 @@ const PaymentDashboard = () => {
     const provider = companyId === "visaCal" ? "cal" : companyId === "amex" ? "amex" : companyId || "";
     setRequestedCsvProvider(provider);
     setShowCsvFallback(true);
+    setActiveTab("credit-cards");
     window.setTimeout(() => document.getElementById("credit-card-csv-fallback")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }, []);
 
@@ -1403,7 +1404,7 @@ ${context}
   );
 
   return (
-    <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
+    <div className="mx-auto w-full max-w-5xl space-y-4 p-3 sm:p-6" dir={isRtl ? "rtl" : "ltr"}>
       <RecurringPaymentReview draft={recurringReview} title={dashboardEntries.find(item => item.id === recurringReview?.entryId)?.title} isRtl={isRtl} saving={savingRecurring}
           onChange={setRecurringReview} onClose={() => setRecurringReview(null)} onConfirm={async () => {
             if (savingRecurring || !recurringReview) return;
@@ -1420,10 +1421,9 @@ ${context}
               toast.error(isRtl ? "לא הצלחנו לשמור. התנועה המקורית לא שונתה." : "Could not save. The original transaction was not changed.");
             } finally { setSavingRecurring(false); }
           }} />
-      <div className="flex items-center gap-3 mb-2 flex-wrap">
-        <Wallet className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">{t("incomeAndExpenses" as any)}</h2>
-        <div className="flex-1" />
+      <FinanceWorkspace isRtl={isRtl} activeTab={activeTab} onTabChange={setActiveTab} onImport={() => openCsvFallback("amex")}
+        monthControl={<Select value={viewMonth} onValueChange={setViewMonth}><SelectTrigger className="h-10 w-44 rounded-xl bg-background" aria-label={isRtl ? "חודש לסיכום ולפילוח" : "Summary & analysis month"}><SelectValue /></SelectTrigger><SelectContent>{monthOptions.map((month) => <SelectItem key={month} value={month}>{formatMonthLabel(month)}</SelectItem>)}</SelectContent></Select>}
+        exportControl={
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
           dashboardEntries.map(p => ({ title: p.title, amount: p.amount, currency: financeEntryCurrency(p), type: p.payment_type === 'income' ? t("incomeType" as any) : t("expenseType" as any), category: p.category || '', paid: p.paid, due_date: p.due_date || '', recurring: p.recurring, method: p.payment_method || '', source: p.source !== 'payment_tracking' ? t("importedLabel" as any) : t("plannedLabel" as any) })),
           [{ key: 'title', label: t("descriptionCol" as any) }, { key: 'amount', label: t("amountCol" as any) }, { key: 'currency', label: isRtl ? "מטבע" : "Currency" }, { key: 'type', label: t("typeCol" as any) }, { key: 'category', label: t("categoryCol" as any) }, { key: 'paid', label: t("paidCol" as any) }, { key: 'due_date', label: t("dateCol" as any) }, { key: 'recurring', label: t("recurringCol" as any) }, { key: 'method', label: t("methodCol" as any) }],
@@ -1431,30 +1431,28 @@ ${context}
         )}>
           <Download className="h-3.5 w-3.5" />{t("exportLabel" as any)}
         </Button>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full flex-wrap h-auto mb-4">
-          <TabsTrigger value="overview" className="flex-1">{t("incomeTab" as any)}</TabsTrigger>
-          <TabsTrigger value="history" className="flex-1 gap-1"><History className="h-3 w-3" />{t("historyTab" as any)}</TabsTrigger>
-          <TabsTrigger value="add" className="flex-1 gap-1"><Plus className="h-3 w-3" />{t("addTab" as any)}</TabsTrigger>
-          <TabsTrigger value="guides" className="flex-1 gap-1"><BookOpen className="h-3 w-3" />{t("guidesTab" as any)}</TabsTrigger>
-          <TabsTrigger value="ai" className="flex-1 gap-1"><Sparkles className="h-3 w-3" />{t("aiAdvisor" as any)}</TabsTrigger>
-          <TabsTrigger value="credit-cards" className="flex-1 gap-1"><CreditCard className="h-3 w-3" />{t("bankCreditTab" as any)}</TabsTrigger>
-          <TabsTrigger value="clubs" className="flex-1 gap-1"><Gift className="h-3 w-3" />{isRtl ? "מועדונים ותווים" : "Clubs & vouchers"}</TabsTrigger>
-        </TabsList>
-
-      {/* SINGLE overview tab — hero + budget + 50/30/20 + charts + transaction lists */}
+        }>
       <TabsContent value="overview" className="space-y-4">
+        <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            { tab: "insights", title: isRtl ? "לאן הכסף הולך?" : "Where does it go?", detail: isRtl ? "קטגוריות, זיכויים ורעיונות לחיסכון" : "Categories, refunds and savings ideas", icon: BarChart3 },
+            { tab: "forecast", title: isRtl ? "מה צפוי לרדת?" : "What is coming up?", detail: isRtl ? "חיובי כרטיסים ותזרים ל־90 יום" : "Card charges and a 90-day forecast", icon: Calendar },
+            { tab: "budget", title: isRtl ? "התקציב בשליטה" : "Your budget, your plan", detail: isRtl ? "יעדים, גרפים והוצאות קבועות" : "Targets, charts and recurring payments", icon: PiggyBank },
+          ].map(({ tab, title, detail, icon: Icon }) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className="group rounded-2xl border bg-background p-4 text-start transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon className="mb-3 h-5 w-5 text-primary" aria-hidden="true" /><strong className="block text-sm">{title}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{detail}</span></button>)}
+        </div>
+        {dashboardEntries.length === 0 && <div className="rounded-2xl border border-dashed p-6 text-center"><p className="mb-3 text-sm text-muted-foreground">{t("noPaymentsYet" as any)}</p><SampleDataImport type="payments" /></div>}
+      </TabsContent>
+
+      <TabsContent value="transactions" className="space-y-4">
         <Card className="border-primary/15">
           <CardContent className="p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold"><Filter className="h-4 w-4 text-primary" />{isRtl ? "תצוגה וסינון" : "View and filters"}</h3>
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setSourceFilter("all"); setAccountFilter("all"); setCategoryFilter("all"); setTransactionSearch(""); setShowHidden(false); }}>{isRtl ? "נקה מסננים" : "Clear filters"}</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setSourceFilter("all"); setAccountFilter("all"); setCategoryFilter("all"); setTransactionSearch(""); setShowHidden(false); setInsightCurrencyFilter(null); }}>{isRtl ? "נקה מסננים" : "Clear filters"}</Button>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <Select value={viewMonth} onValueChange={setViewMonth}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{monthOptions.map((month) => <SelectItem key={month} value={month}>{formatMonthLabel(month)}</SelectItem>)}</SelectContent></Select>
-              <Select value={sourceFilter} onValueChange={setSourceFilter}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל המקורות" : "All sources"}</SelectItem><SelectItem value="credit_card">{isRtl ? "כרטיסי אשראי" : "Credit cards"}</SelectItem><SelectItem value="bank">{isRtl ? "בנק והעברות" : "Bank and transfers"}</SelectItem><SelectItem value="manual">{isRtl ? "תכנון ידני" : "Manual plans"}</SelectItem></SelectContent></Select>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <Select value={sourceFilter} onValueChange={setSourceFilter}><SelectTrigger className="h-9" aria-label={isRtl ? "סינון לפי מקור" : "Filter by source"}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל המקורות" : "All sources"}</SelectItem><SelectItem value="credit_card">{isRtl ? "כרטיסי אשראי" : "Credit cards"}</SelectItem><SelectItem value="bank">{isRtl ? "בנק והעברות" : "Bank and transfers"}</SelectItem><SelectItem value="manual">{isRtl ? "תכנון ידני" : "Manual plans"}</SelectItem></SelectContent></Select>
               <Select value={accountFilter} onValueChange={setAccountFilter}><SelectTrigger className="h-9"><SelectValue placeholder={isRtl ? "כל החשבונות והכרטיסים" : "All accounts and cards"} /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל החשבונות והכרטיסים" : "All accounts and cards"}</SelectItem>{accountOptions.map((account) => <SelectItem key={account} value={account}>{account}</SelectItem>)}</SelectContent></Select>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="h-9"><SelectValue placeholder={isRtl ? "כל הקטגוריות" : "All categories"} /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל הקטגוריות" : "All categories"}</SelectItem>{categoryOptions.map((category) => <SelectItem key={category} value={category}>{getCategoryLabel(category)}</SelectItem>)}</SelectContent></Select>
               <div className="relative"><Search className="absolute start-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={transactionSearch} onChange={(event) => setTransactionSearch(event.target.value)} placeholder={isRtl ? "חיפוש ספק או עסקה" : "Search merchant"} className="h-9 ps-9" /></div>
@@ -1465,8 +1463,15 @@ ${context}
         </Card>
 
         <p className="text-xs leading-5 text-muted-foreground">{isRtl ? "התקציב והתחזית מסוכמים בשקלים בלבד. תנועות במטבע אחר נשמרות ברשימה ובפילוחים לפי מטבע, ללא המרה משוערת. סיכומי התנועות אינם מבטלים אוטומטית חיובי סליקה מול עסקאות הכרטיס." : "Budgets and forecasts use ILS only. Other currencies remain in the ledger and currency breakdowns without estimated conversion. Transaction totals do not automatically reconcile card settlements against card purchases."}</p>
-        <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} />
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">{isRtl ? "תנועות בתקופה שנבחרה" : "Transactions in selected period"} <span className="font-normal text-muted-foreground">· {filteredViewEntries.length}</span></h3>
+          {filteredViewEntries.slice(0, 100).map((entry) => renderEntryRow(entry, entry.payment_type === "income" ? "text-emerald-600" : "text-red-600"))}
+          {!filteredViewEntries.length && <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">{isRtl ? "לא נמצאו תנועות במסננים שנבחרו." : "No transactions match the selected filters."}</p>}
+          {filteredViewEntries.length > 100 && <p className="text-center text-xs text-muted-foreground">{isRtl ? "מוצגות 100 התנועות הראשונות. צמצם את המסננים להצגה מדויקת יותר." : "Showing the first 100 transactions. Narrow the filters for more detail."}</p>}
+        </div>
+      </TabsContent>
 
+      <TabsContent value="forecast" className="space-y-4">
         <Card className="border-sky-200/70 bg-sky-50/40 dark:bg-sky-950/10">
           <CardContent className="space-y-4 p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1522,38 +1527,27 @@ ${context}
           </CardContent>
         </Card>
 
+      </TabsContent>
+
+      <TabsContent value="insights" className="space-y-4">
+        {!dashboardEntries.some(entry => !entry.hidden) && <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">{isRtl ? "הוסף תנועות או ייבא פירוט כדי לראות פילוחים וזיכויים." : "Add entries or import a statement to see insights and refunds."}</p>}
         <FinanceInsights
           entries={dashboardEntries.filter((entry) => !entry.hidden)}
           isRtl={isRtl}
           selectedMonth={viewMonth}
           onConfirmRefund={confirmRefundClassification}
           confirmedRecurringSourceIds={payments.filter((payment) => payment.recurring && payment.recurrence_status === "active").flatMap((payment) => payment.recurrence_source_transaction_id ? [payment.recurrence_source_transaction_id] : [])}
-          onCategorySelect={(category, currency) => { setCategoryFilter(category); setTransactionSearch(""); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setTransactionsOpen(true); }}
-          onMerchantSelect={(merchant, currency) => { setCategoryFilter("all"); setTransactionSearch(merchant); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setTransactionsOpen(true); }}
+          onCategorySelect={(category, currency) => { setCategoryFilter(category); setTransactionSearch(""); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setActiveTab("transactions"); }}
+          onMerchantSelect={(merchant, currency) => { setCategoryFilter("all"); setTransactionSearch(merchant); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setActiveTab("transactions"); }}
           onCreateRecurring={(entry, expectedDate) => {
             const fullEntry = dashboardEntries.find((candidate) => candidate.id === entry.id);
             if (fullEntry && fullEntry.source !== "payment_tracking") setRecurringReview({ entryId: fullEntry.id, amount: String(fullEntry.amount), dueDate: expectedDate });
           }}
         />
 
-        <Collapsible open={transactionsOpen} onOpenChange={setTransactionsOpen}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="h-auto w-full justify-between p-4 text-start">
-                <span><strong className="block">{isRtl ? "תנועות בתקופה שנבחרה" : "Transactions in selected period"}</strong><small className="text-muted-foreground">{filteredViewEntries.length} {isRtl ? "תנועות לאחר סינון" : "filtered transactions"}</small></span>
-                {transactionsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="space-y-2 border-t pt-4">
-                {filteredViewEntries.slice(0, 100).map((entry) => renderEntryRow(entry, entry.payment_type === "income" ? "text-emerald-600" : "text-red-600"))}
-                {!filteredViewEntries.length && <p className="py-6 text-center text-sm text-muted-foreground">{isRtl ? "לא נמצאו תנועות במסננים שנבחרו." : "No transactions match the selected filters."}</p>}
-                {filteredViewEntries.length > 100 && <p className="text-center text-xs text-muted-foreground">{isRtl ? "מוצגות 100 התנועות הראשונות. צמצם את המסננים להצגה מדויקת יותר." : "Showing the first 100 transactions. Narrow the filters for more detail."}</p>}
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+      </TabsContent>
 
+      <TabsContent value="budget" className="space-y-4">
         {/* Budget Target */}
         <Card className="border-primary/20">
           <CardContent className="py-4">
@@ -1651,7 +1645,7 @@ ${context}
                 {categoryBreakdown.slice(0, 8).map(([cat, amt]) => {
                   const pct = totalExpenses > 0 ? Math.round((amt / totalExpenses) * 100) : 0;
                   return (
-                    <button type="button" key={cat} className="block w-full rounded-lg p-1 text-start hover:bg-muted/50" onClick={() => { setCategoryFilter(cat); setTransactionSearch(""); setTransactionsOpen(true); }}>
+                    <button type="button" key={cat} className="block w-full rounded-lg p-1 text-start hover:bg-muted/50" onClick={() => { setCategoryFilter(cat); setTransactionSearch(""); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter("ILS"); setActiveTab("transactions"); }}>
                       <div className="flex justify-between text-sm mb-1">
                         <span>{getCategoryLabel(cat)}</span>
                         <span className="font-medium">₪{amt.toLocaleString()} ({pct}%)</span>
@@ -1914,7 +1908,7 @@ ${context}
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-xl border p-3">
-                  <p className="text-xs text-muted-foreground">{isRtl ? "יתרה חזויה בסוף החודש" : "Projected month-end balance"}</p>
+                  <p className="text-xs text-muted-foreground">{isRtl ? "יתרה חזויה בעוד 90 יום" : "Projected balance in 90 days"}</p>
                   <strong className={`mt-1 block text-lg ${cashFlowForecast.projectedBalance >= 0 ? "text-emerald-600" : "text-red-600"}`}>₪{cashFlowForecast.projectedBalance.toLocaleString()}</strong>
                 </div>
                 <div className="rounded-xl border p-3">
@@ -1986,6 +1980,8 @@ ${context}
 
         <TabsContent value="credit-cards" className="space-y-4">
           {forecastCardAccounts.length > 0 && (
+            <details className="group rounded-2xl border bg-background">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">{isRtl ? "מועדי פירעון לכרטיסים" : "Card billing dates"}<ChevronDown className="h-4 w-4 shrink-0 group-open:rotate-180" aria-hidden="true" /></summary>
             <Card className="border-sky-200/70 bg-sky-50/40 dark:bg-sky-950/10">
               <CardContent className="space-y-3 p-4">
                 <div>
@@ -2020,16 +2016,21 @@ ${context}
                 </div>
               </CardContent>
             </Card>
+            </details>
           )}
-          <BankConnect onChanged={fetchFinanceData} />
-          <CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} />
           <div id="credit-card-csv-fallback" className="space-y-4 scroll-mt-6">
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <h3 className="mb-1 font-semibold">{isRtl ? "ייבוא פירוט כרטיס" : "Import a card statement"}</h3>
+              <p className="mb-3 text-xs leading-5 text-muted-foreground">{isRtl ? "אמריקן אקספרס זמין כרגע דרך CSV או Excel. ייבוא נוסף לאותו כרטיס בודק כפילויות ושומר סיווגים שכבר אישרת." : "American Express currently uses CSV or Excel. Reimporting to the same card checks duplicates and keeps reviewed categories."}</p>
+              <div className="flex flex-wrap gap-2">
             <Button onClick={() => openCsvFallback("amex")} className="gap-2">
               {isRtl ? "אמריקן אקספרס · ייבוא CSV זמני" : "American Express · temporary CSV import"}
             </Button>
             <Button variant="outline" onClick={() => openCsvFallback()}>
               {isRtl ? "סנכרון הכרטיס לא עובד? ייבוא CSV / Excel" : "Card sync not working? Import CSV / Excel"}
             </Button>
+              </div>
+            </div>
             {(showCsvFallback || csvCardSources.length > 0) && (
               <div className="space-y-4">
                 {requestedCsvProvider === "amex" && <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 text-sm dark:border-sky-900 dark:bg-sky-950/20">
@@ -2071,8 +2072,12 @@ ${context}
               </div>
             )}
           </div>
+          <details className="group rounded-2xl border bg-background">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><span><strong className="block text-sm">{isRtl ? "חיבורים פעילים וסנכרון בנקים ואשראי" : "Connected sources & bank/card sync"}</strong><span className="mt-1 block text-xs text-muted-foreground">{isRtl ? "מצב חיבורים, סנכרון ידני, הוספה וניתוק. החיבורים הקיימים לא משתנים." : "Connection status, manual sync, add and disconnect. Existing connections are unchanged."}</span></span><ChevronDown className="h-4 w-4 shrink-0 group-open:rotate-180" aria-hidden="true" /></summary>
+            <div className="space-y-4 border-t p-3 sm:p-4"><BankConnect onChanged={fetchFinanceData} /><CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} /></div>
+          </details>
         </TabsContent>
-      </Tabs>
+      </FinanceWorkspace>
     </div>
   );
 };
