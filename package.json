@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "test:activity": "node --experimental-strip-types --test tests/activityScoring.test.mjs",
-    "test:finance": "node --experimental-strip-types --test tests/amexStatement.test.mjs tests/amexImportIntegration.test.mjs tests/cardStatement.test.mjs tests/financeBalances.test.mjs tests/financeInsights.test.mjs tests/financeRecovery.test.mjs",
+    "test:finance": "node --experimental-strip-types --test tests/amexStatement.test.mjs tests/amexImportIntegration.test.mjs tests/cardStatement.test.mjs tests/financeBalances.test.mjs tests/financeInsights.test.mjs tests/financeCoach.test.mjs tests/financeRecovery.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

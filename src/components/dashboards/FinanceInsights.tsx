@@ -6,6 +6,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { analyzeFinanceInsights, financeCalendarDate, financeEntryCurrency, type FinanceInsightEntry } from "@/lib/financeInsights";
+import { buildFinanceCoach, type RefundSelection } from "@/lib/financeCoach";
+import FinanceCoach from "./FinanceCoach";
 
 export type { FinanceInsightEntry } from "@/lib/financeInsights";
 
@@ -17,14 +19,16 @@ interface FinanceInsightsProps {
   onCategorySelect?: (category: string, currency: string) => void;
   onMerchantSelect?: (merchant: string, currency: string) => void;
   confirmedRecurringSourceIds?: string[];
+  onConfirmRefund?: (creditId: string, selection: RefundSelection) => Promise<void>;
 }
 
-const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onCategorySelect, onMerchantSelect, confirmedRecurringSourceIds = [] }: FinanceInsightsProps) => {
+const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onCategorySelect, onMerchantSelect, onConfirmRefund, confirmedRecurringSourceIds = [] }: FinanceInsightsProps) => {
   const [currency, setCurrency] = useState("ILS");
   const currencies = [...new Set(entries.filter(entry => !entry.hidden).map(financeEntryCurrency))].sort();
   const activeCurrency = currencies.includes(currency) ? currency : currencies[0] || "ILS";
   const month = selectedMonth || financeCalendarDate(new Date())!.slice(0, 7);
   const analysis = useMemo(() => analyzeFinanceInsights(entries, month, activeCurrency), [entries, month, activeCurrency]);
+  const coach = useMemo(() => buildFinanceCoach(entries, month, activeCurrency), [entries, month, activeCurrency]);
   const money = (value: number) => activeCurrency === "UNKNOWN"
     ? value.toLocaleString(isRtl ? "he-IL" : "en-US", { maximumFractionDigits: 2 })
     : new Intl.NumberFormat(isRtl ? "he-IL" : "en-US", { style: "currency", currency: activeCurrency, maximumFractionDigits: 2 }).format(value);
@@ -58,11 +62,11 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-emerald-200/70 bg-emerald-50/60 dark:bg-emerald-950/10"><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">{isRtl ? "הכנסות בתקופה" : "Period income"}</p>
+          <p className="text-xs text-muted-foreground">{isRtl ? "הכנסות וזיכויים בתקופה" : "Period income and credits"}</p>
           <p className="mt-1 text-xl font-semibold text-emerald-700 dark:text-emerald-400">{money(analysis.currentIncome)}</p>
         </CardContent></Card>
         <Card className="border-orange-200/70 bg-orange-50/60 dark:bg-orange-950/10"><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">{isRtl ? "הוצאות בתקופה" : "Period spending"}</p>
+          <p className="text-xs text-muted-foreground">{isRtl ? "הוצאות לפני זיכויים" : "Spending before refunds"}</p>
           <p className="mt-1 text-xl font-semibold text-orange-700 dark:text-orange-400">{money(analysis.currentSpend)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
@@ -85,15 +89,16 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
       </div>
 
       <Tabs defaultValue="breakdown" dir={isRtl ? "rtl" : "ltr"}>
-        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
           <TabsTrigger value="breakdown">{isRtl ? "קטגוריות ובתי עסק" : "Categories & merchants"}</TabsTrigger>
           <TabsTrigger value="sources">{isRtl ? "כרטיסים ומקורות" : "Cards & sources"}</TabsTrigger>
           <TabsTrigger value="recurring">{isRtl ? "חיובים חוזרים לבדיקה" : "Recurring charges to review"} · {analysis.recurring.length}</TabsTrigger>
+          <TabsTrigger value="coach">{isRtl ? "זיכויים וחיסכון" : "Refunds & savings"}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="breakdown" className="mt-4 grid gap-4 lg:grid-cols-2 data-[state=inactive]:hidden">
           <Card><CardContent className="p-5">
-            <h4 className="mb-4 flex items-center gap-2 font-semibold"><Tags className="h-4 w-4 text-primary" />{isRtl ? "קטגוריות מובילות" : "Top categories"}</h4>
+            <h4 className="mb-4 flex items-center gap-2 font-semibold"><Tags className="h-4 w-4 text-primary" />{isRtl ? "קטגוריות לפני זיכויים" : "Categories before refunds"}</h4>
             <div className="space-y-3">{analysis.topCategories.map(category => (
               <button type="button" key={category.name} className="block w-full rounded-xl border border-border/60 p-3 text-start transition-colors hover:border-primary/50 hover:bg-muted/30" onClick={() => onCategorySelect?.(category.name, activeCurrency)}>
                 <div className="mb-1 flex justify-between gap-3 text-sm"><strong>{category.name}</strong><strong>{money(category.total)}</strong></div>
@@ -144,6 +149,9 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
             {!analysis.recurring.length && <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">{isRtl ? "אין כרגע מספיק ראיות לדפוס חודשי יציב. לא נוצרה הוצאה קבועה חדשה." : "Not enough evidence of a stable monthly pattern. No recurring payment was created."}</p>}
             {activeCurrency !== "ILS" && <p className="text-xs text-muted-foreground">{isRtl ? "התחזית הקיימת היא בשקלים; חיוב במטבע אחר לא יתווסף אליה ללא המרה מאומתת." : "The existing forecast is in ILS; foreign-currency charges are not added without a verified conversion."}</p>}
           </CardContent></Card>
+        </TabsContent>
+        <TabsContent value="coach" className="mt-4">
+          <FinanceCoach key={`${month}:${activeCurrency}`} analysis={coach} isRtl={isRtl} onConfirmRefund={onConfirmRefund} onCategorySelect={onCategorySelect} />
         </TabsContent>
       </Tabs>
 

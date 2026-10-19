@@ -48,11 +48,13 @@ test("actual shared importer preserves duplicate occurrences, skips reimport and
   assert.equal(stored[0].raw_data.billing_date, "2026-11-02");
   assert.equal(stored[0].raw_data.account_external_id, "csv-card:card-a");
   assert.equal(stored[0].raw_data["card ending"], undefined);
+  stored[2].raw_data.refund_expense_id = stored[0].external_transaction_id;
   const again = await run(input);
   assert.equal(again.imported, 0);
   assert.equal(again.skipped, 4);
   assert.equal(stored.length, 4);
   assert.equal(stored[0].category, "Reviewed category");
+  assert.equal(stored[2].raw_data.refund_expense_id, stored[0].external_transaction_id);
   assert.equal((await run({ ...input, sourceConnectionId: "card-b" })).imported, 4);
   assert.equal((await run({ ...input, userId: "user-b" })).imported, 4);
 });

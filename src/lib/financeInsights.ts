@@ -18,6 +18,9 @@ export interface FinanceInsightEntry {
   paid: boolean;
   hidden?: boolean;
   installment_total?: number | null;
+  statement_credit?: boolean;
+  refund_expense_id?: string | null;
+  refund_category?: string | null;
 }
 
 const calendar = new Intl.DateTimeFormat("en", {
