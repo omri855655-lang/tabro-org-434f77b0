@@ -4,6 +4,7 @@ import { test } from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { assertFinanceListResponse, withFinanceReadTimeout } from "../src/lib/financeRequest.ts";
+import { isModuleLoadFailure } from "../src/lib/moduleRecovery.ts";
 
 // Execute the actual callbacks with fake services, never production data.
 function callbackFromFile(path, name, globals) {
@@ -161,4 +162,32 @@ test("a failed connection-list refresh keeps prior records and marks status unkn
   assert.equal(state.connectionError, true);
   assert.equal(state.unavailable, false);
   assert.equal(state.loading, false);
+});
+
+test("cached lazy-import errors are distinguished from ordinary rendering failures", () => {
+  assert.equal(isModuleLoadFailure(new TypeError("Failed to fetch dynamically imported module: https://example.test/assets/PaymentDashboard-old.js")), true);
+  assert.equal(isModuleLoadFailure(new Error("Importing a module script failed.")), true);
+  assert.equal(isModuleLoadFailure(new Error("Invalid time value")), false);
+  assert.equal(isModuleLoadFailure(new Error("Bank password rejected")), false);
+});
+
+test("actual panel retry reloads a failed lazy module rather than reusing its cached rejection", () => {
+  const source = readFileSync(new URL("../src/components/WorkspacePanelBoundary.tsx", import.meta.url), "utf8");
+  const tree = ts.createSourceFile("boundary.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let handler;
+  function visit(node) {
+    if (ts.isJsxAttribute(node) && node.name.getText(tree) === "onClick" && node.initializer?.expression?.getText(tree).includes("moduleFailure")) handler = node.initializer.expression.getText(tree);
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(handler);
+  let reloads = 0;
+  let resets = 0;
+  const create = vm.runInNewContext(`(function () { return ${handler}; })`, { window: { location: { reload() { reloads += 1; } } } });
+  create.call({ state: { moduleFailure: true }, setState() { resets += 1; } })();
+  assert.equal(reloads, 1);
+  assert.equal(resets, 0);
+  create.call({ state: { moduleFailure: false }, setState() { resets += 1; } })();
+  assert.equal(resets, 1);
+  assert.equal(reloads, 1);
 });
