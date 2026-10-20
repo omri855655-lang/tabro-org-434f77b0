@@ -11,7 +11,7 @@ export function financeErrorMessage(error: unknown, language: string, _fallback 
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
   const copy = messages[language as keyof typeof messages] || messages.en;
   if (/WAF_BLOCKED|Cloudflare|temporarily blocked automated access/i.test(message)) return copy[3];
-  if (/PRE-LOGIN: no password field|Login field not found on page|sign-in form did not load|LOGIN PRE: preAction|LOGIN_FORM_UNAVAILABLE/i.test(message)) return copy[0];
+  if (/PRE-LOGIN: no password field|HOME POST: login area not detected|Login field not found on page|sign-in form did not load|LOGIN PRE: preAction|LOGIN_FORM_UNAVAILABLE/i.test(message)) return copy[0];
   if (/rejected the login|INVALID_PASSWORD|LOGIN_FAILED/i.test(message)) return copy[1];
   if (/account is blocked|ACCOUNT_BLOCKED/i.test(message)) return copy[2];
   if (/TIMEOUT|TimeoutError|timed out|too long|did not respond/i.test(message)) return copy[4];

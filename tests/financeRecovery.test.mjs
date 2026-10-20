@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { assertFinanceListResponse, withFinanceReadTimeout } from "../src/lib/financeRequest.ts";
 
 // Execute the actual callbacks with fake services, never production data.
 function callbackFromFile(path, name, globals) {
@@ -39,12 +40,14 @@ test("ordinary tasks omit optional columns; subtasks and colors are preserved", 
 });
 
 function financeHarness() {
-  const state = { loading: false, unavailable: false, transactions: ["existing"], accounts: ["existing"] };
+  const state = { loading: false, refreshing: false, unavailable: false, transactions: ["existing"], accounts: ["existing"] };
   let fail = true;
   const globals = {
     user: { id: "user-a" },
     console: { warn() {} },
     setLoading: (value) => { state.loading = value; },
+    setRefreshingFinance: value => { state.refreshing = value; },
+    withFinanceReadTimeout,
     setFinanceUnavailable: (value) => { state.unavailable = value; },
     setPayments: () => {},
     setCsvCardSources: () => {},
@@ -93,4 +96,69 @@ test("retry after recovery loads cloud data and clears the error", async () => {
   assert.equal(state.loading, false);
   assert.equal(state.accounts[0].current_balance, 125);
   assert.equal(state.transactions[0].id, "cloud:tx");
+});
+
+test("read deadlines reject stalled requests without waiting forever", async () => {
+  await assert.rejects(withFinanceReadTimeout(new Promise(() => {}), 5), /FINANCE_READ_TIMEOUT/);
+  assert.equal(await withFinanceReadTimeout(Promise.resolve(7), 100), 7);
+  await assert.rejects(withFinanceReadTimeout(Promise.reject(new Error("read failed")), 100), /read failed/);
+});
+
+test("a missing or malformed list is never presented as an empty financial account", () => {
+  for (const value of [null, {}, [], { accounts: [], transactions: [] }, { accounts: {}, transactions: [], connections: [] }, { accounts: [null], transactions: [], connections: [] }]) {
+    assert.throws(() => assertFinanceListResponse(value), /INVALID_FINANCE_RESPONSE/);
+  }
+  assert.doesNotThrow(() => assertFinanceListResponse({ accounts: [], transactions: [], connections: [] }));
+});
+
+function connectorHarness() {
+  const state = { loading: false, providers: {}, connections: ["saved"], unavailable: false, connectionError: false, changed: 0 };
+  const invocations = [];
+  let status = "syncing";
+  let failed = false;
+  const load = callbackFromFile("../src/components/dashboards/CloudFinanceConnector.tsx", "load", {
+    setLoading: value => { state.loading = value; },
+    setProviders: value => { state.providers = value; },
+    setConnections: value => { state.connections = value; },
+    setServiceUnavailable: value => { state.unavailable = value; },
+    setConnectionsUnavailable: value => { state.connectionError = value; },
+    previousConnections: { current: [] },
+    onChanged: async () => { state.changed += 1; },
+    console: { warn() {} },
+    invoke: async action => {
+      invocations.push(action);
+      if (action === "providers") return { providers: { max: { name: "MAX", fields: ["username", "password"] } } };
+      if (action === "list") {
+        if (failed) throw new Error("Network down");
+        return { connections: [{ id: "test", status }] };
+      }
+      throw new Error("Worker health must not gate saved-data reads");
+    },
+  });
+  return { state, invocations, load, complete: () => { status = "active"; }, fail: () => { failed = true; } };
+}
+
+test("connection status reads do not wait for worker health or submit credentials", async () => {
+  const { state, invocations, load } = connectorHarness();
+  await load();
+  assert.deepEqual(invocations, ["providers", "list"]);
+  assert.equal(state.connections[0].status, "syncing");
+  assert.equal(state.unavailable, false);
+  assert.equal(state.connectionError, false);
+});
+
+test("polling a completed background MAX sync refreshes the ledger once", async () => {
+  const { state, load, complete } = connectorHarness();
+  await load(); complete(); await load(true); await load(true);
+  assert.equal(state.changed, 1);
+  assert.equal(state.connections[0].status, "active");
+});
+
+test("a failed connection-list refresh keeps prior records and marks status unknown", async () => {
+  const { state, load, fail } = connectorHarness();
+  await load(); fail(); await load();
+  assert.equal(state.connections[0].id, "test");
+  assert.equal(state.connectionError, true);
+  assert.equal(state.unavailable, false);
+  assert.equal(state.loading, false);
 });

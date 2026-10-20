@@ -48,8 +48,9 @@ replaceOnce(
     '{ factory: makeHome, enabled: ifBrowser },',
     '{ factory: makeHome, enabled: (state) => state.hasBrowser && state.options.companyId !== "visaCal" },',
     '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount"].includes(state.options.companyId) },',
+    '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount", "amex"].includes(state.options.companyId) },',
   ],
-  '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount", "amex"].includes(state.options.companyId) },',
+  '{ factory: makeHome, enabled: (state) => state.hasBrowser && !["visaCal", "discount", "amex", "max", "isracard"].includes(state.options.companyId) },',
   "direct login home-phase override",
 );
 replaceOnce(
@@ -132,6 +133,69 @@ const configuredAmexLogin = `var AMEX_LOGIN = {
   possibleResults: { success: ["https://he.americanexpress.co.il/personalarea/dashboard/", "https://web.americanexpress.co.il/transactions"] }
 };`;
 patchedSource = patchedSource.replace(amexLoginBlock, configuredAmexLogin);
+
+// These official password forms were verified without entering credentials.
+const cardLogins = [
+  { name: "MAX", company: "Max", id: "max", url: "https://www.max.co.il/login", host: "www.max.co.il", tab: "#login-password-link", password: "#password", username: "#user-name", submit: "#login-password app-user-login-form button.general-button.send-me-code", success: "https://www.max.co.il/homepage/personal" },
+  { name: "ISRACARD", company: "Isracard", id: "isracard", url: "https://digital.isracard.co.il/personalarea/Login/", host: "digital.isracard.co.il", tab: "#flip", password: "#otpLoginPwd", username: "#otpLoginId_ID", submit: "#otpLobbyFormPassword button[type=submit]", success: "https://digital.isracard.co.il/personalarea/dashboard/" },
+];
+for (const card of cardLogins) {
+  const oldLogin = patchedSource.match(new RegExp(`var ${card.name}_LOGIN = \\{[\\s\\S]*?\\n\\};`))?.[0];
+  if (!oldLogin) throw new Error(`${card.name} login configuration not found`);
+  const fields = [
+    { credentialKey: card.id === "max" ? "username" : "id", selectors: [{ kind: "css", value: card.username }] },
+    { credentialKey: "password", selectors: [{ kind: "css", value: card.password }] },
+    ...(card.id === "isracard" ? [{ credentialKey: "card6Digits", selectors: [{ kind: "css", value: "#cardnum" }] }] : []),
+  ];
+  const configured = `var ${card.name}_LOGIN = {
+  loginUrl: ${JSON.stringify(card.url)},
+  preAction: async (page) => {
+    const trustedHost = ${JSON.stringify(card.host)};
+    const assertOrigin = () => {
+      const current = new URL(page.url());
+      if (current.protocol !== "https:" || current.hostname !== trustedHost) {
+        throw new Error("LOGIN_UNTRUSTED_REDIRECT: credentials were not submitted");
+      }
+    };
+    assertOrigin();
+    if (!page.url().toLowerCase().startsWith(${JSON.stringify(card.url.toLowerCase())})) {
+      const response = await page.goto(${JSON.stringify(card.url)}, { waitUntil: "domcontentloaded", timeout: 45000 });
+      if ([403, 429].includes(response?.status())) throw new Error("WAF_BLOCKED: credentials were not submitted");
+    }
+    assertOrigin();
+    const password = page.locator(${JSON.stringify(card.password)});
+    if (!(await password.isVisible())) {
+      const tab = page.locator(${JSON.stringify(card.tab)});
+      try { await tab.waitFor({ state: "visible", timeout: 30000 }); }
+      catch { throw new Error("LOGIN_FORM_UNAVAILABLE: credentials were not submitted"); }
+      assertOrigin();
+      await tab.click({ timeout: 15000 });
+    }
+    try { await password.waitFor({ state: "visible", timeout: 30000 }); }
+    catch { throw new Error("LOGIN_FORM_UNAVAILABLE: credentials were not submitted"); }
+    assertOrigin();
+  },
+  fields: ${JSON.stringify(fields)},
+  submit: [{ kind: "css", value: ${JSON.stringify(card.submit)} }],
+  possibleResults: { success: [${JSON.stringify(card.success)}] }
+};`;
+  patchedSource = patchedSource.replace(oldLogin, configured);
+  replaceOnce(
+    `return createPipelineBuilder().withOptions(options).withBrowser().withDeclarativeLogin(${card.name}_LOGIN).withPreLogin().withBrowserApiDirect(${card.name}_SHAPE).build();`,
+    `return createPipelineBuilder().withOptions(options).withBrowser().withDeclarativeLogin(${card.name}_LOGIN).withBrowserApiDirect(${card.name}_SHAPE).build();`,
+    `${card.name} password-tab pre-gate`,
+  );
+}
+replaceOnce(
+  '...defineBank("https://www.max.co.il", CARD_CYCLE, SESSION_COOKIE),',
+  '...defineBank("https://www.max.co.il/login", CARD_CYCLE, SESSION_COOKIE),',
+  "MAX official login application",
+);
+replaceOnce(
+  '["isracard" /* Isracard */]: {\n    urls: { base: "https://www.isracard.co.il" },',
+  '["isracard" /* Isracard */]: {\n    urls: { base: "https://digital.isracard.co.il/personalarea/Login/" },',
+  "Isracard official login application",
+);
 
 if (patchedSource !== source) {
   await writeFile(bundlePath, patchedSource);

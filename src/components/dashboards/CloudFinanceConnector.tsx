@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { invokeFinanceBackend } from "@/lib/financeBackend";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -103,6 +103,8 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
+  const [connectionsUnavailable, setConnectionsUnavailable] = useState(false);
+  const previousConnections = useRef<CloudConnection[]>([]);
   const [credentialMode, setCredentialMode] = useState<"one_time" | "automatic">("one_time");
 
   const selected = providers[companyId];
@@ -113,24 +115,33 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
     [],
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (notifyCompletion = false) => {
     setLoading(true);
     try {
-      const [providerData, connectionData] = await Promise.all([
+      const [providerResult, connectionResult] = await Promise.allSettled([
         invoke("providers"),
         invoke("list"),
-        invoke("worker_status"),
       ]);
-      setProviders(providerData.providers || {});
-      setConnections(connectionData.connections || []);
-      setServiceUnavailable(false);
+      if (providerResult.status === "fulfilled" && providerResult.value.providers) {
+        setProviders(providerResult.value.providers);
+        setServiceUnavailable(false);
+      } else setServiceUnavailable(true);
+      if (connectionResult.status === "fulfilled" && Array.isArray(connectionResult.value.connections)) {
+        const next = connectionResult.value.connections;
+        const pendingIds = new Set(previousConnections.current.filter(item => ["pending", "syncing"].includes(item.status)).map(item => item.id));
+        const completed = next.some(item => pendingIds.has(item.id) && item.status === "active");
+        previousConnections.current = next;
+        setConnections(next);
+        setConnectionsUnavailable(false);
+        if (notifyCompletion && completed) await onChanged?.();
+      } else setConnectionsUnavailable(true);
     } catch (error) {
-      console.error("Failed to load cloud finance connector", error);
-      setServiceUnavailable(true);
+      console.warn("Cloud finance status could not be refreshed");
+      setConnectionsUnavailable(true);
     } finally {
       setLoading(false);
     }
-  }, [invoke]);
+  }, [invoke, onChanged]);
 
   useEffect(() => {
     load();
@@ -138,7 +149,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
 
   useEffect(() => {
     if (loading || !connections.some((connection) => connection.status === "syncing" || connection.status === "pending")) return;
-    const timer = window.setTimeout(() => void load(), 20_000);
+    const timer = window.setTimeout(() => void load(true), 20_000);
     return () => window.clearTimeout(timer);
   }, [connections, load, loading]);
 
@@ -152,7 +163,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   );
 
   const connect = async () => {
-    if (!canConnect) return;
+    if (!canConnect || busy || connectionsUnavailable) return;
     setBusy("connect");
     setConnections(current => current.map(connection => connection.metadata?.company_id === companyId && connection.status === 'error'
       ? { ...connection, status: 'syncing', last_error: null } : connection));
@@ -173,11 +184,13 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
       toast.error(financeErrorMessage(error, lang, "Connection failed"));
       await load();
     } finally {
+      setCredentials({});
       setBusy(null);
     }
   };
 
   const sync = async (connectionId: string) => {
+    if (busy || connectionsUnavailable) return;
     setBusy(connectionId);
     try {
       const result = await invoke("sync", { connectionId });
@@ -199,6 +212,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   };
 
   const remove = async (connectionId: string) => {
+    if (busy || connectionsUnavailable) return;
     if (!window.confirm(lang === "he"
       ? "לנתק את החיבור ולמחוק לצמיתות את פרטי ההתחברות המוצפנים? התנועות שכבר יובאו יישארו בהיסטוריה."
       : "Disconnect and permanently delete the encrypted credentials? Previously imported transactions will remain in history.")) return;
@@ -244,13 +258,14 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
           <AlertDescription>{labels.schedule}</AlertDescription>
         </Alert>
 
-        {serviceUnavailable ? (
+        {(serviceUnavailable || connectionsUnavailable) && (
           <Alert variant="destructive">
             <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>{lang === "he" ? "נדרשת הגדרת שרת" : "Server setup required"}</AlertTitle>
-            <AlertDescription>{labels.unavailable}</AlertDescription>
+            <AlertTitle>{lang === "he" ? "לא הצלחנו לעדכן את מצב החיבורים" : "Connection status could not be refreshed"}</AlertTitle>
+            <AlertDescription>{lang === "he" ? "המידע הקודם נשמר. רענון המצב אינו מנסה להתחבר שוב לחברת האשראי." : "Previous data is preserved. Refreshing status does not submit another institution login."}<Button variant="outline" size="sm" className="ms-2 mt-2" disabled={loading} onClick={() => void load()}>{lang === "he" ? "רענן מצב" : "Refresh status"}</Button></AlertDescription>
           </Alert>
-        ) : (
+        )}
+        {!serviceUnavailable && (
           <div className="space-y-4 rounded-2xl border bg-muted/15 p-4">
             <div className="space-y-1.5">
               <Label>{labels.provider}</Label>
@@ -306,7 +321,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
               </div>
             )}
 
-            {!(companyId === "amex" && onCsvFallback) && <Button onClick={connect} disabled={!canConnect || busy === "connect"} className="gap-2">
+            {!(companyId === "amex" && onCsvFallback) && <Button onClick={connect} disabled={!canConnect || !!busy || connectionsUnavailable || loading} className="gap-2">
               {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
               {labels.connect}
             </Button>}
@@ -324,7 +339,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
           <p className="text-xs text-muted-foreground">{labels.disconnectNote}</p>
           {loading ? (
             <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-          ) : connections.length === 0 ? (
+          ) : connections.length === 0 && !connectionsUnavailable ? (
             <p className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">{labels.empty}</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -343,7 +358,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
                   </div>
                   {connection.last_error && <p className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{financeErrorMessage(connection.last_error, lang, connection.last_error)}</p>}
                   <div className="flex flex-wrap gap-2">
-                    {connection.metadata?.credential_storage !== "none" && !(connection.metadata?.company_id === "amex" && onCsvFallback) && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={busy === connection.id}>
+                    {connection.metadata?.credential_storage !== "none" && !(connection.metadata?.company_id === "amex" && onCsvFallback) && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={!!busy || connectionsUnavailable || ["pending", "syncing"].includes(connection.status)}>
                       {busy === connection.id ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="me-1 h-3.5 w-3.5" />}
                       {labels.sync}
                     </Button>}
@@ -352,7 +367,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
                         <FileSpreadsheet className="h-3.5 w-3.5" />{lang === "he" ? "ייבוא CSV / Excel" : "Import CSV / Excel"}
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => remove(connection.id)} disabled={busy === connection.id}>
+                    <Button size="sm" variant="ghost" onClick={() => remove(connection.id)} disabled={!!busy || connectionsUnavailable || ["pending", "syncing"].includes(connection.status)}>
                       <Trash2 className="me-1 h-3.5 w-3.5" />{labels.remove}
                     </Button>
                   </div>

@@ -153,8 +153,8 @@ async function callWorker(payload: Record<string, unknown>) {
     new TextEncoder().encode(`${timestamp}.${requestBody}`),
   );
   const signatureHex = Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  const timeoutMs = payload.companyId === "visaCal" ? 45_000 : 180_000;
-  const signal = AbortSignal.timeout(timeoutMs);
+  // Return a pending response before the browser/edge deadline, not a false failure.
+  const signal = AbortSignal.timeout(45_000);
   let response: Response;
   try {
     response = await fetch(`${workerUrl}/sync`, {

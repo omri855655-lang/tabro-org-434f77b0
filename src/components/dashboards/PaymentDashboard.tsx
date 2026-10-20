@@ -29,6 +29,8 @@ import FinanceInsights from "@/components/dashboards/FinanceInsights";
 import RecurringPaymentReview, { type RecurringPaymentDraft } from "@/components/dashboards/RecurringPaymentReview";
 import FinanceOverview from "@/components/dashboards/FinanceOverview";
 import FinanceWorkspace from "@/components/dashboards/FinanceWorkspace";
+import WorkspacePanelBoundary from "@/components/WorkspacePanelBoundary";
+import { withFinanceReadTimeout } from "@/lib/financeRequest";
 import { cleanMerchantName, getFinanceCategoryGroup, inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
 import { financeCalendarDate, financeEntryCurrency, formatFinanceMoney } from "@/lib/financeInsights";
 import { futureStatementCharges } from "@/lib/cardStatement";
@@ -282,6 +284,8 @@ const PaymentDashboard = () => {
   const [requestedCsvProvider, setRequestedCsvProvider] = useState("");
   const [loading, setLoading] = useState(true);
   const [financeUnavailable, setFinanceUnavailable] = useState(false);
+  const [refreshingFinance, setRefreshingFinance] = useState(false);
+  const [financeRecoveryPanel, setFinanceRecoveryPanel] = useState<"connections" | "import" | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -433,9 +437,9 @@ const PaymentDashboard = () => {
 
   const fetchFinanceData = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    setRefreshingFinance(true);
     try {
-      const [paymentsResult, accountsResult, csvCardsResult, cloudFinanceResult] = await Promise.all([
+      const [paymentsResult, accountsResult, csvCardsResult, cloudFinanceResult] = await withFinanceReadTimeout(Promise.all([
         supabase
           .from("payment_tracking")
           .select("*")
@@ -451,22 +455,22 @@ const PaymentDashboard = () => {
           .select("id,provider,display_name,card_last_digits")
           .eq("user_id", user.id),
         invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list"),
-      ]);
+      ]));
 
-      let transactionsResult = await supabase
+      let transactionsResult = await withFinanceReadTimeout(supabase
         .from("financial_transactions")
           .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
         .eq("user_id", user.id)
-        .order("transaction_date", { ascending: false });
+        .order("transaction_date", { ascending: false }));
 
       // The original Tabro database may not have the display-only `hidden` column.
       // Falling back keeps historical and cloud data visible without mutating either store.
       if (transactionsResult.error) {
-        const fallbackResult = await supabase
+        const fallbackResult = await withFinanceReadTimeout(supabase
           .from("financial_transactions")
           .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data")
           .eq("user_id", user.id)
-          .order("transaction_date", { ascending: false });
+          .order("transaction_date", { ascending: false }));
         transactionsResult = {
           ...fallbackResult,
           data: fallbackResult.data?.map((transaction) => ({ ...transaction, hidden: false })) ?? null,
@@ -534,6 +538,7 @@ const PaymentDashboard = () => {
       setFinanceUnavailable(true);
     } finally {
       setLoading(false);
+      setRefreshingFinance(false);
     }
   }, [user]);
 
@@ -1392,6 +1397,7 @@ ${context}
 
   if (loading) return <div className="p-6 text-center text-muted-foreground">{t("loading" as any)}</div>;
   if (financeUnavailable) return (
+    <div className="mx-auto max-w-5xl space-y-4 p-4" dir={isRtl ? "rtl" : "ltr"}>
     <Card dir={isRtl ? "rtl" : "ltr"} role="alert">
       <CardHeader>
         <CardTitle>{isRtl ? "נתוני הכספים אינם זמינים כרגע" : "Finance data is currently unavailable"}</CardTitle>
@@ -1399,12 +1405,18 @@ ${context}
           ? "לא ניתן לחשב יתרה או תחזית מלאה עד שהשירות יחזור. זו אינה יתרת אפס, ולא נמחקו נתונים בפעולה הזו."
           : "Balances and forecasts cannot be calculated until the service is available. This is not a zero balance; this action did not delete data."}</CardDescription>
       </CardHeader>
-      <CardContent><Button onClick={() => void fetchFinanceData()}>{isRtl ? "נסה לטעון מחדש" : "Retry loading"}</Button></CardContent>
+      <CardContent className="flex flex-wrap gap-2"><Button disabled={refreshingFinance} onClick={() => void fetchFinanceData()}>{refreshingFinance ? (isRtl ? "מעדכן נתונים…" : "Refreshing…") : (isRtl ? "נסה לטעון מחדש" : "Retry loading")}</Button><Button variant="outline" onClick={() => setFinanceRecoveryPanel("connections")}>{isRtl ? "בדוק חיבור אשראי" : "Check card connection"}</Button><Button variant="outline" onClick={() => setFinanceRecoveryPanel("import")}>{isRtl ? "ייבוא CSV / Excel" : "Import CSV / Excel"}</Button></CardContent>
     </Card>
+    <p className="text-sm text-muted-foreground">{isRtl ? "אפשר להמשיך לשאר המסכים בתפריט. הניסיון החוזר כאן טוען נתונים בלבד ואינו שולח שוב פרטי כניסה לחברת האשראי." : "Other screens remain available from the menu. Retrying here only reads saved data; it does not submit another card login."}</p>
+    {financeRecoveryPanel && <WorkspacePanelBoundary resetKey={`finance-recovery:${financeRecoveryPanel}`}>
+      {financeRecoveryPanel === "connections" ? <CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={() => setFinanceRecoveryPanel("import")} /> : <div className="grid gap-4 md:grid-cols-2"><CreditCardConnect /><CreditCardImport onImported={fetchFinanceData} /></div>}
+    </WorkspacePanelBoundary>}
+    </div>
   );
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4 p-3 sm:p-6" dir={isRtl ? "rtl" : "ltr"}>
+      {refreshingFinance && <p role="status" className="rounded-xl border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">{isRtl ? "מעדכן נתונים שמורים. אפשר להמשיך להשתמש במסך." : "Refreshing saved data. You can keep using this screen."}</p>}
       <RecurringPaymentReview draft={recurringReview} title={dashboardEntries.find(item => item.id === recurringReview?.entryId)?.title} isRtl={isRtl} saving={savingRecurring}
           onChange={setRecurringReview} onClose={() => setRecurringReview(null)} onConfirm={async () => {
             if (savingRecurring || !recurringReview) return;
@@ -2074,7 +2086,7 @@ ${context}
           </div>
           <details className="group rounded-2xl border bg-background">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><span><strong className="block text-sm">{isRtl ? "חיבורים פעילים וסנכרון בנקים ואשראי" : "Connected sources & bank/card sync"}</strong><span className="mt-1 block text-xs text-muted-foreground">{isRtl ? "מצב חיבורים, סנכרון ידני, הוספה וניתוק. החיבורים הקיימים לא משתנים." : "Connection status, manual sync, add and disconnect. Existing connections are unchanged."}</span></span><ChevronDown className="h-4 w-4 shrink-0 group-open:rotate-180" aria-hidden="true" /></summary>
-            <div className="space-y-4 border-t p-3 sm:p-4"><BankConnect onChanged={fetchFinanceData} /><CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} /></div>
+            <div className="space-y-4 border-t p-3 sm:p-4"><WorkspacePanelBoundary resetKey="finance-bank"><BankConnect onChanged={fetchFinanceData} /></WorkspacePanelBoundary><WorkspacePanelBoundary resetKey="finance-cloud"><CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} /></WorkspacePanelBoundary></div>
           </details>
         </TabsContent>
       </FinanceWorkspace>

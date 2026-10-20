@@ -6,6 +6,7 @@ test('form load failures are not reported as incorrect passwords', () => {
   const result = financeErrorMessage(new Error('GENERIC: LOGIN PRE: preAction — locator.waitFor: Timeout 30000ms exceeded.'), 'he');
   assert.match(result, /טרם נבדקה/);
   assert.doesNotMatch(result, /דחתה/);
+  assert.match(financeErrorMessage('GENERIC: HOME POST: login area not detected', 'he'), /טרם נבדקה/);
 });
 test('all supported languages sanitize raw errors and distinguish a blocked institution', () => {
   for (const lang of ['he', 'en', 'es', 'zh', 'ar', 'ru']) {
