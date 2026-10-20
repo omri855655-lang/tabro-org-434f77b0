@@ -2033,7 +2033,7 @@ ${context}
                   <p className="text-sm font-semibold">{isRtl ? "מתי ייפרעו חיובי הכרטיסים?" : "When are your card payments due?"}</p>
                   <p className="text-xs text-muted-foreground">{isRtl
                     ? "תאריכי חיוב מדווחים משמשים קודם. יום פירעון שתבחר מאפשר אומדן לתנועות ללא תאריך; לא נוצרת הוצאה קבועה והסכום לא מוכפל בכל חודש."
-                    : "Choose a preferred day per card. A day alone creates no charge; confirm the full date and statement amount when importing."}</p>
+                    : "Reported debit dates take priority. A selected billing day estimates undated transactions; it does not create recurring expenses or repeat the amount every month."}</p>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                   {forecastCardAccounts.map((account) => {
