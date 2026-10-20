@@ -265,6 +265,7 @@ Deno.serve(async (request) => {
         // Keep schema compatibility without exposing raw provider payloads.
         accounts = (accountsResult.data || []).map((account) => ({
           id: account.id,
+          connection_id: account.connection_id,
           external_account_id: account.external_account_id,
           provider_name: account.provider_name,
           account_type: account.account_type,
@@ -273,10 +274,11 @@ Deno.serve(async (request) => {
           currency: account.currency,
           current_balance: account.current_balance,
           available_balance: account.available_balance,
+          last_synced_at: account.last_synced_at,
         }));
 
         let transactionsResult = await service.from("financial_transactions")
-          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
+          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
           .eq("user_id", user.id)
           .eq("source_type", "cloud_scraper")
           .in("source_connection_id", connectionIds)
@@ -284,7 +286,7 @@ Deno.serve(async (request) => {
 
         if (transactionsResult.error && /hidden/i.test(transactionsResult.error.message || "")) {
           const fallbackResult = await service.from("financial_transactions")
-            .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data")
+            .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data")
             .eq("user_id", user.id)
             .eq("source_type", "cloud_scraper")
             .in("source_connection_id", connectionIds)
@@ -304,6 +306,10 @@ Deno.serve(async (request) => {
         return {
           ...transaction,
           account_external_id: clean(safeRawData.account_external_id, 180) || null,
+          raw_data: {
+            billing_date: clean(safeRawData.billing_date, 10) || null,
+            status: clean(safeRawData.status, 30) || null,
+          },
         };
       });
       return json(request, { connections: connections || [], accounts, transactions });

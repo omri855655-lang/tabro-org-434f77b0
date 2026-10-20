@@ -29,6 +29,7 @@ function load(relative) {
 }
 const Overview = load("src/components/dashboards/FinanceOverview.tsx").default;
 const Workspace = load("src/components/dashboards/FinanceWorkspace.tsx").default;
+const CardOverview = load("src/components/dashboards/CardCashflowOverview.tsx").default;
 const paymentSource = readFileSync(path.join(root, "src/components/dashboards/PaymentDashboard.tsx"), "utf8");
 const paymentAst = ts.createSourceFile("PaymentDashboard.tsx", paymentSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const nodes = [];
@@ -39,6 +40,43 @@ const panelValue = node => node.openingElement.attributes.properties.find(prop =
 const expectedPanels = ["overview", "transactions", "insights", "forecast", "credit-cards", "add", "budget", "history", "ai", "guides", "clubs"];
 const renderOverview = (entries = [], accounts = []) => renderToStaticMarkup(React.createElement(Overview, { entries, accounts, isRtl: true, selectedMonth: "2026-09" }));
 const entry = (id, amount, overrides = {}) => ({ id, title: id, amount, currency: "ILS", category: "קניות", payment_type: "expense", created_at: "2026-09-01", paid: true, ...overrides });
+
+test("card overview shows real next debit, unknown months, estimates and reversible hiding", () => {
+  const card = { key: 'max:1234:ILS', account: { display_name:'MAX', masked_number:'****1234', external_account_id:'max:1234' }, charges:[{ date:'2026-11-10', amount:123.45, credit:0, estimated:true }], undated:0, foreignCurrencies:[] };
+  const props = { cards:[card], hiddenKeys:[], onVisibility(){}, onBillingDay(){}, saving:false, isRtl:true };
+  const html = renderToStaticMarkup(React.createElement(CardOverview, props));
+  assert.match(html,/123\.45/);
+  assert.match(html,/אומדן לפי יום פירעון/);
+  assert.match(html,/ללא אומדן/);
+  assert.match(html,/הסר מהתצוגה/);
+  const hidden = renderToStaticMarkup(React.createElement(CardOverview,{...props,hiddenKeys:[card.key]}));
+  assert.doesNotMatch(hidden,/123\.45/);
+  assert.match(hidden,/ההיסטוריה נשמרת וחיובים ידועים ממשיכים/);
+  assert.match(hidden,/החזר/);
+});
+
+test("actual card visibility callback persists preferences only, retaining forecast inputs", async () => {
+  const declaration=nodes.find(node=>ts.isVariableDeclaration(node)&&node.name.getText(paymentAst)==='setCardVisibility');
+  const js=ts.transpileModule(`const callback=${declaration.initializer.getText(paymentAst)}; callback;`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  const writes=[];
+  const callback=vm.runInNewContext(js,{hiddenCardKeys:['old'],Set,isRtl:true,toast:{success(){}},saveCardPreference:async patch=>{writes.push(JSON.parse(JSON.stringify(patch)));return true;}});
+  await callback('card',true);
+  assert.deepEqual(writes,[{hiddenCardKeys:['old','card']}]);
+  assert.doesNotMatch(paymentSource,/hiddenCardKeys\.includes\([^)]*\).*creditCardUpcoming/);
+});
+
+test("actual preference write preserves notification settings and never touches financial records", async () => {
+  const declaration=nodes.find(node=>ts.isVariableDeclaration(node)&&node.name.getText(paymentAst)==='saveCardPreference');
+  const js=ts.transpileModule(`const callback=${declaration.initializer.arguments[0].getText(paymentAst)}; callback;`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  const saved=[];
+  const states=[];
+  const supabase={from(table){assert.equal(table,'user_preferences');return {select(){return this;},eq(column,value){assert.equal(column,'user_id');assert.equal(value,'owner');return this;},async maybeSingle(){return {data:{notification_settings:{push:true,financeForecast:{other:'keep'}}},error:null};},async upsert(value){saved.push(value);return {error:null};}};}};
+  const callback=vm.runInNewContext(js,{user:{id:'owner'},savingCardPreferences:false,setSavingCardPreferences(){},setHiddenCardKeys:value=>states.push([...value]),setCardBillingDays(){},supabase,withFinanceReadTimeout:promise=>promise,isRtl:true,toast:{error(){assert.fail('unexpected save error');}}});
+  assert.equal(await callback({hiddenCardKeys:['card']}),true);
+  assert.equal(saved[0].notification_settings.push,true);
+  assert.equal(saved[0].notification_settings.financeForecast.other,'keep');
+  assert.deepEqual(states,[['card']]);
+});
 
 test("every finance capability keeps exactly one reachable tab panel", () => {
   assert.deepEqual(panels.map(panelValue).sort(), [...expectedPanels].sort());

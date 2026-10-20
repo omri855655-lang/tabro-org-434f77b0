@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { Building2, ChevronDown, CreditCard, Landmark, Wallet } from "lucide-react";
 import { summarizeLiquidBalances } from "@/lib/financeBalances";
 import { financeCalendarDate, financeEntryCurrency, formatFinanceMoney } from "@/lib/financeInsights";
@@ -29,9 +30,10 @@ interface FinanceOverviewProps {
   accounts: OverviewAccount[];
   isRtl: boolean;
   selectedMonth: string;
+  cardSection?: ReactNode;
 }
 
-export default function FinanceOverview({ entries, accounts, isRtl, selectedMonth }: FinanceOverviewProps) {
+export default function FinanceOverview({ entries, accounts, isRtl, selectedMonth, cardSection }: FinanceOverviewProps) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [dayMonth, setDayMonth] = useState(selectedMonth);
   const activeDay = dayMonth === selectedMonth ? selectedDay : null;
@@ -58,7 +60,7 @@ export default function FinanceOverview({ entries, accounts, isRtl, selectedMont
     const key = `${account.provider_name || ""}:${account.external_account_id}`;
     if (!uniqueAccounts.has(key)) uniqueAccounts.set(key, account);
   });
-  const accountList = [...uniqueAccounts.values()];
+  const accountList = [...uniqueAccounts.values()].filter(account => !cardSection || account.account_type?.toUpperCase() !== "CARD");
   const liquid = summarizeLiquidBalances(accountList);
   const hasLiquidBalance = accountList.some(account => account.account_type?.toUpperCase() !== "CARD"
     && (!account.currency || account.currency === "ILS")
@@ -102,6 +104,8 @@ export default function FinanceOverview({ entries, accounts, isRtl, selectedMont
       <div className="flex items-center gap-3"><span className="rounded-xl bg-background p-2.5"><Wallet className="h-5 w-5 text-sky-700 dark:text-sky-300" aria-hidden="true" /></span><div><p className="text-sm font-semibold">{isRtl ? "יתרה נזילה מדווחת" : "Reported liquid balance"}</p><p className="text-xs text-muted-foreground">{isRtl ? "חשבונות שקליים בלבד, ללא מסגרת כרטיס" : "ILS accounts only, excluding card limits"}</p></div></div>
       <strong className="text-xl tabular-nums">{hasLiquidBalance ? money(liquid.liquid) : (isRtl ? "אין נתון זמין" : "No balance available")}</strong>
     </div>
+
+    {cardSection}
 
     <div className="grid items-start gap-3 sm:grid-cols-2">
       <details className={detailClass}>

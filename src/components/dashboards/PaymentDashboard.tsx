@@ -28,12 +28,13 @@ import ManualTransactionForm from "@/components/ManualTransactionForm";
 import FinanceInsights from "@/components/dashboards/FinanceInsights";
 import RecurringPaymentReview, { type RecurringPaymentDraft } from "@/components/dashboards/RecurringPaymentReview";
 import FinanceOverview from "@/components/dashboards/FinanceOverview";
+import CardCashflowOverview from "@/components/dashboards/CardCashflowOverview";
 import FinanceWorkspace from "@/components/dashboards/FinanceWorkspace";
 import WorkspacePanelBoundary from "@/components/WorkspacePanelBoundary";
 import { withFinanceReadTimeout } from "@/lib/financeRequest";
 import { cleanMerchantName, getFinanceCategoryGroup, inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
 import { financeCalendarDate, financeEntryCurrency, formatFinanceMoney } from "@/lib/financeInsights";
-import { futureStatementCharges } from "@/lib/cardStatement";
+import { buildCardCashflows, cashflowCardKey } from "@/lib/cardCashflow";
 import { summarizeLiquidBalances } from "@/lib/financeBalances";
 import { buildFinanceCoach, canConfirmFinanceRefund, type RefundSelection } from "@/lib/financeCoach";
 
@@ -70,12 +71,13 @@ interface FinancialTransaction {
   description: string | null;
   merchant: string | null;
   transaction_date: string;
+  posted_date?: string | null;
   created_at: string;
   provider: string | null;
   source_type: string;
   source_connection_id?: string | null;
   account_external_id?: string | null;
-  raw_data?: { account_external_id?: string | null; billing_date?: string | null; statement_credit?: boolean; refund_expense_id?: string | null; refund_category?: string | null } | null;
+  raw_data?: { account_external_id?: string | null; billing_date?: string | null; statement_credit?: boolean; status?: string | null; refund_expense_id?: string | null; refund_category?: string | null } | null;
   backend?: "legacy" | "cloud";
   hidden?: boolean;
 }
@@ -327,6 +329,8 @@ const PaymentDashboard = () => {
   const [clubBalance, setClubBalance] = useState("");
   const [clubExpiry, setClubExpiry] = useState("");
   const [cardBillingDays, setCardBillingDays] = useState<Record<string, number>>({});
+  const [hiddenCardKeys, setHiddenCardKeys] = useState<string[]>([]);
+  const [savingCardPreferences, setSavingCardPreferences] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -341,42 +345,63 @@ const PaymentDashboard = () => {
         const settings = data?.notification_settings as Record<string, any> | null;
         const savedDays = settings?.financeForecast?.cardBillingDays;
         if (savedDays && typeof savedDays === "object") setCardBillingDays(savedDays);
+        const hidden = settings?.financeForecast?.hiddenCardKeys;
+        if (Array.isArray(hidden)) setHiddenCardKeys(hidden.filter((key: unknown) => typeof key === "string"));
       });
     return () => { cancelled = true; };
   }, [user]);
 
-  const saveCardBillingDay = useCallback(async (account: FinancialAccount, day: number | null) => {
-    if (!user) return;
-    const key = cardPreferenceKey(account);
+  const saveCardPreference = useCallback(async (patch: { cardBillingDays?: Record<string, number>; hiddenCardKeys?: string[] }) => {
+    if (!user || savingCardPreferences) return false;
+    setSavingCardPreferences(true);
+    try {
+      const { data, error: readError } = await withFinanceReadTimeout(supabase
+        .from("user_preferences")
+        .select("notification_settings")
+        .eq("user_id", user.id)
+        .maybeSingle());
+      if (readError) throw readError;
+      const settings = (data?.notification_settings as Record<string, any> | null) || {};
+      const { error } = await withFinanceReadTimeout(supabase.from("user_preferences").upsert({
+        user_id: user.id,
+        notification_settings: {
+          ...settings,
+          financeForecast: {
+            ...(settings.financeForecast || {}),
+            ...patch,
+          },
+        } as any,
+      }, { onConflict: "user_id" }));
+      if (error) throw error;
+      if (patch.cardBillingDays) setCardBillingDays(patch.cardBillingDays);
+      if (patch.hiddenCardKeys) setHiddenCardKeys(patch.hiddenCardKeys);
+      return true;
+    } catch {
+      toast.error(isRtl ? "לא הצלחנו לשמור את הגדרות הכרטיס" : "Could not save card preferences");
+      return false;
+    } finally { setSavingCardPreferences(false); }
+  }, [isRtl, savingCardPreferences, user]);
+
+  const saveCardBillingDay = useCallback(async (account: FinancialAccount | string, day: number | null) => {
+    const key = typeof account === "string" ? account : cashflowCardKey(account);
     const nextDays = { ...cardBillingDays };
+    financialAccounts.filter(item => cashflowCardKey(item) === key).forEach(item => { delete nextDays[cardPreferenceKey(item)]; });
     if (day == null) delete nextDays[key];
     else nextDays[key] = Math.min(31, Math.max(1, day));
-    setCardBillingDays(nextDays);
-
-    const { data } = await supabase
-      .from("user_preferences")
-      .select("notification_settings")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const settings = (data?.notification_settings as Record<string, any> | null) || {};
-    const { error } = await supabase.from("user_preferences").upsert({
-      user_id: user.id,
-      notification_settings: {
-        ...settings,
-        financeForecast: {
-          ...(settings.financeForecast || {}),
-          cardBillingDays: nextDays,
-        },
-      } as any,
-    }, { onConflict: "user_id" });
-    if (error) {
-      toast.error(isRtl ? "לא הצלחנו לשמור את יום החיוב" : "Could not save billing day");
-      return;
-    }
+    // Clear the previous per-source preference when moving to a stable card key.
+    if (typeof account !== "string") delete nextDays[cardPreferenceKey(account)];
+    if (!(await saveCardPreference({ cardBillingDays: nextDays }))) return;
     toast.success(day == null
-      ? (isRtl ? "הצעת יום החיוב הוסרה" : "Preferred billing day cleared")
-      : (isRtl ? `יום החיוב המוצע נשמר: ${day} בחודש` : `Preferred billing day saved: day ${day}`));
-  }, [cardBillingDays, isRtl, user]);
+      ? (isRtl ? "אומדן יום החיוב הוסר" : "Billing-day estimate cleared")
+      : (isRtl ? `יום הפירעון נשמר: ${day} בחודש. תנועות ללא תאריך יחושבו כאומדן.` : `Billing day saved: ${day}. Undated transactions are estimated.`));
+  }, [cardBillingDays, financialAccounts, isRtl, saveCardPreference]);
+
+  const setCardVisibility = async (key: string, hidden: boolean) => {
+    const next = hidden ? [...new Set([...hiddenCardKeys, key])] : hiddenCardKeys.filter(value => value !== key);
+    if (await saveCardPreference({ hiddenCardKeys: next })) toast.success(isRtl
+      ? (hidden ? "הכרטיס הוסר מהתצוגה בלבד; ההיסטוריה והתחזית נשמרו" : "הכרטיס הוחזר לתצוגה")
+      : (hidden ? "Card hidden; history and forecast preserved" : "Card restored"));
+  };
 
   // Fetch budget target
   useEffect(() => {
@@ -459,7 +484,7 @@ const PaymentDashboard = () => {
 
       let transactionsResult = await withFinanceReadTimeout(supabase
         .from("financial_transactions")
-          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
+          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false }));
 
@@ -468,7 +493,7 @@ const PaymentDashboard = () => {
       if (transactionsResult.error) {
         const fallbackResult = await withFinanceReadTimeout(supabase
           .from("financial_transactions")
-          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, created_at, provider, source_type, source_connection_id, raw_data")
+          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data")
           .eq("user_id", user.id)
           .order("transaction_date", { ascending: false }));
         transactionsResult = {
@@ -997,6 +1022,12 @@ const PaymentDashboard = () => {
     return [...cards.values()];
   }, [financialAccounts, transactions]);
 
+  const cardCashflows = useMemo(() => {
+    const now = dateOnly(new Date());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90);
+    return buildCardCashflows(financialAccounts, transactions, format(now, "yyyy-MM-dd"), format(end, "yyyy-MM-dd"), cardBillingDays);
+  }, [financialAccounts, transactions, cardBillingDays]);
+
   const cashFlowForecast = useMemo(() => {
     const salaryPattern = /משכורת|שכר|salary|payroll|עובדי\s*מדינ/i;
     const now = dateOnly(new Date());
@@ -1026,12 +1057,11 @@ const PaymentDashboard = () => {
       return occurrences;
     });
 
-    const creditCardUpcoming: Array<{ payment: Payment; occurrence: Date }> = csvCardSources.flatMap((card) =>
-      futureStatementCharges(transactions.filter(transaction => financeEntryCurrency(transaction) === "ILS"), `csv-card:${card.id}`, format(now, "yyyy-MM-dd"), format(horizonEnd, "yyyy-MM-dd"))
-        .map(({ amount, billingDate }) => ({
+    const creditCardUpcoming: Array<{ payment: Payment; occurrence: Date }> = cardCashflows.flatMap((card) =>
+      card.charges.filter(charge => charge.amount > 0).map(({ amount, date: billingDate, estimated }) => ({
           payment: {
-            id: `card-statement-csv-card:${card.id}-${billingDate}`,
-            title: `${isRtl ? "חיוב מהפירוט" : "Statement charge"} · ${card.display_name || card.provider} ••••${card.card_last_digits || ""}`,
+            id: `card-statement-${card.account.external_account_id}-${billingDate}`,
+            title: `${estimated ? (isRtl ? "אומדן חיוב" : "Estimated charge") : (isRtl ? "חיוב לפי תנועות" : "Charge from transactions")} · ${card.account.display_name || card.account.provider_name} ${card.account.masked_number || ""}`,
             amount: Math.round(amount * 100) / 100,
             currency: "ILS",
             category: isRtl ? "כרטיס אשראי" : "Credit card",
@@ -1041,10 +1071,10 @@ const PaymentDashboard = () => {
             paid: false,
             recurring: false,
             recurring_frequency: null,
-            recurrence_status: "statement",
+            recurrence_status: estimated ? "estimated" : "statement",
             recurrence_end_date: null,
             recurrence_source_transaction_id: null,
-            notes: isRtl ? "סכום לפי הפירוט; מועד החיוב אושר בעת הייבוא" : "Amount from the statement; billing date confirmed at import",
+            notes: estimated ? (isRtl ? "אומדן מתנועות ללא תאריך חיוב, לפי יום הפירעון שבחרת" : "Undated transaction estimate using your selected billing day") : (isRtl ? "לפי התנועות ותאריכי החיוב שדווחו; אינו חיוב סופי מאושר" : "Based on reported transactions and debit dates; not a final confirmed statement"),
             sheet_name: "forecast",
             archived: false,
             hidden: false,
@@ -1115,8 +1145,9 @@ const PaymentDashboard = () => {
       .filter(({ payment }) => payment.payment_type === "expense" && payment.recurring)
       .reduce((sum, { payment }) => sum + payment.amount, 0);
     const oneOffExpenses = upcoming
-      .filter(({ payment }) => payment.payment_type === "expense" && !payment.recurring)
+      .filter(({ payment }) => payment.payment_type === "expense" && !payment.recurring && payment.payment_method !== "credit_card_statement")
       .reduce((sum, { payment }) => sum + payment.amount, 0);
+    const creditCardExpenses = creditCardUpcoming.reduce((sum, { payment }) => sum + payment.amount, 0);
 
     const lowestPoint = timeline.reduce(
       (lowest, item) => item.runningBalance < lowest.balance
@@ -1133,6 +1164,7 @@ const PaymentDashboard = () => {
       plannedIncome,
       recurringExpenses,
       oneOffExpenses,
+      creditCardExpenses,
       projectedBalance: projectedAt(90),
       upcoming: timeline,
       projected30: projectedAt(30),
@@ -1144,7 +1176,7 @@ const PaymentDashboard = () => {
       estimatedSalary,
       creditCardForecasts: creditCardUpcoming.length,
     };
-  }, [csvCardSources, estimatedSalary, financialAccounts, isRtl, payments, transactions]);
+  }, [cardCashflows, estimatedSalary, financialAccounts, isRtl, payments]);
 
   const csvCardForecasts = useMemo(() => csvCardSources.map((card) => ({
     card,
@@ -1445,7 +1477,7 @@ ${context}
         </Button>
         }>
       <TabsContent value="overview" className="space-y-4">
-        <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} />
+        <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} cardSection={<CardCashflowOverview cards={cardCashflows} hiddenKeys={hiddenCardKeys} onVisibility={(key, hidden) => void setCardVisibility(key, hidden)} onBillingDay={(key, day) => void saveCardBillingDay(key, day)} saving={savingCardPreferences} isRtl={isRtl} />} />
         <div className="grid gap-3 sm:grid-cols-3">
           {[
             { tab: "insights", title: isRtl ? "לאן הכסף הולך?" : "Where does it go?", detail: isRtl ? "קטגוריות, זיכויים ורעיונות לחיסכון" : "Categories, refunds and savings ideas", icon: BarChart3 },
@@ -1499,7 +1531,8 @@ ${context}
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "יתרה נזילה כעת" : "Liquid now"}</p><strong>₪{cashFlowForecast.liquidBalance.toLocaleString()}</strong></div>
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הכנסות צפויות ב־90 יום" : "Expected income · 90 days"}</p><strong className="text-emerald-600">+₪{cashFlowForecast.plannedIncome.toLocaleString()}</strong>{cashFlowForecast.estimatedSalary && <small className="mt-1 block text-emerald-700">{isRtl ? `כולל משכורת משוערת לפי ${cashFlowForecast.estimatedSalary.samples} חודשים` : `Includes salary estimate from ${cashFlowForecast.estimatedSalary.samples} months`}</small>}</div>
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות קבועות ב־90 יום" : "Recurring expenses · 90 days"}</p><strong className="text-red-600">-₪{cashFlowForecast.recurringExpenses.toLocaleString()}</strong></div>
-              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "הוצאות חד־פעמיות ב־90 יום" : "One-off expenses · 90 days"}</p><strong className="text-red-600">-₪{cashFlowForecast.oneOffExpenses.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "חד־פעמיות, ללא חיובי אשראי" : "One-off expenses, excluding card debits"}</p><strong className="text-red-600">-₪{cashFlowForecast.oneOffExpenses.toLocaleString()}</strong></div>
+              <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "חיובי אשראי לפי נתונים ואומדנים · 90 יום" : "Card debits from data & estimates · 90 days"}</p><strong className="text-red-600">-₪{cashFlowForecast.creditCardExpenses.toLocaleString()}</strong><small className="block text-muted-foreground">{isRtl ? "כלולים ביתרה החזויה; חודשים ללא נתון אינם מחושבים" : "Included in projected balance; unknown months excluded"}</small></div>
             </div>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-background/80 p-3"><p className="text-xs text-muted-foreground">{isRtl ? "בעוד 30 יום" : "In 30 days"}</p><strong className={cashFlowForecast.projected30 >= 0 ? "text-emerald-600" : "text-red-600"}>₪{cashFlowForecast.projected30.toLocaleString()}</strong></div>
@@ -1999,7 +2032,7 @@ ${context}
                 <div>
                   <p className="text-sm font-semibold">{isRtl ? "מתי ייפרעו חיובי הכרטיסים?" : "When are your card payments due?"}</p>
                   <p className="text-xs text-muted-foreground">{isRtl
-                    ? "בחר יום פירעון מוצע לכל כרטיס. יום לבדו לא יוצר חיוב; בעת ייבוא פירוט תאשר תאריך מלא וסכום מהקובץ."
+                    ? "תאריכי חיוב מדווחים משמשים קודם. יום פירעון שתבחר מאפשר אומדן לתנועות ללא תאריך; לא נוצרת הוצאה קבועה והסכום לא מוכפל בכל חודש."
                     : "Choose a preferred day per card. A day alone creates no charge; confirm the full date and statement amount when importing."}</p>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -2012,7 +2045,7 @@ ${context}
                           {account.display_name || account.provider_name || (isRtl ? "כרטיס אשראי" : "Credit card")}
                           {lastFour ? ` ••••${lastFour}` : ""}
                         </span>
-                        <Select value={cardBillingDays[key] ? String(cardBillingDays[key]) : "auto"}
+                        <Select disabled={savingCardPreferences} value={cardBillingDays[cashflowCardKey(account)] || cardBillingDays[key] ? String(cardBillingDays[cashflowCardKey(account)] || cardBillingDays[key]) : "auto"}
                           onValueChange={(value) => void saveCardBillingDay(account, value === "auto" ? null : Number(value))}>
                           <SelectTrigger className="h-8 w-28 shrink-0"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -2078,7 +2111,7 @@ ${context}
                     const matchingAccount = forecastCardAccounts.find((account) =>
                       cardIssuerKey(account.provider_name) === cardIssuerKey(card.provider)
                       && account.masked_number?.endsWith(card.card_last_digits || "----"));
-                    return cardBillingDays[matchingAccount ? cardPreferenceKey(matchingAccount) : `${card.provider}:csv-card:${card.id}`];
+                    return matchingAccount ? (cardBillingDays[cashflowCardKey(matchingAccount)] || cardBillingDays[cardPreferenceKey(matchingAccount)]) : cardBillingDays[`${card.provider}:csv-card:${card.id}`];
                   }} />
                 </div>
               </div>
