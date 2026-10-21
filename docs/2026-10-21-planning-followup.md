@@ -11,7 +11,7 @@
 
 ## Verification
 
-- All 166 Node tests passed, including actual project persistence callbacks with local transports and partial/zero-row failures.
+- All 168 Node tests passed, including actual project persistence callbacks with local transports, partial/zero-row failures and report-modal input isolation.
 - App TypeScript and production build passed. Targeted ESLint and diff whitespace checks passed; repository-wide legacy lint is not claimed clean.
 - Browser fixture uses fictional records and injected local save/link/AI transports only. Verified failed saves, public/course read-only controls, timeout/cancel/error recovery, deduplicated retry, successful fake reply, local text-file loading, explicit link creation and disable.
 - Verified all six interface languages. At 390px Hebrew viewport, document width equals viewport width; timeline scroll remains internal.
@@ -24,3 +24,10 @@
 - Direct American Express login remains blocked; imported statements are the temporary path. No new direct bank connection was attempted in this batch.
 - Full legacy-screen translations, Outlook parity, broader project redesign, FocusTown parity/native blocking, mail delivery verification and development dependency security findings remain separate backlog items.
 - Frontend publication and live read-only evidence are recorded separately after deployment, not inferred from a local build.
+
+## Live follow-up
+
+- Planning release `bc0a3db` was published through Lovable; production entry and ProjectsManager, PlanningAdvisor and CoursesManager chunks returned HTTP 200. Advisor timeout and public payload-validation markers were present in the public assets.
+- The signed-in live Gantt opened for an existing project. Its report showed seven real task rows plus a header without changing tasks. Invalid public tokens showed the localized inactive-link page.
+- Live testing exposed a nested Radix/native-dialog interaction: the first report click could dismiss the underlying Gantt instead of activating the report button. A follow-up makes report pointer events explicit, isolates pointer/focus input, and handles report Escape before the underlying dismiss layer. A real Radix fixture verified one-click report close and Escape both preserve the original modal and restore focus.
+- Native operating-system printing/PDF output and actual AI service responses remain unverified. No public production link was created.

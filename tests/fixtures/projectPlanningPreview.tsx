@@ -7,6 +7,8 @@ import {PlanningAdvisorPanel} from '../../src/components/PlanningAdvisor';
 import {GanttSharePanel} from '../../src/components/projects/ProjectGanttShareLink';
 import {type AdvisorRequest} from '../../src/lib/planningAdvisor';
 import {addCalendarDays,toLocalDateKey} from '../../src/lib/projectGantt';
+import {Dialog,DialogContent,DialogTitle} from '../../src/components/ui/dialog';
+import {Button} from '../../src/components/ui/button';
 import '../../src/index.css';
 
 const today=new Date();
@@ -20,6 +22,7 @@ export function ProjectPlanningPreview(){
   const {lang,setLang}=useLanguage();
   const [tasks,setTasks]=useState(initial),[mode,setMode]=useState('private'),[ai,setAi]=useState('success'),[fail,setFail]=useState(false),[changes,setChanges]=useState(0),[links,setLinks]=useState(0);
   const [target,setTarget]=useState(toLocalDateKey(addCalendarDays(today,20)));
+  const [modal,setModal]=useState(false);
   const check=()=>{if(fail)throw new Error('Fixture-only save failure');setChanges(count=>count+1);};
   const ask:AdvisorRequest=async()=>{if(ai==='error')throw new Error('Fixture-only AI failure');if(ai==='wait')return new Promise(()=>{});return 'Fictional advice only: start with research, then review the delivery date. No server was contacted.';};
   return <main className="mx-auto max-w-6xl space-y-4 p-4">
@@ -28,6 +31,8 @@ export function ProjectPlanningPreview(){
     <div className="flex h-[680px] min-w-0"><ProjectGantt project={{id:'fictional',title:'Demo project',description:'Fictional UI test only',target_date:target}} tasks={tasks} kind={mode==='course'?'course':'project'} readOnly={mode!=='private'} audience={mode==='public'?'public':'private'} onUpdateTask={async(id,updates)=>{check();setTasks(rows=>rows.map(row=>row.id===id?{...row,...updates}:row));}} onBulkUpdate={async(updates)=>{check();setTasks(rows=>rows.map(row=>({...row,due_date:updates.find(update=>update.id===row.id)?.due_date || row.due_date})));}} onAddTemplate={async(rows)=>{check();setTasks(tasks=>[...tasks,...rows.map((row,index)=>({...row,id:`fake-${tasks.length+index}`,sort_order:tasks.length+index,completed:false,urgent:false,status:'לא התחיל'}))]);}} onUpdateProjectTarget={async date=>{check();setTarget(date);}}/></div>
     <PlanningAdvisorPanel key={ai} storageKey="fixture:planning-advisor:20261021" title="Demo project" context="Fictional test project" requestAdvice={ask}/>
     <GanttSharePanel projectId="fictional" projectTitle="Demo project" createLinkRequest={async()=>{setLinks(count=>count+1);return '00000000-0000-0000-0000-000000000000';}} disableLinkRequest={async()=>{setLinks(count=>count+1);}}/>
+    <Button onClick={()=>setModal(true)}>Open modal print fixture</Button>
+    <Dialog open={modal} onOpenChange={setModal}><DialogContent aria-describedby={undefined}><DialogTitle>Modal report fixture</DialogTitle><Button onClick={()=>{void import('../../src/lib/printDocument').then(({printDocument})=>printDocument('Nested modal report',['Task'],[['Fictional task']], '',{lang,dir:lang==='he'||lang==='ar'?'rtl':'ltr'}));}}>Preview nested report</Button></DialogContent></Dialog>
     <Toaster/>
   </main>;
 }

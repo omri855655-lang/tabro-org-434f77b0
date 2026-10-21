@@ -24,7 +24,7 @@ export function printDocument(title: string, columns: string[], rows: unknown[][
   const text = escapePrintText;
   report.innerHTML = `<style>
     @page{size:A4 landscape;margin:14mm}
-    [data-tabro-report]{position:fixed;inset:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;overflow:auto;border:0;padding:24px;background:white;color:#172b40;font-family:Arial,sans-serif}
+    [data-tabro-report]{position:fixed;inset:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;overflow:auto;border:0;padding:24px;background:white;color:#172b40;font-family:Arial,sans-serif;pointer-events:auto}
     [data-tabro-report] *{box-sizing:border-box}
     [data-tabro-report] .report-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px;margin-bottom:22px;background:#e9f3f6;border-radius:12px}
     [data-tabro-report] .report-toolbar p{flex:1;min-width:180px;margin:0;font-size:13px}
@@ -44,7 +44,17 @@ export function printDocument(title: string, columns: string[], rows: unknown[][
   </style><nav class="report-toolbar"><button type="button" id="tabro-print-report">${text(copy.print)}</button><p>${text(copy.hint)}</p><button type="button" id="tabro-close-report">${text(copy.close)}</button></nav><header><h1>${text(title)}</h1><p>${text(subtitle)}</p></header><table><thead><tr>${columns.map(c => `<th>${text(c)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.map(row => `<tr>${row.map(cell => `<td>${text(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">${text(options.emptyMessage || copy.empty)}</td></tr>`}</tbody></table><footer>Tabro · ${text(new Date().toLocaleDateString(lang))}</footer>`;
   const previousTitle = document.title;
   const previousFocus = document.activeElement;
+  // A report can open above a Radix modal that disables body pointer events.
+  // Keep its input inside the native top layer, not the underlying dismiss layer.
+  report.addEventListener('pointerdown', event => event.stopPropagation());
+  report.addEventListener('focusin', event => event.stopPropagation());
+  const closeWithEscape = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !report.contains(event.target as Node)) return;
+    event.preventDefault(); event.stopPropagation(); report.close();
+  };
+  window.addEventListener('keydown', closeWithEscape, true);
   report.addEventListener('close', () => {
+    window.removeEventListener('keydown', closeWithEscape, true);
     report.remove(); document.title = previousTitle;
     if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
   }, { once: true });

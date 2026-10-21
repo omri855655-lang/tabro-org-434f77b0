@@ -7,12 +7,12 @@ const source = readFileSync(new URL('../src/lib/printDocument.ts', import.meta.u
 const module = await import(`data:text/javascript;base64,${Buffer.from(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText).toString('base64')}`);
 
 function harness() {
-  const state={printed:false,shown:false,removed:false,focused:false,html:'',listeners:{},events:{},attributes:{}};
+  const state={printed:false,shown:false,removed:false,focused:false,html:'',listeners:{},events:{},attributes:{},windowEvents:{}};
   class FocusTarget { isConnected=true; focus(){state.focused=true;} }
   globalThis.HTMLElement=FocusTarget;
-  const report={setAttribute(k,v){state.attributes[k]=v;},set innerHTML(value){state.html=value;},querySelector(id){return {addEventListener(event,fn){state.listeners[id]=fn;}};},addEventListener(event,fn){state.events[event]=fn;},showModal(){state.shown=true;},close(){state.events.close();},remove(){state.removed=true;}};
+  const report={setAttribute(k,v){state.attributes[k]=v;},set innerHTML(value){state.html=value;},querySelector(id){return {addEventListener(event,fn){state.listeners[id]=fn;}};},addEventListener(event,fn){state.events[event]=fn;},contains(target){return target==='report-child';},showModal(){state.shown=true;},close(){state.events.close();},remove(){state.removed=true;}};
   globalThis.document={title:'Original app',activeElement:new FocusTarget(),createElement(tag){assert.equal(tag,'dialog');return report;},body:{append(node){assert.equal(node,report);}}};
-  globalThis.window={print(){state.printed=true;},open(){throw new Error('Reports must not require popups');}};
+  globalThis.window={addEventListener(event,fn,capture){assert.equal(capture,true);state.windowEvents[event]=fn;},removeEventListener(event,fn,capture){assert.equal(capture,true);assert.equal(state.windowEvents[event],fn);delete state.windowEvents[event];},print(){state.printed=true;},open(){throw new Error('Reports must not require popups');}};
   return {state,report,cleanup(){delete globalThis.document;delete globalThis.window;delete globalThis.HTMLElement;}};
 }
 
@@ -44,5 +44,30 @@ test('closing the visible report restores the app title and focus and removes pr
     module.printDocument('Plan',['Task'],[]);
     assert.equal(document.title,'Plan');state.listeners['#tabro-close-report']();
     assert.equal(state.removed,true);assert.equal(state.focused,true);assert.equal(document.title,'Original app');
+  } finally {cleanup();}
+});
+
+test('report input is isolated from an underlying modal dismiss and focus layer',()=>{
+  const {state,cleanup}=harness();
+  try {
+    module.printDocument('Plan',['Task'],[]);
+    assert.ok(state.html.includes('pointer-events:auto'));
+    for(const name of ['pointerdown','focusin']) {
+      let stopped=false;state.events[name]({stopPropagation(){stopped=true;}});
+      assert.equal(stopped,true);
+    }
+  } finally {cleanup();}
+});
+
+test('Escape closes only a focused report and releases its capture listener',()=>{
+  const {state,cleanup}=harness();
+  try {
+    module.printDocument('Plan',['Task'],[]);
+    const keydown=state.windowEvents.keydown;
+    keydown({key:'Escape',target:'outside'});assert.equal(state.removed,false);
+    let prevented=false,stopped=false;
+    keydown({key:'Escape',target:'report-child',preventDefault(){prevented=true;},stopPropagation(){stopped=true;}});
+    assert.equal(prevented,true);assert.equal(stopped,true);assert.equal(state.removed,true);
+    assert.equal(state.windowEvents.keydown,undefined);
   } finally {cleanup();}
 });
