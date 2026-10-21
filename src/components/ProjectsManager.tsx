@@ -24,6 +24,8 @@ import ProjectGantt from '@/components/projects/ProjectGantt';
 import ProjectTaskIntakeLink from '@/components/projects/ProjectTaskIntakeLink';
 import ProjectGanttShareLink from '@/components/projects/ProjectGanttShareLink';
 import PlanningAdvisor from '@/components/PlanningAdvisor';
+import { useLanguage } from '@/hooks/useLanguage';
+import { ganttCopy } from '@/lib/ganttCopy';
 
 interface Project {
   id: string;
@@ -136,6 +138,8 @@ const getProjectHealthLabel = (project: Project, tasks: ProjectTask[]) => {
 };
 
 const ProjectsManager = () => {
+  const { lang, dir } = useLanguage();
+  const ganttText = ganttCopy[lang];
   const { user } = useAuth();
   const { softDelete } = useRecycleBin();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -361,14 +365,15 @@ const ProjectsManager = () => {
     setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
   };
 
-  const updateProjectTargetDate = async (id: string, target_date: string) => {
-    const { error } = await supabase
+  const updateProjectTargetDate = async (id: string, target_date: string, throwOnError = false) => {
+    const { data, error } = await supabase
       .from('projects')
       .update({ target_date: target_date || null })
-      .eq('id', id);
+      .eq('id', id).select('id');
 
-    if (error) {
-      toast.error('שגיאה בעדכון תאריך היעד');
+    if (error || !data?.some(row => row.id === id)) {
+      toast.error(ganttText.targetError);
+      if (throwOnError) throw error || new Error('Project target was not updated');
       return;
     }
 
@@ -887,30 +892,27 @@ ${message}
   };
 
   const updateGanttTask = async (taskId: string, updates: Record<string, unknown>) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('project_tasks')
       .update(updates as any)
-      .eq('id', taskId);
+      .eq('id', taskId).select('id');
 
-    if (error) {
-      toast.error('לא הצלחנו לשמור את השינוי בגאנט');
-      throw error;
+    if (error || !data?.some(row => row.id === taskId)) {
+      toast.error(ganttText.saveError);
+      throw error || new Error('Project task was not updated');
     }
 
     handleTaskUpdate(taskId, updates);
   };
 
   const bulkUpdateGanttDates = async (updates: Array<{ id: string; due_date: string }>) => {
-    const results = await Promise.all(updates.map((update) => (
-      supabase.from('project_tasks').update({ due_date: update.due_date } as any).eq('id', update.id)
-    )));
-    const failedUpdate = results.find((result) => result.error);
-    if (failedUpdate?.error) {
-      toast.error('חלק מהתאריכים לא נשמרו');
-      throw failedUpdate.error;
-    }
-
-    const datesByTask = new Map(updates.map((update) => [update.id, update.due_date]));
+    const results = await Promise.all(updates.map(async update => {
+      try {
+        const { data, error } = await supabase.from('project_tasks').update({ due_date: update.due_date } as any).eq('id', update.id).select('id');
+        return { update, error: error || (!data?.some(row => row.id === update.id) ? new Error('Project date was not updated') : null) };
+      } catch (error) { return { update, error }; }
+    }));
+    const datesByTask = new Map(results.filter(result=>!result.error).map(({update}) => [update.id, update.due_date]));
     setProjectTasks((previous) => Object.fromEntries(
       Object.entries(previous).map(([projectId, tasks]) => [
         projectId,
@@ -919,7 +921,9 @@ ${message}
           : task),
       ]),
     ));
-    toast.success('המשימות תוזמנו לאורך ציר הזמן');
+    const failed = results.find(result=>result.error);
+    if (failed) { toast.error(ganttText.saveError); throw failed.error; }
+    toast.success(ganttText.scheduled);
   };
 
   const addGanttTemplateTasks = async (projectId: string, templateTasks: Array<{ title: string; due_date: string }>) => {
@@ -937,7 +941,7 @@ ${message}
     const { data, error } = await supabase.from('project_tasks').insert(inserts as any).select();
 
     if (error) {
-      toast.error('לא הצלחנו להוסיף את שלבי הפרויקט');
+      toast.error(ganttText.saveError);
       throw error;
     }
 
@@ -945,7 +949,7 @@ ${message}
       ...previous,
       [projectId]: [...(previous[projectId] || []), ...((data || []) as ProjectTask[])],
     }));
-    toast.success(`נוספו ${templateTasks.length} שלבים מוכנים`);
+    toast.success(ganttText.stagesAdded.replace('{count}',String(templateTasks.length)));
   };
 
   const toggleExpanded = (projectId: string) => {
@@ -1760,18 +1764,18 @@ ${message}
       </div>
 
       <Dialog open={Boolean(activeGanttProject)} onOpenChange={(open) => { if (!open) setActiveGanttProjectId(null); }}>
-        <DialogContent className="flex h-[92vh] w-[96vw] max-w-[1500px] flex-col overflow-hidden p-4 sm:rounded-2xl" dir="rtl">
+        <DialogContent className="flex h-[92vh] w-[96vw] max-w-[1500px] flex-col overflow-hidden p-4 sm:rounded-2xl" dir={dir}>
           {activeGanttProject && (
             <>
-              <DialogHeader className="shrink-0 border-b pb-3 pr-10 text-right">
+              <DialogHeader className="shrink-0 border-b pb-3 pr-10 text-start">
                 <DialogTitle className="flex items-center gap-2 text-xl">
                   <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500/10 text-sky-700">
                     <BarChart3 className="h-5 w-5" />
                   </span>
-                  גאנט: {activeGanttProject.title}
+                  {ganttText.gantt}: {activeGanttProject.title}
                 </DialogTitle>
                 <p className="text-sm text-muted-foreground">
-                  תמונת מצב פשוטה של השלבים, התאריכים וההתקדמות. השינויים נשמרים מיד במשימות הפרויקט.
+                  {ganttText.privateHint}
                 </p>
               </DialogHeader>
               <ProjectGantt
@@ -1780,7 +1784,7 @@ ${message}
                 onUpdateTask={updateGanttTask}
                 onBulkUpdate={bulkUpdateGanttDates}
                 onAddTemplate={(templateTasks) => addGanttTemplateTasks(activeGanttProject.id, templateTasks)}
-                onUpdateProjectTarget={(date) => updateProjectTargetDate(activeGanttProject.id, date)}
+                onUpdateProjectTarget={(date) => updateProjectTargetDate(activeGanttProject.id, date, true)}
               />
             </>
           )}

@@ -14,7 +14,7 @@ export interface GanttTaskPeriod {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const toLocalDateKey = (date: Date) => {
-  const year = date.getFullYear();
+  const year = String(date.getFullYear()).padStart(4,"0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
@@ -22,9 +22,20 @@ export const toLocalDateKey = (date: Date) => {
 
 export const parseLocalDate = (value: string | null | undefined) => {
   if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
+  const date = new Date(0);
+  date.setHours(0, 0, 0, 0);
+  date.setFullYear(year, month - 1, day);
+  return year >= 1 && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+};
+
+export const scheduledLessonDay = (value: string | null | undefined) => {
+  if (!value) return null;
+  if (parseLocalDate(value)) return value;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) || !parseLocalDate(value.slice(0,10))) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? toLocalDateKey(date) : null;
 };
 
 export const addCalendarDays = (date: Date, days: number) => {
@@ -85,9 +96,9 @@ export const getGanttTaskPeriod = (
   };
 };
 
-export const formatProjectTaskTitle = (value: string) => {
+export const formatProjectTaskTitle = (value: string, fallback = "משימה ללא שם") => {
   const title = value.trim();
-  if (!title) return "משימה ללא שם";
+  if (!title) return fallback;
 
   try {
     const parsed = JSON.parse(title) as { title?: unknown; description?: unknown };
