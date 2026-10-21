@@ -20,6 +20,8 @@ The app backend is `isnhgyycowmnlxtmbmwm`, not the separate finance backend
 `supabase/migrations/20261020180000_private_learning_history.sql` to the app
 backend and deploy `good-news` with `_shared/news-feed.ts` there. Preserve all
 existing finance functions, worker revisions, auth settings, secrets and IAM.
+Then apply `20261021120000_learning_history_explicit_grants.sql` to revoke
+inherited default table grants before restoring only SELECT/INSERT/UPDATE.
 The frontend can retain local history if the table is temporarily unavailable,
 but that fallback is not evidence that cloud synchronization works.
 

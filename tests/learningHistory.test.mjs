@@ -27,6 +27,10 @@ test('learning migration protects SELECT, INSERT and UPDATE and grants no anonym
   const sql=readFileSync(new URL('../supabase/migrations/20261020180000_private_learning_history.sql',import.meta.url),'utf8');
   assert.match(sql,/ENABLE ROW LEVEL SECURITY/);assert.match(sql,/REVOKE ALL .* FROM anon/);
   assert.equal(sql.match(/user_id = auth.uid\(\)/g).length,4);assert.doesNotMatch(sql,/GRANT.*DELETE|TO anon|USING\s*\(true\)/i);
+  const grants=readFileSync(new URL('../supabase/migrations/20261021120000_learning_history_explicit_grants.sql',import.meta.url),'utf8');
+  assert.match(grants,/REVOKE ALL .* FROM PUBLIC, anon, authenticated/);
+  assert.match(grants,/GRANT SELECT, INSERT, UPDATE .* TO authenticated/);
+  assert.doesNotMatch(grants,/GRANT.*DELETE|GRANT.*TRUNCATE|GRANT.*TRIGGER/i);
 });
 test('all six languages fully cover learning controls, category names and every path',()=>{
   const keys=Object.keys(learningCopy.en).sort();
