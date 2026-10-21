@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/hooks/useLanguage';
 import { focusRoomCopy } from '@/lib/focusRoomCopy';
-import { FOCUS_SEATS, clampRoomPosition, nearestAvailableFocusSeat, occupiedFocusSeat } from '@/lib/focusRoom';
+import { FOCUS_SEATS, safeFloorPosition, nearestAvailableFocusSeat, occupiedFocusSeat } from '@/lib/focusRoom';
+import { safeLocalStorage } from '@/lib/safeLocalStorage';
+import { zoneflowExperienceCopy } from '@/lib/zoneflowExperienceCopy';
 import { FocusRoomWorld } from './FocusRoomWorld';
 
 export type FocusRoomScene = 'library' | 'plane' | 'cafe' | 'office';
@@ -24,6 +26,8 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
 }) {
   const { lang, dir } = useLanguage();
   const copy = focusRoomCopy[lang];
+  const experience=zoneflowExperienceCopy[lang];
+  const [look,setLook]=useState(()=>{const value=safeLocalStorage.getString('zoneflow-room-look');return value==='pixel'||value==='depth'?value:'illustrated';});
   const peopleId = useId();
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [zoomed, setZoomed] = useState(false);
@@ -46,7 +50,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   };
   const move = (position: { x: number; y: number }) => {
     animateWalk();
-    onMove(clampRoomPosition(position));
+    onMove(safeFloorPosition(position));
   };
   const moveFromPointer = (event: MouseEvent<HTMLDivElement>) => {
     const deskIndex = (event.target as Element).closest('[data-seat-index]')?.getAttribute('data-seat-index');
@@ -72,13 +76,14 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     onToggle();
   };
 
-  return <section className="focus-room-studio overflow-hidden rounded-[1.75rem] border shadow-sm outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/60" aria-label={name} tabIndex={0} dir={dir} onKeyDown={moveFromKeyboard}>
+  return <section data-room-look={look} className="focus-room-studio overflow-hidden rounded-[1.75rem] border shadow-sm outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/60" aria-label={name} tabIndex={0} dir={dir} onKeyDown={moveFromKeyboard}>
     <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#dce3d7] bg-[#fcfaf4] px-4 py-4 sm:px-6">
       <div className="min-w-0"><div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.2em] text-[#527063]"><span className="h-1.5 w-1.5 rounded-full bg-[#4d9278]" />ZONEFLOW / {scene}</div><h2 className="text-xl font-bold tracking-tight text-[#2c473d] sm:text-2xl">{name}</h2><p className="mt-1 max-w-lg text-xs text-[#65786a]">{topic}</p></div>
       <div className="flex items-center gap-1.5"><Button variant="ghost" className="gap-2 rounded-full text-[#38594b]" onClick={() => setPeopleOpen(value => !value)} aria-expanded={peopleOpen} aria-controls={peopleId}><Users className="h-4 w-4" />{copy.people} · {participants.length}</Button><span className="p-2 text-[#7b8c7d]" title={copy.quiet}><MicOff aria-label={copy.quiet} className="h-4 w-4" /></span>{onLeave && <Button size="icon" variant="ghost" className="rounded-full text-[#65786a]" onClick={onLeave} aria-label={copy.leave}><LogOut className="h-4 w-4" /></Button>}</div>
     </header>
     {peopleOpen && <aside id={peopleId} className="border-b border-[#dce3d7] bg-[#f4f5eb] px-4 py-3"><div className="flex flex-wrap gap-2">{participants.map(person => <div key={person.userId} className="flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs text-[#38594b]"><span className={cn('h-2 w-2 rounded-full', person.status === 'focusing' ? 'bg-emerald-500' : 'bg-amber-400')} /><span>{person.displayName}</span><span className="text-[#79897b]">{statusLabels[person.status]}</span></div>)}</div><p className="mt-2 text-xs text-[#738171]">{copy.quiet}</p></aside>}
     <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f3f3e9] px-4 py-3 sm:px-6">
+      <label className="flex items-center gap-2 text-xs text-[#38594b]">{experience.look}<select value={look} onChange={event=>{setLook(event.target.value);safeLocalStorage.setString('zoneflow-room-look',event.target.value);}} className="rounded-xl border bg-white px-3 py-2">{(['illustrated','pixel','depth'] as const).map(value=><option key={value} value={value}>{experience[value]}</option>)}</select></label>
       <div className="flex flex-wrap gap-1 rounded-2xl bg-white/80 p-1">{(Object.keys(ACTIVITIES) as FocusActivity[]).map(value => {
         const Icon = ACTIVITIES[value];
         return <Button key={value} size="sm" variant="ghost" aria-pressed={activity === value} onClick={() => onActivityChange(value)} className={cn('gap-1.5 rounded-xl text-[#607568] hover:text-[#2c5744]', activity === value && 'bg-[#dce9dd] text-[#2c5744] hover:bg-[#d4e2d4]')}><Icon className="h-3.5 w-3.5" />{copy[value]}</Button>;

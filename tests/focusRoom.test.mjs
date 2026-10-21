@@ -3,6 +3,8 @@ import test from 'node:test';
 import { FOCUS_SEATS, occupiedFocusSeat, clampRoomPosition, nearestAvailableFocusSeat } from '../src/lib/focusRoom.ts';
 import { focusRoomCopy } from '../src/lib/focusRoomCopy.ts';
 import { planningToolsCopy } from '../src/lib/planningToolsCopy.ts';
+import * as roomHelpers from '../src/lib/focusRoom.ts';
+import { zoneflowExperienceCopy } from '../src/lib/zoneflowExperienceCopy.ts';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -21,7 +23,9 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name.endsWith('.png')) return { default: 'room.png' };
   if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
   if (name === '@/lib/focusRoomCopy') return { focusRoomCopy };
-  if (name === '@/lib/focusRoom') return { FOCUS_SEATS, occupiedFocusSeat, clampRoomPosition, nearestAvailableFocusSeat };
+  if (name === '@/lib/focusRoom') return roomHelpers;
+  if (name === '@/lib/zoneflowExperienceCopy') return { zoneflowExperienceCopy };
+  if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: () => null, setString() {} } };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');
   if (name === '@/hooks/useLanguage') return { useLanguage: () => ({ lang: 'he', dir: 'rtl' }) };
   if (name === '@/components/ui/button') return { Button: ({ children, ...props }) => React.createElement('button', props, children) };
@@ -86,11 +90,25 @@ test('six desks are reachable and seated peers reserve nearby desks', () => {
 });
 
 test('focus room and planning tools include every label in all six languages', () => {
-  for (const dictionary of [focusRoomCopy, planningToolsCopy]) {
+  for (const dictionary of [focusRoomCopy, planningToolsCopy, zoneflowExperienceCopy]) {
     assert.deepEqual(Object.keys(dictionary).sort(), ['ar', 'en', 'es', 'he', 'ru', 'zh']);
     for (const labels of Object.values(dictionary)) {
       assert.deepEqual(Object.keys(labels).sort(), Object.keys(dictionary.en).sort());
       for (const label of Object.values(labels)) assert.ok(label.trim());
+    }
+  }
+});
+
+test('walking routes reach all desks without crossing furniture', () => {
+  for (const from of FOCUS_SEATS) for (const to of FOCUS_SEATS) {
+    const path = roomHelpers.planFocusWalk(from, to);
+    assert.deepEqual(path.at(-1), to);
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i];
+      for (let step = 0; step <= 100; step++) {
+        const p = { x: a.x + (b.x-a.x)*step/100, y: a.y+(b.y-a.y)*step/100 };
+        assert.deepEqual(roomHelpers.safeFloorPosition(p), p);
+      }
     }
   }
 });

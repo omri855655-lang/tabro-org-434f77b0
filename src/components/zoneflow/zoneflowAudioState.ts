@@ -1,5 +1,16 @@
 export type ZoneFlowAudioKind = "music" | "freq" | "youtube";
 
+export function getZoneFlowMixEnabled() {
+  try { return typeof window !== 'undefined' && window.localStorage.getItem('zoneflow-mix-audio') === 'true'; }
+  catch { return false; }
+}
+export function setZoneFlowMixEnabled(enabled: boolean) {
+  if(typeof window==='undefined')return;
+  try { window.localStorage.setItem('zoneflow-mix-audio',String(enabled)); } catch { return; }
+  if(!enabled && window._zoneflowMusicState?.playing && window._zoneflowFreqState?.playing)window._zoneflowFreqState.stop();
+  notifyZoneFlowAudioListeners();
+}
+
 export interface ZoneFlowAudioStateValue {
   playing: boolean;
   name: string;
@@ -119,13 +130,14 @@ export function stopOtherZoneFlowAudio(activeKind: ZoneFlowAudioKind) {
 
   (Object.keys(AUDIO_STATE_KEYS) as ZoneFlowAudioKind[]).forEach((kind) => {
     if (kind === activeKind) return;
+    if(getZoneFlowMixEnabled() && activeKind!=='youtube' && kind!=='youtube')return;
     const state = window[getAudioStateKey(kind)];
     if (state?.playing) {
       state.stop();
     }
   });
 
-  if (activeKind !== "freq") {
+  if (activeKind !== "freq" && !(getZoneFlowMixEnabled() && activeKind==='music')) {
     const freqRuntime = window._zoneflowFreqRuntime;
     if (freqRuntime?.audioEl && !freqRuntime.audioEl.paused) {
       window._zoneflowFreqState?.stop();

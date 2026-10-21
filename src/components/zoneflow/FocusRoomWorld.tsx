@@ -1,5 +1,5 @@
-import { useId } from 'react';
-import { FOCUS_SEATS } from '@/lib/focusRoom';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { FOCUS_SEATS, planFocusWalk } from '@/lib/focusRoom';
 import type { FocusRoomParticipant, FocusRoomScene } from './FocusRoomInterior';
 
 const PALETTES = {
@@ -26,17 +26,40 @@ function RoomPlant({ x, y }: { x: number; y: number }) {
 }
 
 function RoomAvatar({ person, walking }: { person: FocusRoomParticipant; walking: boolean }) {
+  const root=useRef<SVGGElement>(null);
+  const position=useRef({x:person.x,y:person.y});
+  const [travelling,setTravelling]=useState(false);
+  useLayoutEffect(()=>{
+    const points=planFocusWalk(position.current,{x:person.x,y:person.y});
+    const lengths=points.slice(1).map((p,i)=>Math.hypot(p.x-points[i].x,(p.y-points[i].y)*.7));
+    const total=lengths.reduce((a,b)=>a+b,0),duration=Math.max(250,Math.min(3500,total*30));
+    const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let frame=0;const started=performance.now();
+    const draw=(p:{x:number;y:number})=>{position.current=p;if(root.current)root.current.style.transform=`translate(${p.x*10}px, ${p.y*7}px)`;};
+    if(total<.1||reduced){draw(points[points.length-1]);setTravelling(false);return;}
+    setTravelling(true);draw(points[0]);
+    const tick=(now:number)=>{
+      const progress=Math.min(1,(now-started)/duration);let distance=progress*total,index=0;
+      while(index<lengths.length-1&&distance>lengths[index])distance-=lengths[index++];
+      const ratio=lengths[index]?distance/lengths[index]:1,a=points[index],b=points[index+1];
+      draw({x:a.x+(b.x-a.x)*ratio,y:a.y+(b.y-a.y)*ratio});
+      if(root.current)root.current.dataset.facing=b.x<a.x?'left':'right';
+      if(progress<1)frame=requestAnimationFrame(tick);else setTravelling(false);
+    };
+    frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);
+  },[person.x,person.y]);
+  const seated=person.seated&&!travelling;
   const seed = [...person.userId].reduce((sum, letter) => sum + letter.charCodeAt(0), 0);
   const variant = Number.isInteger(person.avatarStyle) && person.avatarStyle! >= 0 ? person.avatarStyle! : seed;
   const [skin, hair, shirt] = AVATARS[variant % AVATARS.length];
-  return <g className={`focus-world-person ${walking && person.isMe ? 'is-walking' : ''} ${person.seated ? 'is-seated' : ''}`}
+  return <g ref={root} className={`focus-world-person ${travelling || walking && person.isMe ? 'is-walking' : ''} ${seated ? 'is-seated' : ''}`}
     data-participant={person.userId} style={{ transform: `translate(${person.x * 10}px, ${person.y * 7}px)` }}>
     <title>{person.displayName}</title>
     <ellipse cy="8" rx="34" ry="10" fill="#263b33" opacity=".18" />
     {person.isMe && <ellipse cy="7" rx="40" ry="15" fill="none" stroke="#288579" strokeWidth="3" opacity=".6" />}
-    <g className="focus-world-body">
-      <path className="focus-world-leg-left" d={person.seated ? 'M-15-5-22 12H-5V-3' : 'M-17-17-19 4H-4V-15'} fill="#344451" />
-      <path className="focus-world-leg-right" d={person.seated ? 'M15-5 22 12H5V-3' : 'M17-17 19 4H4V-15'} fill="#344451" />
+    <g className="focus-world-body focus-world-illustrated">
+      <path className="focus-world-leg-left" d={seated ? 'M-15-5-22 12H-5V-3' : 'M-17-17-19 4H-4V-15'} fill="#344451" />
+      <path className="focus-world-leg-right" d={seated ? 'M15-5 22 12H5V-3' : 'M17-17 19 4H4V-15'} fill="#344451" />
       <path d="M-30-51Q0-69 30-51L26-10Q0 0-26-10Z" fill={shirt} stroke="#ffffff" strokeOpacity=".25" strokeWidth="2" />
       <path className="focus-world-arm-left" d="M-28-49Q-40-33-30-14" stroke={skin} strokeWidth="12" strokeLinecap="round" fill="none" />
       <path className="focus-world-arm-right" d="M28-49Q40-33 30-14" stroke={skin} strokeWidth="12" strokeLinecap="round" fill="none" />
@@ -50,6 +73,14 @@ function RoomAvatar({ person, walking }: { person: FocusRoomParticipant; walking
       <path d="M-6-64Q0-60 6-64" stroke="#955e4d" strokeWidth="2" fill="none" strokeLinecap="round" />
       <ellipse cx="-23" cy="-68" rx="6" ry="3" fill="#cf8174" opacity=".3" /><ellipse cx="23" cy="-68" rx="6" ry="3" fill="#cf8174" opacity=".3" />
       {person.status === 'focusing' && <g fill="none" stroke="#37505a" strokeWidth="5"><path d="M-34-85Q-32-131 0-131Q34-128 34-85" /><path d="M-35-88V-72M35-88V-72" strokeWidth="9" strokeLinecap="round" /></g>}
+    </g>
+    <g className="focus-world-pixel" shapeRendering="crispEdges">
+      <path d="M-20-20H-4V6H-24V-2H-20ZM4-20H20V-2H24V6H4Z" fill="#344451"/>
+      <path d="M-28-58H28V-14H-28Z" fill={shirt}/><path d="M-40-54H-28V-20H-40ZM28-54H40V-20H28Z" fill={skin}/>
+      <path d="M-28-114H28V-104H36V-66H28V-58H-28V-66H-36V-104H-28Z" fill={skin}/>
+      <path d="M-28-120H28V-110H36V-92H24V-102H0V-94H-28V-80H-36V-110H-28Z" fill={hair}/>
+      <path d="M-18-87H-10V-77H-18ZM10-87H18V-77H10Z" fill="#302c30"/><path d="M-7-68H7V-64H-7Z" fill="#995e4d"/>
+      {person.status==='focusing'&&<path d="M-40-94V-114H-32V-126H32V-114H40V-94M-42-94V-72M42-94V-72" fill="none" stroke="#3f5962" strokeWidth="8"/>}
     </g>
     <g transform="translate(0 -151)" pointerEvents="none"><rect x="-66" y="-13" width="132" height="25" rx="12" fill="#fffaf0" fillOpacity=".95" /><text textAnchor="middle" y="4" fontSize="13" fontWeight="600" fill="#38534b">{person.displayName.length > 16 ? `${person.displayName.slice(0, 15)}…` : person.displayName}</text>{person.status === 'focusing' && <circle cx="-54" cy="-1" r="3" fill="#3c9a78" />}</g>
   </g>;

@@ -18,3 +18,34 @@ export function nearestAvailableFocusSeat(position: { x: number; y: number }, pe
   return [...FOCUS_SEATS].filter(seat => !occupiedFocusSeat(seat, people))
     .sort((a, b) => Math.hypot(a.x - position.x, a.y - position.y) - Math.hypot(b.x - position.x, b.y - position.y))[0];
 }
+
+export type RoomPosition = { x: number; y: number };
+const walkable = (p: RoomPosition) => !FOCUS_SEATS.some(s => Math.abs(s.x-p.x)<11 && p.y>s.y+1 && p.y<s.y+13);
+export function safeFloorPosition(position: RoomPosition): RoomPosition {
+  const p=clampRoomPosition(position);
+  if(walkable(p))return p;
+  const desk=FOCUS_SEATS.find(s=>Math.abs(s.x-p.x)<11 && p.y>s.y+1 && p.y<s.y+13)!;
+  return {x:p.x,y:desk.y};
+}
+
+// Route on the same floor coordinates used by the furniture, leaving aisles clear.
+export function planFocusWalk(from: RoomPosition, to: RoomPosition): RoomPosition[] {
+  const start=safeFloorPosition(from), end=safeFloorPosition(to);
+  const a={x:Math.round(start.x),y:Math.round(start.y)}, b={x:Math.round(end.x),y:Math.round(end.y)};
+  const key=(p:RoomPosition)=>`${p.x},${p.y}`;
+  const queue=[a], previous=new Map<string,RoomPosition|null>([[key(a),null]]);
+  for(let i=0;i<queue.length;i++){
+    const p=queue[i]; if(key(p)===key(b))break;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const next={x:p.x+dx,y:p.y+dy};
+      if(next.x<7||next.x>93||next.y<28||next.y>77||!walkable(next)||previous.has(key(next)))continue;
+      previous.set(key(next),p);queue.push(next);
+    }
+  }
+  if(!previous.has(key(b)))return [start];
+  const reversed:RoomPosition[]=[];let cursor:RoomPosition|null=b;
+  while(cursor){reversed.push(cursor);cursor=previous.get(key(cursor))||null;}
+  const path=reversed.reverse(), corners=[start];
+  for(let i=1;i<path.length-1;i++)if((path[i].x-path[i-1].x)!==(path[i+1].x-path[i].x)||(path[i].y-path[i-1].y)!==(path[i+1].y-path[i].y))corners.push(path[i]);
+  corners.push(end);return corners;
+}

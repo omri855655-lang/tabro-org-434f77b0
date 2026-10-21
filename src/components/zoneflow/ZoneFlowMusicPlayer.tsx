@@ -90,9 +90,6 @@ export function ZoneFlowMusicPlayer({ onPlayingChange, themeCard, themeMuted, th
     stopOtherZoneFlowAudio("music");
 
     // Stop frequency presets when starting music
-    if (window._zoneflowFreqState?.playing) {
-      window._zoneflowFreqState.stop();
-    }
 
     // Unlock audio context on user gesture
     unlockAudioContext();

@@ -6,6 +6,7 @@ import { renderPresetToBlob } from "./renderZoneFlowPresetToAudio";
 import { resetZoneFlowAudioState, setZoneFlowAudioState, stopOtherZoneFlowAudio } from "./zoneflowAudioState";
 
 interface ZoneFlowFreqRuntime {
+  generation?: number;
   activePresetId: string | null;
   isPlaying: boolean;
   isRendering: boolean;
@@ -75,6 +76,7 @@ export function useZoneFlowAudioEngine() {
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     const rt = getZoneFlowFreqRuntime();
     if (rt.audioEl && !rt.audioEl.paused) {
       rt.isPlaying = true;
@@ -94,6 +96,7 @@ export function useZoneFlowAudioEngine() {
 
   const stopAudio = useCallback(() => {
     const rt = getZoneFlowFreqRuntime();
+    rt.generation = (rt.generation ?? 0) + 1;
 
     if (audioElRef.current) {
       audioElRef.current.pause();
@@ -123,12 +126,8 @@ export function useZoneFlowAudioEngine() {
   const playPreset = useCallback(async (preset: AudioPreset) => {
     const rt = getZoneFlowFreqRuntime();
     stopAudio();
+    const generation = rt.generation;
     stopOtherZoneFlowAudio("freq");
-
-    // Stop music player when starting frequency preset
-    if (window._zoneflowMusicState?.playing) {
-      window._zoneflowMusicState.stop();
-    }
 
     if (mountedRef.current) {
       setIsRendering(true);
@@ -151,6 +150,10 @@ export function useZoneFlowAudioEngine() {
 
       // Render preset to a WAV blob (15 min)
       const blobUrl = await renderPresetToBlob(preset);
+      if (rt.generation !== generation) {
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
       blobUrlRef.current = blobUrl;
 
       // Create a real <audio> element — iOS keeps these alive in background
@@ -166,6 +169,7 @@ export function useZoneFlowAudioEngine() {
       rt.blobUrl = blobUrl;
 
       const publishFromAudio = () => {
+        if (rt.generation !== generation) return;
         const playingNow = !!audioElRef.current && !audioElRef.current.paused;
         rt.isPlaying = playingNow;
         if (mountedRef.current) {
@@ -185,6 +189,7 @@ export function useZoneFlowAudioEngine() {
       audio.addEventListener("ended", publishFromAudio);
 
       await audio.play();
+      if (rt.generation !== generation) return;
 
       // MediaSession for lock screen controls
       if ("mediaSession" in navigator) {
@@ -218,9 +223,11 @@ export function useZoneFlowAudioEngine() {
         }
       });
     } catch (e) {
+      if (rt.generation !== generation) return;
       console.error("Failed to render/play preset:", e);
       stopAudio();
     } finally {
+      if (rt.generation === generation) {
       if (mountedRef.current) {
         setIsRendering(false);
       }
@@ -232,6 +239,7 @@ export function useZoneFlowAudioEngine() {
             setActivePresetId(null);
           }
         });
+      }
       }
     }
   }, [stopAudio]);

@@ -1342,7 +1342,17 @@ h1, h2, h3 { font-family: 'Plus Jakarta Sans', var(--font-family), sans-serif; }
   color-scheme: light;
   font-family: 'Rubik', sans-serif;
 }
-.focus-world-person { transition: transform .6s cubic-bezier(.22, 1, .36, 1); }
+.focus-world-person { will-change: transform; }
+.focus-world-pixel { display: none; }
+[data-room-look="pixel"] .focus-world-illustrated { display: none; }
+[data-room-look="pixel"] .focus-world-pixel { display: block; }
+[data-room-look="pixel"] .focus-world-svg { shape-rendering: crispEdges; }
+[data-room-look="depth"] .focus-world-body { filter: drop-shadow(4px 6px 3px #273b4933); }
+[data-room-look="depth"] [data-furniture="desk"] { filter: drop-shadow(4px 7px 4px #44332744); }
+[data-room-look="depth"] .focus-world-svg { background: #ebe3cf; filter: saturate(.85) contrast(1.04); }
+.focus-world-person.is-seated .focus-world-arm-left { transform: translate(8px, 5px) rotate(-8deg); }
+.focus-world-person.is-seated .focus-world-arm-right { transform: translate(-8px, 5px) rotate(8deg); }
+.focus-world-person.is-walking .focus-world-pixel { animation: focus-world-step .25s steps(2) infinite alternate; }
 .focus-world-eyes { transform-box: fill-box; transform-origin: center; animation: focus-world-blink 6s infinite; }
 .focus-world-person.is-walking .focus-world-body { animation: focus-world-step .3s ease-in-out infinite alternate; }
 .focus-world-person.is-walking .focus-world-leg-left { animation: focus-world-limb .3s ease-in-out infinite alternate; }

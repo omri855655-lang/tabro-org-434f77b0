@@ -28,6 +28,7 @@ import { ZoneFlowWorkspaceBoundary } from "./ZoneFlowWorkspaceBoundary";
 import { ZoneFlowFocusDeck, type UnifiedFocusSession } from "./ZoneFlowFocusDeck";
 import { ZoneFlowBlocker } from "./ZoneFlowBlocker";
 import { ZoneFlowLearningStudio } from "./ZoneFlowLearningStudio";
+import { ZoneFlowSoundMix } from "./ZoneFlowSoundMix";
 import { ZoneFlowGoodNewsStudio } from "./ZoneFlowGoodNewsStudio";
 import { toast } from "sonner";
 
@@ -568,6 +569,7 @@ const ZoneFlowDashboard = () => {
           )}
         </div>
 
+        <ZoneFlowSoundMix />
         <ZoneFlowWorkspaceBoundary key={workspace} name={workspaceLabels[workspace]} onBack={() => setWorkspace("core")}>
         {workspace === "mind" ? (
           <ZoneFlowMindStudio isLight={isLight} />
