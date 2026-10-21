@@ -178,7 +178,8 @@ async function callWorker(payload: Record<string, unknown>) {
 }
 
 async function enforceRateLimit(
-  service: ReturnType<typeof createClient>,
+  // deno-lint-ignore no-explicit-any
+  service: any,
   userId: string,
   action: "connect" | "sync",
   limit: number,
