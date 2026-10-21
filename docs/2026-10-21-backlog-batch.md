@@ -12,6 +12,9 @@
   its refresh date. RSS and Atom links are parsed safely. Five English feeds and
   a direct Hebrew good-news source link remain distinct; a Hebrew feed is not
   claimed to be aggregated.
+- News parsing stays on the v4 API but pins patched `fast-xml-parser@4.5.7`,
+  disables entity expansion, rejects DOCTYPE and bounds streamed input to 2 MB.
+  Upstream advisory: https://github.com/NaturalIntelligence/fast-xml-parser/security/advisories/GHSA-8gc5-j5rx-235r
 
 ## Deployment Requirements
 

@@ -1,5 +1,6 @@
-import { XMLParser } from 'https://esm.sh/fast-xml-parser@4.5.3';
+import { XMLParser } from 'https://esm.sh/fast-xml-parser@4.5.7';
 import { newsFeedItems } from '../_shared/news-feed.ts';
+import { readBoundedFeed } from '../_shared/bounded-feed.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 const sources = [
@@ -20,8 +21,8 @@ Deno.serve(async request => {
     const results = await Promise.allSettled(sources.map(async ([source, url]) => {
       const response = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { Accept: 'application/rss+xml, application/xml, text/xml' } });
       if (!response.ok) throw new Error(source);
-      const xml = await response.text();
-      if (xml.length > 2_000_000 || /<!DOCTYPE/i.test(xml)) throw new Error('Unsupported feed');
+      const xml = await readBoundedFeed(response);
+      if (/<!DOCTYPE/i.test(xml)) throw new Error('Unsupported feed');
       const parsed = parser.parse(xml);
       return newsFeedItems(parsed,source);
     }));
