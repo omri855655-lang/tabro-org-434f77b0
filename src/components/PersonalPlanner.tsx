@@ -26,7 +26,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { getHolidaysForDate } from "@/data/holidays";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import { eventOverlapsRange } from "@/lib/plannerEvents";
-import { printDocument } from "@/lib/printDocument";
+import { escapePrintText, printDocument } from "@/lib/printDocument";
 import { createCalendarExport } from "@/lib/calendarExport";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -1707,14 +1707,14 @@ const PersonalPlanner = () => {
       th { background: #f0f0f0; }
       h1 { color: #333; }
     </style></head><body>
-    <h1>לוח זמנים - ${title}</h1>
+    <h1>לוח זמנים - ${escapePrintText(title)}</h1>
     <table>
       <tr><th>שעה</th><th>כותרת</th><th>קטגוריה</th><th>הערות</th></tr>`;
 
     eventsInRange.forEach((e) => {
       const start = format(new Date(e.startTime), "HH:mm");
       const end = format(new Date(e.endTime), "HH:mm");
-      html += `<tr><td>${start}-${end}</td><td>${e.title}</td><td>${e.category}</td><td>${e.description}</td></tr>`;
+      html += `<tr><td>${start}-${end}</td><td>${escapePrintText(e.title)}</td><td>${escapePrintText(e.category)}</td><td>${escapePrintText(e.description)}</td></tr>`;
     });
 
     html += "</table></body></html>";

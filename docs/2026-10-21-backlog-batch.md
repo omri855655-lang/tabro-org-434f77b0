@@ -35,7 +35,8 @@ records at an isolated localhost origin.
 
 ## Verification
 
-- 146 Node tests passed; app TypeScript and production build passed.
+- 150 Node tests passed, including the report preview/close follow-up; app
+  TypeScript, production build and targeted lint passed.
 - Targeted lint of the new modules and learning/news components passed.
 - Learning rendered in Hebrew, English, Spanish, Chinese, Arabic and Russian.
   History search/review and a 390px RTL layout were checked in the browser.
@@ -44,6 +45,34 @@ records at an isolated localhost origin.
   breaking Tailwind/toolchain upgrade was applied. This is not a penetration test.
 - The app email UI confirmed sending a generic test to the owner's mailbox.
   A focused mailbox search did not find it; delivery is not confirmed.
+- The finance worker production dependency audit also returned zero findings.
+- The old planner Word export now escapes event text rather than inserting
+  titles, descriptions and categories as executable document markup.
+- A live print attempt still blocked the embedded browser using the old hidden
+  iframe route. Printing now opens a visible, popup-free native report dialog,
+  with explicit localized Print/PDF and Close actions. This shared repair also
+  covers project Gantt, shopping, AI plan and Mind journal reports.
+  Fictional rows, escaped markup, the print action and closing the report were
+  checked in-browser. Saving a file through the native PDF dialog was not verified.
+
+## Deployment Evidence
+
+- Both history migrations were applied to the app backend. Read-back metadata
+  confirmed three owner-only policies, SELECT/INSERT/UPDATE for authenticated,
+  and no anon/PUBLIC or authenticated DELETE/TRUNCATE/TRIGGER privileges.
+- Independent anonymous history requests returned HTTP 401 (permission denied).
+- The good-news deploy returned success for the patched source and both helpers.
+  Its deployment interface cannot read back running source. A fresh independent
+  request returned HTTP 200, 50 articles from all five feeds, no unsafe URLs.
+- Frontend publication of the main batch was confirmed by the publish UI.
+  Public `index-CIhFqVrG.js` loads `ZoneFlowDashboard-BS5g-gsB.js` (private
+  history and persistent news markers) and `PersonalPlanner-BiZ0m5J4.js` (UTC
+  calendar/date-only export markers), all HTTP 200.
+- Refreshing the inactive user tab recovered finance reads. The imported Amex
+  card has a known future debit displayed; this is not a successful direct login.
+- The live quick-meeting editor opened normally and was not saved.
+- The preview tool also made a reviewed type-annotation-only finance source fix.
+  No finance function was redeployed in this batch; runtime logic is unchanged.
 
 ## Still Requires Separate Completion
 
