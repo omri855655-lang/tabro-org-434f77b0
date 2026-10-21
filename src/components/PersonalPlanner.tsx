@@ -27,6 +27,8 @@ import { getHolidaysForDate } from "@/data/holidays";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import { eventOverlapsRange } from "@/lib/plannerEvents";
 import { printDocument } from "@/lib/printDocument";
+import { createCalendarExport } from "@/lib/calendarExport";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface AggregatedTask {
   id: string;
@@ -121,6 +123,7 @@ const clampQuickEditorAnchor = (anchor?: { top: number; left: number } | null) =
 
 const PersonalPlanner = () => {
   const { user } = useAuth();
+  const { lang } = useLanguage();
   const { tasks: personalTasks } = useTasks("personal");
   const { tasks: workTasks } = useTasks("work");
   const {
@@ -1732,29 +1735,12 @@ const PersonalPlanner = () => {
       (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     );
 
-    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Personal Planner//NONSGML v1.0//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n";
-
-    eventsInRange.forEach((e) => {
-      const start = format(new Date(e.startTime), "yyyyMMdd'T'HHmmss");
-      const end = format(new Date(e.endTime), "yyyyMMdd'T'HHmmss");
-      const now = format(new Date(), "yyyyMMdd'T'HHmmss");
-
-      ics += "BEGIN:VEVENT\r\n";
-      ics += `DTSTART:${start}\r\n`;
-      ics += `DTEND:${end}\r\n`;
-      ics += `DTSTAMP:${now}\r\n`;
-      ics += `UID:${e.id}@personal-planner\r\n`;
-      ics += `SUMMARY:${e.title.replace(/[,;\\]/g, " ")}\r\n`;
-      if (e.description) ics += `DESCRIPTION:${e.description.replace(/\n/g, "\\n").replace(/[,;\\]/g, " ")}\r\n`;
-      if (e.location) ics += `LOCATION:${e.location.replace(/[,;\\]/g, " ")}\r\n`;
-      if (e.meetingUrl) ics += `URL:${e.meetingUrl.replace(/[,;\\]/g, "")}\r\n`;
-      ics += `CATEGORIES:${e.category}\r\n`;
-      ics += "END:VEVENT\r\n";
-    });
-
-    ics += "END:VCALENDAR\r\n";
-
-    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const exported = createCalendarExport(eventsInRange);
+    if (!exported.exported) {
+      toast.info({ he: "אין אירועים תקינים לייצוא בטווח שנבחר", en: "No valid events to export in this date range", es: "No hay eventos válidos para exportar en este período", zh: "此日期范围内没有可导出的有效活动", ar: "لا توجد أحداث صالحة للتصدير في هذه الفترة", ru: "В выбранном периоде нет событий для экспорта" }[lang]);
+      return;
+    }
+    const blob = new Blob([exported.text], { type: "text/calendar;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

@@ -1,4 +1,5 @@
 import { XMLParser } from 'https://esm.sh/fast-xml-parser@4.5.3';
+import { newsFeedItems } from '../_shared/news-feed.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 const sources = [
@@ -10,7 +11,6 @@ const sources = [
 ];
 type Item = { title: string; link: string; pubDate: string; description: string; source: string };
 let cached: { at: number; items: Item[]; availableSources: string[] } | null = null;
-const clean = (s: unknown) => String(s ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 const parser = new XMLParser({ ignoreAttributes: false, processEntities: false });
 
 Deno.serve(async request => {
@@ -23,12 +23,7 @@ Deno.serve(async request => {
       const xml = await response.text();
       if (xml.length > 2_000_000 || /<!DOCTYPE/i.test(xml)) throw new Error('Unsupported feed');
       const parsed = parser.parse(xml);
-      const rows = parsed.rss?.channel?.item || parsed.feed?.entry || [];
-      return (Array.isArray(rows) ? rows : [rows]).slice(0, 5).flatMap((row: Record<string, unknown>): Item[] => {
-        const link = clean(row.link);
-        if (!/^https?:\/\//i.test(link) || !clean(row.title)) return [];
-        return [{ title: clean(row.title), link, pubDate: clean(row.pubDate || row.published), description: clean(row.description || row.summary).slice(0, 360), source }];
-      });
+      return newsFeedItems(parsed,source);
     }));
     const items = results.flatMap(result => result.status === 'fulfilled' ? result.value : []);
     if (items.length) cached = { at: Date.now(), items, availableSources: [...new Set(items.map(i => i.source))] };
