@@ -99,6 +99,13 @@
       "when": 1792067308123,
       "tag": "0013_restrict_email_asset_listing",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792570929875,
+      "tag": "0014_private_learning_history",
+      "breakpoints": true
     }
   ]
 }

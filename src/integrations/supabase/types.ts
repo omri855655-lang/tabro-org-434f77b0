@@ -2820,6 +2820,45 @@ export type Database = {
           },
         ]
       }
+      zoneflow_learning_history: {
+        Row: {
+          category: string
+          completed_at: string
+          content: string | null
+          feedback: string | null
+          id: string
+          level: string | null
+          subtopic: string | null
+          summary: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          completed_at: string
+          content?: string | null
+          feedback?: string | null
+          id: string
+          level?: string | null
+          subtopic?: string | null
+          summary: string
+          title: string
+          user_id?: string
+        }
+        Update: {
+          category?: string
+          completed_at?: string
+          content?: string | null
+          feedback?: string | null
+          id?: string
+          level?: string | null
+          subtopic?: string | null
+          summary?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
