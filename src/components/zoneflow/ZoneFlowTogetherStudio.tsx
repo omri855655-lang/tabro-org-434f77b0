@@ -18,6 +18,8 @@ import { FocusRoomInterior, type FocusActivity, type FocusRoomParticipant } from
 import { clampRoomPosition } from "@/lib/focusRoom";
 import { focusRoomCopy } from "@/lib/focusRoomCopy";
 import { togetherCopy } from "@/lib/togetherCopy";
+import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
+import { normalizeFocusPresence } from '@/lib/focusRoomPresence';
 import { TogetherProfile } from './TogetherProfile';
 
 type TogetherTab = "rooms" | "competitions" | "progress";
@@ -109,6 +111,9 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const copy = COPY[lang] ?? COPY.en;
   const roomCopy = ROOM_COPY[lang] ?? ROOM_COPY.en;
   const extra = togetherCopy[lang];
+  const viewCopy = focusRoomViewCopy[lang];
+  const [roomConnection, setRoomConnection] = useState<'connecting' | 'live' | 'offline' | 'local'>('local');
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [tab, setTab] = useState<TogetherTab>("rooms");
   const [rooms, setRooms] = useState<Room[]>(getStoredRooms);
   const [joinedRooms, setJoinedRooms] = useState<string[]>(() => safeLocalStorage.getJSON("zoneflow-together-joined", []));
@@ -140,6 +145,14 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   const accumulatedPauseSeconds = useRef(0);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const joinRequestId = useRef(0);
+  const presencePayload = useRef<RoomPresencePayload | null>(null);
+  useEffect(() => {
+    presencePayload.current = {
+      userId: user?.id || 'local-user', displayName: username.trim() || 'Tabro learner',
+      ...clampRoomPosition(myPosition), status: focusActive ? 'focusing' : 'setting-up',
+      avatarStyle, activity, seated, durationMinutes: sessionDuration, onlineAt: new Date().toISOString(),
+    };
+  }, [user?.id, username, myPosition, focusActive, avatarStyle, activity, seated, sessionDuration]);
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? (activeRoomSnapshot?.id === selectedRoomId ? activeRoomSnapshot : null);
 
@@ -185,6 +198,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   useEffect(() => {
     if (!selectedRoom) {
       setRoomParticipants([]);
+      setRoomConnection('local');
       return;
     }
     const localParticipant: FocusRoomParticipant = {
@@ -194,45 +208,55 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
       y: myPosition.y,
       status: focusActive ? "focusing" : "setting-up",
       avatarStyle,
+      activity, seated, durationMinutes: sessionDuration,
       isMe: true,
     };
     if (!user || !isUuid(selectedRoom.id)) {
+      setRoomConnection('local');
       setRoomParticipants([localParticipant]);
       return;
     }
 
     const channel = supabase.channel(`zoneflow-room-${selectedRoom.id}`, { config: { private: true, presence: { key: user.id } } });
+    setRoomConnection('connecting');
     roomChannelRef.current = channel;
+    let connected = false;
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<RoomPresencePayload>();
-        const people = Object.values(state).flat().map((participant) => ({
-          userId: participant.userId,
-          displayName: String(participant.displayName || 'Tabro learner').slice(0, 80),
-          ...clampRoomPosition(participant),
-          status: participant.status === 'focusing' || participant.status === 'break' || participant.status === 'away' ? participant.status : 'setting-up',
-          color: participant.color,
-          avatarStyle: Number.isFinite(participant.avatarStyle) ? participant.avatarStyle : 0,
-          activity: participant.activity === "book" || participant.activity === "notebook" ? participant.activity : "computer",
-          seated: participant.seated === true,
-          durationMinutes: Math.min(240, Math.max(1, Number(participant.durationMinutes) || 25)),
-          isMe: participant.userId === user.id,
-        } satisfies FocusRoomParticipant));
-        setRoomParticipants(people);
+        setRoomParticipants(normalizeFocusPresence(state, presencePayload.current || localParticipant));
       })
       .subscribe(async (status) => {
-        if (status !== "SUBSCRIBED") return;
-        await channel.track({ ...localParticipant, onlineAt: new Date().toISOString() } satisfies RoomPresencePayload);
+        if (roomChannelRef.current !== channel) return;
+        connected = status === 'SUBSCRIBED';
+        if (!connected) {
+          setRoomConnection('offline');
+          setRoomParticipants(people => people.filter(person => person.isMe));
+          return;
+        }
+        const result = await channel.track(presencePayload.current || { ...localParticipant, onlineAt: new Date().toISOString() });
+        if (roomChannelRef.current === channel) setRoomConnection(result === 'ok' ? 'live' : 'offline');
       });
 
+    // Refresh the latest complete payload after reconnects and background suspension.
+    const heartbeat = window.setInterval(async () => {
+      if (!connected || !presencePayload.current) return;
+      const result = await channel.track({ ...presencePayload.current, onlineAt: new Date().toISOString() });
+      if (roomChannelRef.current === channel) {
+        setRoomConnection(result === 'ok' ? 'live' : 'offline');
+        if (result !== 'ok') setRoomParticipants(people => people.filter(person => person.isMe));
+      }
+    }, 20_000);
+
     return () => {
+      window.clearInterval(heartbeat);
       roomChannelRef.current = null;
       void channel.untrack();
       void supabase.removeChannel(channel);
     };
     // Position and focus status are updated through the lightweight effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [avatarStyle, selectedRoom?.id, user?.id, username]);
+  }, [avatarStyle, selectedRoom?.id, user?.id, username, connectionAttempt]);
 
   useEffect(() => {
     if (!selectedRoom) return;
@@ -600,7 +624,12 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
 
     {tab === "rooms" && (
       <div className="space-y-4">
-        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} activity={activity} onActivityChange={setActivity} onSelectSeat={(position) => { moveAvatar(position); setSeated(true); }} /> : pendingRoom ? (
+        <aside className="rounded-2xl border bg-card px-4 py-3 text-sm">
+          {selectedRoom && <div role="status" className="mb-2 flex flex-wrap items-center gap-3"><span className={roomConnection === 'live' ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}>{viewCopy[roomConnection]}</span>{roomConnection === 'offline' && <Button size="sm" variant="outline" onClick={()=>setConnectionAttempt(value=>value+1)}>{viewCopy.retry}</Button>}</div>}
+          <p className="text-xs leading-5 text-muted-foreground">{viewCopy.joinHint}</p>
+          {selectedRoom?.access === 'friends' && selectedRoom.inviteCode && <p className="mt-2 font-mono" dir="ltr">{selectedRoom.inviteCode}</p>}
+        </aside>
+        {selectedRoom ? <FocusRoomInterior key={`${selectedRoom.id}:${selectedRoom.scene}`} scene={selectedRoom.scene} name={selectedRoom.name} topic={sessionGoal || selectedRoom.topic} participants={roomParticipants} timer={formatTimer(remainingSeconds)} active={focusActive} onToggle={focusActive ? pauseTimer : () => void startTimer()} onReset={resetTimer} onLeave={leaveRoom} onMove={moveAvatar} activity={activity} onActivityChange={setActivity} onSelectSeat={(position) => { moveAvatar(position); setSeated(true); }} onDurationChange={minutes => { if (focusActive || remainingSeconds !== sessionDuration * 60) return; setSessionDuration(minutes); setRemainingSeconds(minutes * 60); }} /> : pendingRoom ? (
           <Card className={cn("overflow-hidden border", panel)}>
             <CardContent className="grid gap-6 bg-gradient-to-br from-cyan-500/10 via-transparent to-amber-500/10 p-6 md:grid-cols-[0.8fr_1.2fr]">
               <div className="rounded-[2rem] bg-gradient-to-br from-[#172554] to-[#0f766e] p-6 text-white">

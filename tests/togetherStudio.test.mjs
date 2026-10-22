@@ -8,6 +8,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { togetherCopy } from '../src/lib/togetherCopy.ts';
 import { focusRoomCopy } from '../src/lib/focusRoomCopy.ts';
+import { focusRoomViewCopy } from '../src/lib/focusRoomViewCopy.ts';
+import { normalizeFocusPresence } from '../src/lib/focusRoomPresence.ts';
 import { clampRoomPosition } from '../src/lib/focusRoom.ts';
 
 const require = createRequire(import.meta.url);
@@ -30,6 +32,8 @@ function loadComponent(filename, tab = 'rooms') {
     if (name === '@/lib/appBlocking') return {};
     if (name === '@/lib/togetherCopy') return { togetherCopy };
     if (name === '@/lib/focusRoomCopy') return { focusRoomCopy };
+    if (name === '@/lib/focusRoomViewCopy') return { focusRoomViewCopy };
+    if (name === '@/lib/focusRoomPresence') return { normalizeFocusPresence };
     if (name === '@/lib/focusRoom') return { clampRoomPosition };
     if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
     if (name === './TogetherProfile') return loadComponent('TogetherProfile', tab);

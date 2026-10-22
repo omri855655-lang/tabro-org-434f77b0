@@ -20,17 +20,21 @@ export function nearestAvailableFocusSeat(position: { x: number; y: number }, pe
 }
 
 export type RoomPosition = { x: number; y: number };
-const walkable = (p: RoomPosition) => !FOCUS_SEATS.some(s => Math.abs(s.x-p.x)<11 && p.y>s.y+1 && p.y<s.y+13);
-export function safeFloorPosition(position: RoomPosition): RoomPosition {
+const intersectsDesk = (p: RoomPosition, s: RoomPosition, facingRows: boolean) => {
+  const offset = (p.y - s.y) * (facingRows && s.y === 69 ? -1 : 1);
+  return Math.abs(s.x-p.x)<11 && offset>1 && offset<13;
+};
+const walkable = (p: RoomPosition, facingRows = false) => !FOCUS_SEATS.some(s => intersectsDesk(p,s,facingRows));
+export function safeFloorPosition(position: RoomPosition, facingRows = false): RoomPosition {
   const p=clampRoomPosition(position);
-  if(walkable(p))return p;
-  const desk=FOCUS_SEATS.find(s=>Math.abs(s.x-p.x)<11 && p.y>s.y+1 && p.y<s.y+13)!;
+  if(walkable(p,facingRows))return p;
+  const desk=FOCUS_SEATS.find(s=>intersectsDesk(p,s,facingRows))!;
   return {x:p.x,y:desk.y};
 }
 
 // Route on the same floor coordinates used by the furniture, leaving aisles clear.
-export function planFocusWalk(from: RoomPosition, to: RoomPosition): RoomPosition[] {
-  const start=safeFloorPosition(from), end=safeFloorPosition(to);
+export function planFocusWalk(from: RoomPosition, to: RoomPosition, facingRows = false): RoomPosition[] {
+  const start=safeFloorPosition(from,facingRows), end=safeFloorPosition(to,facingRows);
   const a={x:Math.round(start.x),y:Math.round(start.y)}, b={x:Math.round(end.x),y:Math.round(end.y)};
   const key=(p:RoomPosition)=>`${p.x},${p.y}`;
   const queue=[a], previous=new Map<string,RoomPosition|null>([[key(a),null]]);
@@ -38,7 +42,7 @@ export function planFocusWalk(from: RoomPosition, to: RoomPosition): RoomPositio
     const p=queue[i]; if(key(p)===key(b))break;
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const next={x:p.x+dx,y:p.y+dy};
-      if(next.x<7||next.x>93||next.y<28||next.y>77||!walkable(next)||previous.has(key(next)))continue;
+      if(next.x<7||next.x>93||next.y<28||next.y>77||!walkable(next,facingRows)||previous.has(key(next)))continue;
       previous.set(key(next),p);queue.push(next);
     }
   }
