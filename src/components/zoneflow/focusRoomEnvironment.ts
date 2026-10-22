@@ -1,0 +1,166 @@
+import * as THREE from 'three';
+import type { RoomAtmosphere } from '@/lib/focusRoomJourney';
+
+type Build = {
+  box: (parent: THREE.Object3D, color: number, at: number[], size: number[]) => THREE.Mesh;
+  ball: (parent: THREE.Object3D, color: number, at: number[], size: number[]) => THREE.Mesh;
+  mat: (color: number) => THREE.MeshStandardMaterial;
+};
+
+export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build) {
+  const {box, ball, mat} = b;
+  const plane = kind === 'plane', airport = kind === 'airport', grand = kind === 'grand';
+  const cozy = kind === 'intimate', cafe = kind === 'cafe', office = kind === 'office';
+  const width = plane ? 5.8 : cozy ? 8 : airport ? 12 : 10;
+  const height = plane ? 5 : grand ? 10 : cozy ? 4.5 : airport ? 8 : 6.4;
+  const front = plane ? -12 : grand ? -12 : -9;
+  const back = plane ? 13 : 10;
+  const wall = plane ? 0xe7e7df : cozy ? 0xbaa185 : cafe ? 0xc0a692 : office ? 0xd4ddd9 : 0xe0d6be;
+  const wood = cozy ? 0x76513d : grand ? 0x795640 : 0xaa815b;
+  const accent = plane ? 0x293e55 : airport ? 0x355e6e : cafe ? 0x755244 : 0x395c4c;
+  const disposables: {dispose: () => void}[] = [];
+  scene.background = new THREE.Color(plane || airport ? 0xaac7d7 : wall);
+  scene.fog = new THREE.Fog(scene.background, 28, 65);
+  const ground = box(scene, plane ? 0x3b4c5b : airport ? 0xb8c6c8 : office ? 0x8c9790 : 0xb29471, [0,-.12,(front+back)/2], [width*2,.2,back-front]);
+  ground.receiveShadow = true;
+  if(!plane&&!airport&&!office){
+    const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;const ctx=canvas.getContext('2d')!;
+    ctx.fillStyle='#bfa27c';ctx.fillRect(0,0,512,512);
+    for(let row=0;row<8;row++){ctx.fillStyle=row%2?'#b49670':'#c3a77e';ctx.fillRect(0,row*64,512,63);ctx.fillStyle='#8d765b';ctx.fillRect(row%2*256,row*64,1,64);for(let i=0;i<14;i++){ctx.strokeStyle='rgba(103,75,47,.12)';ctx.beginPath();ctx.moveTo(0,row*64+i*4);ctx.bezierCurveTo(150,row*64+i*4+7,320,row*64+i*4-7,512,row*64+i*4);ctx.stroke();}}
+    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(4,5);
+    const material=new THREE.MeshStandardMaterial({map:texture,roughness:.65});ground.material=material;disposables.push(texture,material);
+  }
+  if (!plane) for(let z=front;z<back;z+=airport?2:.65) box(scene, airport?0x9aaeb2:0x96795b,[0,-.009,z],[width*2,.008,.012]);
+  box(scene, wall, [-width,height/2,(front+back)/2],[.2,height,back-front]);
+  box(scene, wall, [width,height/2,(front+back)/2],[.2,height,back-front]);
+  box(scene, wall, [0,height/2,front],[width*2,height,.2]);
+  box(scene, wall, [0,height/2,back],[width*2,height,.2]);
+
+  const label = (text:string, at:number[], size:number[], color='#e6d8ba', background='#263f42') => {
+    const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;
+    const ctx=canvas.getContext('2d')!;ctx.fillStyle=background;ctx.fillRect(0,0,512,128);ctx.fillStyle=color;ctx.font='500 42px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,256,64,480);
+    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+    const material=new THREE.MeshBasicMaterial({map:texture});disposables.push(texture,material);
+    const mesh=box(scene,0xffffff,at,size);mesh.material=material;return mesh;
+  };
+  // Window views stay on window surfaces, never floating across cabin walls.
+  const skyCanvas=document.createElement('canvas');skyCanvas.width=512;skyCanvas.height=256;
+  const skyContext=skyCanvas.getContext('2d')!;
+  const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.colorSpace=THREE.SRGBColorSpace;
+  const skyMaterial=new THREE.MeshBasicMaterial({map:skyTexture});disposables.push(skyTexture,skyMaterial);
+  const paintSky=(lift:number,travel:number)=>{
+    const ctx=skyContext,gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,'#75a7cb');gradient.addColorStop(.7,'#dae8e9');gradient.addColorStop(1,'#e7dec8');ctx.fillStyle=gradient;ctx.fillRect(0,0,512,256);
+    if(!plane&&!airport){
+      ctx.fillStyle='#9eaa8e';ctx.fillRect(0,155,512,101);
+      for(let i=0;i<9;i++){const x=i*66-10;ctx.fillStyle=cafe||office?'#b4b7ac':'#6f8d77';ctx.fillRect(x,100+i%3*18,42,110);ctx.fillStyle=cafe||office?'#e1dfc7':'#8ca68a';if(cafe||office){for(let row=0;row<4;row++)ctx.fillRect(x+8,115+row*20,24,8);}else{ctx.beginPath();ctx.ellipse(x+20,105+i%3*18,36,50,0,0,Math.PI*2);ctx.fill();}}
+    }else if(lift<.9){ctx.fillStyle='#74918c';ctx.fillRect(0,150+lift*105,512,110);ctx.fillStyle='#53636a';ctx.fillRect(0,184+lift*90,512,72);ctx.fillStyle='#f1e9cf';for(let x=-100;x<600;x+=110)ctx.fillRect((x+travel*50)%650-50,218+lift*90,55,5);}
+    ctx.fillStyle='rgba(255,255,255,.85)';for(let i=0;i<5;i++){const x=(i*133+travel*6)%670-80,y=70+i%2*28+lift*70;ctx.beginPath();ctx.ellipse(x,y,60,17,0,0,Math.PI*2);ctx.fill();}skyTexture.needsUpdate=true;
+  };paintSky(0,0);
+  const window=(x:number,y:number,z:number,w:number,h:number,side=0)=>{
+    const root=new THREE.Group();root.position.set(x,y,z);root.rotation.y=side;scene.add(root);
+    if(plane){
+      const shape=new THREE.Shape();const r=.35,hw=w/2,hh=h/2;shape.moveTo(-hw+r,-hh);shape.lineTo(hw-r,-hh);shape.quadraticCurveTo(hw,-hh,hw,-hh+r);shape.lineTo(hw,hh-r);shape.quadraticCurveTo(hw,hh,hw-r,hh);shape.lineTo(-hw+r,hh);shape.quadraticCurveTo(-hw,hh,-hw,hh-r);shape.lineTo(-hw,-hh+r);shape.quadraticCurveTo(-hw,-hh,-hw+r,-hh);
+      const geometry=new THREE.ShapeGeometry(shape);const uv=geometry.getAttribute('uv'),position=geometry.getAttribute('position');for(let i=0;i<uv.count;i++)uv.setXY(i,(position.getX(i)+hw)/w,(position.getY(i)+hh)/h);disposables.push(geometry);
+      const rim=new THREE.Mesh(geometry,mat(0xc6cdd0));rim.scale.set(1.18,1.14,1);root.add(rim);
+      const view=new THREE.Mesh(geometry,skyMaterial);view.position.z=.035;root.add(view);
+    }else{
+      box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=box(root,0xffffff,[0,0,.08],[w,h,.04]);view.material=skyMaterial;
+      box(root,accent,[0,0,.12],[.045,h,.04]);
+    }
+  };
+  if(!plane){
+    box(scene,wall,[0,height,(front+back)/2],[width*2,.15,back-front]);
+    if(grand){box(scene,0xd1e1dc,[0,height-.1,-1],[8,.06,17]);for(let z=-9;z<9;z+=3)box(scene,wood,[0,height-.2,z],[width*2,.18,.2]);}
+  }
+  const plant=(x:number,z:number,scale=1)=>{
+    const root=new THREE.Group();root.position.set(x,0,z);root.scale.setScalar(scale);scene.add(root);
+    box(root,0xaa7959,[0,.35,0],[.65,.7,.65]);box(root,0x695542,[0,1.2,0],[.055,1.8,.055]);
+    for(let i=0;i<7;i++){const leaf=ball(root,i%2?0x5b7852:0x82946c,[Math.sin(i*2)*.4,1.3+i*.17,Math.cos(i*2)*.3],[.24,.65,.15]);leaf.rotation.z=Math.sin(i*2)*.8;}
+  };
+  const shelf=(x:number,z:number,rotation:number,tall=4.2)=>{
+    const root=new THREE.Group();root.position.set(x,0,z);root.rotation.y=rotation;scene.add(root);
+    box(root,wood,[0,tall/2,0],[3.5,tall,.35]);
+    for(let row=0;row<Math.floor(tall/.8);row++){
+      box(root,0xc8ac7e,[0,.35+row*.8,.26],[3.55,.09,.6]);
+      for(let i=0;i<13;i++){const book=box(root,[0x758e7b,0xb39060,0x5f727d,0x925d50,0xd3c49d][(i*3+row)%5],[-1.5+i*.245,.67+row*.8,.28],[.16,.48+(i%3)*.05,.32]);book.rotation.z=i%7===0?.12:0;}
+    }
+  };
+  if(plane){
+    // Curved fuselage, continuous overhead bins and forward-facing passenger pods.
+    const points:THREE.Vector2[]=[];for(let i=0;i<=32;i++){const a=i/32*Math.PI;points.push(new THREE.Vector2(Math.cos(a)*width,2.7+Math.sin(a)*2.4));}
+    const positions:number[]=[];for(let i=0;i<points.length-1;i++){const a=points[i],c=points[i+1];positions.push(a.x,a.y,front,c.x,c.y,front,a.x,a.y,back,c.x,c.y,front,c.x,c.y,back,a.x,a.y,back);}
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.computeVertexNormals();
+    const material=new THREE.MeshStandardMaterial({color:0xe9e8de,side:THREE.DoubleSide,roughness:.7});disposables.push(geometry,material);scene.add(new THREE.Mesh(geometry,material));
+    for(const side of [-1,1]){
+      for(let z=-10;z<12;z+=2.5)window(side*(width-.11),2.65,z,1.1,1.5,-side*Math.PI/2);
+      box(scene,0xc4ced2,[side*4.75,4.1,.5],[1.45,.7,24]);box(scene,0xffe5ad,[side*4.05,3.76,.5],[.045,.045,24]);
+      for(let z=-10;z<12;z+=2.5){box(scene,0x9caaaf,[side*4.6,3.72,z],[.6,.03,.25]);box(scene,0x596b76,[side*4.6,3.69,z],[.18,.02,.1]);}
+      box(scene,0xb4a789,[side*1.42,.008,.5],[.08,.012,24]);
+    }
+    box(scene,0xc3d0d3,[0,2.3,front+.15],[2.2,4.5,.12]);box(scene,0x344e61,[0,2.6,front+.24],[1.7,1.1,.1]);
+    label('ZONEFLOW AIR',[0,3.9,front+.34],[3,.55,.03]);label('EXIT',[3.5,3.7,front+.2],[.8,.3,.03],'#e4f1dc','#426355');
+    for(const x of [-2.8,0,2.8])for(const z of [-8.5,-5.8]){
+      box(scene,accent,[x,.7,z],[1.4,.24,1.4]);const seat=box(scene,accent,[x,1.45,z+.65],[1.4,1.5,.24]);seat.rotation.x=-.08;box(scene,0xd9d3c2,[x,1.95,z+.48],[.75,.35,.1]);
+    }
+  }else if(airport){
+    for(let x=-10;x<=10;x+=4)window(x,3.6,front+.2,3.8,6.6);
+    for(const x of [-8,8]){box(scene,0x80989f,[x,4,.5],[.25,8,19]);label(x<0?'A12  →':'A14  →',[x,4.1,-5],[2.7,.9,.15]);plant(x,7,1.4);}
+    for(const side of [-1,1])for(let z=2;z<=8;z+=2){box(scene,0x506875,[side*9,.65,z],[2.8,.22,1]);box(scene,0x506875,[side*9,1.1,z+.45],[2.8,.9,.15]);}
+    label('DEPARTURES  /  ZONEFLOW',[0,5.8,front+.4],[7,1,.08]);
+    const aircraft=new THREE.Group();aircraft.position.set(4,1.6,front+.5);scene.add(aircraft);
+    ball(aircraft,0xf2eee2,[0,0,0],[3.5,.35,.18]);const wing=box(aircraft,0x778b9a,[0,-.15,.05],[2,.15,.12]);wing.rotation.z=-.3;const tail=box(aircraft,0x33546b,[2.8,.5,0],[.65,1.1,.1]);tail.rotation.z=-.25;
+    for(let x=-2;x<2.5;x+=.3)box(aircraft,0x466579,[x,.05,.2],[.12,.1,.02]);
+  }else if(cafe){
+    for(const x of [-6,0,6])window(x,3,front+.2,4.5,4.5);
+    box(scene,0x6a4a39,[0,1,back-.8],[15,2,1.5]);box(scene,0xd6bf9a,[0,2.05,back-.8],[15.5,.15,1.7]);
+    box(scene,0x455456,[-3,2.6,back-1],[2,1,1]);for(const x of [-3.5,-2.5])box(scene,0xc9cac0,[x,2.5,back-1.55],[.3,.15,.25]);
+    label('SLOW COFFEE',[0,4,front+.3],[5,1,.08],'#e9ddbf','#745441');
+    for(const x of [-7,7]){plant(x,-5,1.2);box(scene,0x8b6553,[x,1,5],[1.5,2,5]);}
+    for(const x of [-5.2,0,5.2]){box(scene,0x4b3930,[x,4.8,0],[.03,2,.03]);ball(scene,0xd7aa6c,[x,3.8,0],[.6,.25,.6]);}
+  }else if(office){
+    for(let x=-7.5;x<=7.5;x+=5)window(x,3.4,front+.2,4.7,5);
+    box(scene,0xf3eee0,[0,3,back-.2],[8,3,.1]);for(let i=0;i<5;i++)box(scene,0x9cafa0,[-2+i,3+(i%2)*.4,back-.28],[.7,.6,.03]);
+    for(const x of [-6,0,6])box(scene,0xf4eddc,[x,5.7,.5],[.08,.08,15]);
+    for(const x of [-8,8]){plant(x,-6);box(scene,0x698777,[x,.8,7],[2,1.6,2]);}
+  }else{
+    const count=cozy?2:3;for(let i=0;i<count;i++)window((i-(count-1)/2)*(cozy?6:6.4),cozy?2.8:grand?4.8:3.4,front+.2,cozy?3.4:4.4,cozy?3:grand?7.8:4.8);
+    for(const side of [-1,1])for(let z=-6;z<9;z+=3.7)shelf(side*(width-.35),z,-side*Math.PI/2,cozy?3.5:grand?8.5:5);
+    box(scene,cozy?0x866c58:0x536d58,[0,.012,3],[cozy?12:15,.02,10]);
+    if(grand){
+      for(const side of [-1,1]){box(scene,wood,[side*8.5,5.4,-.5],[2.6,.24,21]);for(let z=-10;z<10;z+=.7)box(scene,0xc2a66c,[side*7.2,5.95,z],[.045,1.1,.045]);box(scene,0xc2a66c,[side*7.2,6.5,-.5],[.08,.08,21]);}
+      for(const x of [-7,7])for(const z of [-9,0,9]){box(scene,0xc5b598,[x,4,z],[.35,8,.35]);box(scene,0x8d7956,[x,7.9,z],[.8,.2,.8]);}
+      for(const z of [-4,5]){box(scene,0x9c8250,[0,7,z],[.03,3,.03]);for(const x of [-1.5,0,1.5]){box(scene,0x9c8250,[x,5.5,z],[.07,.7,.07]);ball(scene,0xffe5ad,[x,5.85,z],[.26,.16,.26]);}box(scene,0x9c8250,[0,5.3,z],[3.2,.06,.06]);}
+    }else if(cozy){
+      box(scene,wood,[0,4.5,0],[width*2,.18,20]);for(const x of [-6.5,6.5]){box(scene,0x916d59,[x,.55,8],[2.1,1.1,1.4]);box(scene,0xc1a582,[x,1.1,8.6],[2.1,1.2,.3]);ball(scene,0xf9dfad,[x,2.8,6.5],[.55,.3,.55]);box(scene,0x605747,[x,1.4,6.5],[.045,2.8,.045]);}
+    }
+    for(const x of [-width+1.2,width-1.2])plant(x,-7,cozy?.8:1.3);
+  }
+  let painted=-1,travel=0,lastTravel=-1;
+  return {ground, width, front, back, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
+    if(!plane)return;if(running&&!reduced)travel+=dt;const step=Math.floor(elapsed*2);
+    if(step!==painted||Math.floor(travel*4)!==lastTravel){paintSky(Math.min(1,elapsed/90),travel);painted=step;lastTravel=Math.floor(travel*4);}
+  }};
+}
+
+export function buildFocusStation(parent:THREE.Group, kind:RoomAtmosphere, b:Pick<Build,'box'|'ball'>) {
+  const {box,ball}=b, plane=kind==='plane', cafe=kind==='cafe', airport=kind==='airport', office=kind==='office';
+  const wood=kind==='intimate'?0x79523c:kind==='grand'?0x8e6948:0xb3916c;
+  const accent=plane?0x304b63:airport?0x526d7a:0x435d4b;
+  const top=cafe?ball(parent,wood,[0,1.12,1.25],[1.6,.09,1.25]):box(parent,plane?0xd6d5c6:airport?0xb5cdd0:wood,[0,1.12,plane?1:1.25],[plane?2.05:3.9,.12,plane?1.65:2.3]);
+  if(plane){
+    box(parent,accent,[0,.58,0],[1.65,.23,1.4]);const back=box(parent,accent,[0,1.15,-.65],[1.65,1.2,.27]);back.rotation.x=.08;
+    box(parent,0xd6d2c0,[0,1.58,-.49],[.8,.25,.08]);
+    for(const x of [-.93,.93]){box(parent,0xbac2be,[x,.95,0],[.2,.15,1.5]);box(parent,accent,[x,.5,-.15],[.18,.8,1.2]);}
+    box(parent,0xa4afa9,[0,.7,.9],[.12,.8,.12]);
+  }else{
+    for(const x of [-1.5,1.5])for(const z of [.3,2.2])box(parent,accent,[x,.5,z],[.09,1,.09]);
+    box(parent,accent,[0,.58,-.14],[1.08,.15,.9]);box(parent,accent,[0,1.05,-.55],[1.08,1,.12]);
+    for(const x of [-.43,.43])for(const z of [-.5,.15])box(parent,wood,[x,.28,z],[.09,.55,.09]);
+    if(!airport&&!cafe&&!office){box(parent,accent,[-1.45,1.75,1.9],[.05,1.1,.05]);ball(parent,accent,[-1.45,2.3,1.9],[.4,.14,.26]);ball(parent,0xffe6ad,[-1.45,2.2,1.9],[.3,.025,.2]);}
+    if(kind==='intimate'){for(const x of [-1.86,1.86])box(parent,wood,[x,1.45,1.3],[.08,.6,2.3]);}
+    if(office){box(parent,0x82978b,[-1.85,1.6,1.25],[.08,1,2.3]);box(parent,0x82978b,[0,1.6,2.35],[3.8,1,.08]);}
+    if(cafe){ball(parent,0x788d65,[1.05,1.4,1.75],[.22,.22,.22]);box(parent,0xb28d6c,[1.05,1.25,1.75],[.22,.25,.22]);}
+  }
+  if(!plane)box(parent,0xf2e7d2,[1.3,1.35,.9],[.22,.32,.22]);
+  return top;
+}

@@ -20,12 +20,13 @@ export function nearestAvailableFocusSeat(position: { x: number; y: number }, pe
 }
 
 export type RoomPosition = { x: number; y: number };
-const intersectsDesk = (p: RoomPosition, s: RoomPosition, facingRows: boolean) => {
-  const offset = (p.y - s.y) * (facingRows && s.y === 69 ? -1 : 1);
+export type RoomDeskLayout = boolean | 'forward';
+const intersectsDesk = (p: RoomPosition, s: RoomPosition, facingRows: RoomDeskLayout) => {
+  const offset = (p.y - s.y) * (facingRows === 'forward' || facingRows && s.y === 69 ? -1 : 1);
   return Math.abs(s.x-p.x)<11 && offset>1 && offset<13;
 };
-const walkable = (p: RoomPosition, facingRows = false) => !FOCUS_SEATS.some(s => intersectsDesk(p,s,facingRows));
-export function safeFloorPosition(position: RoomPosition, facingRows = false): RoomPosition {
+const walkable = (p: RoomPosition, facingRows: RoomDeskLayout = false) => !FOCUS_SEATS.some(s => intersectsDesk(p,s,facingRows));
+export function safeFloorPosition(position: RoomPosition, facingRows: RoomDeskLayout = false): RoomPosition {
   const p=clampRoomPosition(position);
   if(walkable(p,facingRows))return p;
   const desk=FOCUS_SEATS.find(s=>intersectsDesk(p,s,facingRows))!;
@@ -33,7 +34,7 @@ export function safeFloorPosition(position: RoomPosition, facingRows = false): R
 }
 
 // Route on the same floor coordinates used by the furniture, leaving aisles clear.
-export function planFocusWalk(from: RoomPosition, to: RoomPosition, facingRows = false): RoomPosition[] {
+export function planFocusWalk(from: RoomPosition, to: RoomPosition, facingRows: RoomDeskLayout = false): RoomPosition[] {
   const start=safeFloorPosition(from,facingRows), end=safeFloorPosition(to,facingRows);
   const a={x:Math.round(start.x),y:Math.round(start.y)}, b={x:Math.round(end.x),y:Math.round(end.y)};
   const key=(p:RoomPosition)=>`${p.x},${p.y}`;

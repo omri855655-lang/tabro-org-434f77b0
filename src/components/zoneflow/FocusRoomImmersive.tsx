@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { ArrowDown, ArrowUp, RotateCcw, RotateCw } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
 import { FOCUS_SEATS, planFocusWalk, safeFloorPosition } from '@/lib/focusRoom';
 import type { FocusRoomParticipant, FocusRoomScene } from './FocusRoomInterior';
 import type { RoomAtmosphere } from '@/lib/focusRoomJourney';
+import { buildFocusEnvironment, buildFocusStation } from './focusRoomEnvironment';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -14,8 +16,6 @@ interface Props {
   onUnavailable: () => void;
   atmosphere?: RoomAtmosphere; elapsed?: number; started?: boolean; running?: boolean;
 }
-const world = (p: Position) => new THREE.Vector3((p.x - 50) * .2, 0, (p.y - 28) * .22 - 5.5);
-const floor = (v: THREE.Vector3) => safeFloorPosition({ x: v.x / .2 + 50, y: (v.z + 5.5) / .22 + 28 }, true);
 const SHIRTS = [0x589f95, 0xcd8975, 0xc6a15c, 0x839c68, 0xa49bbf, 0x7b9ebf, 0x9aa96b, 0xcc9baa];
 const SKINS = [0xe9b38d, 0xc08b65, 0x875b43, 0xf1c6a3];
 
@@ -37,20 +37,28 @@ export default function FocusRoomImmersive(props: Props) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     const canvas = renderer.domElement;
     canvas.style.cssText = 'width:100%;height:100%;display:block;touch-action:none';
     canvas.setAttribute('aria-hidden', 'true');
     element.appendChild(canvas);
     const scene = new THREE.Scene();
     const atmosphere = props.atmosphere || props.scene;
-    const flying = atmosphere === 'plane', airport = atmosphere === 'airport';
-    const library = ['library', 'grand', 'intimate'].includes(atmosphere);
+    const flying = atmosphere === 'plane';
+    const xScale = flying ? .105 : atmosphere === 'intimate' ? .16 : .2;
+    const zScale = flying ? .32 : .22;
+    const layout = flying ? 'forward' : true;
+    const world = (p: Position) => new THREE.Vector3((p.x-50)*xScale,0,(p.y-28)*zScale-5.5);
+    const floor = (v: THREE.Vector3) => safeFloorPosition({x:v.x/xScale+50,y:(v.z+5.5)/zScale+28},layout);
+    const trim = flying ? 0x304b63 : 0x34594a;
     scene.background = new THREE.Color(0xeee4cf);
     scene.fog = new THREE.Fog(0xeee4cf, 20, 40);
     const camera = new THREE.PerspectiveCamera(62, 1, .08, 60);
     const materials = new Map<number, THREE.MeshStandardMaterial>();
     const cube = new THREE.BoxGeometry(1, 1, 1), sphere = new THREE.SphereGeometry(1, 16, 12);
     const cylinder = new THREE.CylinderGeometry(1, 1, 1, 12);
+    const roundedCube = new RoundedBoxGeometry(1,1,1,3,.08);
     const mat = (color: number) => {
       if (!materials.has(color)) materials.set(color, new THREE.MeshStandardMaterial({ color, roughness: .78 }));
       return materials.get(color)!;
@@ -61,129 +69,21 @@ export default function FocusRoomImmersive(props: Props) {
     };
     const box = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, cube, color, at, size);
     const ball = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, sphere, color, at, size);
-    const wood = flying ? 0xc6b8a0 : atmosphere === 'intimate' ? 0x926447 : atmosphere === 'office' ? 0xb99c79 : 0xb88f63;
-    const trim = flying || airport ? 0x496479 : atmosphere === 'cafe' ? 0x754c3d : 0x34594a;
-    scene.add(new THREE.HemisphereLight(0xfff3dc, 0x8a9b87, 2.6));
-    const sun = new THREE.DirectionalLight(0xffe2ac, 3); sun.position.set(-7, 9, 2); scene.add(sun);
-    const ground = box(scene, flying ? 0x667d8b : airport ? 0xc3ced1 : 0xc8af88, [0, -.12, .5], [20, .2, 19]);
-    for (let z = -8; z <= 9; z += .8) box(scene, 0xb49a75, [0, -.008, z], [20, .008, .018]);
-    box(scene, 0xeee4cf, [0, 3.2, -8.5], [20, 6.4, .2]);
-    box(scene, 0xe5dcc9, [-10, 3.2, .5], [.2, 6.4, 18]);
-    box(scene, 0xe5dcc9, [10, 3.2, .5], [.2, 6.4, 18]);
-    box(scene, 0xe5dcc9, [0, 3.2, 9.5], [20, 6.4, .2]);
-    box(scene, trim, [0, .65, -8.32], [20, 1.3, .16]);
-    const skyPanels: THREE.Mesh[] = [], landscape: THREE.Object3D[] = [];
-    for (const x of [-6.5, 0, 6.5]) {
-      if (flying) {
-        ball(scene, 0xcedbe1, [x, 3.2, -8.12], [2.2, 1.7, .25]);
-        skyPanels.push(ball(scene, 0xaacbd0, [x, 3.2, -7.95], [1.8, 1.35, .12]));
-        continue;
-      }
-      box(scene, trim, [x, 3.5, -8.15], [4.5, 4.2, .3]);
-      skyPanels.push(box(scene, 0xaacbd0, [x, 3.5, -7.95], [4.12, 3.82, .12]));
-      box(scene, trim, [x, 3.5, -7.84], [.1, 3.82, .1]);
-      box(scene, trim, [x, 3.3, -7.84], [4.12, .1, .1]);
-      box(scene, 0xd7c5a3, [x, 1.38, -7.9], [4.9, .16, .6]);
-      // A simple distant landscape, built in the scene without external images.
-      landscape.push(ball(scene, 0x82a38e, [x - 1, 2.1, -7.86], [1.2, .6, .02]));
-      landscape.push(ball(scene, 0x95b29c, [x + .9, 2, -7.84], [1.2, .5, .02]));
-    }
-    if (library || atmosphere === 'cafe' || atmosphere === 'office') for (const side of [-1, 1]) {
-      for (const z of [-4, 2, 7]) {
-        const shelf = new THREE.Group(); shelf.position.set(side * 9.65, 0, z); shelf.rotation.y = -side * Math.PI / 2; scene.add(shelf);
-        box(shelf, trim, [0, 2, 0], [3.4, 4, .4]);
-        for (let row = 0; row < 4; row++) {
-          box(shelf, wood, [0, .45 + row * .9, .34], [3.5, .12, .65]);
-          for (let i = 0; i < 11; i++) box(shelf, [0xb87c5c, 0xbdb591, 0x638879, 0x849aa1][(i + row) % 4], [-1.45 + i * .28, .82 + row * .9, .31], [.18, .6 + (i % 3) * .05, .27]);
-        }
-      }
-    }
-    if (library) {
-      // Peripheral detail leaves the existing desk and avatar paths unchanged.
-      box(scene, 0x607b64, [0, .012, 5.4], [7, .025, 4]);
-      for (const x of [-8.8, 8.8]) {
-        box(scene, wood, [x, 2.8, -.5], [.3, 5.6, .3]);
-        box(scene, 0xd7b87a, [x, 5.4, -.5], [.4, .18, 17]);
-      }
-      if (atmosphere === 'grand') {
-        for (const side of [-1, 1]) {
-          box(scene, trim, [side * 8.6, 4.5, .5], [2.1, .22, 17]);
-          for (let z = -7; z < 9; z += .8) box(scene, 0xc9ae74, [side * 7.6, 4.95, z], [.06, .9, .06]);
-          box(scene, wood, [side * 7.6, 5.42, .5], [.1, .1, 17]);
-          for (let z = -6; z < 9; z += 2.7) {
-            box(scene, wood, [side * 9.65, 5.5, z], [.35, 1.4, 2.3]);
-            for (let i = 0; i < 8; i++) box(scene, [0x6a8e83,0xc5a272,0x895c51][i % 3], [side * 9.35, 5.5, z - .9 + i * .25], [.22, .9, .16]);
-          }
-        }
-        for (const z of [-4, 3]) {
-          shape(scene, cylinder, 0xc9ae74, [0, 5.6, z], [.025, 1.3, .025]);
-          ball(scene, 0xffedc1, [0, 4.9, z], [.6, .18, .6]);
-        }
-      } else if (atmosphere === 'intimate') {
-        for (const x of [-7.5, 7.5]) {
-          box(scene, 0x8e6a56, [x, .6, 8], [2.4, 1.1, 1.2]);
-          box(scene, 0xb99d7c, [x, 1.1, 8.5], [2.4, 1.3, .3]);
-          ball(scene, 0xf8deb0, [x, 3, 7], [.6, .3, .6]);
-          shape(scene, cylinder, trim, [x, 1.5, 7], [.04, 3, .04]);
-        }
-      }
-    }
-    const clouds: THREE.Mesh[] = [];
-    const runway = new THREE.Group(); scene.add(runway); runway.visible = flying;
-    for (const x of [-6.5,0,6.5]) {
-      box(runway, 0x718082, [x, 2.4, -7.76], [2.3, .4, .02]);
-      box(runway, 0xf8e8b2, [x, 2.45, -7.73], [.8, .045, .02]);
-    }
-    if (flying || airport) {
-      landscape.forEach(item => { item.visible = false; });
-      for (const sky of skyPanels) sky.material = mat(0x9ec7df);
-      for (const x of [-6.5, 0, 6.5]) for (let i = 0; i < 3; i++) clouds.push(ball(scene, 0xf3f5ee, [x - 1.2 + i * .85, 3.7 + i % 2 * .3, -7.78], [.7, .28, .025]));
-      if (flying) {
-        box(scene, 0xe4e9eb, [0, 5.6, .4], [20, .3, 18]);
-        for (const side of [-1, 1]) {
-          box(scene, 0xc8d5dc, [side * 8.6, 4.6, .4], [2.1, 1.2, 18]);
-          box(scene, 0xf4eddc, [side * 7.5, 4, .4], [.08, .06, 18]);
-          for (let z = -5; z < 9; z += 3) {
-            box(scene, trim, [side * 9.85, 2.7, z], [.15, 2, 1.65]);
-            box(scene, 0xa3cde2, [side * 9.74, 2.7, z], [.08, 1.65, 1.3]);
-          }
-        }
-        box(scene, 0xd2b782, [0, .015, .5], [1.2, .02, 18]);
-      } else {
-        for (const x of [-8, 8]) {
-          shape(scene, cylinder, 0x8298a3, [x, 3, -7], [.15, 6, .15]);
-          box(scene, 0x233c51, [x, 4.5, -6.8], [2.6, 1.2, .15]);
-          for (let i = 0; i < 4; i++) box(scene, 0xd4b77b, [x, 4.85 - i * .22, -6.7], [1.7, .05, .03]);
-        }
-        const aircraft = new THREE.Group(); aircraft.position.set(0, 2.3, -7.65); scene.add(aircraft);
-        ball(aircraft, 0xf3f3eb, [0, 0, 0], [3.4, .32, .08]);
-        const wing = box(aircraft, 0xa8bcc8, [.2, -.25, .04], [2.1, .1, .08]); wing.rotation.z = -.3;
-        const tail = box(aircraft, trim, [2.8, .4, 0], [.7, 1, .06]); tail.rotation.z = -.3;
-        for (let x = -2; x < 2.3; x += .3) box(aircraft, 0x436a7e, [x, .06, .1], [.1, .08, .02]);
-      }
-    }
-    for (const x of [-8, 8]) {
-      shape(scene, cylinder, 0xa27152, [x, .4, -6], [.5, .8, .5]);
-      for (let i = 0; i < 5; i++) {
-        const leaf = ball(scene, i % 2 ? 0x587b53 : 0x779866, [x + Math.sin(i * 2) * .35, 1.3 + i * .17, -6 + Math.cos(i * 2) * .3], [.22, .75, .13]);
-        leaf.rotation.z = Math.sin(i * 2) * .6;
-      }
-    }
+    const roundedBox = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, roundedCube, color, at, size);
+    scene.add(new THREE.HemisphereLight(0xf7efdf, 0x74858b, 1.8));
+    const sun = new THREE.DirectionalLight(0xffe5be, 2.4); sun.position.set(-5, 10, -5); scene.add(sun);
+    sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 18, bottom: -15, near: .5, far: 45 });
+    sun.shadow.bias = -.001;
+    const environment = buildFocusEnvironment(scene, atmosphere, {box,ball,mat});
+    const ground = environment.ground;
     const targets: THREE.Object3D[] = [ground];
     const deskProps: { computer: THREE.Group; book: THREE.Group; notebook: THREE.Group; pencil: THREE.Mesh; page: THREE.Mesh }[] = [];
     FOCUS_SEATS.forEach((seat, index) => {
       const desk = new THREE.Group(); desk.position.copy(world(seat)); scene.add(desk);
-      if (index >= 3) desk.rotation.y = Math.PI;
-      const top = box(desk, wood, [0, 1.12, 1.25], [4.1, .18, 2.35]); top.userData.seat = index; targets.push(top);
-      for (const x of [-1.75, 1.75]) for (const z of [.3, 2.2]) box(desk, trim, [x, .5, z], [.12, 1.05, .12]);
-      box(desk, trim, [0, .58, -.14], [1.08, .15, .9]);
-      box(desk, trim, [0, 1.05, -.55], [1.08, 1, .12]);
-      for (const x of [-.43, .43]) for (const z of [-.5, .15]) box(desk, wood, [x, .28, z], [.09, .55, .09]);
-      shape(desk, cylinder, trim, [-1.5, 1.25, 1.9], [.22, .06, .22]);
-      box(desk, trim, [-1.5, 1.75, 1.9], [.06, 1, .06]);
-      ball(desk, trim, [-1.3, 2.25, 1.8], [.45, .18, .28]);
-      ball(desk, 0xffe3a1, [-1.3, 2.15, 1.8], [.32, .02, .2]);
-      shape(desk, cylinder, 0xf5ecd6, [1.4, 1.4, .9], [.15, .36, .15]);
+      if (flying || index >= 3) desk.rotation.y = Math.PI;
+      const top = buildFocusStation(desk, atmosphere, {box:roundedBox,ball});
+      top.userData.seat = index; targets.push(top);
       const computer = new THREE.Group(), book = new THREE.Group(), notebook = new THREE.Group(); desk.add(computer, book, notebook);
       box(computer, 0x455354, [0, 1.25, .95], [1.25, .08, .8]);
       box(computer, 0x455354, [0, 1.65, 1.38], [1.25, .85, .08]);
@@ -235,7 +135,8 @@ export default function FocusRoomImmersive(props: Props) {
         box(leg, 0xe5ddc9, [0, -.85, .08], [.29, .18, .43]); legs.push(leg);
       }
       const label = makeLabel(p.displayName); root.add(label);
-      const position = safeFloorPosition(p, true); root.position.copy(world(position));
+      root.traverse(object => { if (object instanceof THREE.Mesh) object.castShadow = true; });
+      const position = safeFloorPosition(p, layout); root.position.copy(world(position));
       return { root, body, arms, legs, head, label, labelKey: p.displayName, style: p.avatarStyle || 0, target: position, position, route: [position], next: 0 };
     };
     let yaw = 0, pitch = -.12, wasSeated = false, lastMe = '', frame = 0, lastTime = 0;
@@ -243,7 +144,7 @@ export default function FocusRoomImmersive(props: Props) {
     const turn = (amount: number) => { yaw += amount; };
     const step = (amount: number) => {
       const me = latest.current.participants.find(p => p.isMe);
-      if (me) latest.current.onMove(safeFloorPosition({ x: me.x - Math.sin(yaw) * amount * 4, y: me.y - Math.cos(yaw) * amount * 4 }, true));
+      if (me) latest.current.onMove(safeFloorPosition({ x: me.x - Math.sin(yaw) * amount * 4, y: me.y - Math.cos(yaw) * amount * 4 }, layout));
     };
     controls.current = { turn, step };
     const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix(); };
@@ -277,16 +178,7 @@ export default function FocusRoomImmersive(props: Props) {
       frame = requestAnimationFrame(tick);
       if (document.hidden || now - lastTime < 32) return;
       const dt = Math.min(.1, (now - lastTime) / 1000); lastTime = now;
-      if (flying) {
-        const lift = latest.current.started ? Math.min(1, (latest.current.elapsed || 0) / 90) : 0;
-        runway.position.y = -lift * .8; runway.visible = lift < .4;
-        skyPanels.forEach(panel => { panel.material = mat(lift > .3 ? 0x91bedf : 0xaacbd0); });
-        clouds.forEach((cloud, index) => {
-          cloud.visible = lift > .15;
-          cloud.position.y = 3.7 + index % 2 * .3 - lift * 1.5;
-          if (!reduced.matches && latest.current.running) cloud.position.x = ((cloud.position.x + dt * .3 + 10) % 20) - 10;
-        });
-      }
+      environment.update(latest.current.elapsed || 0, !!latest.current.running, reduced.matches, dt);
       const local = latest.current.participants.find(p => p.isMe);
       const people = latest.current.participants.filter(p => !p.isMe).slice(0, local ? 79 : 80);
       if (local) people.push(local);
@@ -299,19 +191,19 @@ export default function FocusRoomImmersive(props: Props) {
         }
         if (!avatar) { avatar = makeAvatar(p); avatars.set(p.userId, avatar); }
         if (avatar.labelKey !== p.displayName) { avatar.root.remove(avatar.label); disposeLabel(avatar.label); avatar.label = makeLabel(p.displayName); avatar.root.add(avatar.label); avatar.labelKey = p.displayName; }
-        const target = safeFloorPosition(p, true);
-        if (target.x !== avatar.target.x || target.y !== avatar.target.y) { avatar.target = target; avatar.route = planFocusWalk(avatar.position, target, true); avatar.next = 1; }
+        const target = safeFloorPosition(p, layout);
+        if (target.x !== avatar.target.x || target.y !== avatar.target.y) { avatar.target = target; avatar.route = planFocusWalk(avatar.position, target, layout); avatar.next = 1; }
         let distance = dt * 22;
         while (avatar.next < avatar.route.length && distance > 0) {
           const to = avatar.route[avatar.next], dx = to.x - avatar.position.x, dy = to.y - avatar.position.y, length = Math.hypot(dx, dy);
           if (reduced.matches || length <= distance) { avatar.position = { ...to }; avatar.next++; distance -= length; }
           else { avatar.position = { x: avatar.position.x + dx / length * distance, y: avatar.position.y + dy / length * distance }; distance = 0; }
-          avatar.root.rotation.y = Math.atan2(dx * .2, dy * .22);
+          avatar.root.rotation.y = Math.atan2(dx * xScale, dy * zScale);
         }
         const walking = avatar.next < avatar.route.length, seated = p.seated && !walking;
         avatar.root.position.copy(world(avatar.position)); avatar.root.visible = !(p.isMe && latest.current.mode === 'eye');
         avatar.body.position.y = seated ? -.47 : 0; avatar.label.position.y = seated ? 2.5 : 2.9;
-        if (seated) avatar.root.rotation.y = p.y > 57 ? Math.PI : 0;
+        if (seated) avatar.root.rotation.y = flying || p.y > 57 ? Math.PI : 0;
         const wave = reduced.matches ? 0 : Math.sin(now * .007);
         avatar.head.rotation.x = seated && p.status === 'focusing' ? .16 + wave * .025 : 0;
         avatar.arms.forEach((arm, i) => { arm.rotation.x = seated ? -1.85 + (p.status === 'focusing' ? wave * (p.activity === 'computer' ? .08 : .03) : 0) : walking ? wave * .45 * (i ? -1 : 1) : 0; });
@@ -328,17 +220,17 @@ export default function FocusRoomImmersive(props: Props) {
       hands.visible = !!me?.seated && latest.current.mode === 'eye' && !!avatar && avatar.next >= avatar.route.length;
       if (me && avatar) {
         const seated = !!me.seated && avatar.next >= avatar.route.length;
-        if ((seated && !wasSeated) || lastMe !== me.userId) { yaw = seated && me.y < 57 ? Math.PI : 0; pitch = seated ? -.28 : -.12; }
+        if ((seated && !wasSeated) || lastMe !== me.userId) { yaw = seated && me.y < 57 && !flying ? Math.PI : 0; pitch = seated ? -.16 : -.12; }
         wasSeated = seated; lastMe = me.userId;
         const base = avatar.root.position.clone(), eye = seated ? 1.8 : 2.3;
-        hands.position.copy(base); hands.rotation.y = me.y > 57 ? Math.PI : 0;
+        hands.position.copy(base); hands.rotation.y = flying || me.y > 57 ? Math.PI : 0;
         const skin = mat(SKINS[Math.abs(Math.trunc(me.avatarStyle || 0)) % 4]);
         leftHand.material = skin; rightHand.material = skin;
         const movement = me.status === 'focusing' && !reduced.matches ? Math.sin(now * .008) * .025 : 0;
         leftHand.position.y = 1.27 + movement; rightHand.position.y = 1.27 - movement;
         const direction = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
         if (latest.current.mode === 'eye') { camera.position.copy(base).add(new THREE.Vector3(0, eye, 0)); camera.lookAt(camera.position.clone().add(direction)); }
-        else { const target = base.clone().add(new THREE.Vector3(0, 1.4, 0)); camera.position.copy(target).addScaledVector(direction, -3.7); camera.position.y = 3.1; camera.position.x = THREE.MathUtils.clamp(camera.position.x, -9.4, 9.4); camera.position.z = THREE.MathUtils.clamp(camera.position.z, -7.8, 8.7); camera.lookAt(target); }
+        else { const target = base.clone().add(new THREE.Vector3(0, 1.4, 0)); camera.position.copy(target).addScaledVector(direction, -3.7); camera.position.y = 3.1; camera.position.x = THREE.MathUtils.clamp(camera.position.x, -environment.width+.6, environment.width-.6); camera.position.z = THREE.MathUtils.clamp(camera.position.z, environment.front+.7, environment.back-.7); camera.lookAt(target); }
       } else { camera.position.set(0, 2.3, 6); camera.lookAt(0, 1.8, -3); }
       renderer.render(scene, camera);
     };
@@ -347,6 +239,7 @@ export default function FocusRoomImmersive(props: Props) {
       cancelAnimationFrame(frame); observer.disconnect(); controls.current = undefined;
       canvas.removeEventListener('webglcontextlost', contextLost); canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', cancel);
       avatars.forEach(avatar => disposeLabel(avatar.label)); cube.dispose(); sphere.dispose(); cylinder.dispose(); materials.forEach(material => material.dispose());
+      environment.dispose(); roundedCube.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
   }, [props.scene, props.atmosphere]);

@@ -69,7 +69,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   };
   const move = (position: { x: number; y: number }) => {
     animateWalk();
-    onMove(safeFloorPosition(position, view !== 'map'));
+    onMove(safeFloorPosition(position, view === 'map' ? false : atmosphere === 'plane' ? 'forward' : true));
   };
   const moveFromPointer = (event: MouseEvent<HTMLDivElement>) => {
     const deskIndex = (event.target as Element).closest('[data-seat-index]')?.getAttribute('data-seat-index');

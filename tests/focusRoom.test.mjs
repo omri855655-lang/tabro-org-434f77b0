@@ -130,3 +130,14 @@ test('immersive facing rows route around both sides of the shared tables', () =>
     }
   }
 });
+
+test('forward-facing aircraft seats remain reachable without crossing tray tables', () => {
+  for (const from of FOCUS_SEATS) for (const to of FOCUS_SEATS) {
+    const path = roomHelpers.planFocusWalk(from, to, 'forward');
+    assert.deepEqual(path.at(-1), to);
+    for(let i=1;i<path.length;i++)for(let step=0;step<=100;step++) {
+      const a=path[i-1],b=path[i],p={x:a.x+(b.x-a.x)*step/100,y:a.y+(b.y-a.y)*step/100};
+      assert.deepEqual(roomHelpers.safeFloorPosition(p,'forward'),p);
+    }
+  }
+});
