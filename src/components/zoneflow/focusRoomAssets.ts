@@ -6,50 +6,60 @@ import type { RoomAtmosphere } from '@/lib/focusRoomJourney';
 
 type Station = { root: THREE.Group; furniture: THREE.Object3D[] };
 
-export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRenderer, stations: Station[], shelves: THREE.Group[], bookPlaceholders: THREE.Object3D[], windows:THREE.Mesh[], kind: RoomAtmosphere) {
+export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRenderer, stations: Station[], shelves: THREE.Group[], bookPlaceholders: THREE.Object3D[], windows:THREE.Mesh[], kind: RoomAtmosphere, surfaces:{floor:THREE.Mesh;walls:THREE.Mesh[]}) {
   let stopped=false;
   const resources=new Set<{dispose:()=>void}>(), added:THREE.Object3D[]=[];
+  const disposed=new WeakSet<object>(), restore:(()=>void)[]=[];
+  const release=(resource:{dispose:()=>void})=>{if(!disposed.has(resource)){disposed.add(resource);resource.dispose();}};
+  const keep=<T extends {dispose:()=>void}>(resource:T):T=>{if(stopped)release(resource);else resources.add(resource);return resource;};
+  const replaceMaterial=(mesh:THREE.Mesh,material:THREE.Material)=>{
+    const previous=mesh.material;restore.push(()=>{mesh.material=previous;});mesh.material=material;
+  };
+  const hide=(object:THREE.Object3D)=>{const visible=object.visible;restore.push(()=>{object.visible=visible;});object.visible=false;};
+  const cafe=kind==='cafe'||kind==='city-cafe';
   const loader=new GLTFLoader();
   const own=(root:THREE.Object3D)=>root.traverse(object=>{
     if(!(object instanceof THREE.Mesh))return;
-    resources.add(object.geometry);
+    keep(object.geometry);
     for(const material of Array.isArray(object.material)?object.material:[object.material]){
-      resources.add(material);for(const value of Object.values(material))if(value instanceof THREE.Texture)resources.add(value);
+      keep(material);for(const value of Object.values(material))if(value instanceof THREE.Texture)keep(value);
     }
   });
   const load=async(id:string)=>{
     const gltf=await loader.loadAsync(`/focus-assets/${id}/model.gltf`);
     own(gltf.scene);
-    if(stopped){resources.forEach(resource=>resource.dispose());return null;}
+    if(stopped)return null;
     gltf.scene.updateMatrixWorld(true);
     const groups=new Map<THREE.Material,THREE.BufferGeometry[]>();
     gltf.scene.traverse(object=>{
-      if(!(object instanceof THREE.Mesh)||Array.isArray(object.material))return;
+      if(!(object instanceof THREE.Mesh))return;
+      if(Array.isArray(object.material))throw new Error('Unsupported multi-material model');
       const geometries=groups.get(object.material)||[];
       const geometry=object.geometry.clone().applyMatrix4(object.matrixWorld);resources.add(geometry);geometries.push(geometry);groups.set(object.material,geometries);
     });
     const result=new THREE.Group();
     for(const [material,geometries] of groups){
       const geometry=mergeGeometries(geometries,false);if(!geometry)throw new Error('Model geometry could not be combined');
-      resources.add(geometry);const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;result.add(mesh);
+      resources.add(geometry);geometries.forEach(release);const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;result.add(mesh);
     }
     return result;
   };
   const fit=(model:THREE.Group,size:THREE.Vector3,at:THREE.Vector3,parent:THREE.Object3D)=>{
     const instance=model.clone(true),bounds=new THREE.Box3().setFromObject(instance),original=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());
+    if(![original.x,original.y,original.z].every(value=>Number.isFinite(value)&&value>0))throw new Error('Invalid model dimensions');
     instance.scale.set(size.x/original.x,size.y/original.y,size.z/original.z);
     instance.position.set(at.x-center.x*instance.scale.x,at.y-bounds.min.y*instance.scale.y,at.z-center.z*instance.scale.z);
     parent.add(instance);added.push(instance);return instance;
   };
-  const furniture=Promise.all([load('wooden_table_02'),load('SchoolChair_01')]).then(([table,chair])=>{
+  const furniture=Promise.all([load(cafe?'round_wooden_table_02':'wooden_table_02'),load(cafe?'WoodenChair_01':'SchoolChair_01')]).then(([table,chair])=>{
     if(stopped||!table||!chair)return;
     for(const station of stations){
-      fit(table,new THREE.Vector3(3.9,1.18,2.3),new THREE.Vector3(0,0,1.25),station.root);
+      fit(table,new THREE.Vector3(cafe?2.5:3.9,1.18,cafe?2.5:2.3),new THREE.Vector3(0,0,1.25),station.root);
       fit(chair,new THREE.Vector3(1.08,1.1,.95),new THREE.Vector3(0,0,-.14),station.root);
-      station.furniture.forEach(object=>{object.visible=false;});
+      station.furniture.forEach(hide);
     }
   });
-  const library=Promise.all([load('wooden_display_shelves_01'),load('book_encyclopedia_set_01')]).then(([shelf,books])=>{
+  const library=cafe?Promise.resolve():Promise.all([load('wooden_display_shelves_01'),load('book_encyclopedia_set_01')]).then(([shelf,books])=>{
     if(stopped||!shelf||!books)return;
     for(const placeholder of shelves){
       const root=new THREE.Group();root.position.copy(placeholder.position);root.rotation.copy(placeholder.rotation);scene.add(root);added.push(root);
@@ -58,23 +68,34 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
         const set=fit(books,new THREE.Vector3(3.05,.56,.38),new THREE.Vector3(0,.45+row*.95,.26),root);
         set.traverse(object=>{if(object instanceof THREE.Mesh)object.castShadow=false;});
       }
-      placeholder.visible=false;
+      hide(placeholder);
     }
-    bookPlaceholders.forEach(object=>{object.visible=false;});
+    bookPlaceholders.forEach(hide);
   });
   const lighting=new RGBELoader().loadAsync('/focus-assets/reading_room.hdr').then(texture=>{
-    resources.add(texture);if(stopped){texture.dispose();return;}
+    keep(texture);if(stopped)return;
     const pmrem=new THREE.PMREMGenerator(renderer);const target=pmrem.fromEquirectangular(texture);pmrem.dispose();resources.add(target);
     scene.environment=target.texture;scene.environmentIntensity=.65;
   });
-  const outdoors=new RGBELoader().loadAsync('/focus-assets/forest_slope.hdr').then(texture=>{
-    resources.add(texture);if(stopped){texture.dispose();return;}
+  const outdoors=kind==='city-cafe'?Promise.resolve():new RGBELoader().loadAsync('/focus-assets/forest_slope.hdr').then(texture=>{
+    keep(texture);if(stopped)return;
     windows.forEach((window,index)=>{
       const map=texture.clone();map.repeat.set(.22,.6);map.offset.set(.12+index*.16,.18);map.needsUpdate=true;
-      const material=new THREE.MeshBasicMaterial({map});resources.add(map);resources.add(material);window.material=material;
+      const material=new THREE.MeshBasicMaterial({map});keep(map);keep(material);replaceMaterial(window,material);
     });
   });
+  const textureLoader=new THREE.TextureLoader();
+  const surface=async(meshes:THREE.Mesh[],id:string,repeat:number,roughness:number)=>{
+    const textures=await Promise.all(['diff','nor_gl'].map(async channel=>keep(await textureLoader.loadAsync(`/focus-assets/${id}/${channel}.jpg`))));
+    if(stopped)return;
+    for(const texture of textures){texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(repeat,repeat);texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());}
+    textures[0].colorSpace=THREE.SRGBColorSpace;
+    const material=keep(new THREE.MeshStandardMaterial({map:textures[0],normalMap:textures[1],normalScale:new THREE.Vector2(.3,.3),roughness}));
+    meshes.forEach(mesh=>replaceMaterial(mesh,material));
+  };
+  const architecture=Promise.all([surface([surfaces.floor],'herringbone_parquet',5,.65),surface(surfaces.walls,'plastered_wall_02',4,.94)]);
   // Keep the working procedural room if a local asset cannot be loaded.
-  const ready=Promise.allSettled([furniture,library,lighting,outdoors]).then(results=>({loaded:results.every(result=>result.status==='fulfilled'),kind}));
-  return {ready,dispose:()=>{stopped=true;scene.environment=null;added.forEach(object=>object.removeFromParent());resources.forEach(resource=>resource.dispose());}};
+  const ready=Promise.allSettled([furniture,library,lighting,outdoors,architecture]).then(results=>({loaded:results.every(result=>result.status==='fulfilled'),kind}));
+  const previousEnvironment=scene.environment,previousIntensity=scene.environmentIntensity;
+  return {ready,dispose:()=>{if(stopped)return;stopped=true;scene.environment=previousEnvironment;scene.environmentIntensity=previousIntensity;restore.reverse().forEach(action=>action());added.forEach(object=>object.removeFromParent());resources.forEach(release);resources.clear();}};
 }

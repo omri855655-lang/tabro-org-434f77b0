@@ -129,9 +129,9 @@ export default function FocusRoomImmersive(props: Props) {
       const pencil = box(notebook, 0xd1984e, [.25, 1.36, .75], [.035, .035, .65]); pencil.rotation.y = -.5;
       deskProps.push({ computer, book, notebook, pencil, page });
     });
-    const assetEnabled=graphics!=='illustrated'&&['library','grand','intimate'].includes(atmosphere);
+    const assetEnabled=graphics!=='illustrated'&&['library','grand','intimate','cafe','city-cafe'].includes(atmosphere);
     setAssetState(assetEnabled?'loading':'');
-    const assets=assetEnabled?attachRoomAssets(scene,renderer,assetStations,environment.assetShelves,environment.bookPlaceholders,environment.assetWindows,atmosphere):null;
+    const assets=assetEnabled?attachRoomAssets(scene,renderer,assetStations,environment.assetShelves,environment.bookPlaceholders,environment.assetWindows,atmosphere,{floor:ground,walls:environment.assetWalls}):null;
     let assetsActive=true;
     assets?.ready.then(result=>{if(assetsActive)setAssetState(result.loaded?'ready':'fallback');});
     interface Avatar { root: THREE.Group; body: THREE.Group; arms: THREE.Group[]; legs: THREE.Group[]; head: THREE.Group; label: THREE.Sprite; labelKey: string; style: number; target: Position; route: Position[]; next: number; position: Position; }

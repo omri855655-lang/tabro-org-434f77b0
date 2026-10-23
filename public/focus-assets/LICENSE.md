@@ -9,5 +9,9 @@ https://polyhaven.com/license
 - Book Encyclopedia Set 01: https://polyhaven.com/a/book_encyclopedia_set_01
 - Reading Room lighting: https://polyhaven.com/a/reading_room
 - Forest Slope exterior: https://polyhaven.com/a/forest_slope
+- Round Wooden Table 02: https://polyhaven.com/a/round_wooden_table_02
+- Wooden Chair 01: https://polyhaven.com/a/WoodenChair_01
+- Herringbone Parquet: https://polyhaven.com/a/herringbone_parquet
+- Plastered Wall 02: https://polyhaven.com/a/plastered_wall_02
 
 The manifest records official download URLs, sizes and MD5 checksums. Models and textures are served from the application itself. They do not require third-party runtime requests.

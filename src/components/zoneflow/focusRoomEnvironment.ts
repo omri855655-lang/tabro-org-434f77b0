@@ -34,10 +34,12 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     const material=new THREE.MeshStandardMaterial({map:texture,roughness:.65});ground.material=material;disposables.push(texture,material);
   }
   if (!plane) for(let z=front;z<back;z+=airport?2:.65) box(scene, airport?0x9aaeb2:0x96795b,[0,-.009,z],[width*2,.008,.012]);
-  box(scene, wall, [-width,height/2,(front+back)/2],[.2,height,back-front]);
-  box(scene, wall, [width,height/2,(front+back)/2],[.2,height,back-front]);
-  box(scene, wall, [0,height/2,front],[width*2,height,.2]);
-  box(scene, wall, [0,height/2,back],[width*2,height,.2]);
+  const assetWalls = [
+    box(scene, wall, [-width,height/2,(front+back)/2],[.2,height,back-front]),
+    box(scene, wall, [width,height/2,(front+back)/2],[.2,height,back-front]),
+    box(scene, wall, [0,height/2,front],[width*2,height,.2]),
+    box(scene, wall, [0,height/2,back],[width*2,height,.2]),
+  ];
 
   const label = (text:string, at:number[], size:number[], color='#e6d8ba', background='#263f42') => {
     const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;
@@ -183,7 +185,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     for(const [color,matrices] of bookBatches){const mesh=new THREE.InstancedMesh(geometry,mat(color),matrices.length);matrices.forEach((matrix,index)=>mesh.setMatrixAt(index,matrix));mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();scene.add(mesh);disposables.push(mesh);bookPlaceholders.push(mesh);}
   }
   let painted=-1,travel=0,lastTravel=-1;
-  return {ground, width, front, back, assetShelves, bookPlaceholders, assetWindows, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
+  return {ground, width, front, back, assetWalls, assetShelves, bookPlaceholders, assetWindows, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
     if(!plane)return;if(running&&!reduced)travel+=dt;const step=Math.floor(elapsed*2);
     if(step!==painted||Math.floor(travel*4)!==lastTravel){const lift=Math.min(1,elapsed/90);paintSky(lift,travel);renderFlight(lift,travel);painted=step;lastTravel=Math.floor(travel*4);}
   }};
