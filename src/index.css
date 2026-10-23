@@ -1148,7 +1148,7 @@ All colors MUST be HSL.
   .responsive-sheet { max-height: var(--tabro-viewport-height, 100dvh); overflow-y: auto; }
   .responsive-sheet.mobile-workspace-menu { overflow-y: hidden; }
   .responsive-popover { max-width: calc(100vw - 1rem); max-height: min(var(--radix-popover-content-available-height, 80dvh), 80dvh); overflow-y: auto; }
-  .tabro-floating { z-index: 40; }
+  .tabro-floating, .tabro-overlay-media { z-index: 40; }
   .tabro-accessibility-launcher { bottom: calc(var(--tabro-mobile-nav-height) + 0.75rem); }
   .tabro-accessibility-panel { bottom: calc(var(--tabro-mobile-nav-height) + 4.5rem); max-height: calc(var(--tabro-viewport-height, 100dvh) - var(--tabro-mobile-nav-height) - 6rem); overflow-y: auto; max-width: calc(100vw - 2rem); }
   .tabro-ai-launcher, .tabro-ai-panel { bottom: calc(var(--tabro-mobile-nav-height) + 4.5rem); }
@@ -1156,7 +1156,7 @@ All colors MUST be HSL.
   .tabro-media-float { bottom: calc(var(--tabro-mobile-nav-height) + 0.75rem); max-width: calc(100vw - 2rem); }
   :root[data-mobile-keyboard] .mobile-workspace-nav, :root[data-mobile-keyboard] .tabro-floating { display: none; }
   :root[data-mobile-keyboard] .mobile-workspace-account { display: none; }
-  body:has([role="dialog"][data-state="open"]) .tabro-floating { visibility: hidden; }
+  body:has([role="dialog"][data-state="open"]) .tabro-floating, body:has([role="dialog"][data-state="open"]) .tabro-overlay-media { visibility: hidden; }
 }
 
 @media (max-width: 1023px) and (max-height: 600px) {
