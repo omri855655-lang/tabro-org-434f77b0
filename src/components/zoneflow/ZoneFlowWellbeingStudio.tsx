@@ -229,14 +229,14 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const authorizationLabel = blockingAuthorization === "granted" ? blockerCopy.granted : blockingAuthorization === "denied" ? blockerCopy.denied : blockingAuthorization === "needs-install" ? blockerCopy.install : blockerCopy.unavailable;
 
   const unlockItem = async (app: BlockedApp) => {
-    if (balance < unlockMinutes) return toast.error(unlockCopy.insufficient);
+    if (balance < unlockCost(unlockMinutes)) return toast.error(unlockCopy.insufficient);
     if (blockingAuthorization !== "granted") return toast.info(unlockCopy.native);
     try {
       await temporarilyAllowBlockedItem(app.name.includes(".")
         ? { websiteHost: app.name, minutes: unlockMinutes }
         : { appId: app.name, minutes: unlockMinutes });
       const id = `unlock:${app.id}:${Date.now()}`;
-      if (await spendRewardPoints({ idempotencyKey: id, points: unlockMinutes, reason: `${app.name} · ${unlockMinutes} min`, metadata: { blockedItemId: app.id, blockedItemName: app.name } })) toast.success(unlockCopy.opened);
+      if (await spendRewardPoints({ idempotencyKey: id, points: unlockCost(unlockMinutes), reason: `${app.name} · ${unlockMinutes} min`, metadata: { blockedItemId: app.id, blockedItemName: app.name, minutes:unlockMinutes, pointsPerMinute:10 } })) toast.success(unlockCopy.opened);
     } catch { toast.error(unlockCopy.native); }
   };
 
@@ -310,7 +310,8 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
           <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Ban className="h-5 w-5 text-rose-500" />{copy.blocked}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2"><Input value={appName} onChange={(event) => setAppName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void addBlockedApp(); }} placeholder={copy.app} /><Button onClick={() => void addBlockedApp()}>{copy.addBlock}</Button></div>
-            {blockedApps.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noApps}</p> : blockedApps.map((app) => <div key={app.id} className={cn("flex flex-wrap items-center gap-3 rounded-2xl border p-3", panel)}><Ban className="h-4 w-4 text-rose-500" /><span className="min-w-[120px] flex-1 font-medium">{app.name}</span><span className={cn("text-xs", muted)}>{app.minutesSaved} {copy.saved}</span><Button size="sm" variant="outline" disabled={balance < unlockMinutes} onClick={() => void unlockItem(app)}><Clock3 className="h-4 w-4" />{unlockCopy.unlock} · {unlockMinutes}</Button></div>)}
+            <p className="text-xs">{unlockMinutes} × 10 = {unlockCost(unlockMinutes)} {{he:'נקודות',en:'points',es:'puntos',zh:'积分',ar:'نقاط',ru:'баллов'}[lang]}</p>
+            {blockedApps.length === 0 ? <p className={cn("rounded-2xl border border-dashed p-5 text-center text-sm", muted)}>{copy.noApps}</p> : blockedApps.map((app) => <div key={app.id} className={cn("flex flex-wrap items-center gap-3 rounded-2xl border p-3", panel)}><Ban className="h-4 w-4 text-rose-500" /><span className="min-w-[120px] flex-1 font-medium">{app.name}</span><span className={cn("text-xs", muted)}>{app.minutesSaved} {copy.saved}</span><Button size="sm" variant="outline" disabled={balance < unlockCost(unlockMinutes)} onClick={() => void unlockItem(app)}><Clock3 className="h-4 w-4" />{unlockCopy.unlock} · {unlockCost(unlockMinutes)}</Button></div>)}
             <Button className="w-full rounded-full" disabled={!consentGranted} onClick={() => void toggleFocusPolicy()} variant={focusActive ? "destructive" : "default"}>{focusActive ? copy.stop : copy.focus}</Button>
             {focusActive && <div className="rounded-2xl bg-emerald-50 p-3 text-center text-sm text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200">{copy.active}</div>}
             <p className={cn("text-xs leading-6", muted)}>{copy.limitations}</p>
@@ -327,3 +328,4 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
     </div>
   );
 }
+import { unlockCost } from '@/lib/unlockPricing';

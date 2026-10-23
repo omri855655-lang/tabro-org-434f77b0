@@ -31,6 +31,19 @@ const paths = {
   ar: ["القوى والحركة|الطاقة|الموجات والضوء|الكهرباء|الفيزياء الحديثة","العالم القديم|العصور الوسطى|التاريخ الحديث|القرن العشرون|التاريخ الإسرائيلي","الذرات والعناصر|الروابط الكيميائية|التفاعلات|الأحماض والقواعد|الكيمياء العضوية","الخلية|الوراثة|أجهزة الجسم|التطور|البيئة","المنطق|الأخلاق|نظرية المعرفة|الفلسفة السياسية|فلسفة العلم","الندرة والحوافز|العرض والطلب|التضخم والفائدة|سوق العمل|الاقتصاد السلوكي","الذاكرة والتعلم|المشاعر|اتخاذ القرار|علم النفس الاجتماعي|العادات","كيف يعمل الإنترنت|البرمجة|أمن المعلومات|الذكاء الاصطناعي|الحوسبة السحابية"],
   ru: ["Силы и движение|Энергия|Волны и свет|Электричество|Современная физика","Древний мир|Средние века|Новое время|Двадцатый век|История Израиля","Атомы и элементы|Химические связи|Реакции|Кислоты и основания|Органическая химия","Клетка|Генетика|Системы организма|Эволюция|Экология","Логика|Этика|Теория познания|Политическая философия|Философия науки","Дефицит и стимулы|Спрос и предложение|Инфляция и проценты|Рынок труда|Поведенческая экономика","Память и обучение|Эмоции|Принятие решений|Социальная психология|Привычки","Как работает интернет|Программирование|Информационная безопасность|Искусственный интеллект|Облачные вычисления"],
 };
+const additionalLearning = {
+  he:['מדעי המדינה','מדיניות ציבורית','מושגים','מדינה וריבונות|דמוקרטיה ומשטרים|מוסדות פוליטיים|בחירות ומפלגות|יחסים בינלאומיים','מחזור המדיניות|מינהל ציבורי|הערכת מדיניות|תקציב ציבורי|רגולציה וממשל','מושגי יסוד במדע|מושגים בכלכלה|מושגים בפוליטיקה|מושגים במדיניות ציבורית|חשיבה ביקורתית'],
+  en:['Political science','Public policy','Concepts','State and sovereignty|Democracy and regimes|Political institutions|Elections and parties|International relations','Policy cycle|Public administration|Policy evaluation|Public budgeting|Regulation and governance','Scientific concepts|Economic concepts|Political concepts|Public policy concepts|Critical thinking'],
+  es:['Ciencia política','Políticas públicas','Conceptos','Estado y soberanía|Democracia y regímenes|Instituciones políticas|Elecciones y partidos|Relaciones internacionales','Ciclo de políticas|Administración pública|Evaluación de políticas|Presupuesto público|Regulación y gobernanza','Conceptos científicos|Conceptos económicos|Conceptos políticos|Conceptos de políticas públicas|Pensamiento crítico'],
+  zh:['政治学','公共政策','概念','国家与主权|民主与政体|政治制度|选举与政党|国际关系','政策周期|公共行政|政策评估|公共预算|监管与治理','科学概念|经济概念|政治概念|公共政策概念|批判性思维'],
+  ar:['العلوم السياسية','السياسة العامة','مفاهيم','الدولة والسيادة|الديمقراطية والأنظمة|المؤسسات السياسية|الانتخابات والأحزاب|العلاقات الدولية','دورة السياسات|الإدارة العامة|تقييم السياسات|الموازنة العامة|التنظيم والحوكمة','مفاهيم علمية|مفاهيم اقتصادية|مفاهيم سياسية|مفاهيم السياسة العامة|التفكير النقدي'],
+  ru:['Политология','Государственная политика','Понятия','Государство и суверенитет|Демократия и режимы|Политические институты|Выборы и партии|Международные отношения','Цикл политики|Государственное управление|Оценка политики|Государственный бюджет|Регулирование и управление','Научные понятия|Экономические понятия|Политические понятия|Понятия государственной политики|Критическое мышление'],
+};
+categoryKeys.push(...additionalLearning.he.slice(0,3));
+for(const lang of Object.keys(categories) as (keyof typeof categories)[]){
+  if(lang!=='he')categories[lang].push(...additionalLearning[lang].slice(0,3));
+  paths[lang].push(...additionalLearning[lang].slice(3));
+}
 export const LEARNING_PATHS = Object.fromEntries(categoryKeys.map((key, index) => [key, paths.he[index].split("|")]));
 export function learningLabels(lang: keyof typeof learningCopy, category: string, subtopic?: string) {
   const index = categoryKeys.indexOf(category);

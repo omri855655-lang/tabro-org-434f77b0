@@ -358,7 +358,7 @@ export function ZoneFlowTogetherStudio({ isLight }: { isLight: boolean }) {
   }, [activeRoomSnapshot]);
 
   const points = balance;
-  const unlockMinutes = balance;
+  const unlockMinutes = Math.floor(balance / 10);
   const panel = isLight ? "border-slate-200 bg-white" : "border-white/10 bg-white/5";
   const muted = isLight ? "text-slate-500" : "text-white/60";
   const competitionCards = COMPETITIONS.map(item => ({ ...item,

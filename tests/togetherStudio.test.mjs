@@ -77,7 +77,7 @@ test('challenge cards show personal counters rather than invented worldwide tota
   const { ZoneFlowTogetherStudio } = loadComponent('ZoneFlowTogetherStudio', 'competitions');
   const html = renderToStaticMarkup(React.createElement(ZoneFlowTogetherStudio, { isLight: true }));
   assert.ok(html.includes('0 דקות'));
-  assert.ok(html.includes('12 דקות'));
+  assert.ok(html.includes('1 דקות'));
   assert.ok(html.includes(togetherCopy.he.personal));
   assert.ok(!html.includes('1,284'));
   assert.ok(!html.includes('684 שעות'));
