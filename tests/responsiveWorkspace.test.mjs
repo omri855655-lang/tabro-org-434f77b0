@@ -39,6 +39,8 @@ test('viewport permits zoom and responsive overlays are bounded, rather than cli
   const css = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.match(css, /safe-area-inset-bottom/); assert.match(css, /--tabro-viewport-height/);
   assert.doesNotMatch(css, /table td, table th\s*\{[\s\S]*?white-space: normal !important/);
+  // Desktop too: a long dialog must stay within the window so its close button and final action are reachable.
+  assert.match(css, /:where\(\.responsive-dialog\)\s*\{[^}]*max-height: calc\(100dvh - 2rem\);[^}]*overflow-y: auto/);
   const layout = await readFile(new URL('../src/components/layouts/MobileWorkspaceLayout.tsx', import.meta.url), 'utf8');
   assert.match(layout, /viewport\.scale > 1\.05/);
   assert.match(layout, /removeEventListener\('resize', update\)/);
