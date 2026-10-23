@@ -1,19 +1,20 @@
 import * as React from "react";
+import { COMPACT_WORKSPACE_QUERY, PHONE_QUERY } from '@/lib/responsiveWorkspace';
 
-const MOBILE_BREAKPOINT = 768;
-
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+export function useMediaQuery(query: string) {
+  const [matches, setMatches] = React.useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
 
   React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const mql = window.matchMedia(query);
     const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+      setMatches(mql.matches);
     };
     mql.addEventListener("change", onChange);
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    onChange();
     return () => mql.removeEventListener("change", onChange);
-  }, []);
+  }, [query]);
 
-  return !!isMobile;
+  return matches;
 }
+export function useIsMobile() { return useMediaQuery(PHONE_QUERY); }
+export function useCompactWorkspace() { return useMediaQuery(COMPACT_WORKSPACE_QUERY); }

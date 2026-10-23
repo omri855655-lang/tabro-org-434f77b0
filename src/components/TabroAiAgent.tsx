@@ -771,7 +771,7 @@ const TabroAiAgent = () => {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed left-4 bottom-20 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center"
+          className="tabro-floating tabro-ai-launcher fixed left-4 bottom-20 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center"
           title="Tabro AI"
         >
           <Bot className="h-6 w-6" />
@@ -779,7 +779,7 @@ const TabroAiAgent = () => {
       )}
 
       {open && (
-        <div className="fixed left-4 bottom-20 z-50 w-[460px] max-w-[calc(100vw-2rem)] h-[680px] max-h-[calc(100vh-4rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
+        <div className="tabro-floating tabro-ai-panel fixed left-4 bottom-20 z-50 w-[460px] max-w-[calc(100vw-2rem)] h-[680px] max-h-[calc(100vh-4rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
             <Bot className="h-5 w-5 text-primary" />

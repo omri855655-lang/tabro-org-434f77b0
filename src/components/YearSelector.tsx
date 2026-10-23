@@ -62,10 +62,10 @@ const YearSelector = ({
 
   return (
     <>
-      <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 border-b border-border" dir="rtl">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border" dir="rtl">
         <Calendar className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground ml-2">גליון:</span>
-        <div className="flex gap-1 items-center flex-wrap">
+        <div className="flex min-w-0 gap-1 items-center flex-wrap">
           {/* All tasks button */}
           <Button
             variant={selectedYear === null ? "default" : "outline"}
@@ -108,7 +108,7 @@ const YearSelector = ({
                     e.stopPropagation();
                     setYearToDelete(year);
                   }}
-                  className="absolute left-1 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-destructive/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute left-1 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-destructive/20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   title="מחק גליון"
                 >
                   <X className="h-3 w-3 text-destructive" />

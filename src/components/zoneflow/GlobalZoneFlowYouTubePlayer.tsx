@@ -107,7 +107,7 @@ export function GlobalZoneFlowYouTubePlayer({ activeTab }: GlobalZoneFlowYouTube
     viewerMode === "inline"
       ? "fixed z-[9998] overflow-hidden rounded-xl border border-cyan-400/30 bg-black shadow-2xl"
       : viewerMode === "mini"
-        ? "fixed bottom-24 right-4 z-[9998] overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl backdrop-blur md:bottom-4"
+        ? "tabro-floating tabro-media-float fixed bottom-24 right-4 z-[9998] overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl backdrop-blur md:bottom-4"
         : "fixed bottom-0 right-0 z-[-1] h-px w-px overflow-hidden opacity-0 pointer-events-none";
 
   const containerStyle =

@@ -47,10 +47,10 @@ const ListView = ({ items, emptyText = 'אין פריטים', onStatusChange, on
       {items.map(item => (
         <div
           key={item.id}
-          className={`flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer ${item.urgent ? 'border-destructive/40 bg-destructive/5' : ''}`}
+          className={`group flex flex-wrap items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer ${item.urgent ? 'border-destructive/40 bg-destructive/5' : ''}`}
           onClick={() => onClick?.(item.id)}
         >
-          <div className="flex-1 min-w-0 space-y-1">
+          <div className="min-w-0 flex-1 basis-full space-y-1 sm:basis-auto">
             {editingTitle === item.id ? (
               <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                 <input
@@ -69,7 +69,7 @@ const ListView = ({ items, emptyText = 'אין פריטים', onStatusChange, on
               </div>
             ) : (
               <div className="flex items-center gap-1">
-                <span className="font-medium text-sm truncate" style={{ color: item.textColor }}>{item.title}</span>
+                <span className="break-words font-medium text-sm sm:truncate" style={{ color: item.textColor }}>{item.title}</span>
                 {onTitleChange && (
                   <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100" onClick={e => { e.stopPropagation(); setEditTitleValue(item.title); setEditingTitle(item.id); }}>
                     <Pencil className="h-3 w-3" />
@@ -77,7 +77,7 @@ const ListView = ({ items, emptyText = 'אין פריטים', onStatusChange, on
                 )}
               </div>
             )}
-            {item.subtitle && <div className="text-xs text-muted-foreground truncate">{item.subtitle}</div>}
+            {item.subtitle && <div className="break-words text-xs text-muted-foreground sm:truncate">{item.subtitle}</div>}
             {onNotesChange ? (
               <div onClick={e => e.stopPropagation()}>
                 <InlineNotesTextarea

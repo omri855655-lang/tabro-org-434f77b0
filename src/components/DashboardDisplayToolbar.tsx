@@ -58,7 +58,7 @@ const DashboardDisplayToolbar = ({
       </Popover>
 
       {/* View mode selector */}
-      <div className="flex gap-0.5 border rounded-lg p-0.5">
+      <div className="flex max-w-full flex-wrap gap-0.5 border rounded-lg p-0.5">
         {VIEW_MODES.map(({ mode, icon: Icon, labelKey }) => (
           <Button
             key={mode}

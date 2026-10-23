@@ -22,7 +22,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useCompactWorkspace } from "@/hooks/use-mobile";
+import { mobileWorkspaceCopy } from '@/lib/mobileWorkspaceCopy';
 import { getHolidaysForDate } from "@/data/holidays";
 import MentalDifficultyHelper from "@/components/MentalDifficultyHelper";
 import { eventOverlapsRange } from "@/lib/plannerEvents";
@@ -139,7 +140,8 @@ const PersonalPlanner = () => {
   const { events, addEvent, addEventSeries, updateEvent, deleteEvent, respondToInvitation, refetch: refetchCalendarEvents } = useCalendarEvents();
   const { categories, categoryNames, addCategory, removeCategory, getCategoryColor: getDynCategoryColor, saveCategories } = useCustomCategories();
   const { boards: customBoards } = useCustomBoards();
-  const isMobile = useIsMobile();
+  const isMobile = useCompactWorkspace();
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCatName, setNewCatName] = useState("");
@@ -166,7 +168,7 @@ const PersonalPlanner = () => {
       return true;
     }
   });
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [viewMode, setViewMode] = useState<ViewMode>(() => isMobile ? 'day' : 'week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
   const [expandedDayIndex, setExpandedDayIndex] = useState<number | null>(null);
@@ -2789,7 +2791,7 @@ const PersonalPlanner = () => {
                 />
               </div>
             </div>
-            <ScrollArea className="h-[calc(100vh-140px)]">
+            <ScrollArea className="h-[calc(var(--tabro-viewport-height,100dvh)-140px)]">
               <div className="p-3 space-y-2">
                 {visibleTasks.map((task) => {
                   const srcColor = getSourceColor(task.source);
@@ -2927,8 +2929,8 @@ const PersonalPlanner = () => {
             {viewMode === "year" && format(currentDate, "yyyy")}
           </h2>
 
-          <div className="mr-auto flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-xl border border-border bg-muted/30 p-1">
+          <div className="mr-auto flex w-full flex-wrap items-center gap-2 lg:w-auto">
+            <div className="flex max-w-full flex-wrap rounded-xl border border-border bg-muted/30 p-1">
               {(["day", "week", "month", "agenda", "year"] as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
@@ -2972,6 +2974,9 @@ const PersonalPlanner = () => {
               סוכן תכנון
             </Button>
 
+            {isMobile && <Button variant="ghost" size="sm" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? mobileWorkspaceCopy[lang].hideTools : mobileWorkspaceCopy[lang].tools}</Button>}
+            <div className={`flex max-w-full flex-wrap items-center gap-2 ${isMobile && !mobileToolsOpen ? 'hidden' : ''}`}>
+
             <Button
               variant="outline"
               size="sm"
@@ -3014,10 +3019,11 @@ const PersonalPlanner = () => {
                 </div>
               </PopoverContent>
             </Popover>
+            </div>
           </div>
         </div>
 
-        <div className="border-b border-border/70 bg-primary/[0.035] px-4 py-2.5 text-[11px] leading-5 text-muted-foreground">
+        <div className="hidden border-b border-border/70 bg-primary/[0.035] px-4 py-2.5 text-[11px] leading-5 text-muted-foreground lg:block">
           לחץ על משבצת ריקה כדי ליצור אירוע, לחץ על אירוע כדי לערוך אותו, או גרור משימה מהצד כדי לשבץ אותה. אפשר גם להשתמש ב-N ליצירה מהירה.
         </div>
 
@@ -3025,7 +3031,7 @@ const PersonalPlanner = () => {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">היום {todayEventsCount} אירועים</Badge>
             <Badge variant="outline">לא שובצו {visibleTasks.length}</Badge>
-            {QUICK_EVENT_PRESETS.map((preset) => (
+            {(!isMobile || mobileToolsOpen) && QUICK_EVENT_PRESETS.map((preset) => (
               <Button
                 key={preset.label}
                 type="button"

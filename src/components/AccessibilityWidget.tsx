@@ -61,7 +61,7 @@ const AccessibilityWidget = () => {
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-4 left-4 z-[9999] w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className="tabro-floating tabro-accessibility-launcher fixed bottom-4 left-4 z-[9999] w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         aria-label={t('accessibilitySettings')}
         title={t('accessibilitySettings')}
       >
@@ -73,7 +73,7 @@ const AccessibilityWidget = () => {
       </button>
 
       {open && (
-        <div className="fixed bottom-20 left-4 z-[9999] w-72 rounded-xl border bg-card shadow-2xl p-4 space-y-3" dir={dir}>
+        <div className="tabro-floating tabro-accessibility-panel fixed bottom-20 left-4 z-[9999] w-72 rounded-xl border bg-card shadow-2xl p-4 space-y-3" dir={dir}>
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm">{t('accessibilitySettings')}</h3>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(false)}><X className="h-4 w-4" /></Button>

@@ -36,8 +36,8 @@ const TaskTabs = ({ tasks, activeTab, onTabChange, children }: TaskTabsProps) =>
   };
 
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="flex flex-col h-full" dir={dir}>
-      <div className="border-b border-border bg-card/50 px-4 flex-shrink-0">
+    <Tabs value={activeTab} onValueChange={onTabChange} className="flex min-h-0 min-w-0 flex-1 flex-col" dir={dir}>
+      <div className="max-w-full overflow-x-auto border-b border-border bg-card/50 px-1 sm:px-4 flex-shrink-0">
         <TabsList className="h-10 bg-transparent justify-start">
           <TabsTrigger value="active" className="gap-2">
             <ListTodo className="h-4 w-4" />
@@ -57,19 +57,19 @@ const TaskTabs = ({ tasks, activeTab, onTabChange, children }: TaskTabsProps) =>
         </TabsList>
       </div>
 
-      <TabsContent value="active" className="flex-1 overflow-hidden m-0 p-0 data-[state=inactive]:hidden">
+      <TabsContent value="active" className="min-h-0 flex-1 overflow-hidden m-0 p-0 data-[state=inactive]:hidden">
         <div className="h-full overflow-auto">
           {children(activeTasks, "active")}
         </div>
       </TabsContent>
 
-      <TabsContent value="completed" className="flex-1 overflow-hidden m-0 p-0 data-[state=inactive]:hidden">
+      <TabsContent value="completed" className="min-h-0 flex-1 overflow-hidden m-0 p-0 data-[state=inactive]:hidden">
         <div className="h-full overflow-auto">
           {children(completedTasks, "completed")}
         </div>
       </TabsContent>
 
-      <TabsContent value="archive" className="flex-1 overflow-hidden m-0 p-0 data-[state=inactive]:hidden">
+      <TabsContent value="archive" className="min-h-0 flex-1 overflow-hidden m-0 p-0 data-[state=inactive]:hidden">
         <div className="h-full overflow-auto">
           {children(archivedTasks, "archive")}
         </div>

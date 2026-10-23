@@ -39,6 +39,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { taskHeaders } from "@/data/initialTasks";
+import { useCompactWorkspace } from '@/hooks/use-mobile';
+import { useLanguage } from '@/hooks/useLanguage';
+import { mobileWorkspaceCopy } from '@/lib/mobileWorkspaceCopy';
 
 interface TaskSpreadsheetDbProps {
   title: string;
@@ -141,7 +144,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const isSharedSheet = !!fixedSheetOwnerId;
   const [sharedCollapsed, setSharedCollapsed] = useState(false);
   const { user } = useAuth();
-  const { viewMode: dashViewMode, themeKey: dashTheme, setViewMode: setDashViewMode, setTheme: setDashTheme } = useDashboardDisplay(`tasks-${taskType}`);
+  const isMobile = useCompactWorkspace();
+  const { lang } = useLanguage();
+  const mobileCopy = mobileWorkspaceCopy[lang];
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const { viewMode: dashViewMode, themeKey: dashTheme, setViewMode: setDashViewMode, setTheme: setDashTheme } = useDashboardDisplay(`tasks-${taskType}`, 'list');
   const currentYear = String(new Date().getFullYear());
   const MAIN_SHEET_NAME = "ראשי";
   const [availableSheets, setAvailableSheets] = useState<string[]>([]);
@@ -282,7 +289,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       tableNode.removeEventListener("scroll", syncFromTable);
       headerNode.removeEventListener("scroll", syncFromHeader);
     };
-  }, []);
+  }, [dashViewMode, loading, sharedCollapsed, tasks.length, activeTaskTab]);
 
   useEffect(() => {
     if (!activeResize) return;
@@ -565,6 +572,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     const newTask = await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
     if (!newTask) return;
     setSelectedRow(newTask.id);
+    if (isMobile) { setDetailTask(newTask); return; }
     setPendingScrollTaskId(newTask.id);
     setPendingEditTaskId(newTask.id);
   };
@@ -1116,7 +1124,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   }
 
   return (
-    <div className="flex flex-col h-full bg-background" dir="rtl">
+    <div className="flex min-h-0 min-w-0 flex-col h-full bg-background" dir="rtl">
       {/* Shared sheet collapse toggle */}
       {isSharedSheet && (
         <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
@@ -1175,8 +1183,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         <>
       {/* Sheet Selector */}
       {showYearSelector && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+          <div className="min-w-0 flex-1 basis-full sm:basis-auto">
             <YearSelector 
               selectedYear={selectedSheet} 
               onYearChange={setSelectedSheet}
@@ -1222,7 +1230,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       )}
 
       {/* Stats Bar - sticky */}
-      <div className="flex items-center gap-6 px-4 py-3 bg-card border-b border-border sticky top-0 z-20">
+      <div className="grid shrink-0 grid-cols-2 items-center gap-2 px-3 py-2 bg-card border-b border-border md:sticky md:top-0 md:z-20 md:flex md:gap-6 md:px-4 md:py-3">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500" />
           <span className="text-sm text-muted-foreground">בוצע: {completedCount}</span>
@@ -1235,9 +1243,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           <div className="w-3 h-3 rounded-full bg-amber-500" />
           <span className="text-sm text-muted-foreground">בטיפול: {inProgressCount}</span>
         </div>
-        <div className="mr-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 md:mr-auto">
           <span className="text-sm font-medium">אחוז ביצוע:</span>
-          <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+          <div className="hidden w-24 h-2 bg-muted rounded-full overflow-hidden md:block">
             <div
               className="h-full bg-primary transition-all"
               style={{ width: `${completionRate}%` }}
@@ -1248,9 +1256,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       </div>
 
       {/* Toolbar - sticky below stats */}
-      <div className="border-b border-border bg-muted/30 sticky top-[52px] z-20">
-        <div className="flex items-center gap-2 p-3">
-        <h2 className="text-lg font-semibold text-foreground ml-4">{title}</h2>
+      <div className="shrink-0 border-b border-border bg-muted/30 md:sticky md:top-[52px] md:z-20">
+        <div className="flex flex-wrap items-center gap-2 p-3">
+        <h2 className="min-w-0 text-base font-semibold text-foreground md:ml-4 md:text-lg">{title}</h2>
         {!readOnly && (
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={handleAddTask}>
@@ -1268,7 +1276,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             </Button>
           </div>
         )}
-        <div className="mr-auto flex items-center gap-2">
+        {isMobile && <Button size="sm" variant="ghost" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? mobileCopy.hideTools : mobileCopy.tools}</Button>}
+        <div className={cn('flex max-w-full flex-wrap items-center gap-2 md:mr-auto', isMobile && !mobileToolsOpen && 'hidden')}>
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
             <SelectTrigger className="w-[160px] h-8">
               <ArrowUpDown className="h-4 w-4 ml-1" />
@@ -1339,11 +1348,11 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           </Popover>
         </div>
         </div>
-        <div className="px-3 pb-2 text-[11px] text-muted-foreground">
-          עריכת טקסט בתוך הטבלה נעשית בדאבל־קליק על השדה עצמו. לפתיחת פרטי משימה מלאים השתמשו במספר המשימה או באייקון העין.
-        </div>
+        {dashViewMode === 'table' && <div className="px-3 pb-2 text-[11px] text-muted-foreground">
+          {isMobile ? mobileCopy.scrollTable : 'עריכת טקסט בתוך הטבלה נעשית בדאבל־קליק על השדה עצמו. לפתיחת פרטי משימה מלאים השתמשו במספר המשימה או באייקון העין.'}
+        </div>}
         {/* Sticky category/column headers bar */}
-        <div ref={stickyHeaderScrollRef} className="overflow-x-auto border-t border-border/50">
+        {dashViewMode === 'table' && <div ref={stickyHeaderScrollRef} className="max-w-full overflow-x-auto border-t border-border/50">
           <div className="flex items-stretch bg-muted/50 text-[11px] text-muted-foreground min-w-max">
             {TASK_TABLE_COLUMNS.map((column) => (
               <div
@@ -1368,7 +1377,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
               </div>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Task Tabs with Table */}

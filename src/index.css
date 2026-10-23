@@ -1116,14 +1116,56 @@ All colors MUST be HSL.
   }
 }
 
-/* iPhone / mobile responsive fixes */
-@media (max-width: 767px) {
-  /* Prevent text truncation in table cells */
-  table td, table th {
-    white-space: normal !important;
-    word-break: break-word;
-    min-width: 60px;
+/* Viewport-based workspace: keep content between the browser chrome and home indicator. */
+.mobile-workspace {
+  height: 100vh;
+  height: var(--tabro-viewport-height, 100dvh);
+  overflow: hidden;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.mobile-workspace-header { padding-top: calc(0.5rem + env(safe-area-inset-top, 0px)); }
+.mobile-workspace-content { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+.mobile-workspace-nav { padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px)); }
+.mobile-workspace-menu { height: var(--tabro-viewport-height, 100dvh); top: var(--tabro-viewport-top, 0px); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+@supports (height: 100dvh) {
+  .h-screen { height: 100dvh; }
+  .min-h-screen { min-height: 100dvh; }
+}
+
+@media (max-width: 1023px) {
+  :root { --tabro-mobile-nav-height: calc(3.75rem + env(safe-area-inset-bottom, 0px)); }
+  [data-ui-button] { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+  .mobile-workspace input, .mobile-workspace textarea, .mobile-workspace select { min-width: 0; }
+  .responsive-dialog {
+    top: calc(var(--tabro-viewport-top, 0px) + var(--tabro-viewport-height, 100dvh) / 2);
+    max-height: calc(var(--tabro-viewport-height, 100dvh) - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
+  .responsive-dialog > button:last-child, .responsive-sheet > button:last-child { min-width: 44px; min-height: 44px; top: 0.25rem; right: 0.25rem; }
+  .responsive-dialog h2 { padding-inline: 2rem; overflow-wrap: anywhere; }
+  .responsive-sheet { max-height: var(--tabro-viewport-height, 100dvh); overflow-y: auto; }
+  .responsive-sheet.mobile-workspace-menu { overflow-y: hidden; }
+  .responsive-popover { max-width: calc(100vw - 1rem); max-height: min(var(--radix-popover-content-available-height, 80dvh), 80dvh); overflow-y: auto; }
+  .tabro-floating { z-index: 40; }
+  .tabro-accessibility-launcher { bottom: calc(var(--tabro-mobile-nav-height) + 0.75rem); }
+  .tabro-accessibility-panel { bottom: calc(var(--tabro-mobile-nav-height) + 4.5rem); max-height: calc(var(--tabro-viewport-height, 100dvh) - var(--tabro-mobile-nav-height) - 6rem); overflow-y: auto; max-width: calc(100vw - 2rem); }
+  .tabro-ai-launcher, .tabro-ai-panel { bottom: calc(var(--tabro-mobile-nav-height) + 4.5rem); }
+  .tabro-ai-panel { max-height: calc(var(--tabro-viewport-height, 100dvh) - var(--tabro-mobile-nav-height) - 5.5rem); }
+  .tabro-media-float { bottom: calc(var(--tabro-mobile-nav-height) + 0.75rem); max-width: calc(100vw - 2rem); }
+  :root[data-mobile-keyboard] .mobile-workspace-nav, :root[data-mobile-keyboard] .tabro-floating { display: none; }
+  :root[data-mobile-keyboard] .mobile-workspace-account { display: none; }
+  body:has([role="dialog"][data-state="open"]) .tabro-floating { visibility: hidden; }
+}
+
+@media (max-width: 1023px) and (max-height: 600px) {
+  .mobile-workspace-account { max-height: 6rem; overflow-y: auto; }
+}
+
+/* Phone-specific text and form sizing; wide data remains scrollable inside its own region. */
+@media (max-width: 767px) {
+  .responsive-dialog { max-width: calc(100vw - 1rem) !important; padding: 1rem; border-radius: 1rem; }
   
   /* Ensure header text wraps */
   header h1 {
@@ -1135,12 +1177,6 @@ All colors MUST be HSL.
     font-size: 0.7rem;
     padding-left: 0.5rem;
     padding-right: 0.5rem;
-  }
-
-  /* Cards and inputs don't overflow */
-  .card, [class*="CardContent"] {
-    overflow-x: hidden;
-    word-break: break-word;
   }
 
   /* Fix select and input overflow */

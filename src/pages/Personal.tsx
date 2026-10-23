@@ -10,29 +10,12 @@ import { useLayoutPreference } from "@/hooks/useLayoutPreference";
 import { useDashboardCategoryLabels, useDashboardGroupingAssignments, useDashboardGroupingPreference } from "@/hooks/useDashboardGroupingPreference";
 import type { DashboardTabGroup } from "@/components/layouts/dashboardGrouping";
 import { useSyncedPreferences } from "@/hooks/useSyncedPreferences";
-import TaskSpreadsheetDb from "@/components/TaskSpreadsheetDb";
-import BooksManager from "@/components/BooksManager";
-import ShowsManager from "@/components/ShowsManager";
-import PodcastsManager from "@/components/PodcastsManager";
-import Dashboard from "@/components/Dashboard";
-import DailyRoutine from "@/components/DailyRoutine";
 import PlannerErrorBoundary from "@/components/PlannerErrorBoundary";
 import WorkspacePanelBoundary from '@/components/WorkspacePanelBoundary';
 import { ZoneFlowMiniPlayer } from "@/components/zoneflow/ZoneFlowMiniPlayer";
 import { GlobalZoneFlowYouTubePlayer } from "@/components/zoneflow/GlobalZoneFlowYouTubePlayer";
 import PushNotificationToggle from "@/components/PushNotificationToggle";
 import NotificationBell from "@/components/NotificationBell";
-import SettingsPanel from "@/components/SettingsPanel";
-import CustomBoardManager from "@/components/CustomBoardManager";
-import ChallengesManager from "@/components/ChallengesManager";
-import SharingManagement from "@/components/SharingManagement";
-import NutritionDashboard from "@/components/dashboards/NutritionDashboard";
-import DreamRoadmapDashboard from "@/components/dashboards/DreamRoadmapDashboard";
-import ContactForm from "@/components/ContactForm";
-import NotesDashboard from "@/components/dashboards/NotesDashboard";
-import EmailIntegration from "@/components/EmailIntegration";
-import MeetingsDashboard from "@/components/MeetingsDashboard";
-import TabroAiWorkspace from "@/components/TabroAiWorkspace";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import SidebarLayout from "@/components/layouts/SidebarLayout";
 import CompactLayout from "@/components/layouts/CompactLayout";
@@ -40,6 +23,8 @@ import BottomNavLayout from "@/components/layouts/BottomNavLayout";
 import HamburgerLayout from "@/components/layouts/HamburgerLayout";
 import DashboardCardsLayout from "@/components/layouts/DashboardCardsLayout";
 import SplitViewLayout from "@/components/layouts/SplitViewLayout";
+import MobileWorkspaceLayout from '@/components/layouts/MobileWorkspaceLayout';
+import { useCompactWorkspace } from '@/hooks/use-mobile';
 import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight, Share2, Apple, Target, ShoppingCart, CreditCard, MessageSquare, StickyNote, Mail, Mic, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +36,23 @@ const PersonalPlanner = lazy(() => import('@/components/PersonalPlanner'));
 const ZoneFlowDashboard = lazy(() => import('@/components/zoneflow/ZoneFlowDashboard'));
 const ShoppingDashboard = lazy(() => import('@/components/dashboards/ShoppingDashboard'));
 const PaymentDashboard = lazy(() => import('@/components/dashboards/PaymentDashboard'));
+const TaskSpreadsheetDb = lazy(() => import('@/components/TaskSpreadsheetDb'));
+const BooksManager = lazy(() => import('@/components/BooksManager'));
+const ShowsManager = lazy(() => import('@/components/ShowsManager'));
+const PodcastsManager = lazy(() => import('@/components/PodcastsManager'));
+const Dashboard = lazy(() => import('@/components/Dashboard'));
+const DailyRoutine = lazy(() => import('@/components/DailyRoutine'));
+const SettingsPanel = lazy(() => import('@/components/SettingsPanel'));
+const CustomBoardManager = lazy(() => import('@/components/CustomBoardManager'));
+const ChallengesManager = lazy(() => import('@/components/ChallengesManager'));
+const SharingManagement = lazy(() => import('@/components/SharingManagement'));
+const NutritionDashboard = lazy(() => import('@/components/dashboards/NutritionDashboard'));
+const DreamRoadmapDashboard = lazy(() => import('@/components/dashboards/DreamRoadmapDashboard'));
+const ContactForm = lazy(() => import('@/components/ContactForm'));
+const NotesDashboard = lazy(() => import('@/components/dashboards/NotesDashboard'));
+const EmailIntegration = lazy(() => import('@/components/EmailIntegration'));
+const MeetingsDashboard = lazy(() => import('@/components/MeetingsDashboard'));
+const TabroAiWorkspace = lazy(() => import('@/components/TabroAiWorkspace'));
 
 interface SharedSheet {
   sheet_id: string;
@@ -113,8 +115,10 @@ const Personal = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sharedSheets, setSharedSheets] = useState<SharedSheet[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(() => {
-    const saved = localStorage.getItem("tab-order");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem('tab-order') || '[]');
+      return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [];
+    } catch { return []; }
   });
   const [draggedTab, setDraggedTab] = useState<string | null>(null);
   const { boards: customBoards, updateBoard, reorderBoards } = useCustomBoards();
@@ -122,6 +126,7 @@ const Personal = () => {
   const { t, dir } = useLanguage();
   const { isDark, toggleMode } = useSiteAppearance();
   const { layout } = useLayoutPreference();
+  const compactWorkspace = useCompactWorkspace();
   const { groupingMode } = useDashboardGroupingPreference();
   const { assignments: groupingAssignments } = useDashboardGroupingAssignments();
   const { labels: customGroupingLabels } = useDashboardCategoryLabels();
@@ -544,17 +549,17 @@ const Personal = () => {
   // Header right-side controls
   const headerControls = (
     <div className={`${dir === "rtl" ? "mr-auto" : "ml-auto"} flex items-center gap-1 sm:gap-2`}>
-      <Button variant="outline" size="sm" onClick={() => navigate("/install")} className="gap-2">
+      <Button variant="outline" size="sm" aria-label={t('installApp')} onClick={() => navigate("/install")} className="gap-2">
         <Download className="h-4 w-4" />
         <span className="hidden sm:inline">{t("installApp")}</span>
       </Button>
       <span className="text-sm text-muted-foreground hidden sm:block">{user.email}</span>
       <NotificationBell />
       <PushNotificationToggle />
-      <Button variant="ghost" size="icon" onClick={toggleMode}>
+      <Button variant="ghost" size="icon" aria-label={t(isDark ? 'lightMode' : 'darkMode')} onClick={toggleMode}>
         {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
       </Button>
-      <Button variant="ghost" size="icon" onClick={handleSignOut} title="התנתק">
+      <Button variant="ghost" size="icon" onClick={handleSignOut} title={t('signOut')} aria-label={t('signOut')}>
         <LogOut className="h-5 w-5" />
       </Button>
     </div>
@@ -566,6 +571,23 @@ const Personal = () => {
       <h1 className="sr-only sm:not-sr-only sm:text-xl sm:font-bold sm:text-foreground">{t("personalArea")}</h1>
     </>
   );
+
+  // Adapt to available space without overwriting the user's desktop layout preference.
+  if (compactWorkspace) {
+    return <>
+      {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
+      <MobileWorkspaceLayout tabs={flatTabItems} groups={groupingMode === 'grouped' ? groupedTabItems : []} activeTab={activeTab} onTabChange={setActiveTab} notification={<NotificationBell />} email={user.email} accountActions={<>
+        <Button variant="outline" size="sm" onClick={() => navigate('/install')}><Download className="h-4 w-4" />{t('installApp')}</Button>
+        <PushNotificationToggle />
+        <Button variant="outline" size="sm" onClick={toggleMode}>{isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}{t(isDark ? 'lightMode' : 'darkMode')}</Button>
+        <Button variant="ghost" size="sm" onClick={handleSignOut}><LogOut className="h-4 w-4" />{t('signOut')}</Button>
+      </>}>
+        <div className={['tasks', 'work', 'planner', 'projects', 'courses'].includes(activeTab) || activeTab.startsWith('shared-') ? 'h-full min-h-0 min-w-0' : 'min-h-full min-w-0 pb-6'}>{renderContent()}</div>
+      </MobileWorkspaceLayout>
+      <ZoneFlowMiniPlayer visible={activeTab !== 'zoneflow'} onGoToZoneFlow={() => setActiveTab('zoneflow')} />
+      <GlobalZoneFlowYouTubePlayer activeTab={activeTab} />
+    </>;
+  }
 
   // ---------- SIDEBAR LAYOUT ----------
   if (layout === "sidebar") {
