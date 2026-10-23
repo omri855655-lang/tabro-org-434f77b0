@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
+import { buildAircraftCabin } from './focusAircraftCabin';
+import type { FocusFlightTime } from '@/lib/focusFlightTime';
 
 type Build = {
   box: (parent: THREE.Object3D, color: number, at: number[], size: number[]) => THREE.Mesh;
@@ -7,9 +9,10 @@ type Build = {
   mat: (color: number) => THREE.MeshStandardMaterial;
 };
 
-export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build, graphics: RoomGraphics = 'natural', renderer?: THREE.WebGLRenderer) {
+export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build, graphics: RoomGraphics = 'natural', renderer?: THREE.WebGLRenderer, flightTime: FocusFlightTime = 'day') {
   const {box, ball, mat} = b;
   const plane = isFlightAtmosphere(kind), business = kind === 'business-plane', airport = kind === 'airport', grand = kind === 'grand';
+  const night=plane&&flightTime==='night';
   const cozy = kind === 'intimate', city = kind === 'city-cafe', modern = kind === 'modern-library', cafe = kind === 'cafe'||city, office = kind === 'office';
   const width = plane ? 5.8 : cozy ? 8 : airport ? 12 : 10;
   const height = plane ? 5 : grand ? 10 : cozy ? 4.5 : airport ? 8 : 6.4;
@@ -22,7 +25,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   const bookBatches = new Map<number,THREE.Matrix4[]>();
   const assetShelves:THREE.Group[]=[], bookPlaceholders:THREE.Object3D[]=[];
   const assetWindows:THREE.Mesh[]=[];
-  scene.background = new THREE.Color(plane || airport ? 0xaac7d7 : wall);
+  scene.background = new THREE.Color(night?0x101e35:plane || airport ? 0xaac7d7 : wall);
   scene.fog = new THREE.Fog(scene.background, 28, 65);
   const ground = box(scene, plane ? 0x3b4c5b : airport ? 0xb8c6c8 : office ? 0x8c9790 : 0xb29471, [0,-.12,(front+back)/2], [width*2,.2,back-front]);
   ground.receiveShadow = true;
@@ -58,8 +61,8 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   const wing=new THREE.Group(), terrain=new THREE.Group();
   let flightTarget:THREE.WebGLRenderTarget|undefined,wingMaterial:THREE.MeshBasicMaterial|undefined;
   if(flightView){
-    flightView.background=new THREE.Color(0xb5d3e2);flightView.fog=new THREE.Fog(0xb5d3e2,40,110);
-    flightView.add(new THREE.HemisphereLight(0xffffff,0x71867a,2.4));const light=new THREE.DirectionalLight(0xffefcf,2);light.position.set(-5,15,8);flightView.add(light);
+    flightView.background=new THREE.Color(night?0x101e35:0xb5d3e2);flightView.fog=new THREE.Fog(night?0x101e35:0xb5d3e2,40,110);
+    flightView.add(new THREE.HemisphereLight(night?0x7596bc:0xffffff,0x71867a,night?.4:2.4));const light=new THREE.DirectionalLight(night?0x96bce7:0xffefcf,night?.7:2);light.position.set(-5,15,8);flightView.add(light);
     flightView.add(wing,terrain);
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute([5,0,5,-5,.8,-5,-3,.8,-5,5,0,5,-3,.8,-5,5,0,7],3));geometry.computeVertexNormals();
     const material=new THREE.MeshStandardMaterial({color:0xe8e8df,metalness:.35,roughness:.4,side:THREE.DoubleSide});disposables.push(geometry,material);wing.add(new THREE.Mesh(geometry,material));
@@ -78,20 +81,24 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   };
   renderFlight(0,0);
   const paintSky=(lift:number,travel:number)=>{
-    const ctx=skyContext,gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,'#75a7cb');gradient.addColorStop(.7,'#dae8e9');gradient.addColorStop(1,'#e7dec8');ctx.fillStyle=gradient;ctx.fillRect(0,0,512,256);
+    const ctx=skyContext,gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,night?'#08152e':'#75a7cb');gradient.addColorStop(.7,night?'#203d60':'#dae8e9');gradient.addColorStop(1,night?'#49546a':'#e7dec8');ctx.fillStyle=gradient;ctx.fillRect(0,0,512,256);
+    if(night){ctx.fillStyle='#d6e1ed';for(let i=0;i<45;i++)ctx.fillRect((i*139)%512,(i*47)%125,1,1);}
     if(!plane&&!airport){
       ctx.fillStyle='#9eaa8e';ctx.fillRect(0,155,512,101);
       for(let i=0;i<9;i++){const x=i*66-10;ctx.fillStyle=cafe||office?'#b4b7ac':'#6f8d77';ctx.fillRect(x,100+i%3*18,42,110);ctx.fillStyle=cafe||office?'#e1dfc7':'#8ca68a';if(cafe||office){for(let row=0;row<4;row++)ctx.fillRect(x+8,115+row*20,24,8);}else{ctx.beginPath();ctx.ellipse(x+20,105+i%3*18,36,50,0,0,Math.PI*2);ctx.fill();}}
-    }else if(lift<.9){ctx.fillStyle='#74918c';ctx.fillRect(0,150+lift*105,512,110);ctx.fillStyle='#53636a';ctx.fillRect(0,184+lift*90,512,72);ctx.fillStyle='#f1e9cf';for(let x=-100;x<600;x+=110)ctx.fillRect((x+travel*50)%650-50,218+lift*90,55,5);}
-    ctx.fillStyle='rgba(255,255,255,.85)';for(let i=0;i<5;i++){const x=(i*133+travel*6)%670-80,y=70+i%2*28+lift*70;ctx.beginPath();ctx.ellipse(x,y,60,17,0,0,Math.PI*2);ctx.fill();}skyTexture.needsUpdate=true;
+    }else if(lift<.9){ctx.fillStyle=night?'#26363d':'#74918c';ctx.fillRect(0,150+lift*105,512,110);ctx.fillStyle=night?'#182431':'#53636a';ctx.fillRect(0,184+lift*90,512,72);ctx.fillStyle='#f1e9cf';for(let x=-100;x<600;x+=110)ctx.fillRect((x+travel*50)%650-50,218+lift*90,55,5);}
+    ctx.fillStyle=night?'rgba(166,185,210,.25)':'rgba(255,255,255,.85)';for(let i=0;i<5;i++){const x=(i*133+travel*6)%670-80,y=70+i%2*28+lift*70;ctx.beginPath();ctx.ellipse(x,y,60,17,0,0,Math.PI*2);ctx.fill();}skyTexture.needsUpdate=true;
   };paintSky(0,0);
   const window=(x:number,y:number,z:number,w:number,h:number,side=0)=>{
     const root=new THREE.Group();root.position.set(x,y,z);root.rotation.y=side;scene.add(root);
     if(plane){
       const shape=new THREE.Shape();const r=.35,hw=w/2,hh=h/2;shape.moveTo(-hw+r,-hh);shape.lineTo(hw-r,-hh);shape.quadraticCurveTo(hw,-hh,hw,-hh+r);shape.lineTo(hw,hh-r);shape.quadraticCurveTo(hw,hh,hw-r,hh);shape.lineTo(-hw+r,hh);shape.quadraticCurveTo(-hw,hh,-hw,hh-r);shape.lineTo(-hw,-hh+r);shape.quadraticCurveTo(-hw,-hh,-hw+r,-hh);
       const geometry=new THREE.ShapeGeometry(shape);const uv=geometry.getAttribute('uv'),position=geometry.getAttribute('position');for(let i=0;i<uv.count;i++)uv.setXY(i,(position.getX(i)+hw)/w,(position.getY(i)+hh)/h);disposables.push(geometry);
-      const rim=new THREE.Mesh(geometry,mat(0xc6cdd0));rim.scale.set(1.18,1.14,1);root.add(rim);
-      const view=new THREE.Mesh(geometry,Math.abs(z)<3&&wingMaterial?wingMaterial:skyMaterial);view.position.z=.035;root.add(view);
+      const surround=new THREE.Mesh(geometry,mat(0xe0e1da));surround.scale.set(1.4,1.3,1);root.add(surround);
+      const rim=new THREE.Mesh(geometry,mat(0x9aa9b0));rim.scale.set(1.18,1.14,1);rim.position.z=.025;root.add(rim);
+      const inner=new THREE.Mesh(geometry,mat(0x3b515c));inner.scale.set(1.06,1.06,1);inner.position.z=.045;root.add(inner);
+      const view=new THREE.Mesh(geometry,Math.abs(z)<3&&wingMaterial?wingMaterial:skyMaterial);view.position.z=.065;root.add(view);
+      box(root,0xd4d9d4,[0,-h/2-.07,.08],[w*.85,.08,.13]);
     }else{
       box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=box(root,0xffffff,[0,0,.08],[w,h,.04]);view.material=skyMaterial;assetWindows.push(view);
       box(root,accent,[0,0,.12],[.045,h,.04]);
@@ -123,15 +130,9 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     }
   };
   if(plane){
-    // Curved fuselage, continuous overhead bins and forward-facing passenger pods.
-    const points:THREE.Vector2[]=[];for(let i=0;i<=32;i++){const a=i/32*Math.PI;points.push(new THREE.Vector2(Math.cos(a)*width,2.7+Math.sin(a)*2.4));}
-    const positions:number[]=[];for(let i=0;i<points.length-1;i++){const a=points[i],c=points[i+1];positions.push(a.x,a.y,front,c.x,c.y,front,a.x,a.y,back,c.x,c.y,front,c.x,c.y,back,a.x,a.y,back);}
-    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.computeVertexNormals();
-    const material=new THREE.MeshStandardMaterial({color:0xe9e8de,side:THREE.DoubleSide,roughness:.7});disposables.push(geometry,material);scene.add(new THREE.Mesh(geometry,material));
+    const cabin=buildAircraftCabin(scene,{box},business,front,back,width);disposables.push(cabin);
     for(const side of [-1,1]){
       for(let z=-10;z<12;z+=2.5)window(side*(width-.11),2.65,z,1.1,1.5,-side*Math.PI/2);
-      box(scene,0xc4ced2,[side*4.75,4.1,.5],[1.45,.7,24]);box(scene,0xffe5ad,[side*4.05,3.76,.5],[.045,.045,24]);
-      for(let z=-10;z<12;z+=2.5){box(scene,0x9caaaf,[side*4.6,3.72,z],[.6,.03,.25]);box(scene,0x596b76,[side*4.6,3.69,z],[.18,.02,.1]);}
       box(scene,0xb4a789,[side*1.42,.008,.5],[.08,.012,24]);
     }
     box(scene,0xc3d0d3,[0,2.3,front+.15],[2.2,4.5,.12]);box(scene,0x344e61,[0,2.6,front+.24],[1.7,1.1,.1]);
@@ -198,15 +199,21 @@ export function buildFocusStation(parent:THREE.Group, kind:RoomAtmosphere, b:Pic
   const top=cafe?ball(parent,wood,[0,1.12,1.25],[1.6,.09,1.25]):box(parent,plane?0xd6d5c6:airport?0xb5cdd0:wood,[0,1.12,plane?1:1.25],[plane?2.05:3.9,.12,plane?1.65:2.3]);
   if(plane){
     box(parent,accent,[0,.58,0],[1.65,.23,1.4]);const back=box(parent,accent,[0,1.15,-.65],[1.65,1.2,.27]);back.rotation.x=.08;
-    box(parent,0xd6d2c0,[0,1.58,-.49],[.8,.25,.08]);
+    box(parent,business?0x8f7b70:0x526d84,[0,.73,-.02],[1.5,.13,1.24]);
+    box(parent,business?0x8f7b70:0x526d84,[0,1.25,-.46],[1.47,.9,.09]);
+    box(parent,0xd6d2c0,[0,1.68,-.43],[1.1,.3,.09]);
+    for(const x of [-.62,.62])box(parent,business?0xb5a18d:0x8197a5,[x,1.23,-.4],[.012,.75,.009]);
+    box(parent,0x2e414d,[0,.24,-.2],[1.2,.08,.65]);
     for(const x of [-.93,.93]){box(parent,0xbac2be,[x,.95,0],[.2,.15,1.5]);box(parent,accent,[x,.5,-.15],[.18,.8,1.2]);}
     box(parent,0xa4afa9,[0,.7,.9],[.12,.8,.12]);
     if(business){
       for(const x of [-1.05,1.05])box(parent,0xc2b59f,[x,1.2,-.05],[.15,1.5,1.7]);
       box(parent,0x3c4d57,[.98,1.7,.5],[.06,.45,.6]);box(parent,0xc6dfdb,[.94,1.7,.5],[.02,.32,.45]);
-    }else{
-      // An unoccupied adjacent passenger seat gives the standard cabin a paired layout.
-      const side=parent.position.x<0?-1:1;
+      box(parent,0x8f7760,[-1.07,1.05,.35],[.23,.07,.7]);
+      box(parent,0xe3d7bd,[-1.07,1.25,-.45],[.025,.28,.3]);
+    }else if(Math.abs(parent.position.x)>.1){
+      // Decorative neighbours face forward, outboard of the logical seats.
+      const side=parent.position.x<0?1:-1;
       box(parent,accent,[side*1.15,.58,0],[.65,.23,1.35]);box(parent,accent,[side*1.15,1.15,-.65],[.65,1.2,.27]);box(parent,0xd6d2c0,[side*1.15,1.58,-.49],[.45,.25,.08]);
     }
   }else{

@@ -7,6 +7,7 @@ import * as roomHelpers from '../src/lib/focusRoom.ts';
 import { zoneflowExperienceCopy } from '../src/lib/zoneflowExperienceCopy.ts';
 import { focusRoomViewCopy } from '../src/lib/focusRoomViewCopy.ts';
 import * as journey from '../src/lib/focusRoomJourney.ts';
+import * as flightTime from '../src/lib/focusFlightTime.ts';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -29,6 +30,7 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name === '@/lib/zoneflowExperienceCopy') return { zoneflowExperienceCopy };
   if (name === '@/lib/focusRoomViewCopy') return { focusRoomViewCopy };
   if (name === '@/lib/focusRoomJourney') return journey;
+  if (name === '@/lib/focusFlightTime') return flightTime;
   if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => key === 'zoneflow-room-camera' ? 'map' : null, setString() {} } };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');
   if (name === '@/hooks/useLanguage') return { useLanguage: () => ({ lang: 'he', dir: 'rtl' }) };
@@ -50,6 +52,10 @@ for (const scene of ['cafe', 'plane', 'library', 'office']) {
       }));
       assert.ok(html.includes(`${label} · 50 דקות`));
       assert.ok(html.includes('24:10'));
+      if(scene==='plane'){
+        assert.ok(html.includes('טיסת יום'));
+        assert.ok(html.includes('טיסת לילה'));
+      }
       assert.ok(html.includes('is-seated'));
       assert.equal((html.match(/data-furniture="desk"/g) || []).length, 6);
       assert.equal((html.match(/data-furniture="chair"/g) || []).length, 6);

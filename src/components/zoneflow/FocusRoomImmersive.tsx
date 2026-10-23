@@ -9,6 +9,7 @@ import type { FocusRoomParticipant, FocusRoomScene } from './FocusRoomInterior';
 import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 import { buildFocusEnvironment, buildFocusStation } from './focusRoomEnvironment';
 import { attachRoomAssets } from './focusRoomAssets';
+import type { FocusFlightTime } from '@/lib/focusFlightTime';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
   onUnavailable: () => void;
   atmosphere?: RoomAtmosphere; elapsed?: number; started?: boolean; running?: boolean;
   graphics?: RoomGraphics;
+  flightTime?: FocusFlightTime;
 }
 const SHIRTS = [0x589f95, 0xcd8975, 0xc6a15c, 0x839c68, 0xa49bbf, 0x7b9ebf, 0x9aa96b, 0xcc9baa];
 const SKINS = [0xe9b38d, 0xc08b65, 0x875b43, 0xf1c6a3];
@@ -49,6 +51,7 @@ export default function FocusRoomImmersive(props: Props) {
     const scene = new THREE.Scene();
     const atmosphere = props.atmosphere || props.scene;
     const flying = isFlightAtmosphere(atmosphere);
+    const night=flying&&props.flightTime==='night';
     const graphics = props.graphics || 'natural';
     const xScale = flying ? .105 : atmosphere === 'intimate' ? .16 : .2;
     const zScale = flying ? .32 : .22;
@@ -85,12 +88,13 @@ export default function FocusRoomImmersive(props: Props) {
     const roundedBox = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, roundedCube, color, at, size);
     const envBox=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=roundedBox(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
     const envBall=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=ball(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
-    scene.add(new THREE.HemisphereLight(0xf7efdf, 0x74858b, 1.8));
-    const sun = new THREE.DirectionalLight(0xffe5be, 2.4); sun.position.set(-5, 10, -5); scene.add(sun);
+    scene.add(new THREE.HemisphereLight(night?0x8badd5:0xf7efdf, 0x74858b, night?.65:1.8));
+    const sun = new THREE.DirectionalLight(night?0xa0bfe9:0xffe5be, night?.35:2.4); sun.position.set(-5, 10, -5); scene.add(sun);
+    if(night)for(const z of [-6,1,8]){const lamp=new THREE.PointLight(0xffdfb1,9,10,2);lamp.position.set(0,3.2,z);scene.add(lamp);}
     sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
     Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 18, bottom: -15, near: .5, far: 45 });
     sun.shadow.bias = -.001;
-    const environment = buildFocusEnvironment(scene, atmosphere, {box:envBox,ball:envBall,mat:environmentMat}, graphics, renderer);
+    const environment = buildFocusEnvironment(scene, atmosphere, {box:envBox,ball:envBall,mat:environmentMat}, graphics, renderer, props.flightTime);
     const ground = environment.ground;
     const targets: THREE.Object3D[] = [ground];
     const paperCanvas=document.createElement('canvas');paperCanvas.width=512;paperCanvas.height=768;
@@ -280,7 +284,7 @@ export default function FocusRoomImmersive(props: Props) {
       paperGeometry.dispose();paperMaterial.dispose();paperTexture.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
-  }, [props.scene, props.atmosphere, props.graphics]);
+  }, [props.scene, props.atmosphere, props.graphics, props.flightTime]);
 
   return <div className="bg-[#eee4cf] text-[#304c3e]">
     {assetState&&<p role="status" className="bg-[#f8f5eb] px-4 py-2 text-xs" data-testid="room-asset-status">{({he:['טוען ריהוט מפורט ותאורה…','ריהוט תלת־ממדי מפורט ותאורת HDR','חלק מפרטי הריהוט לא נטענו; תצוגה בסיסית זמינה'],en:['Loading detailed furniture and lighting…','Detailed 3D furniture and HDR lighting','Some assets could not load; basic room available'],es:['Cargando muebles e iluminación…','Muebles 3D detallados e iluminación HDR','Algunos recursos no se cargaron; sala básica disponible'],zh:['正在加载精细家具和灯光…','精细3D家具与HDR灯光','部分资源未加载，基础房间仍可用'],ar:['تحميل الأثاث والإضاءة…','أثاث ثلاثي الأبعاد وإضاءة HDR','تعذر تحميل بعض الموارد؛ الغرفة الأساسية متاحة'],ru:['Загрузка мебели и освещения…','Детальная 3D-мебель и HDR-освещение','Часть ресурсов не загружена; доступна базовая комната']}[lang])[assetState==='loading'?0:assetState==='ready'?1:2]}</p>}
