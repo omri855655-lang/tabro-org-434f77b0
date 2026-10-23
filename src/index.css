@@ -1128,6 +1128,9 @@ All colors MUST be HSL.
 .mobile-workspace-content { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
 .mobile-workspace-nav { padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px)); }
 .mobile-workspace-menu { height: var(--tabro-viewport-height, 100dvh); top: var(--tabro-viewport-top, 0px); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Desktop safety net: long dialogs scroll instead of pushing the close button off-screen.
+   :where() keeps zero specificity so dialogs with their own max-h/overflow classes are unchanged. */
+:where(.responsive-dialog) { max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
 @supports (height: 100dvh) {
   .h-screen { height: 100dvh; }
   .min-h-screen { min-height: 100dvh; }
