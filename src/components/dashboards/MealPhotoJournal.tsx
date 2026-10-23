@@ -24,10 +24,10 @@ export function MealPhotoJournal({userId,journal,profile}:{userId?:string;journa
   const [photo,setPhoto]=useState(''),[meal,setMeal]=useState<MealEstimate|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const [editing,setEditing]=useState<string|null>(null),[eatenAt,setEatenAt]=useState(()=>defaultTime(journal.day));
   useEffect(()=>{if(!editing)setEatenAt(defaultTime(journal.day));},[journal.day,editing]);
-  const reset=()=>{setMeal(null);setPhoto('');setEditing(null);};
+  const reset=()=>{setMeal(null);setPhoto('');setEditing(null);setEatenAt(defaultTime(journal.day));};
   const analyze=async()=>{
     if(!photo||!userId)return;setBusy(true);setMessage('');
-    try{const {data,error}=await supabase.functions.invoke('task-ai-helper',{body:{type:'meal-photo',imageDataUrl:photo,language:lang}});if(error)throw error;setMeal(parseMealEstimate(data?.meal));}
+    try{const {data,error}=await supabase.functions.invoke('task-ai-helper',{body:{type:'meal-photo',imageDataUrl:photo,language:lang},timeout:60000});if(error)throw error;setMeal(parseMealEstimate(data?.meal));}
     catch{setMessage(copy[14]);}finally{setBusy(false);}
   };
   const change=(index:number,item:MealItem)=>setMeal(previous=>previous?{...previous,items:previous.items.map((value,i)=>i===index?item:value)}:null);

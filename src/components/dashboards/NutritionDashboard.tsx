@@ -84,15 +84,16 @@ function NutritionWorkspace({ userId }: { userId?: string }) {
     const nextMessages = [...chat.messages, { role: 'user', content: question }];
     chat.setMessages(nextMessages); setAiLoading(true);
     try {
+      const conversationHistory = nextMessages.slice(-12, -1).filter(message => message.role === 'user' || message.role === 'assistant').map(message => ({ role: message.role, content: message.content.slice(0, 5000) }));
       const body = type === 'nutrition' ? {
         type: 'nutrition-coach', taskDescription: question, language: lang,
         nutritionContext: { profile: { age: savedProfile.age, height: savedProfile.height, weight: savedProfile.weight, gender: savedProfile.gender, activity_level: savedProfile.activity_level, allergies: savedProfile.allergies, dietary_preferences: savedProfile.dietary_preferences, health_goals: savedProfile.health_goals }, preferences: journal.preferences, day: journal.day, meals: mealsForDay(journal.history, journal.day) },
-        conversationHistory: nextMessages.slice(-12, -1),
+        conversationHistory,
       } : {
         type: 'sleep-coach', taskDescription: question, language: lang,
-        conversationHistory: nextMessages.slice(-12, -1),
+        conversationHistory,
       };
-      const { data, error } = await supabase.functions.invoke('task-ai-helper', { body });
+      const { data, error } = await supabase.functions.invoke('task-ai-helper', { body, timeout: 60000 });
       if (error || typeof data?.suggestion !== 'string' || !data.suggestion.trim()) throw error || new Error('No response');
       chat.setMessages(previous => [...previous, { role: 'assistant', content: data.suggestion }]);
     } catch { chat.setMessages(previous => [...previous, { role: 'assistant', content: c.aiError }]); }
