@@ -42,9 +42,9 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const [graphics, setGraphics] = useState<RoomGraphics>(() => { const value=safeLocalStorage.getString('zoneflow-room-graphics');return value==='illustrated'||value==='cinematic'?value:'natural'; });
   const [flightId, setFlightId] = useState<string>(FOCUS_FLIGHTS[0].id);
   const flight = FOCUS_FLIGHTS.find(route => route.id === flightId)!;
-  const [view, setView] = useState<'eye' | 'follow' | 'map'>(() => {
+  const [view, setView] = useState<'overview' | 'eye' | 'follow' | 'map'>(() => {
     const saved = safeLocalStorage.getString('zoneflow-room-camera');
-    return saved === 'map' || saved === 'follow' ? saved : 'eye';
+    return saved === 'map' || saved === 'follow' || saved === 'eye' ? saved : 'overview';
   });
   const [unavailable, setUnavailable] = useState(false);
   const [look,setLook]=useState(()=>{const value=safeLocalStorage.getString('zoneflow-room-look');return value==='pixel'||value==='depth'?value:'illustrated';});
@@ -107,7 +107,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     </header>
     {peopleOpen && <aside id={peopleId} className="border-b border-[#dce3d7] bg-[#f4f5eb] px-4 py-3"><div className="flex flex-wrap gap-2">{participants.map(person => <div key={person.userId} className="flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs text-[#38594b]"><span className={cn('h-2 w-2 rounded-full', person.status === 'focusing' ? 'bg-emerald-500' : 'bg-amber-400')} /><span>{person.displayName}</span><span className="text-[#79897b]">{statusLabels[person.status]}</span></div>)}</div><p className="mt-2 text-xs text-[#738171]">{copy.quiet}</p></aside>}
     <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f3f3e9] px-4 py-3 sm:px-6">
-      <label className="flex items-center gap-2 text-xs text-[#38594b]">{viewCopy.camera}<select value={view} onChange={event=>{const value=event.target.value as typeof view;setView(value);safeLocalStorage.setString('zoneflow-room-camera',value);}} className="rounded-xl border bg-white px-3 py-2">{(['eye','follow','map'] as const).map(value=><option key={value} value={value} disabled={unavailable&&value!=='map'}>{viewCopy[value]}</option>)}</select></label>
+      <label className="flex items-center gap-2 text-xs text-[#38594b]">{viewCopy.camera}<select value={view} onChange={event=>{const value=event.target.value as typeof view;setView(value);safeLocalStorage.setString('zoneflow-room-camera',value);}} className="rounded-xl border bg-white px-3 py-2"><option value="overview" disabled={unavailable}>{{he:'מבט רחב על החדר',en:'Wide room view',es:'Vista general de la sala',zh:'房间全景',ar:'منظر عام للغرفة',ru:'Общий вид комнаты'}[lang]}</option>{(['eye','follow','map'] as const).map(value=><option key={value} value={value} disabled={unavailable&&value!=='map'}>{viewCopy[value]}</option>)}</select></label>
       {view === 'map' && <label className="flex items-center gap-2 text-xs text-[#38594b]">{experience.look}<select value={look} onChange={event=>{setLook(event.target.value);safeLocalStorage.setString('zoneflow-room-look',event.target.value);}} className="rounded-xl border bg-white px-3 py-2">{(['illustrated','pixel','depth'] as const).map(value=><option key={value} value={value}>{experience[value]}</option>)}</select></label>}
       <div className="flex flex-wrap gap-1 rounded-2xl bg-white/80 p-1">{(Object.keys(ACTIVITIES) as FocusActivity[]).map(value => {
         const Icon = ACTIVITIES[value];

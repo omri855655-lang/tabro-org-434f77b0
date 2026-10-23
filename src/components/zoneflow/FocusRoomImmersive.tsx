@@ -13,7 +13,7 @@ import type { FocusFlightTime } from '@/lib/focusFlightTime';
 
 type Position = { x: number; y: number };
 interface Props {
-  scene: FocusRoomScene; participants: FocusRoomParticipant[]; mode: 'eye' | 'follow';
+  scene: FocusRoomScene; participants: FocusRoomParticipant[]; mode: 'overview' | 'eye' | 'follow';
   onMove: (position: Position) => void; onSeat: (position: typeof FOCUS_SEATS[number]) => void;
   onUnavailable: () => void;
   atmosphere?: RoomAtmosphere; elapsed?: number; started?: boolean; running?: boolean;
@@ -271,6 +271,10 @@ export default function FocusRoomImmersive(props: Props) {
         if (latest.current.mode === 'eye') { camera.position.copy(base).add(new THREE.Vector3(0, eye, 0)); camera.lookAt(camera.position.clone().add(direction)); }
         else { const target = base.clone().add(new THREE.Vector3(0, 1.4, 0)); camera.position.copy(target).addScaledVector(direction, -3.7); camera.position.y = 3.1; camera.position.x = THREE.MathUtils.clamp(camera.position.x, -environment.width+.6, environment.width-.6); camera.position.z = THREE.MathUtils.clamp(camera.position.z, environment.front+.7, environment.back-.7); camera.lookAt(target); }
       } else { camera.position.set(0, 2.3, 6); camera.lookAt(0, 1.8, -3); }
+      if(latest.current.mode==='overview'){
+        camera.position.set(0,flying?3.25:atmosphere==='grand'?4.7:3.5,environment.back-1.1);
+        camera.lookAt(-Math.sin(yaw)*environment.width*.65,THREE.MathUtils.clamp((flying?1.75:2)+(pitch+.12)*4,.8,4.5),environment.front+3);
+      }
       renderer.render(scene, camera);
     };
     frame = requestAnimationFrame(tick); setReady(true);
