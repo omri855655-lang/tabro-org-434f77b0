@@ -1,0 +1,156 @@
+{
+  "license": "CC0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "files": [
+    {
+      "path": "wooden_display_shelves_01/model.gltf",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wooden_display_shelves_01/wooden_display_shelves_01_1k.gltf",
+      "bytes": 6795,
+      "md5": "e807901382c7223238c5c3fd5bad5d8e"
+    },
+    {
+      "path": "wooden_display_shelves_01/textures/wooden_display_shelves_01_arm_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_display_shelves_01/wooden_display_shelves_01_arm_1k.jpg",
+      "bytes": 164353,
+      "md5": "526dc6c49a7ce366b61f04ab794107ee"
+    },
+    {
+      "path": "wooden_display_shelves_01/textures/wooden_display_shelves_01_nor_gl_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_display_shelves_01/wooden_display_shelves_01_nor_gl_1k.jpg",
+      "bytes": 54739,
+      "md5": "696f1c48d08ffcc4bfc90e4aabc91286"
+    },
+    {
+      "path": "wooden_display_shelves_01/wooden_display_shelves_01.bin",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/wooden_display_shelves_01/wooden_display_shelves_01.bin",
+      "bytes": 105988,
+      "md5": "d26e27c0c3a7c6b247b220a49379298f"
+    },
+    {
+      "path": "wooden_display_shelves_01/textures/wooden_display_shelves_01_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_display_shelves_01/wooden_display_shelves_01_diff_1k.jpg",
+      "bytes": 139254,
+      "md5": "b3f7519052957a3f0199e5fcd742a0b6"
+    },
+    {
+      "path": "wooden_table_02/model.gltf",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wooden_table_02/wooden_table_02_1k.gltf",
+      "bytes": 2687,
+      "md5": "957c5d94784eed976cb4c6f0256a85e7"
+    },
+    {
+      "path": "wooden_table_02/textures/wooden_table_02_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_table_02/wooden_table_02_diff_1k.jpg",
+      "bytes": 178379,
+      "md5": "07075a87918208594260c86c727e4396"
+    },
+    {
+      "path": "wooden_table_02/textures/wooden_table_02_nor_gl_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_table_02/wooden_table_02_nor_gl_1k.jpg",
+      "bytes": 122129,
+      "md5": "63ac7819b624149e77ae9459472ded6d"
+    },
+    {
+      "path": "wooden_table_02/wooden_table_02.bin",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/wooden_table_02/wooden_table_02.bin",
+      "bytes": 7576,
+      "md5": "a17c24e5366a0f7ad5522b88a4a9ea85"
+    },
+    {
+      "path": "wooden_table_02/textures/wooden_table_02_arm_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_table_02/wooden_table_02_arm_1k.jpg",
+      "bytes": 174545,
+      "md5": "8ee06c71a226e7f53b2ba53da79a55be"
+    },
+    {
+      "path": "SchoolChair_01/model.gltf",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/SchoolChair_01/SchoolChair_01_1k.gltf",
+      "bytes": 2695,
+      "md5": "dea922d55d029fb99085b50196d1eec0"
+    },
+    {
+      "path": "SchoolChair_01/textures/SchoolChair_01_nor_gl_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/SchoolChair_01/SchoolChair_01_nor_gl_1k.jpg",
+      "bytes": 189532,
+      "md5": "223a0e5d115fb86cf1ae675fe73dc04a"
+    },
+    {
+      "path": "SchoolChair_01/textures/SchoolChair_01_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/SchoolChair_01/SchoolChair_01_diff_1k.jpg",
+      "bytes": 52590,
+      "md5": "2d5c9c77d97ba2edd5084a9d72b5dd63"
+    },
+    {
+      "path": "SchoolChair_01/textures/SchoolChair_01_arm_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/SchoolChair_01/SchoolChair_01_arm_1k.jpg",
+      "bytes": 104994,
+      "md5": "559daea007902aae5b5d5623a34b3a13"
+    },
+    {
+      "path": "SchoolChair_01/SchoolChair_01.bin",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/SchoolChair_01/SchoolChair_01.bin",
+      "bytes": 134912,
+      "md5": "d1f13f71f9f9979cde18c798e25dd9d3"
+    },
+    {
+      "path": "book_encyclopedia_set_01/model.gltf",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/book_encyclopedia_set_01/book_encyclopedia_set_01_1k.gltf",
+      "bytes": 55011,
+      "md5": "d0a77d421a6ea2c9d82bcaaa64e8479b"
+    },
+    {
+      "path": "book_encyclopedia_set_01/textures/book_encyclopedia_set_01_cover_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/book_encyclopedia_set_01/book_encyclopedia_set_01_cover_diff_1k.jpg",
+      "bytes": 126794,
+      "md5": "00a10b1b5a28efa4670d68a089a64ef3"
+    },
+    {
+      "path": "book_encyclopedia_set_01/book_encyclopedia_set_01.bin",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/book_encyclopedia_set_01/book_encyclopedia_set_01.bin",
+      "bytes": 2547932,
+      "md5": "ac617be6503e537c5d1a16a94313e866"
+    },
+    {
+      "path": "book_encyclopedia_set_01/textures/book_encyclopedia_set_01_paper_nor_gl_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/book_encyclopedia_set_01/book_encyclopedia_set_01_paper_nor_gl_1k.jpg",
+      "bytes": 193390,
+      "md5": "816a51a0b6520cf5e08751089722fc46"
+    },
+    {
+      "path": "book_encyclopedia_set_01/textures/book_encyclopedia_set_01_cover_arm_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/book_encyclopedia_set_01/book_encyclopedia_set_01_cover_arm_1k.jpg",
+      "bytes": 189997,
+      "md5": "0e5788b0ee9ce810823356e187c31a8c"
+    },
+    {
+      "path": "book_encyclopedia_set_01/textures/book_encyclopedia_set_01_cover_nor_gl_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/book_encyclopedia_set_01/book_encyclopedia_set_01_cover_nor_gl_1k.jpg",
+      "bytes": 19941,
+      "md5": "488fa9696ad4f1773a2d81f3af7b6c76"
+    },
+    {
+      "path": "book_encyclopedia_set_01/textures/book_encyclopedia_set_01_paper_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/book_encyclopedia_set_01/book_encyclopedia_set_01_paper_diff_1k.jpg",
+      "bytes": 115297,
+      "md5": "7798b8e38721a4fc1ed45319ecc81b67"
+    },
+    {
+      "path": "book_encyclopedia_set_01/textures/book_encyclopedia_set_01_paper_roughness_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/book_encyclopedia_set_01/book_encyclopedia_set_01_paper_roughness_1k.jpg",
+      "bytes": 12684,
+      "md5": "b8e5b8431b0c53b20d83ec0bcff51747"
+    },
+    {
+      "path": "reading_room.hdr",
+      "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/reading_room_1k.hdr",
+      "bytes": 1624482,
+      "md5": "26f7c1c371810a2795349d0588486a65"
+    },
+    {
+      "path": "forest_slope.hdr",
+      "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/forest_slope_2k.hdr",
+      "bytes": 7562873,
+      "md5": "fa517358699ed72ba8bfc602f192ab5d"
+    }
+  ]
+}

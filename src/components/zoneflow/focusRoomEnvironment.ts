@@ -20,6 +20,8 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   const accent = business ? 0x67524c : plane ? 0x293e55 : airport ? 0x355e6e : city ? 0x303f45 : cafe ? 0x755244 : modern ? 0x6c8b81 : 0x395c4c;
   const disposables: {dispose: () => void}[] = [];
   const bookBatches = new Map<number,THREE.Matrix4[]>();
+  const assetShelves:THREE.Group[]=[], bookPlaceholders:THREE.Object3D[]=[];
+  const assetWindows:THREE.Mesh[]=[];
   scene.background = new THREE.Color(plane || airport ? 0xaac7d7 : wall);
   scene.fog = new THREE.Fog(scene.background, 28, 65);
   const ground = box(scene, plane ? 0x3b4c5b : airport ? 0xb8c6c8 : office ? 0x8c9790 : 0xb29471, [0,-.12,(front+back)/2], [width*2,.2,back-front]);
@@ -89,7 +91,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
       const rim=new THREE.Mesh(geometry,mat(0xc6cdd0));rim.scale.set(1.18,1.14,1);root.add(rim);
       const view=new THREE.Mesh(geometry,Math.abs(z)<3&&wingMaterial?wingMaterial:skyMaterial);view.position.z=.035;root.add(view);
     }else{
-      box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=box(root,0xffffff,[0,0,.08],[w,h,.04]);view.material=skyMaterial;
+      box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=box(root,0xffffff,[0,0,.08],[w,h,.04]);view.material=skyMaterial;assetWindows.push(view);
       box(root,accent,[0,0,.12],[.045,h,.04]);
     }
   };
@@ -107,6 +109,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   };
   const shelf=(x:number,z:number,rotation:number,tall=4.2)=>{
     const root=new THREE.Group();root.position.set(x,0,z);root.rotation.y=rotation;scene.add(root);
+    assetShelves.push(root);
     box(root,wood,[0,tall/2,0],[3.5,tall,.35]);
     for(let row=0;row<Math.floor(tall/.8);row++){
       box(root,0xc8ac7e,[0,.35+row*.8,.26],[3.55,.09,.6]);
@@ -177,10 +180,10 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   if(bookBatches.size){
     // Thousands of book spines share five draw calls in the large reading hall.
     const geometry=new THREE.BoxGeometry(1,1,1);disposables.push(geometry);
-    for(const [color,matrices] of bookBatches){const mesh=new THREE.InstancedMesh(geometry,mat(color),matrices.length);matrices.forEach((matrix,index)=>mesh.setMatrixAt(index,matrix));mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();scene.add(mesh);disposables.push(mesh);}
+    for(const [color,matrices] of bookBatches){const mesh=new THREE.InstancedMesh(geometry,mat(color),matrices.length);matrices.forEach((matrix,index)=>mesh.setMatrixAt(index,matrix));mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();scene.add(mesh);disposables.push(mesh);bookPlaceholders.push(mesh);}
   }
   let painted=-1,travel=0,lastTravel=-1;
-  return {ground, width, front, back, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
+  return {ground, width, front, back, assetShelves, bookPlaceholders, assetWindows, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
     if(!plane)return;if(running&&!reduced)travel+=dt;const step=Math.floor(elapsed*2);
     if(step!==painted||Math.floor(travel*4)!==lastTravel){const lift=Math.min(1,elapsed/90);paintSky(lift,travel);renderFlight(lift,travel);painted=step;lastTravel=Math.floor(travel*4);}
   }};

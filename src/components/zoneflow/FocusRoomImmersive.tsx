@@ -8,6 +8,7 @@ import { FOCUS_SEATS, planFocusWalk, safeFloorPosition } from '@/lib/focusRoom';
 import type { FocusRoomParticipant, FocusRoomScene } from './FocusRoomInterior';
 import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 import { buildFocusEnvironment, buildFocusStation } from './focusRoomEnvironment';
+import { attachRoomAssets } from './focusRoomAssets';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -26,6 +27,7 @@ export default function FocusRoomImmersive(props: Props) {
   const latest = useRef(props);
   const controls = useRef<{ turn: (amount: number) => void; step: (amount: number) => void }>();
   const [ready, setReady] = useState(false);
+  const [assetState,setAssetState]=useState('');
   useEffect(() => { latest.current = props; });
 
   useEffect(() => {
@@ -91,27 +93,47 @@ export default function FocusRoomImmersive(props: Props) {
     const environment = buildFocusEnvironment(scene, atmosphere, {box:envBox,ball:envBall,mat:environmentMat}, graphics, renderer);
     const ground = environment.ground;
     const targets: THREE.Object3D[] = [ground];
+    const paperCanvas=document.createElement('canvas');paperCanvas.width=512;paperCanvas.height=768;
+    const paper=paperCanvas.getContext('2d')!;const paperShade=paper.createLinearGradient(0,0,512,0);paperShade.addColorStop(0,'#c7bdab');paperShade.addColorStop(.08,'#f0eadb');paperShade.addColorStop(1,'#e7e1d0');paper.fillStyle=paperShade;paper.fillRect(0,0,512,768);
+    paper.textAlign='center';paper.fillStyle='#57534a';paper.font='20px Georgia';paper.fillText('THE ART OF FOCUS',256,85);
+    paper.textAlign='left';paper.font='14px Georgia';
+    const sentences=['A quiet place leaves room for a clear thought.','Notice one detail and give it your full attention.','Let each small step become a steady rhythm.','There is time to read, to learn, and to begin again.'];
+    for(let line=0;line<25;line++)paper.fillText(sentences[line%sentences.length],45,145+line*20,420);
+    paper.textAlign='center';paper.font='12px Georgia';paper.fillText('24',256,715);
+    const paperTexture=new THREE.CanvasTexture(paperCanvas);paperTexture.colorSpace=THREE.SRGBColorSpace;paperTexture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
+    paperTexture.center.set(.5,.5);paperTexture.rotation=Math.PI;
+    const paperMaterial=new THREE.MeshStandardMaterial({map:paperTexture,roughness:.95});
+    const paperGeometry=new THREE.PlaneGeometry(.67,.94,16,1);paperGeometry.rotateX(-Math.PI/2);
+    const vertices=paperGeometry.getAttribute('position');for(let i=0;i<vertices.count;i++)vertices.setY(i,.012*Math.sin((vertices.getX(i)+.335)/.67*Math.PI));paperGeometry.computeVertexNormals();
+    const assetStations:{root:THREE.Group;furniture:THREE.Object3D[]}[]=[];
     const deskProps: { computer: THREE.Group; book: THREE.Group; notebook: THREE.Group; pencil: THREE.Mesh; page: THREE.Mesh }[] = [];
     FOCUS_SEATS.forEach((seat, index) => {
       const desk = new THREE.Group(); desk.position.copy(world(seat)); scene.add(desk);
       if (flying || index >= 3) desk.rotation.y = Math.PI;
       const top = buildFocusStation(desk, atmosphere, {box:envBox,ball:envBall});
       top.userData.seat = index; targets.push(top);
+      assetStations.push({root:desk,furniture:[...desk.children]});
       const computer = new THREE.Group(), book = new THREE.Group(), notebook = new THREE.Group(); desk.add(computer, book, notebook);
       box(computer, 0x455354, [0, 1.25, .95], [1.25, .08, .8]);
       box(computer, 0x455354, [0, 1.65, 1.38], [1.25, .85, .08]);
       box(computer, 0xa2cec0, [0, 1.65, 1.33], [1.1, .7, .02]);
       for (let i = 0; i < 4; i++) box(computer, 0xe5f0d8, [-.12, 1.88 - i * .13, 1.31], [.65 - (i % 2) * .2, .035, .01]);
       for (let i = 0; i < 5; i++) box(computer, 0x82938e, [0, 1.3, .68 + i * .11], [.95, .015, .045]);
-      box(book, 0x8b6251, [0, 1.25, .95], [1.45, .08, 1]);
-      const page = box(book, 0xfff3d8, [.36, 1.32, .95], [.67, .03, .94]);
-      box(book, 0xfff3d8, [-.36, 1.32, .95], [.67, .03, .94]);
-      for (let i = 0; i < 6; i++) for (const x of [-.36, .36]) box(book, 0xc7b79b, [x, 1.341, .62 + i * .12], [.49, .005, .015]);
+      roundedBox(book, 0x474e4c, [0, 1.25, .95], [1.45, .08, 1]);
+      box(book,0xdad3c3,[0,1.29,.95],[1.39,.06,.96]);
+      const page=new THREE.Mesh(paperGeometry,paperMaterial);page.position.set(.36,1.325,.95);book.add(page);
+      const leftPage=new THREE.Mesh(paperGeometry,paperMaterial);leftPage.position.set(-.36,1.325,.95);book.add(leftPage);
+      box(book,0x958d7b,[0,1.328,.95],[.012,.008,.95]);
       box(notebook, 0xfaf0d8, [0, 1.27, .9], [1.1, .07, .95]);
       for (let i = 0; i < 6; i++) box(notebook, 0xb5c5c3, [0, 1.311, .55 + i * .13], [.9, .008, .012]);
       const pencil = box(notebook, 0xd1984e, [.25, 1.36, .75], [.035, .035, .65]); pencil.rotation.y = -.5;
       deskProps.push({ computer, book, notebook, pencil, page });
     });
+    const assetEnabled=graphics!=='illustrated'&&['library','grand','intimate'].includes(atmosphere);
+    setAssetState(assetEnabled?'loading':'');
+    const assets=assetEnabled?attachRoomAssets(scene,renderer,assetStations,environment.assetShelves,environment.bookPlaceholders,environment.assetWindows,atmosphere):null;
+    let assetsActive=true;
+    assets?.ready.then(result=>{if(assetsActive)setAssetState(result.loaded?'ready':'fallback');});
     interface Avatar { root: THREE.Group; body: THREE.Group; arms: THREE.Group[]; legs: THREE.Group[]; head: THREE.Group; label: THREE.Sprite; labelKey: string; style: number; target: Position; route: Position[]; next: number; position: Position; }
     const avatars = new Map<string, Avatar>();
     const hands = new THREE.Group(); scene.add(hands);
@@ -249,16 +271,19 @@ export default function FocusRoomImmersive(props: Props) {
     };
     frame = requestAnimationFrame(tick); setReady(true);
     return () => {
+      assetsActive=false;assets?.dispose();
       cancelAnimationFrame(frame); observer.disconnect(); controls.current = undefined;
       canvas.removeEventListener('webglcontextlost', contextLost); canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', cancel);
       avatars.forEach(avatar => disposeLabel(avatar.label)); cube.dispose(); sphere.dispose(); cylinder.dispose(); materials.forEach(material => material.dispose());
       environment.dispose(); roundedCube.dispose();
       environmentMaterials.forEach(material=>material.dispose());grainTexture.dispose();
+      paperGeometry.dispose();paperMaterial.dispose();paperTexture.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
   }, [props.scene, props.atmosphere, props.graphics]);
 
   return <div className="bg-[#eee4cf] text-[#304c3e]">
+    {assetState&&<p role="status" className="bg-[#f8f5eb] px-4 py-2 text-xs" data-testid="room-asset-status">{({he:['טוען ריהוט מפורט ותאורה…','ריהוט תלת־ממדי מפורט ותאורת HDR','חלק מפרטי הריהוט לא נטענו; תצוגה בסיסית זמינה'],en:['Loading detailed furniture and lighting…','Detailed 3D furniture and HDR lighting','Some assets could not load; basic room available'],es:['Cargando muebles e iluminación…','Muebles 3D detallados e iluminación HDR','Algunos recursos no se cargaron; sala básica disponible'],zh:['正在加载精细家具和灯光…','精细3D家具与HDR灯光','部分资源未加载，基础房间仍可用'],ar:['تحميل الأثاث والإضاءة…','أثاث ثلاثي الأبعاد وإضاءة HDR','تعذر تحميل بعض الموارد؛ الغرفة الأساسية متاحة'],ru:['Загрузка мебели и освещения…','Детальная 3D-мебель и HDR-освещение','Часть ресурсов не загружена; доступна базовая комната']}[lang])[assetState==='loading'?0:assetState==='ready'?1:2]}</p>}
     <div ref={host} data-testid="immersive-room" className="relative h-[420px] w-full sm:h-[560px]" tabIndex={0} role="group" aria-label={copy.camera}
       onKeyDown={event => { if ((event.target as HTMLElement).closest('button')) return; if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') controls.current?.turn(event.key === 'ArrowLeft' ? .2 : -.2); else controls.current?.step(event.key === 'ArrowUp' ? 1 : -1); }}>
       {!ready && <p className="absolute inset-0 grid place-items-center">{copy.loading}</p>}
