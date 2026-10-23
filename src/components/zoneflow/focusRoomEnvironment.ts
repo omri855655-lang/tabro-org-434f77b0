@@ -99,6 +99,16 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
       const inner=new THREE.Mesh(geometry,mat(0x3b515c));inner.scale.set(1.06,1.06,1);inner.position.z=.045;root.add(inner);
       const view=new THREE.Mesh(geometry,Math.abs(z)<3&&wingMaterial?wingMaterial:skyMaterial);view.position.z=.065;root.add(view);
       box(root,0xd4d9d4,[0,-h/2-.07,.08],[w*.85,.08,.13]);
+    }else if(grand){
+      const arch=new THREE.Shape(),half=w/2,bottom=-h/2,spring=h/2-half;
+      arch.moveTo(-half,bottom);arch.lineTo(half,bottom);arch.lineTo(half,spring);arch.absarc(0,spring,half,0,Math.PI,false);arch.closePath();
+      const geometry=new THREE.ShapeGeometry(arch,32);disposables.push(geometry);
+      const uv=geometry.getAttribute('uv'),position=geometry.getAttribute('position');
+      for(let i=0;i<uv.count;i++)uv.setXY(i,(position.getX(i)+half)/w,(position.getY(i)+h/2)/h);
+      const frame=new THREE.Mesh(geometry,mat(0x79684a));frame.scale.set(1.08,1.04,1);root.add(frame);
+      const view=new THREE.Mesh(geometry,skyMaterial);view.position.z=.04;root.add(view);assetWindows.push(view);
+      for(const dx of [-w/4,0,w/4])box(root,0x947a4c,[dx,-half/2,.1],[.045,h-half,.08]);
+      for(const dy of [-h/4,spring])box(root,0x947a4c,[0,dy,.1],[w,.055,.08]);
     }else{
       box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=box(root,0xffffff,[0,0,.08],[w,h,.04]);view.material=skyMaterial;assetWindows.push(view);
       box(root,accent,[0,0,.12],[.045,h,.04]);
@@ -118,6 +128,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   };
   const shelf=(x:number,z:number,rotation:number,tall=4.2)=>{
     const root=new THREE.Group();root.position.set(x,0,z);root.rotation.y=rotation;scene.add(root);
+    root.userData.shelfHeight=tall;
     assetShelves.push(root);
     box(root,wood,[0,tall/2,0],[3.5,tall,.35]);
     for(let row=0;row<Math.floor(tall/.8);row++){
@@ -174,7 +185,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     if(grand){
       for(const side of [-1,1]){box(scene,wood,[side*8.5,5.4,-.5],[2.6,.24,21]);for(let z=-10;z<10;z+=.7)box(scene,0xc2a66c,[side*7.2,5.95,z],[.045,1.1,.045]);box(scene,0xc2a66c,[side*7.2,6.5,-.5],[.08,.08,21]);}
       for(const x of [-7,7])for(const z of [-9,0,9]){box(scene,0xc5b598,[x,4,z],[.35,8,.35]);box(scene,0x8d7956,[x,7.9,z],[.8,.2,.8]);}
-      for(const z of [-4,5]){box(scene,0x9c8250,[0,7,z],[.03,3,.03]);for(const x of [-1.5,0,1.5]){box(scene,0x9c8250,[x,5.5,z],[.07,.7,.07]);ball(scene,0xffe5ad,[x,5.85,z],[.26,.16,.26]);}box(scene,0x9c8250,[0,5.3,z],[3.2,.06,.06]);}
+      for(const z of [-4,5]){box(scene,0x9c8250,[0,7,z],[.03,3,.03]);for(const x of [-1.5,0,1.5]){box(scene,0x9c8250,[x,5.5,z],[.07,.7,.07]);ball(scene,0xffe5ad,[x,5.85,z],[.26,.16,.26]);}box(scene,0x9c8250,[0,5.3,z],[3.2,.06,.06]);const lamp=new THREE.PointLight(0xffdb9b,22,13,2);lamp.position.set(0,5.6,z);scene.add(lamp);}
     }else if(cozy){
       box(scene,wood,[0,4.5,0],[width*2,.18,20]);for(const x of [-6.5,6.5]){box(scene,0x916d59,[x,.55,8],[2.1,1.1,1.4]);box(scene,0xc1a582,[x,1.1,8.6],[2.1,1.2,.3]);ball(scene,0xf9dfad,[x,2.8,6.5],[.55,.3,.55]);box(scene,0x605747,[x,1.4,6.5],[.045,2.8,.045]);}
     }

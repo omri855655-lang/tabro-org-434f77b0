@@ -63,9 +63,11 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
     if(stopped||!shelf||!books)return;
     for(const placeholder of shelves){
       const root=new THREE.Group();root.position.copy(placeholder.position);root.rotation.copy(placeholder.rotation);scene.add(root);added.push(root);
-      fit(shelf,new THREE.Vector3(3.5,4.2,.75),new THREE.Vector3(0,0,0),root);
-      for(let row=0;row<4;row++){
-        const set=fit(books,new THREE.Vector3(3.05,.56,.38),new THREE.Vector3(0,.45+row*.95,.26),root);
+      const height=Number(placeholder.userData.shelfHeight)||4.2;
+      const levels=height>6?2:1,unitHeight=height/levels;
+      for(let level=0;level<levels;level++)fit(shelf,new THREE.Vector3(3.5,unitHeight,.75),new THREE.Vector3(0,level*unitHeight,0),root);
+      for(let row=0;row<4*levels;row++){
+        const set=fit(books,new THREE.Vector3(3.05,.56,.38),new THREE.Vector3(0,.45+Math.floor(row/4)*unitHeight+(row%4)*unitHeight*.226,.26),root);
         set.traverse(object=>{if(object instanceof THREE.Mesh)object.castShadow=false;});
       }
       hide(placeholder);

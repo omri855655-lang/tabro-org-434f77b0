@@ -42,7 +42,7 @@ export default function FocusRoomImmersive(props: Props) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
+    renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     const canvas = renderer.domElement;
@@ -89,8 +89,8 @@ export default function FocusRoomImmersive(props: Props) {
     const roundedBox = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, roundedCube, color, at, size);
     const envBox=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=roundedBox(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
     const envBall=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=ball(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
-    scene.add(new THREE.HemisphereLight(night?0x8badd5:0xf7efdf, 0x74858b, night?.65:1.8));
-    const sun = new THREE.DirectionalLight(night?0xa0bfe9:0xffe5be, night?.35:2.4); sun.position.set(-5, 10, -5); scene.add(sun);
+    scene.add(new THREE.HemisphereLight(night?0x8badd5:0xf7efdf, 0x74858b, night?.65:flying?1.8:.85));
+    const sun = new THREE.DirectionalLight(night?0xa0bfe9:0xffe5be, night?.35:flying?2.4:1.65); sun.position.set(-5, 10, -5); scene.add(sun);
     if(night)for(const z of [-6,1,8]){const lamp=new THREE.PointLight(0xffdfb1,9,10,2);lamp.position.set(0,3.2,z);scene.add(lamp);}
     sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
     Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 18, bottom: -15, near: .5, far: 45 });
@@ -247,6 +247,11 @@ export default function FocusRoomImmersive(props: Props) {
         avatar.body.position.y = seated ? -.47 : 0; avatar.label.position.y = seated ? 2.5 : 2.9;
         if (seated) avatar.root.rotation.y = flying || p.y > 57 ? Math.PI : 0;
         const wave = reduced.matches ? 0 : Math.sin(now * .007);
+        const phase=[...p.userId].reduce((sum,char)=>sum+char.charCodeAt(0),0);
+        const breath=reduced.matches?0:Math.sin(now*.0017+phase);
+        avatar.body.position.y+=(walking?0:breath*.014);
+        avatar.body.rotation.z=walking||reduced.matches?0:Math.sin(now*.00065+phase)*.012;
+        avatar.head.rotation.y=walking||reduced.matches?0:Math.sin(now*.00045+phase)*.055;
         avatar.head.rotation.x = seated && p.status === 'focusing' ? .16 + wave * .025 : 0;
         avatar.arms.forEach((arm, i) => { arm.rotation.x = seated ? -1.85 + (p.status === 'focusing' ? wave * (p.activity === 'computer' ? .08 : .03) : 0) : walking ? wave * .45 * (i ? -1 : 1) : 0; });
         avatar.legs.forEach((leg, i) => { leg.rotation.x = seated ? -Math.PI / 2 : walking ? wave * .5 * (i ? 1 : -1) : 0; });
