@@ -86,6 +86,8 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const [blockedApps, setBlockedApps] = useState<BlockedApp[]>(() => safeLocalStorage.getJSON("zoneflow-wellbeing-blocked", []));
   const [appName, setAppName] = useState("");
   const [focusActive, setFocusActive] = useState(false);
+  const [ultra,setUltra]=useState(()=>safeLocalStorage.getString('tabro-wellbeing-style')==='ultra');
+  const [elapsed,setElapsed]=useState(0);
   const [inviteCode, setInviteCode] = useState("");
   const [joined, setJoined] = useState(false);
   const [consentGranted, setConsentGranted] = useState(() => safeLocalStorage.getJSON("zoneflow-wellbeing-consent", false));
@@ -94,6 +96,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const focusStartedAt = useRef<number | null>(null);
   const wellbeingSessionId = useRef<string | null>(null);
   const blockingPlatform = getBlockingPlatform();
+  useEffect(()=>{if(!focusActive)return;const update=()=>setElapsed(Math.floor((Date.now()-(focusStartedAt.current||Date.now()))/1000));update();const interval=setInterval(update,1000);return()=>clearInterval(interval);},[focusActive]);
 
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-devices", devices), [devices]);
   useEffect(() => safeLocalStorage.setJSON("zoneflow-wellbeing-blocked", blockedApps), [blockedApps]);
@@ -118,8 +121,8 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   const totalMinutes = devices.reduce((sum, device) => sum + device.minutes, 0);
   const savedMinutes = blockedApps.reduce((sum, app) => sum + app.minutesSaved, 0);
   const score = Math.min(100, Math.round((savedMinutes * 2) + (focusActive ? 20 : 0)));
-  const panel = isLight ? "border-slate-200 bg-white" : "border-white/10 bg-white/5";
-  const muted = isLight ? "text-slate-500" : "text-white/60";
+  const panel = ultra?'border-white/10 bg-[#111614] text-[#eaf2eb]':isLight ? "border-slate-200 bg-white" : "border-white/10 bg-white/5";
+  const muted = ultra?'text-[#a1b1a5]':isLight ? "text-slate-500" : "text-white/60";
   const deviceLabel = (kind: DeviceKind) => kind === "computer" ? copy.computer : kind === "iphone" ? copy.iphone : copy.android;
 
   const addBlockedApp = async () => {
@@ -241,7 +244,16 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
   };
 
   return (
-    <div className="space-y-4" dir={dir}>
+    <div className={cn('space-y-4',ultra&&'dark rounded-3xl bg-[#080d0b] p-4 text-[#eaf2eb] sm:p-6')} dir={dir}>
+      <div className="flex justify-end gap-2"><Button variant="outline" aria-pressed={!ultra} onClick={()=>{setUltra(false);safeLocalStorage.setString('tabro-wellbeing-style','standard');}}>Tabro</Button><Button variant="outline" aria-pressed={ultra} onClick={()=>{setUltra(true);safeLocalStorage.setString('tabro-wellbeing-style','ultra');}}>Ultra Tabro</Button></div>
+      {ultra&&<section className="relative overflow-hidden rounded-3xl border border-[#bcff62]/25 bg-[radial-gradient(ellipse_at_top_left,#29442a_0%,#111a14_45%,#080d0b_100%)] p-6 sm:p-10">
+        <p className="text-xs font-semibold tracking-[.25em] text-[#bcff62]">ULTRA TABRO / FOCUS</p>
+        <h2 className="mt-4 text-2xl font-bold">{focusActive?copy.active:copy.subtitle}</h2>
+        <div role="timer" className="my-7 font-mono text-7xl font-bold tracking-tighter text-[#bcff62] sm:text-8xl" dir="ltr">{String(Math.floor(elapsed/60)).padStart(2,'0')}:{String(elapsed%60).padStart(2,'0')}</div>
+        <div className="mb-6 flex flex-wrap gap-8"><div><strong className="block text-3xl">{balance}</strong><span className="text-xs text-[#b8c7bb]">{copy.score}</span></div><div><strong className="block text-3xl">{Math.floor(balance/10)}</strong><span className="text-xs text-[#b8c7bb]">{unlockCopy.wallet}</span></div></div>
+        <Button className="rounded-full bg-[#bcff62] px-8 text-black hover:bg-[#d1ff99]" disabled={!consentGranted} onClick={()=>void toggleFocusPolicy()}>{focusActive?copy.stop:copy.focus}</Button>
+        <p className="mt-4 max-w-xl text-xs leading-6 text-[#b8c7bb]">{copy.limitations}</p>
+      </section>}
       <Card className={cn("overflow-hidden border", panel)}>
         <CardContent className="bg-gradient-to-br from-[#102e61] via-[#1f5fa7] to-[#38b4b0] p-6 text-white">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -263,7 +275,7 @@ export function ZoneFlowWellbeingStudio({ isLight, onOpenCoach }: { isLight: boo
       <Card className={cn("overflow-hidden border", panel)}>
         <CardContent className="grid gap-4 bg-gradient-to-r from-amber-50 to-orange-50 p-5 text-slate-950 sm:grid-cols-[auto_1fr_auto] sm:items-center dark:from-amber-500/10 dark:to-orange-500/10 dark:text-white">
           <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-400 text-2xl font-black text-slate-950">{balance}</div>
-          <div><h3 className="text-lg font-black">{unlockCopy.wallet}</h3><p className="text-sm text-slate-600 dark:text-white/65">{unlockCopy.onePoint}. {unlockCopy.earned}</p><p className="mt-1 text-xs text-slate-500 dark:text-white/50">{events.filter((event) => event.points > 0).length} פעולות מזכות נשמרו</p></div>
+          <div><h3 className="text-lg font-black">{unlockCopy.wallet}</h3><p className="text-sm text-slate-600 dark:text-white/65">{{he:'10 נקודות = דקת פתיחה',en:'10 points = one unlock minute',es:'10 puntos = un minuto',zh:'10积分 = 1分钟',ar:'10 نقاط = دقيقة فتح',ru:'10 баллов = минута доступа'}[lang]}. {unlockCopy.earned}</p><p className="mt-1 text-xs text-slate-500 dark:text-white/50">{events.filter((event) => event.points > 0).length} פעולות מזכות נשמרו</p></div>
           <div className="flex items-center gap-2"><span className="text-xs">{unlockCopy.choose}</span><Input type="number" min="1" max="120" value={unlockMinutes} onChange={(event) => setUnlockMinutes(Math.max(1, Math.min(120, Number(event.target.value) || 1)))} className="w-20 bg-white dark:bg-black/20" /></div>
         </CardContent>
       </Card>
