@@ -58,5 +58,14 @@ navigation and below modal dialogs.
   notch behavior. Those still need a real device check. This is a responsive
   website update, not a signed native iOS/Android app release.
 
+The cloud sandbox QA pass checked Chromium and WebKit at all six matrix sizes,
+including menu search/focus, shared/custom board navigation, internal table
+scroll, long dialogs, and separate desktop/mobile display choices. The public
+home, sign-in, terms and install routes and the nutrition fixture were also
+checked. A desktop long-dialog overflow was found and fixed with a
+zero-specificity maximum-height fallback. Real signed-in workspace screens
+were blocked by the owner's PIN gate, which was not bypassed. No real account
+data was edited during these checks. Keyboard resizing was simulated only.
+
 No bank credentials, financial synchronization, health data, database schemas,
 avatar abilities or native blocking/HealthKit integration are changed here.
