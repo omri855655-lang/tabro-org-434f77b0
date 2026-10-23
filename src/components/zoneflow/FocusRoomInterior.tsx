@@ -8,6 +8,7 @@ import { FOCUS_SEATS, safeFloorPosition, nearestAvailableFocusSeat, occupiedFocu
 import { safeLocalStorage } from '@/lib/safeLocalStorage';
 import { zoneflowExperienceCopy } from '@/lib/zoneflowExperienceCopy';
 import { FocusRoomWorld } from './FocusRoomWorld';
+import { FocusRoomLife } from './FocusRoomLife';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
 import { focusFlightTimeCopy, parseFocusFlightTime } from '@/lib/focusFlightTime';
 import { FOCUS_FLIGHTS, flightPhase, roomJourneyCopy, roomDesignCopy, isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
@@ -47,6 +48,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     return saved === 'map' || saved === 'follow' || saved === 'eye' ? saved : 'overview';
   });
   const [unavailable, setUnavailable] = useState(false);
+  const [scenery,setScenery]=useState(()=>safeLocalStorage.getString('zoneflow-room-life')!=='off');
   const [look,setLook]=useState(()=>{const value=safeLocalStorage.getString('zoneflow-room-look');return value==='pixel'||value==='depth'?value:'illustrated';});
   const peopleId = useId();
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -127,8 +129,9 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
         {started && <span className="text-xs">{journey[16]}</span>}
       </div>}
       <p className="max-w-3xl text-xs text-[#65786a]">{journey[11]}</p>
+      {view!=='map'&&<FocusRoomLife enabled={scenery} onChange={value=>{setScenery(value);safeLocalStorage.setString('zoneflow-room-life',value?'on':'off');}}/>}
     </div>
-    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} graphics={graphics} flightTime={flightTime} elapsed={elapsed} started={started} running={active} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
+    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} graphics={graphics} flightTime={flightTime} scenery={scenery} elapsed={elapsed} started={started} running={active} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
       <div className="relative mx-auto cursor-crosshair" style={{ width: zoomed ? '150%' : '100%', maxWidth: zoomed ? undefined : '900px' }} onClick={moveFromPointer} aria-label={copy.space}>
         <FocusRoomWorld scene={scene} participants={participants} walking={walking} deskLabel={copy.desk} selectedSeat={selectedSeat} />
       </div>

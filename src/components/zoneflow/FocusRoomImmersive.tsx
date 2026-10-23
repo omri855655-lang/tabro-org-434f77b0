@@ -11,6 +11,7 @@ import { buildFocusEnvironment, buildFocusStation } from './focusRoomEnvironment
 import { attachRoomAssets } from './focusRoomAssets';
 import type { FocusFlightTime } from '@/lib/focusFlightTime';
 import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR, AVATAR_PANTS } from '@/lib/focusAvatar';
+import { sceneryTargets, roomLifeCopy } from '@/lib/focusRoomLife';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   onUnavailable: () => void;
   atmosphere?: RoomAtmosphere; elapsed?: number; started?: boolean; running?: boolean;
   graphics?: RoomGraphics;
+  scenery?: boolean;
   flightTime?: FocusFlightTime;
 }
 const SHIRTS = [0x589f95, 0xcd8975, 0xc6a15c, 0x839c68, 0xa49bbf, 0x7b9ebf, 0x9aa96b, 0xcc9baa];
@@ -224,6 +226,9 @@ export default function FocusRoomImmersive(props: Props) {
       const local = latest.current.participants.find(p => p.isMe);
       const people = latest.current.participants.filter(p => !p.isMe).slice(0, local ? 79 : 80);
       if (local) people.push(local);
+      if(latest.current.scenery&&!flying)sceneryTargets(reduced.matches?0:now/1000).forEach((position,index)=>people.push({
+        userId:`scenery-character-${index}`,displayName:roomLifeCopy[lang][1],...position,avatarStyle:index+3,status:'away',seated:false,
+      }));
       const ids = new Set(people.map(p => p.userId));
       for (const [id, avatar] of avatars) if (!ids.has(id)) { scene.remove(avatar.root); disposeLabel(avatar.label); avatars.delete(id); }
       for (const p of people) {
@@ -235,7 +240,7 @@ export default function FocusRoomImmersive(props: Props) {
         if (avatar.labelKey !== p.displayName) { avatar.root.remove(avatar.label); disposeLabel(avatar.label); avatar.label = makeLabel(p.displayName); avatar.root.add(avatar.label); avatar.labelKey = p.displayName; }
         const target = safeFloorPosition(p, layout);
         if (target.x !== avatar.target.x || target.y !== avatar.target.y) { avatar.target = target; avatar.route = planFocusWalk(avatar.position, target, layout); avatar.next = 1; }
-        let distance = dt * 22;
+        let distance = dt * (p.userId.startsWith('scenery-character-')?6:22);
         while (avatar.next < avatar.route.length && distance > 0) {
           const to = avatar.route[avatar.next], dx = to.x - avatar.position.x, dy = to.y - avatar.position.y, length = Math.hypot(dx, dy);
           if (reduced.matches || length <= distance) { avatar.position = { ...to }; avatar.next++; distance -= length; }
@@ -296,7 +301,7 @@ export default function FocusRoomImmersive(props: Props) {
       paperGeometry.dispose();paperMaterial.dispose();paperTexture.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
-  }, [props.scene, props.atmosphere, props.graphics, props.flightTime]);
+  }, [props.scene, props.atmosphere, props.graphics, props.flightTime, lang]);
 
   return <div className="bg-[#eee4cf] text-[#304c3e]">
     {assetState&&<p role="status" className="bg-[#f8f5eb] px-4 py-2 text-xs" data-testid="room-asset-status">{({he:['טוען ריהוט מפורט ותאורה…','ריהוט תלת־ממדי מפורט ותאורת HDR','חלק מפרטי הריהוט לא נטענו; תצוגה בסיסית זמינה'],en:['Loading detailed furniture and lighting…','Detailed 3D furniture and HDR lighting','Some assets could not load; basic room available'],es:['Cargando muebles e iluminación…','Muebles 3D detallados e iluminación HDR','Algunos recursos no se cargaron; sala básica disponible'],zh:['正在加载精细家具和灯光…','精细3D家具与HDR灯光','部分资源未加载，基础房间仍可用'],ar:['تحميل الأثاث والإضاءة…','أثاث ثلاثي الأبعاد وإضاءة HDR','تعذر تحميل بعض الموارد؛ الغرفة الأساسية متاحة'],ru:['Загрузка мебели и освещения…','Детальная 3D-мебель и HDR-освещение','Часть ресурсов не загружена; доступна базовая комната']}[lang])[assetState==='loading'?0:assetState==='ready'?1:2]}</p>}

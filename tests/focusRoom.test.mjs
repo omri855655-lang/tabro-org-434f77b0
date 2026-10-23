@@ -35,6 +35,7 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name === '@/lib/focusAvatar') return avatarDesign;
   if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => key === 'zoneflow-room-camera' ? 'map' : null, setString() {} } };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');
+  if (name === './FocusRoomLife') return { FocusRoomLife:()=>null };
   if (name === '@/hooks/useLanguage') return { useLanguage: () => ({ lang: 'he', dir: 'rtl' }) };
   if (name === '@/components/ui/button') return { Button: ({ children, ...props }) => React.createElement('button', props, children) };
   return require(name);
