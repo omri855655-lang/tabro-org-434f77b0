@@ -1,4 +1,14 @@
-export type RoomAtmosphere = 'library' | 'grand' | 'intimate' | 'plane' | 'airport' | 'cafe' | 'office';
+export type RoomAtmosphere = 'library' | 'grand' | 'intimate' | 'modern-library' | 'plane' | 'business-plane' | 'airport' | 'cafe' | 'city-cafe' | 'office';
+export type RoomGraphics = 'natural' | 'illustrated' | 'cinematic';
+export const isFlightAtmosphere = (kind: RoomAtmosphere) => kind === 'plane' || kind === 'business-plane';
+export const roomDesignCopy = {
+  he: ['ספרייה מודרנית', 'מחלקת עסקים', 'בית קפה עירוני', 'סגנון גרפי', 'חומרים טבעיים', 'משחק תלת־ממד', 'אווירה קולנועית'],
+  en: ['Modern library', 'Business class', 'City cafe', 'Visual style', 'Natural materials', '3D game', 'Cinematic atmosphere'],
+  es: ['Biblioteca moderna', 'Clase ejecutiva', 'Café urbano', 'Estilo visual', 'Materiales naturales', 'Juego 3D', 'Ambiente cinematográfico'],
+  zh: ['现代图书馆', '商务舱', '城市咖啡馆', '视觉风格', '自然材质', '3D游戏', '电影氛围'],
+  ar: ['مكتبة حديثة', 'درجة رجال الأعمال', 'مقهى المدينة', 'النمط البصري', 'مواد طبيعية', 'لعبة ثلاثية الأبعاد', 'أجواء سينمائية'],
+  ru: ['Современная библиотека', 'Бизнес-класс', 'Городское кафе', 'Визуальный стиль', 'Натуральные материалы', '3D-игра', 'Кинематографичная атмосфера'],
+} as const;
 // Curated focus-session lengths, not live airline schedules.
 export const FOCUS_FLIGHTS = [
   { id: 'BCN-LHR', from: 'Barcelona', to: 'London', minutes: 135 },

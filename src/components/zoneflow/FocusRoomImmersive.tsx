@@ -6,7 +6,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
 import { FOCUS_SEATS, planFocusWalk, safeFloorPosition } from '@/lib/focusRoom';
 import type { FocusRoomParticipant, FocusRoomScene } from './FocusRoomInterior';
-import type { RoomAtmosphere } from '@/lib/focusRoomJourney';
+import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 import { buildFocusEnvironment, buildFocusStation } from './focusRoomEnvironment';
 
 type Position = { x: number; y: number };
@@ -15,6 +15,7 @@ interface Props {
   onMove: (position: Position) => void; onSeat: (position: typeof FOCUS_SEATS[number]) => void;
   onUnavailable: () => void;
   atmosphere?: RoomAtmosphere; elapsed?: number; started?: boolean; running?: boolean;
+  graphics?: RoomGraphics;
 }
 const SHIRTS = [0x589f95, 0xcd8975, 0xc6a15c, 0x839c68, 0xa49bbf, 0x7b9ebf, 0x9aa96b, 0xcc9baa];
 const SKINS = [0xe9b38d, 0xc08b65, 0x875b43, 0xf1c6a3];
@@ -45,7 +46,8 @@ export default function FocusRoomImmersive(props: Props) {
     element.appendChild(canvas);
     const scene = new THREE.Scene();
     const atmosphere = props.atmosphere || props.scene;
-    const flying = atmosphere === 'plane';
+    const flying = isFlightAtmosphere(atmosphere);
+    const graphics = props.graphics || 'natural';
     const xScale = flying ? .105 : atmosphere === 'intimate' ? .16 : .2;
     const zScale = flying ? .32 : .22;
     const layout = flying ? 'forward' : true;
@@ -56,6 +58,15 @@ export default function FocusRoomImmersive(props: Props) {
     scene.fog = new THREE.Fog(0xeee4cf, 20, 40);
     const camera = new THREE.PerspectiveCamera(62, 1, .08, 60);
     const materials = new Map<number, THREE.MeshStandardMaterial>();
+    const environmentMaterials = new Map<number, THREE.MeshStandardMaterial>();
+    const grainCanvas=document.createElement('canvas');grainCanvas.width=grainCanvas.height=128;
+    const grain=grainCanvas.getContext('2d')!;grain.fillStyle='#888';grain.fillRect(0,0,128,128);
+    for(let y=0;y<128;y++)for(let x=0;x<128;x+=2){const value=110+((x*37+y*17+x*y)%45);grain.fillStyle=`rgb(${value},${value},${value})`;grain.fillRect(x,y,2,1);}
+    const grainTexture=new THREE.CanvasTexture(grainCanvas);grainTexture.wrapS=grainTexture.wrapT=THREE.RepeatWrapping;grainTexture.repeat.set(3,3);
+    const environmentMat=(color:number)=>{
+      if(!environmentMaterials.has(color))environmentMaterials.set(color,new THREE.MeshStandardMaterial({color,roughness:graphics==='illustrated'?1:graphics==='cinematic'?.48:.72,metalness:graphics==='cinematic'?.08:0,flatShading:graphics==='illustrated',bumpMap:graphics==='illustrated'?null:grainTexture,bumpScale:.015}));
+      return environmentMaterials.get(color)!;
+    };
     const cube = new THREE.BoxGeometry(1, 1, 1), sphere = new THREE.SphereGeometry(1, 16, 12);
     const cylinder = new THREE.CylinderGeometry(1, 1, 1, 12);
     const roundedCube = new RoundedBoxGeometry(1,1,1,3,.08);
@@ -70,19 +81,21 @@ export default function FocusRoomImmersive(props: Props) {
     const box = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, cube, color, at, size);
     const ball = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, sphere, color, at, size);
     const roundedBox = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, roundedCube, color, at, size);
+    const envBox=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=roundedBox(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
+    const envBall=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=ball(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
     scene.add(new THREE.HemisphereLight(0xf7efdf, 0x74858b, 1.8));
     const sun = new THREE.DirectionalLight(0xffe5be, 2.4); sun.position.set(-5, 10, -5); scene.add(sun);
     sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
     Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 18, bottom: -15, near: .5, far: 45 });
     sun.shadow.bias = -.001;
-    const environment = buildFocusEnvironment(scene, atmosphere, {box,ball,mat});
+    const environment = buildFocusEnvironment(scene, atmosphere, {box:envBox,ball:envBall,mat:environmentMat}, graphics, renderer);
     const ground = environment.ground;
     const targets: THREE.Object3D[] = [ground];
     const deskProps: { computer: THREE.Group; book: THREE.Group; notebook: THREE.Group; pencil: THREE.Mesh; page: THREE.Mesh }[] = [];
     FOCUS_SEATS.forEach((seat, index) => {
       const desk = new THREE.Group(); desk.position.copy(world(seat)); scene.add(desk);
       if (flying || index >= 3) desk.rotation.y = Math.PI;
-      const top = buildFocusStation(desk, atmosphere, {box:roundedBox,ball});
+      const top = buildFocusStation(desk, atmosphere, {box:envBox,ball:envBall});
       top.userData.seat = index; targets.push(top);
       const computer = new THREE.Group(), book = new THREE.Group(), notebook = new THREE.Group(); desk.add(computer, book, notebook);
       box(computer, 0x455354, [0, 1.25, .95], [1.25, .08, .8]);
@@ -240,9 +253,10 @@ export default function FocusRoomImmersive(props: Props) {
       canvas.removeEventListener('webglcontextlost', contextLost); canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', cancel);
       avatars.forEach(avatar => disposeLabel(avatar.label)); cube.dispose(); sphere.dispose(); cylinder.dispose(); materials.forEach(material => material.dispose());
       environment.dispose(); roundedCube.dispose();
+      environmentMaterials.forEach(material=>material.dispose());grainTexture.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
-  }, [props.scene, props.atmosphere]);
+  }, [props.scene, props.atmosphere, props.graphics]);
 
   return <div className="bg-[#eee4cf] text-[#304c3e]">
     <div ref={host} data-testid="immersive-room" className="relative h-[420px] w-full sm:h-[560px]" tabIndex={0} role="group" aria-label={copy.camera}

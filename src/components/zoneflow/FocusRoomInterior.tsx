@@ -9,7 +9,7 @@ import { safeLocalStorage } from '@/lib/safeLocalStorage';
 import { zoneflowExperienceCopy } from '@/lib/zoneflowExperienceCopy';
 import { FocusRoomWorld } from './FocusRoomWorld';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
-import { FOCUS_FLIGHTS, flightPhase, roomJourneyCopy, type RoomAtmosphere } from '@/lib/focusRoomJourney';
+import { FOCUS_FLIGHTS, flightPhase, roomJourneyCopy, roomDesignCopy, isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 
 const FocusRoomImmersive = lazy(() => import('./FocusRoomImmersive'));
 
@@ -35,6 +35,8 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const viewCopy = focusRoomViewCopy[lang];
   const journey = roomJourneyCopy[lang];
   const [atmosphere, setAtmosphere] = useState<RoomAtmosphere>(scene);
+  const design = roomDesignCopy[lang];
+  const [graphics, setGraphics] = useState<RoomGraphics>(() => { const value=safeLocalStorage.getString('zoneflow-room-graphics');return value==='illustrated'||value==='cinematic'?value:'natural'; });
   const [flightId, setFlightId] = useState<string>(FOCUS_FLIGHTS[0].id);
   const flight = FOCUS_FLIGHTS.find(route => route.id === flightId)!;
   const [view, setView] = useState<'eye' | 'follow' | 'map'>(() => {
@@ -69,7 +71,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   };
   const move = (position: { x: number; y: number }) => {
     animateWalk();
-    onMove(safeFloorPosition(position, view === 'map' ? false : atmosphere === 'plane' ? 'forward' : true));
+    onMove(safeFloorPosition(position, view === 'map' ? false : isFlightAtmosphere(atmosphere) ? 'forward' : true));
   };
   const moveFromPointer = (event: MouseEvent<HTMLDivElement>) => {
     const deskIndex = (event.target as Element).closest('[data-seat-index]')?.getAttribute('data-seat-index');
@@ -112,8 +114,9 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     </div>
     {unavailable && <p role="status" className="bg-amber-50 px-4 py-3 text-sm text-amber-900">{viewCopy.unavailable}</p>}
     <div className="space-y-3 border-t border-[#dce3d7] bg-[#faf8ef] px-4 py-3 text-sm text-[#38594b] sm:px-6">
-      <label className="flex flex-wrap items-center gap-3">{journey[0]}<select className="rounded-xl border bg-white p-2" value={atmosphere} onChange={event => setAtmosphere(event.target.value as RoomAtmosphere)}>{(['library','grand','intimate','plane','airport','cafe','office'] as const).map((value, index) => <option key={value} value={value}>{journey[index + 1]}</option>)}</select></label>
-      {atmosphere === 'plane' && <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap gap-4"><label className="flex flex-wrap items-center gap-3">{journey[0]}<select className="max-w-full rounded-xl border bg-white p-2" value={atmosphere} onChange={event => setAtmosphere(event.target.value as RoomAtmosphere)}>{(['library','grand','intimate','plane','airport','cafe','office'] as const).map((value, index) => <option key={value} value={value}>{journey[index + 1]}</option>)}<option value="modern-library">{design[0]}</option><option value="business-plane">{design[1]}</option><option value="city-cafe">{design[2]}</option></select></label>
+      <label className="flex flex-wrap items-center gap-3">{design[3]}<select value={graphics} className="rounded-xl border bg-white p-2" disabled={view==='map'} onChange={event=>{const value=event.target.value as RoomGraphics;setGraphics(value);safeLocalStorage.setString('zoneflow-room-graphics',value);}}>{(['natural','illustrated','cinematic'] as const).map((value,index)=><option key={value} value={value}>{design[index+4]}</option>)}</select></label></div>
+      {isFlightAtmosphere(atmosphere) && <div className="flex flex-wrap items-center gap-3">
         <label>{journey[8]} <select className="rounded-xl border bg-white p-2" value={flightId} disabled={started} onChange={event => setFlightId(event.target.value)}>{FOCUS_FLIGHTS.map(route => <option key={route.id} value={route.id}>{route.from} → {route.to} · {route.minutes} {journey[10]}</option>)}</select></label>
         {onDurationChange && <Button variant="outline" disabled={started} onClick={() => onDurationChange(flight.minutes)}>{journey[9]}</Button>}
         <span role="status" className="rounded-full bg-[#e0ebe8] px-3 py-1">{journey[flightPhase(elapsed, duration, started)]}</span>
@@ -121,7 +124,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       </div>}
       <p className="max-w-3xl text-xs text-[#65786a]">{journey[11]}</p>
     </div>
-    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} elapsed={elapsed} started={started} running={active} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
+    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} graphics={graphics} elapsed={elapsed} started={started} running={active} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
       <div className="relative mx-auto cursor-crosshair" style={{ width: zoomed ? '150%' : '100%', maxWidth: zoomed ? undefined : '900px' }} onClick={moveFromPointer} aria-label={copy.space}>
         <FocusRoomWorld scene={scene} participants={participants} walking={walking} deskLabel={copy.desk} selectedSeat={selectedSeat} />
       </div>

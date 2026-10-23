@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { RoomAtmosphere } from '@/lib/focusRoomJourney';
+import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 
 type Build = {
   box: (parent: THREE.Object3D, color: number, at: number[], size: number[]) => THREE.Mesh;
@@ -7,24 +7,24 @@ type Build = {
   mat: (color: number) => THREE.MeshStandardMaterial;
 };
 
-export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build) {
+export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build, graphics: RoomGraphics = 'natural', renderer?: THREE.WebGLRenderer) {
   const {box, ball, mat} = b;
-  const plane = kind === 'plane', airport = kind === 'airport', grand = kind === 'grand';
-  const cozy = kind === 'intimate', cafe = kind === 'cafe', office = kind === 'office';
+  const plane = isFlightAtmosphere(kind), business = kind === 'business-plane', airport = kind === 'airport', grand = kind === 'grand';
+  const cozy = kind === 'intimate', city = kind === 'city-cafe', modern = kind === 'modern-library', cafe = kind === 'cafe'||city, office = kind === 'office';
   const width = plane ? 5.8 : cozy ? 8 : airport ? 12 : 10;
   const height = plane ? 5 : grand ? 10 : cozy ? 4.5 : airport ? 8 : 6.4;
   const front = plane ? -12 : grand ? -12 : -9;
   const back = plane ? 13 : 10;
-  const wall = plane ? 0xe7e7df : cozy ? 0xbaa185 : cafe ? 0xc0a692 : office ? 0xd4ddd9 : 0xe0d6be;
-  const wood = cozy ? 0x76513d : grand ? 0x795640 : 0xaa815b;
-  const accent = plane ? 0x293e55 : airport ? 0x355e6e : cafe ? 0x755244 : 0x395c4c;
+  const wall = business ? 0xd0c4ad : plane ? 0xe7e7df : cozy ? 0xbaa185 : city ? 0x9da5a2 : cafe ? 0xc0a692 : office||modern ? 0xd4ddd9 : 0xe0d6be;
+  const wood = modern ? 0xd1c5ac : cozy ? 0x76513d : grand ? 0x795640 : 0xaa815b;
+  const accent = business ? 0x67524c : plane ? 0x293e55 : airport ? 0x355e6e : city ? 0x303f45 : cafe ? 0x755244 : modern ? 0x6c8b81 : 0x395c4c;
   const disposables: {dispose: () => void}[] = [];
   const bookBatches = new Map<number,THREE.Matrix4[]>();
   scene.background = new THREE.Color(plane || airport ? 0xaac7d7 : wall);
   scene.fog = new THREE.Fog(scene.background, 28, 65);
   const ground = box(scene, plane ? 0x3b4c5b : airport ? 0xb8c6c8 : office ? 0x8c9790 : 0xb29471, [0,-.12,(front+back)/2], [width*2,.2,back-front]);
   ground.receiveShadow = true;
-  if(!plane&&!airport&&!office){
+  if(!plane&&!airport&&!office&&graphics!=='illustrated'){
     const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;const ctx=canvas.getContext('2d')!;
     ctx.fillStyle='#bfa27c';ctx.fillRect(0,0,512,512);
     for(let row=0;row<8;row++){ctx.fillStyle=row%2?'#b49670':'#c3a77e';ctx.fillRect(0,row*64,512,63);ctx.fillStyle='#8d765b';ctx.fillRect(row%2*256,row*64,1,64);for(let i=0;i<14;i++){ctx.strokeStyle='rgba(103,75,47,.12)';ctx.beginPath();ctx.moveTo(0,row*64+i*4);ctx.bezierCurveTo(150,row*64+i*4+7,320,row*64+i*4-7,512,row*64+i*4);ctx.stroke();}}
@@ -49,6 +49,30 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   const skyContext=skyCanvas.getContext('2d')!;
   const skyTexture=new THREE.CanvasTexture(skyCanvas);skyTexture.colorSpace=THREE.SRGBColorSpace;
   const skyMaterial=new THREE.MeshBasicMaterial({map:skyTexture});disposables.push(skyTexture,skyMaterial);
+  const flightView=plane&&renderer?new THREE.Scene():null;
+  const flightCamera=new THREE.PerspectiveCamera(58,2,.1,160);
+  const wing=new THREE.Group(), terrain=new THREE.Group();
+  let flightTarget:THREE.WebGLRenderTarget|undefined,wingMaterial:THREE.MeshBasicMaterial|undefined;
+  if(flightView){
+    flightView.background=new THREE.Color(0xb5d3e2);flightView.fog=new THREE.Fog(0xb5d3e2,40,110);
+    flightView.add(new THREE.HemisphereLight(0xffffff,0x71867a,2.4));const light=new THREE.DirectionalLight(0xffefcf,2);light.position.set(-5,15,8);flightView.add(light);
+    flightView.add(wing,terrain);
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute([5,0,5,-5,.8,-5,-3,.8,-5,5,0,5,-3,.8,-5,5,0,7],3));geometry.computeVertexNormals();
+    const material=new THREE.MeshStandardMaterial({color:0xe8e8df,metalness:.35,roughness:.4,side:THREE.DoubleSide});disposables.push(geometry,material);wing.add(new THREE.Mesh(geometry,material));
+    const winglet=box(wing,business?0x67524c:0x304b63,[-4.8,1.25,-5],[.2,1.3,.8]);winglet.rotation.z=-.25;
+    ball(wing,0xc0c9c7,[1,-.7,2],[.6,.6,1.6]);ball(wing,0x3f5058,[1,-.7,3.4],[.43,.43,.05]);
+    box(terrain,0x789579,[0,-2,-20],[100,.2,100]);box(terrain,0x6e7a7d,[0,-1.8,0],[7,.05,90]);
+    for(let z=-45;z<45;z+=7)box(terrain,0xf0ead8,[0,-1.75,z],[.2,.02,3]);
+    for(let i=0;i<24;i++)box(terrain,i%2?0x9dba90:0x94a87a,[(i%4-1.5)*19,-1.8,-40+Math.floor(i/4)*15],[17,.04,13]);
+    for(let i=0;i<15;i++)ball(flightView,0xf3f5ef,[Math.sin(i*7)*25,10+i%4*4,-30+i*3],[5,1.1,3]);
+    flightTarget=new THREE.WebGLRenderTarget(512,256);flightTarget.texture.colorSpace=THREE.SRGBColorSpace;wingMaterial=new THREE.MeshBasicMaterial({map:flightTarget.texture});disposables.push(flightTarget,wingMaterial);
+  }
+  const renderFlight=(lift:number,travel:number)=>{
+    if(!renderer||!flightView||!flightTarget)return;
+    flightCamera.position.set(0,3+lift*18,8);flightCamera.lookAt(-1,1+lift*18,-3);wing.position.y=lift*18;terrain.position.z=travel%40;
+    const target=renderer.getRenderTarget();renderer.setRenderTarget(flightTarget);renderer.render(flightView,flightCamera);renderer.setRenderTarget(target);
+  };
+  renderFlight(0,0);
   const paintSky=(lift:number,travel:number)=>{
     const ctx=skyContext,gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,'#75a7cb');gradient.addColorStop(.7,'#dae8e9');gradient.addColorStop(1,'#e7dec8');ctx.fillStyle=gradient;ctx.fillRect(0,0,512,256);
     if(!plane&&!airport){
@@ -63,7 +87,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
       const shape=new THREE.Shape();const r=.35,hw=w/2,hh=h/2;shape.moveTo(-hw+r,-hh);shape.lineTo(hw-r,-hh);shape.quadraticCurveTo(hw,-hh,hw,-hh+r);shape.lineTo(hw,hh-r);shape.quadraticCurveTo(hw,hh,hw-r,hh);shape.lineTo(-hw+r,hh);shape.quadraticCurveTo(-hw,hh,-hw,hh-r);shape.lineTo(-hw,-hh+r);shape.quadraticCurveTo(-hw,-hh,-hw+r,-hh);
       const geometry=new THREE.ShapeGeometry(shape);const uv=geometry.getAttribute('uv'),position=geometry.getAttribute('position');for(let i=0;i<uv.count;i++)uv.setXY(i,(position.getX(i)+hw)/w,(position.getY(i)+hh)/h);disposables.push(geometry);
       const rim=new THREE.Mesh(geometry,mat(0xc6cdd0));rim.scale.set(1.18,1.14,1);root.add(rim);
-      const view=new THREE.Mesh(geometry,skyMaterial);view.position.z=.035;root.add(view);
+      const view=new THREE.Mesh(geometry,Math.abs(z)<3&&wingMaterial?wingMaterial:skyMaterial);view.position.z=.035;root.add(view);
     }else{
       box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=box(root,0xffffff,[0,0,.08],[w,h,.04]);view.material=skyMaterial;
       box(root,accent,[0,0,.12],[.045,h,.04]);
@@ -72,6 +96,9 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   if(!plane){
     box(scene,wall,[0,height,(front+back)/2],[width*2,.15,back-front]);
     if(grand){box(scene,0xd1e1dc,[0,height-.1,-1],[8,.06,17]);for(let z=-9;z<9;z+=3)box(scene,wood,[0,height-.2,z],[width*2,.18,.2]);}
+  }
+  if(graphics==='cinematic'){
+    for(const x of [-4,4]){const light=new THREE.PointLight(plane?0xc2d8ff:0xffc88a,12,15,2);light.position.set(x,3.7,1);scene.add(light);}
   }
   const plant=(x:number,z:number,scale=1)=>{
     const root=new THREE.Group();root.position.set(x,0,z);root.scale.setScalar(scale);scene.add(root);
@@ -103,7 +130,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
       box(scene,0xb4a789,[side*1.42,.008,.5],[.08,.012,24]);
     }
     box(scene,0xc3d0d3,[0,2.3,front+.15],[2.2,4.5,.12]);box(scene,0x344e61,[0,2.6,front+.24],[1.7,1.1,.1]);
-    label('ZONEFLOW AIR',[0,3.9,front+.34],[3,.55,.03]);label('EXIT',[3.5,3.7,front+.2],[.8,.3,.03],'#e4f1dc','#426355');
+    label(business?'ZONEFLOW BUSINESS':'ZONEFLOW AIR',[0,3.9,front+.34],[3,.55,.03]);label('EXIT',[3.5,3.7,front+.2],[.8,.3,.03],'#e4f1dc','#426355');
     for(const x of [-2.8,0,2.8])for(const z of [-8.5,-5.8]){
       box(scene,accent,[x,.7,z],[1.4,.24,1.4]);const seat=box(scene,accent,[x,1.45,z+.65],[1.4,1.5,.24]);seat.rotation.x=-.08;box(scene,0xd9d3c2,[x,1.95,z+.48],[.75,.35,.1]);
     }
@@ -119,9 +146,11 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     for(const x of [-6,0,6])window(x,3,front+.2,4.5,4.5);
     box(scene,0x6a4a39,[0,1,back-.8],[15,2,1.5]);box(scene,0xd6bf9a,[0,2.05,back-.8],[15.5,.15,1.7]);
     box(scene,0x455456,[-3,2.6,back-1],[2,1,1]);for(const x of [-3.5,-2.5])box(scene,0xc9cac0,[x,2.5,back-1.55],[.3,.15,.25]);
-    label('SLOW COFFEE',[0,4,front+.3],[5,1,.08],'#e9ddbf','#745441');
+    label(city?'CITY COFFEE':'SLOW COFFEE',[0,4,front+.3],[5,1,.08],'#e9ddbf',city?'#303f45':'#745441');
+    if(city){for(const x of [-7,7])for(let z=-7;z<9;z+=2)box(scene,0xb0aaa0,[x,3,z],[.3,6,.3]);for(let i=0;i<7;i++)box(scene,0x404e52,[-6+i*2,5.6,0],[.08,.08,18]);}
     for(const x of [-7,7]){plant(x,-5,1.2);box(scene,0x8b6553,[x,1,5],[1.5,2,5]);}
     for(const x of [-5.2,0,5.2]){box(scene,0x4b3930,[x,4.8,0],[.03,2,.03]);ball(scene,0xd7aa6c,[x,3.8,0],[.6,.25,.6]);}
+    if(!city){for(let z=-7;z<9;z+=3)box(scene,0x6d4c37,[0,5.8,z],[width*2,.35,.3]);for(const side of [-1,1])shelf(side*(width-.35),4,-side*Math.PI/2,3.5);}
   }else if(office){
     for(let x=-7.5;x<=7.5;x+=5)window(x,3.4,front+.2,4.7,5);
     box(scene,0xf3eee0,[0,3,back-.2],[8,3,.1]);for(let i=0;i<5;i++)box(scene,0x9cafa0,[-2+i,3+(i%2)*.4,back-.28],[.7,.6,.03]);
@@ -129,7 +158,12 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     for(const x of [-8,8]){plant(x,-6);box(scene,0x698777,[x,.8,7],[2,1.6,2]);}
   }else{
     const count=cozy?2:3;for(let i=0;i<count;i++)window((i-(count-1)/2)*(cozy?6:6.4),cozy?2.8:grand?4.8:3.4,front+.2,cozy?3.4:4.4,cozy?3:grand?7.8:4.8);
-    for(const side of [-1,1])for(let z=-6;z<9;z+=3.7)shelf(side*(width-.35),z,-side*Math.PI/2,cozy?3.5:grand?8.5:5);
+    for(const side of [-1,1])for(let z=-6;z<9;z+=3.7)shelf(side*(width-.35),z,-side*Math.PI/2,cozy?3.5:grand?8.5:modern?3:5);
+    if(modern){
+      for(const z of [-5,1,7])box(scene,0xf4f1de,[0,height-.3,z],[15,.06,.15]);
+      for(const x of [-7,7]){box(scene,0x8aa89c,[x,.7,7],[2.4,1.4,2]);plant(x,-6,1.5);}
+      label('READ  /  CREATE  /  DISCOVER',[0,4.7,front+.3],[6,.5,.04],'#3f6255','#e4e8da');
+    }
     box(scene,cozy?0x866c58:0x536d58,[0,.012,3],[cozy?12:15,.02,10]);
     if(grand){
       for(const side of [-1,1]){box(scene,wood,[side*8.5,5.4,-.5],[2.6,.24,21]);for(let z=-10;z<10;z+=.7)box(scene,0xc2a66c,[side*7.2,5.95,z],[.045,1.1,.045]);box(scene,0xc2a66c,[side*7.2,6.5,-.5],[.08,.08,21]);}
@@ -148,20 +182,28 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   let painted=-1,travel=0,lastTravel=-1;
   return {ground, width, front, back, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
     if(!plane)return;if(running&&!reduced)travel+=dt;const step=Math.floor(elapsed*2);
-    if(step!==painted||Math.floor(travel*4)!==lastTravel){paintSky(Math.min(1,elapsed/90),travel);painted=step;lastTravel=Math.floor(travel*4);}
+    if(step!==painted||Math.floor(travel*4)!==lastTravel){const lift=Math.min(1,elapsed/90);paintSky(lift,travel);renderFlight(lift,travel);painted=step;lastTravel=Math.floor(travel*4);}
   }};
 }
 
 export function buildFocusStation(parent:THREE.Group, kind:RoomAtmosphere, b:Pick<Build,'box'|'ball'>) {
-  const {box,ball}=b, plane=kind==='plane', cafe=kind==='cafe', airport=kind==='airport', office=kind==='office';
-  const wood=kind==='intimate'?0x79523c:kind==='grand'?0x8e6948:0xb3916c;
-  const accent=plane?0x304b63:airport?0x526d7a:0x435d4b;
+  const {box,ball}=b, plane=isFlightAtmosphere(kind), business=kind==='business-plane', cafe=kind==='cafe'||kind==='city-cafe', airport=kind==='airport', office=kind==='office';
+  const wood=kind==='modern-library'?0xd4d9c9:kind==='city-cafe'?0x77695d:kind==='intimate'?0x79523c:kind==='grand'?0x8e6948:0xb3916c;
+  const accent=business?0x67524c:plane?0x304b63:airport?0x526d7a:0x435d4b;
   const top=cafe?ball(parent,wood,[0,1.12,1.25],[1.6,.09,1.25]):box(parent,plane?0xd6d5c6:airport?0xb5cdd0:wood,[0,1.12,plane?1:1.25],[plane?2.05:3.9,.12,plane?1.65:2.3]);
   if(plane){
     box(parent,accent,[0,.58,0],[1.65,.23,1.4]);const back=box(parent,accent,[0,1.15,-.65],[1.65,1.2,.27]);back.rotation.x=.08;
     box(parent,0xd6d2c0,[0,1.58,-.49],[.8,.25,.08]);
     for(const x of [-.93,.93]){box(parent,0xbac2be,[x,.95,0],[.2,.15,1.5]);box(parent,accent,[x,.5,-.15],[.18,.8,1.2]);}
     box(parent,0xa4afa9,[0,.7,.9],[.12,.8,.12]);
+    if(business){
+      for(const x of [-1.05,1.05])box(parent,0xc2b59f,[x,1.2,-.05],[.15,1.5,1.7]);
+      box(parent,0x3c4d57,[.98,1.7,.5],[.06,.45,.6]);box(parent,0xc6dfdb,[.94,1.7,.5],[.02,.32,.45]);
+    }else{
+      // An unoccupied adjacent passenger seat gives the standard cabin a paired layout.
+      const side=parent.position.x<0?-1:1;
+      box(parent,accent,[side*1.15,.58,0],[.65,.23,1.35]);box(parent,accent,[side*1.15,1.15,-.65],[.65,1.2,.27]);box(parent,0xd6d2c0,[side*1.15,1.58,-.49],[.45,.25,.08]);
+    }
   }else{
     for(const x of [-1.5,1.5])for(const z of [.3,2.2])box(parent,accent,[x,.5,z],[.09,1,.09]);
     box(parent,accent,[0,.58,-.14],[1.08,.15,.9]);box(parent,accent,[0,1.05,-.55],[1.08,1,.12]);
