@@ -19,6 +19,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   const wood = cozy ? 0x76513d : grand ? 0x795640 : 0xaa815b;
   const accent = plane ? 0x293e55 : airport ? 0x355e6e : cafe ? 0x755244 : 0x395c4c;
   const disposables: {dispose: () => void}[] = [];
+  const bookBatches = new Map<number,THREE.Matrix4[]>();
   scene.background = new THREE.Color(plane || airport ? 0xaac7d7 : wall);
   scene.fog = new THREE.Fog(scene.background, 28, 65);
   const ground = box(scene, plane ? 0x3b4c5b : airport ? 0xb8c6c8 : office ? 0x8c9790 : 0xb29471, [0,-.12,(front+back)/2], [width*2,.2,back-front]);
@@ -82,7 +83,11 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     box(root,wood,[0,tall/2,0],[3.5,tall,.35]);
     for(let row=0;row<Math.floor(tall/.8);row++){
       box(root,0xc8ac7e,[0,.35+row*.8,.26],[3.55,.09,.6]);
-      for(let i=0;i<13;i++){const book=box(root,[0x758e7b,0xb39060,0x5f727d,0x925d50,0xd3c49d][(i*3+row)%5],[-1.5+i*.245,.67+row*.8,.28],[.16,.48+(i%3)*.05,.32]);book.rotation.z=i%7===0?.12:0;}
+      for(let i=0;i<13;i++){
+        const color=[0x758e7b,0xb39060,0x5f727d,0x925d50,0xd3c49d][(i*3+row)%5];
+        const local=new THREE.Matrix4().compose(new THREE.Vector3(-1.5+i*.245,.67+row*.8,.28),new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),i%7===0?.12:0),new THREE.Vector3(.16,.48+(i%3)*.05,.32));
+        root.updateWorldMatrix(true,false);const matrices=bookBatches.get(color)||[];matrices.push(root.matrixWorld.clone().multiply(local));bookBatches.set(color,matrices);
+      }
     }
   };
   if(plane){
@@ -134,6 +139,11 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
       box(scene,wood,[0,4.5,0],[width*2,.18,20]);for(const x of [-6.5,6.5]){box(scene,0x916d59,[x,.55,8],[2.1,1.1,1.4]);box(scene,0xc1a582,[x,1.1,8.6],[2.1,1.2,.3]);ball(scene,0xf9dfad,[x,2.8,6.5],[.55,.3,.55]);box(scene,0x605747,[x,1.4,6.5],[.045,2.8,.045]);}
     }
     for(const x of [-width+1.2,width-1.2])plant(x,-7,cozy?.8:1.3);
+  }
+  if(bookBatches.size){
+    // Thousands of book spines share five draw calls in the large reading hall.
+    const geometry=new THREE.BoxGeometry(1,1,1);disposables.push(geometry);
+    for(const [color,matrices] of bookBatches){const mesh=new THREE.InstancedMesh(geometry,mat(color),matrices.length);matrices.forEach((matrix,index)=>mesh.setMatrixAt(index,matrix));mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();scene.add(mesh);disposables.push(mesh);}
   }
   let painted=-1,travel=0,lastTravel=-1;
   return {ground, width, front, back, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
