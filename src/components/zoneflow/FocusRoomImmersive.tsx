@@ -149,13 +149,17 @@ export default function FocusRoomImmersive(props: Props) {
     box(hands, trim, [-.48, 1.23, .2], [.19, .12, .5]);
     box(hands, trim, [.48, 1.23, .2], [.19, .12, .5]);
     const disposeLabel = (label: THREE.Sprite) => { label.material.map?.dispose(); label.material.dispose(); };
+    const sizeLabel=(label:THREE.Sprite)=>{
+      const height=2*Math.tan(camera.fov*Math.PI/360)*26/Math.max(1,element.clientHeight);
+      label.scale.set(height*5,height,1);
+    };
     const makeLabel = (text: string) => {
-      const c = document.createElement('canvas'); c.width = 512; c.height = 80;
-      const ctx = c.getContext('2d')!; ctx.fillStyle = '#fff9e9'; ctx.fillRect(0, 0, 512, 80);
-      ctx.fillStyle = '#284839'; ctx.font = '500 30px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text.slice(0, 28), 256, 40, 488);
+      const c = document.createElement('canvas'); c.width = 400; c.height = 80;
+      const ctx = c.getContext('2d')!; ctx.fillStyle = '#fff9e9'; ctx.fillRect(0, 0, 400, 80);
+      ctx.fillStyle = '#284839'; ctx.font = '500 38px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text.slice(0, 28), 200, 40, 380);
       const texture = new THREE.CanvasTexture(c); texture.colorSpace = THREE.SRGBColorSpace;
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: true }));
-      sprite.scale.set(2.25, .35, 1); sprite.position.y = 2.9; return sprite;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: true, sizeAttenuation:false, toneMapped:false }));
+      sizeLabel(sprite);sprite.position.y = 2.9; return sprite;
     };
     const makeAvatar = (p: FocusRoomParticipant): Avatar => {
       const design=decodeAvatar(p.avatarStyle),index=design.shirt,skin=AVATAR_SKINS[design.skin];
@@ -180,7 +184,8 @@ export default function FocusRoomImmersive(props: Props) {
       }
       const label = makeLabel(p.displayName); root.add(label);
       root.traverse(object => { if (object instanceof THREE.Mesh) object.castShadow = true; });
-      const position = safeFloorPosition(p, layout); root.position.copy(world(position));
+      const start=p.userId.startsWith('scenery-character-')?{...p,y:p.y<50?84:28}:p;
+      const position = safeFloorPosition(start, layout); root.position.copy(world(position));
       return { root, body, arms, legs, head, label, labelKey: p.displayName, style: p.avatarStyle || 0, target: position, position, route: [position], next: 0 };
     };
     let yaw = 0, pitch = -.12, wasSeated = false, lastMe = '', frame = 0, lastTime = 0;
@@ -191,7 +196,7 @@ export default function FocusRoomImmersive(props: Props) {
       if (me) latest.current.onMove(safeFloorPosition({ x: me.x - Math.sin(yaw) * amount * 4, y: me.y - Math.cos(yaw) * amount * 4 }, layout));
     };
     controls.current = { turn, step };
-    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix(); };
+    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix();avatars.forEach(avatar=>sizeLabel(avatar.label)); };
     const observer = new ResizeObserver(resize); observer.observe(element); resize();
     const contextLost = (event: Event) => { event.preventDefault(); latest.current.onUnavailable(); };
     canvas.addEventListener('webglcontextlost', contextLost);
@@ -249,6 +254,7 @@ export default function FocusRoomImmersive(props: Props) {
         }
         const walking = avatar.next < avatar.route.length, seated = p.seated && !walking;
         avatar.root.position.copy(world(avatar.position)); avatar.root.visible = !(p.isMe && latest.current.mode === 'eye');
+        avatar.label.visible=!p.isMe;
         avatar.body.position.y = seated ? -.47 : 0; avatar.label.position.y = seated ? 2.5 : 2.9;
         if (seated) avatar.root.rotation.y = flying || p.y > 57 ? Math.PI : 0;
         const wave = reduced.matches ? 0 : Math.sin(now * .007);

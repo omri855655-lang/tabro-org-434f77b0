@@ -16,7 +16,7 @@ export function buildHistoricalLibrary(scene:THREE.Scene,b:Builders,monastery:bo
     for(const mesh of [surfaces.floor,...surfaces.walls]){const previous=mesh.material;restores.push(()=>{mesh.material=previous;});mesh.material=material;}
     const arch=new THREE.Shape();arch.moveTo(-9.2,5);arch.absellipse(0,5,9.2,4.4,Math.PI,0,true,0);arch.lineTo(8.78,5);arch.absellipse(0,5,8.78,3.98,0,Math.PI,false,0);arch.closePath();
     const geometry=new THREE.ExtrudeGeometry(arch,{depth:.4,bevelEnabled:false,curveSegments:32});resources.push(geometry);
-    for(const z of [front+1,(front+back)/2,back-1]){
+    for(const z of [front+1,(front+back)/2,back-4]){
       const rib=new THREE.Mesh(geometry,material);rib.position.z=z;root.add(rib);
       for(const x of [-9,9]){
         b.box(root,0xbeb198,[x,2.5,z],[.65,5,.7]);b.box(root,0xd0c2a8,[x,4.9,z],[1,.25,1]);b.box(root,0x9a8b70,[x,.17,z],[1,.34,1]);
@@ -30,7 +30,7 @@ export function buildHistoricalLibrary(scene:THREE.Scene,b:Builders,monastery:bo
     for(let z=front+.5;z<back;z+=2.4){b.box(root,0x4b3023,[0,9.65,z],[19,.3,.22]);for(const x of [-6,-3,0,3,6])b.box(root,0x765239,[x,9.8,z+1.1],[.18,.2,2.1]);}
     for(const side of [-1,1]){
       for(const y of [.25,4.5,8.7])b.box(root,0x59402b,[side*9.22,y,(front+back)/2],[.14,.13,back-front]);
-      const ladder=new THREE.Group();ladder.position.set(side*8.4,0,2.2);ladder.rotation.z=-side*.09;root.add(ladder);
+      const ladder=new THREE.Group();ladder.position.set(side*9.4,0,2.2);ladder.rotation.z=-side*.09;root.add(ladder);
       for(const x of [-.35,.35])b.box(ladder,0x533c27,[x,2.4,0],[.075,4.8,.1]);
       for(let y=.3;y<4.7;y+=.4)b.box(ladder,0xb39a63,[0,y,.02],[.75,.055,.15]);
     }
