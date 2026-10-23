@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface EventInfo {
   id: string;
@@ -62,6 +63,7 @@ const typeLabels: Record<string, string> = {
 
 const NotificationBell = () => {
   const { user } = useAuth();
+  const { t, dir } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [lastSeenCount, setLastSeenCount] = useState(0);
@@ -150,7 +152,7 @@ const NotificationBell = () => {
   return (
     <Popover open={open} onOpenChange={handleOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" aria-label={t('notifications')}>
           <Bell className="h-5 w-5" />
           {unseenCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
@@ -159,7 +161,7 @@ const NotificationBell = () => {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" dir="rtl" align="end">
+      <PopoverContent className="w-80 p-0" dir={dir} align="end">
         <div className="p-3 border-b border-border">
           <h3 className="font-semibold text-sm">התראות אחרונות</h3>
         </div>

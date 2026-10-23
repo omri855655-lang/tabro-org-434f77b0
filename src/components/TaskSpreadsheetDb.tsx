@@ -1124,7 +1124,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col h-full bg-background" dir="rtl">
+    <div className={cn('flex min-h-0 min-w-0 flex-col bg-background', isMobile ? 'min-h-full' : 'h-full')} dir="rtl">
       {/* Shared sheet collapse toggle */}
       {isSharedSheet && (
         <div className="flex items-center gap-2 px-4 py-2 bg-accent/30 border-b border-border">
@@ -1382,6 +1382,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
       {/* Task Tabs with Table */}
       <TaskTabs 
+        compact={isMobile}
         tasks={tasks.filter((task) => !task.parentTaskId)}
         activeTab={activeTaskTab} 
         onTabChange={setActiveTaskTab}

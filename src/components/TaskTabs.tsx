@@ -7,10 +7,11 @@ interface TaskTabsProps {
   tasks: Task[];
   activeTab: string;
   onTabChange: (tab: string) => void;
+  compact?: boolean;
   children: (filteredTasks: Task[], viewMode: "active" | "archive" | "completed") => React.ReactNode;
 }
 
-const TaskTabs = ({ tasks, activeTab, onTabChange, children }: TaskTabsProps) => {
+const TaskTabs = ({ tasks, activeTab, onTabChange, children, compact = false }: TaskTabsProps) => {
   const { lang, dir } = useLanguage();
   const isHebrew = lang === "he";
   // Active tasks: not archived
@@ -36,7 +37,7 @@ const TaskTabs = ({ tasks, activeTab, onTabChange, children }: TaskTabsProps) =>
   };
 
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="flex min-h-0 min-w-0 flex-1 flex-col" dir={dir}>
+    <Tabs value={activeTab} onValueChange={onTabChange} className={`flex min-w-0 flex-1 flex-col ${compact ? 'min-h-[24rem]' : 'min-h-0'}`} dir={dir}>
       <div className="max-w-full overflow-x-auto border-b border-border bg-card/50 px-1 sm:px-4 flex-shrink-0">
         <TabsList className="h-10 bg-transparent justify-start">
           <TabsTrigger value="active" className="gap-2">

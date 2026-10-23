@@ -9,9 +9,13 @@ export function useMediaQuery(query: string) {
     const onChange = () => {
       setMatches(mql.matches);
     };
-    mql.addEventListener("change", onChange);
     onChange();
-    return () => mql.removeEventListener("change", onChange);
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    }
+    mql.addListener(onChange);
+    return () => mql.removeListener(onChange);
   }, [query]);
 
   return matches;
