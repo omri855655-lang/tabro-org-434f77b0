@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles, MessageCircle, Trash2, History, ChevronRight, Search, X } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from '@/hooks/useLanguage';
+import { aiChatCopy } from '@/lib/aiChatCopy';
 
 interface ChatMessage {
   role: string;
@@ -46,6 +48,8 @@ const AiChatPanel = ({
   quickPrompts,
   extraActions,
 }: AiChatPanelProps) => {
+  const { lang, dir } = useLanguage();
+  const c = aiChatCopy[lang];
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,7 +70,7 @@ const AiChatPanel = ({
   const handleClear = () => {
     if (messages.length === 0) return;
     onClearAndArchive();
-    toast.success("השיחה נוקתה ונשמרה בהיסטוריה");
+    toast.success(c.cleared);
   };
 
   const filteredArchive = searchQuery.trim()
@@ -77,7 +81,7 @@ const AiChatPanel = ({
     : archive;
 
   return (
-    <Card>
+    <Card dir={dir}>
       <CardHeader className="py-3">
         <CardTitle className="text-base flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2">
@@ -91,7 +95,8 @@ const AiChatPanel = ({
               size="sm"
               className="h-7 w-7 p-0"
               onClick={() => setShowHistory(!showHistory)}
-              title="היסטוריית שיחות"
+              title={c.history}
+              aria-label={c.history}
             >
               <History className="h-4 w-4" />
             </Button>
@@ -103,7 +108,7 @@ const AiChatPanel = ({
                 onClick={handleClear}
               >
                 <Trash2 className="h-3 w-3 mr-1" />
-                נקה
+                {c.clear}
               </Button>
             )}
           </div>
@@ -118,20 +123,21 @@ const AiChatPanel = ({
                 <Search className="h-3 w-3 text-muted-foreground" />
                 <input
                   className="text-xs bg-transparent border-none outline-none flex-1 placeholder:text-muted-foreground"
-                  placeholder="חיפוש בהיסטוריה..."
+                  placeholder={c.search}
+                  aria-label={c.search}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery("")}>
+                  <button aria-label={c.close} onClick={() => setSearchQuery("")}>
                     <X className="h-3 w-3 text-muted-foreground" />
                   </button>
                 )}
               </div>
-              <p className="text-[10px] font-bold text-muted-foreground px-1">שיחות קודמות</p>
+              <p className="text-[10px] font-bold text-muted-foreground px-1">{c.previous}</p>
               {filteredArchive.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-3">
-                  {searchQuery ? "אין תוצאות" : "אין היסטוריה"}
+                  {searchQuery ? c.noResults : c.empty}
                 </p>
               ) : (
                 filteredArchive.map(entry => (
@@ -178,7 +184,7 @@ const AiChatPanel = ({
           className="border rounded-lg p-3 min-h-[200px] max-h-[400px] overflow-y-auto space-y-3"
         >
           {!loaded ? (
-            <p className="text-sm text-muted-foreground text-center py-8">טוען שיחה...</p>
+            <p className="text-sm text-muted-foreground text-center py-8">{c.loading}</p>
           ) : messages.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">{emptyText}</p>
           ) : null}
@@ -194,7 +200,7 @@ const AiChatPanel = ({
             </div>
           ))}
           {aiLoading && (
-            <div className="text-sm text-muted-foreground animate-pulse">חושב...</div>
+            <div role="status" className="text-sm text-muted-foreground motion-safe:animate-pulse">{c.thinking}</div>
           )}
         </div>
 
@@ -202,11 +208,12 @@ const AiChatPanel = ({
         <div className="flex gap-2">
           <Input
             placeholder={placeholder}
+            aria-label={placeholder}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSend()}
           />
-          <Button onClick={handleSend} disabled={aiLoading || !input.trim()}>
+          <Button aria-label={c.send} onClick={handleSend} disabled={aiLoading || !input.trim()}>
             <MessageCircle className="h-4 w-4" />
           </Button>
         </div>

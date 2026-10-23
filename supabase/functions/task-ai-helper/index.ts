@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseMealEstimate } from './mealEstimate.ts';
+import { prepareCoachRequest } from './nutritionCoach.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,6 +120,22 @@ serve(async (req) => {
       if(typeof content!=='string'||content.length>24000)throw new Error('Invalid meal analysis');
       const meal=parseMealEstimate(JSON.parse(content.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')));
       return new Response(JSON.stringify({meal}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
+    }
+
+    if (type === 'nutrition-coach' || type === 'sleep-coach') {
+      let coachMessages;
+      try { coachMessages = prepareCoachRequest(body); }
+      catch { return new Response(JSON.stringify({ error: 'Invalid coach request' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
+      try {
+        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST', signal: AbortSignal.timeout(45000), headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'google/gemini-2.5-flash', max_tokens: 1400, messages: coachMessages }),
+        });
+        if (!response.ok) throw new Error('Coach unavailable');
+        const data = await response.json(), suggestion = data.choices?.[0]?.message?.content;
+        if (typeof suggestion !== 'string' || !suggestion.trim() || suggestion.length > 16000) throw new Error('Invalid coach response');
+        return new Response(JSON.stringify({ suggestion }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch { return new Response(JSON.stringify({ error: 'Coach unavailable' }), { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
     }
 
     // ZoneFlow AI Chat

@@ -1,0 +1,9 @@
+import type { AppLanguage } from './appLanguage';
+export const aiChatCopy: Record<AppLanguage, { history: string; cleared: string; clear: string; search: string; previous: string; noResults: string; empty: string; loading: string; thinking: string; send: string; close: string }> = {
+  he: { history: 'היסטוריית שיחות', cleared: 'השיחה נוקתה ונשמרה בהיסטוריה', clear: 'נקה', search: 'חיפוש בהיסטוריה…', previous: 'שיחות קודמות', noResults: 'אין תוצאות', empty: 'אין היסטוריה', loading: 'טוען שיחה…', thinking: 'חושב…', send: 'שלח הודעה', close: 'נקה חיפוש' },
+  en: { history: 'Chat history', cleared: 'Chat cleared and archived', clear: 'Clear', search: 'Search history…', previous: 'Previous conversations', noResults: 'No results', empty: 'No history', loading: 'Loading chat…', thinking: 'Thinking…', send: 'Send message', close: 'Clear search' },
+  es: { history: 'Historial de chat', cleared: 'Chat borrado y archivado', clear: 'Borrar', search: 'Buscar historial…', previous: 'Conversaciones anteriores', noResults: 'Sin resultados', empty: 'Sin historial', loading: 'Cargando chat…', thinking: 'Pensando…', send: 'Enviar mensaje', close: 'Limpiar búsqueda' },
+  ar: { history: 'سجل المحادثات', cleared: 'مُسحت المحادثة وأُرشفت', clear: 'مسح', search: 'البحث في السجل…', previous: 'محادثات سابقة', noResults: 'لا نتائج', empty: 'لا سجل', loading: 'تحميل المحادثة…', thinking: 'جارٍ التفكير…', send: 'إرسال رسالة', close: 'مسح البحث' },
+  ru: { history: 'История чатов', cleared: 'Чат очищен и сохранён в архиве', clear: 'Очистить', search: 'Поиск по истории…', previous: 'Предыдущие беседы', noResults: 'Нет результатов', empty: 'Истории нет', loading: 'Загрузка чата…', thinking: 'Обдумываю…', send: 'Отправить сообщение', close: 'Очистить поиск' },
+  zh: { history: '聊天历史', cleared: '聊天已清除并归档', clear: '清除', search: '搜索历史…', previous: '以往对话', noResults: '无结果', empty: '暂无历史', loading: '加载对话中…', thinking: '思考中…', send: '发送消息', close: '清除搜索' },
+};
