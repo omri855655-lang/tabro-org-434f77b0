@@ -136,7 +136,7 @@ export default function FocusRoomImmersive(props: Props) {
       const pencil = box(notebook, 0xd1984e, [.25, 1.36, .75], [.035, .035, .65]); pencil.rotation.y = -.5;
       deskProps.push({ computer, book, notebook, pencil, page });
     });
-    const assetEnabled=graphics!=='illustrated'&&['library','grand','intimate','cafe','city-cafe'].includes(atmosphere);
+    const assetEnabled=graphics!=='illustrated'&&['library','grand','intimate','cafe','city-cafe','heritage-library','monastery-library'].includes(atmosphere);
     setAssetState(assetEnabled?'loading':'');
     const assets=assetEnabled?attachRoomAssets(scene,renderer,assetStations,environment.assetShelves,environment.bookPlaceholders,environment.assetWindows,atmosphere,{floor:ground,walls:environment.assetWalls}):null;
     let assetsActive=true;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 import { buildAircraftCabin } from './focusAircraftCabin';
 import { buildAircraftExterior } from './focusAircraftExterior';
+import { buildHistoricalLibrary } from './focusHistoricalLibrary';
 import type { FocusFlightTime } from '@/lib/focusFlightTime';
 
 type Build = {
@@ -12,7 +13,8 @@ type Build = {
 
 export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build, graphics: RoomGraphics = 'natural', renderer?: THREE.WebGLRenderer, flightTime: FocusFlightTime = 'day') {
   const {box, ball, mat} = b;
-  const plane = isFlightAtmosphere(kind), business = kind === 'business-plane', airport = kind === 'airport', grand = kind === 'grand';
+  const monastery=kind==='monastery-library',historic=kind==='heritage-library'||monastery;
+  const plane = isFlightAtmosphere(kind), business = kind === 'business-plane', airport = kind === 'airport', grand = kind === 'grand'||historic;
   const night=plane&&flightTime==='night';
   const cozy = kind === 'intimate', city = kind === 'city-cafe', modern = kind === 'modern-library', cafe = kind === 'cafe'||city, office = kind === 'office';
   const width = plane ? 5.8 : cozy ? 8 : airport ? 12 : 10;
@@ -20,7 +22,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   const front = plane ? -12 : grand ? -12 : -9;
   const back = plane ? 13 : 10;
   const wall = business ? 0xd0c4ad : plane ? 0xe7e7df : cozy ? 0xbaa185 : city ? 0x9da5a2 : cafe ? 0xc0a692 : office||modern ? 0xd4ddd9 : 0xe0d6be;
-  const wood = modern ? 0xd1c5ac : cozy ? 0x76513d : grand ? 0x795640 : 0xaa815b;
+  const wood = historic?0x513726:modern ? 0xd1c5ac : cozy ? 0x76513d : grand ? 0x795640 : 0xaa815b;
   const accent = business ? 0x67524c : plane ? 0x293e55 : airport ? 0x355e6e : city ? 0x303f45 : cafe ? 0x755244 : modern ? 0x6c8b81 : 0x395c4c;
   const disposables: {dispose: () => void}[] = [];
   const bookBatches = new Map<number,THREE.Matrix4[]>();
@@ -37,7 +39,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(4,5);
     const material=new THREE.MeshStandardMaterial({map:texture,roughness:.65});ground.material=material;disposables.push(texture,material);
   }
-  if (!plane) for(let z=front;z<back;z+=airport?2:.65) box(scene, airport?0x9aaeb2:0x96795b,[0,-.009,z],[width*2,.008,.012]);
+  if (!plane&&!monastery) for(let z=front;z<back;z+=airport?2:.65) box(scene, airport?0x9aaeb2:0x96795b,[0,-.009,z],[width*2,.008,.012]);
   const assetWalls = [
     box(scene, wall, [-width,height/2,(front+back)/2],[.2,height,back-front]),
     box(scene, wall, [width,height/2,(front+back)/2],[.2,height,back-front]),
@@ -176,14 +178,14 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     for(const x of [-8,8]){plant(x,-6);box(scene,0x698777,[x,.8,7],[2,1.6,2]);}
   }else{
     const count=cozy?2:3;for(let i=0;i<count;i++)window((i-(count-1)/2)*(cozy?6:6.4),cozy?2.8:grand?4.8:3.4,front+.2,cozy?3.4:4.4,cozy?3:grand?7.8:4.8);
-    for(const side of [-1,1])for(let z=-6;z<9;z+=3.7)shelf(side*(width-.35),z,-side*Math.PI/2,cozy?3.5:grand?8.5:modern?3:5);
+    for(const side of [-1,1])for(let z=-6;z<9;z+=3.7)shelf(side*(width-.35),z,-side*Math.PI/2,monastery?5:cozy?3.5:grand?8.5:modern?3:5);
     if(modern){
       for(const z of [-5,1,7])box(scene,0xf4f1de,[0,height-.3,z],[15,.06,.15]);
       for(const x of [-7,7]){box(scene,0x8aa89c,[x,.7,7],[2.4,1.4,2]);plant(x,-6,1.5);}
       label('READ  /  CREATE  /  DISCOVER',[0,4.7,front+.3],[6,.5,.04],'#3f6255','#e4e8da');
     }
-    box(scene,cozy?0x866c58:0x536d58,[0,.012,3],[cozy?12:15,.02,10]);
-    if(grand){
+    if(!monastery)box(scene,cozy?0x866c58:0x536d58,[0,.012,3],[cozy?12:15,.02,10]);
+    if(grand&&!monastery){
       for(const side of [-1,1]){box(scene,wood,[side*8.5,5.4,-.5],[2.6,.24,21]);for(let z=-10;z<10;z+=.7)box(scene,0xc2a66c,[side*7.2,5.95,z],[.045,1.1,.045]);box(scene,0xc2a66c,[side*7.2,6.5,-.5],[.08,.08,21]);}
       for(const x of [-7,7])for(const z of [-9,0,9]){box(scene,0xc5b598,[x,4,z],[.35,8,.35]);box(scene,0x8d7956,[x,7.9,z],[.8,.2,.8]);}
       for(const z of [-4,5]){box(scene,0x9c8250,[0,7,z],[.03,3,.03]);for(const x of [-1.5,0,1.5]){box(scene,0x9c8250,[x,5.5,z],[.07,.7,.07]);ball(scene,0xffe5ad,[x,5.85,z],[.26,.16,.26]);}box(scene,0x9c8250,[0,5.3,z],[3.2,.06,.06]);const lamp=new THREE.PointLight(0xffdb9b,22,13,2);lamp.position.set(0,5.6,z);scene.add(lamp);}
@@ -192,6 +194,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     }
     for(const x of [-width+1.2,width-1.2])plant(x,-7,cozy?.8:1.3);
   }
+  if(historic)disposables.push(buildHistoricalLibrary(scene,{box},monastery,front,back,{floor:ground,walls:assetWalls}));
   if(bookBatches.size){
     // Thousands of book spines share five draw calls in the large reading hall.
     const geometry=new THREE.BoxGeometry(1,1,1);disposables.push(geometry);

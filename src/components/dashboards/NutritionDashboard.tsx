@@ -17,6 +17,8 @@ import AiChatPanel from "@/components/AiChatPanel";
 import DashboardDisplayToolbar from "@/components/DashboardDisplayToolbar";
 import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
 import { useLanguage } from "@/hooks/useLanguage";
+import { MealPhotoJournal } from './MealPhotoJournal';
+import { HealthImportCard } from './HealthImportCard';
 
 interface HealthProfile {
   age: number | null;
@@ -268,6 +270,7 @@ const NutritionDashboard = () => {
 
         {/* Nutrition Tab */}
         <TabsContent value="nutrition" className="space-y-4">
+          <MealPhotoJournal/>
           <AiChatPanel
             title={copy.nutritionAi}
             messages={nutritionChatHistory.messages}
@@ -285,6 +288,7 @@ const NutritionDashboard = () => {
 
         {/* Sleep Tab */}
         <TabsContent value="sleep" className="space-y-4">
+          <HealthImportCard/>
           <AiChatPanel
             title={copy.sleepAi}
             messages={sleepChatHistory.messages}

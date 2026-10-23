@@ -17,6 +17,7 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
   };
   const hide=(object:THREE.Object3D)=>{const visible=object.visible;restore.push(()=>{object.visible=visible;});object.visible=false;};
   const cafe=kind==='cafe'||kind==='city-cafe';
+  const historical=kind==='heritage-library'||kind==='monastery-library';
   const loader=new GLTFLoader();
   const own=(root:THREE.Object3D)=>root.traverse(object=>{
     if(!(object instanceof THREE.Mesh))return;
@@ -29,6 +30,10 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
     const gltf=await loader.loadAsync(`/focus-assets/${id}/model.gltf`);
     own(gltf.scene);
     if(stopped)return null;
+    if(historical&&id!=='book_encyclopedia_set_01')gltf.scene.traverse(object=>{
+      if(!(object instanceof THREE.Mesh))return;
+      for(const material of Array.isArray(object.material)?object.material:[object.material])if(material instanceof THREE.MeshStandardMaterial)material.color.set(kind==='heritage-library'?0x967658:0xb1a38c);
+    });
     gltf.scene.updateMatrixWorld(true);
     const groups=new Map<THREE.Material,THREE.BufferGeometry[]>();
     gltf.scene.traverse(object=>{
@@ -51,7 +56,7 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
     instance.position.set(at.x-center.x*instance.scale.x,at.y-bounds.min.y*instance.scale.y,at.z-center.z*instance.scale.z);
     parent.add(instance);added.push(instance);return instance;
   };
-  const furniture=Promise.all([load(cafe?'round_wooden_table_02':'wooden_table_02'),load(cafe?'WoodenChair_01':'SchoolChair_01')]).then(([table,chair])=>{
+  const furniture=Promise.all([load(cafe?'round_wooden_table_02':'wooden_table_02'),load(cafe||historical?'WoodenChair_01':'SchoolChair_01')]).then(([table,chair])=>{
     if(stopped||!table||!chair)return;
     for(const station of stations){
       fit(table,new THREE.Vector3(cafe?2.5:3.9,1.18,cafe?2.5:2.3),new THREE.Vector3(0,0,1.25),station.root);
@@ -95,7 +100,7 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
     const material=keep(new THREE.MeshStandardMaterial({map:textures[0],normalMap:textures[1],normalScale:new THREE.Vector2(.3,.3),roughness}));
     meshes.forEach(mesh=>replaceMaterial(mesh,material));
   };
-  const architecture=Promise.all([surface([surfaces.floor],'herringbone_parquet',5,.65),surface(surfaces.walls,'plastered_wall_02',4,.94)]);
+  const architecture=kind==='monastery-library'?Promise.resolve():Promise.all([surface([surfaces.floor],'herringbone_parquet',5,.65),surface(surfaces.walls,'plastered_wall_02',4,.94)]);
   // Keep the working procedural room if a local asset cannot be loaded.
   const ready=Promise.allSettled([furniture,library,lighting,outdoors,architecture]).then(results=>({loaded:results.every(result=>result.status==='fulfilled'),kind}));
   const previousEnvironment=scene.environment,previousIntensity=scene.environmentIntensity;

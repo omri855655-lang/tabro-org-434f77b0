@@ -29,6 +29,7 @@ import { eventOverlapsRange } from "@/lib/plannerEvents";
 import { escapePrintText, printDocument } from "@/lib/printDocument";
 import { createCalendarExport } from "@/lib/calendarExport";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useUltraDesign } from '@/hooks/useUltraDesign';
 
 interface AggregatedTask {
   id: string;
@@ -124,6 +125,7 @@ const clampQuickEditorAnchor = (anchor?: { top: number; left: number } | null) =
 const PersonalPlanner = () => {
   const { user } = useAuth();
   const { lang } = useLanguage();
+  const {ultra,setUltra}=useUltraDesign('planner');
   const { tasks: personalTasks } = useTasks("personal");
   const { tasks: workTasks } = useTasks("work");
   const {
@@ -2350,7 +2352,7 @@ const PersonalPlanner = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-[radial-gradient(circle_at_80%_0%,hsl(var(--primary)/0.08),transparent_28%),hsl(var(--background))] shadow-[0_20px_55px_hsl(var(--foreground)/0.08)] md:flex-row" dir="rtl">
+    <div className={`flex h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-[radial-gradient(circle_at_80%_0%,hsl(var(--primary)/0.08),transparent_28%),hsl(var(--background))] shadow-[0_20px_55px_hsl(var(--foreground)/0.08)] md:flex-row ${ultra?'ultra-tabro dark':''}`} dir="rtl">
       {/* Right sidebar - Task list */}
       <div className={`${isMobile || !desktopTaskCenterOpen ? "hidden" : "flex"} w-[21rem] flex-shrink-0 flex-col border-l border-border/70 bg-card/90 backdrop-blur-xl`}>
         <div className="border-b border-border/70 p-4">
@@ -2876,6 +2878,10 @@ const PersonalPlanner = () => {
 
       {/* Left side - Calendar */}
       <div className="planner-print-surface flex-1 flex flex-col min-w-0">
+        <div className={`flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 ${ultra?'bg-[radial-gradient(ellipse_at_top_left,#29442a_0%,#111a14_45%,#080d0b_100%)]':''}`}>
+          {ultra?<div><p className="text-[10px] tracking-[.2em] text-[#bcff62]">ULTRA TABRO / PLAN</p><p className="mt-1 font-mono text-4xl font-bold tracking-tighter text-[#bcff62]">{format(currentDate,'dd.MM.yyyy')}</p></div>:<span className="text-xs text-muted-foreground">Tabro</span>}
+          <div className="flex gap-2"><Button variant="outline" size="sm" aria-pressed={!ultra} onClick={()=>setUltra(false)}>Tabro</Button><Button variant="outline" size="sm" aria-pressed={ultra} onClick={()=>setUltra(true)}>Ultra Tabro</Button></div>
+        </div>
         {/* Calendar header */}
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 p-4 backdrop-blur-xl">
           {isMobile && (

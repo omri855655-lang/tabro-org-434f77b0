@@ -10,6 +10,7 @@ import { zoneflowExperienceCopy } from '@/lib/zoneflowExperienceCopy';
 import { FocusRoomWorld } from './FocusRoomWorld';
 import { FocusRoomLife } from './FocusRoomLife';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
+import { historicLibraryCopy } from '@/lib/focusRoomJourney';
 import { focusFlightTimeCopy, parseFocusFlightTime } from '@/lib/focusFlightTime';
 import { FOCUS_FLIGHTS, flightPhase, roomJourneyCopy, roomDesignCopy, isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 
@@ -36,7 +37,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const experience=zoneflowExperienceCopy[lang];
   const viewCopy = focusRoomViewCopy[lang];
   const journey = roomJourneyCopy[lang];
-  const [atmosphere, setAtmosphere] = useState<RoomAtmosphere>(scene);
+  const [atmosphere, setAtmosphere] = useState<RoomAtmosphere>(scene==='library'?'heritage-library':scene);
   const design = roomDesignCopy[lang];
   const flightTimeCopy=focusFlightTimeCopy[lang];
   const [flightTime,setFlightTime]=useState(()=>parseFocusFlightTime(safeLocalStorage.getString('zoneflow-flight-time')));
@@ -119,7 +120,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     </div>
     {unavailable && <p role="status" className="bg-amber-50 px-4 py-3 text-sm text-amber-900">{viewCopy.unavailable}</p>}
     <div className="space-y-3 border-t border-[#dce3d7] bg-[#faf8ef] px-4 py-3 text-sm text-[#38594b] sm:px-6">
-      <div className="flex flex-wrap gap-4"><label className="flex flex-wrap items-center gap-3">{journey[0]}<select className="max-w-full rounded-xl border bg-white p-2" value={atmosphere} onChange={event => setAtmosphere(event.target.value as RoomAtmosphere)}>{(['library','grand','intimate','plane','airport','cafe','office'] as const).map((value, index) => <option key={value} value={value}>{journey[index + 1]}</option>)}<option value="modern-library">{design[0]}</option><option value="business-plane">{design[1]}</option><option value="city-cafe">{design[2]}</option></select></label>
+      <div className="flex flex-wrap gap-4"><label className="flex flex-wrap items-center gap-3">{journey[0]}<select className="max-w-full rounded-xl border bg-white p-2" value={atmosphere} onChange={event => setAtmosphere(event.target.value as RoomAtmosphere)}>{(['library','grand','intimate','plane','airport','cafe','office'] as const).map((value, index) => <option key={value} value={value}>{journey[index + 1]}</option>)}<option value="modern-library">{design[0]}</option><option value="business-plane">{design[1]}</option><option value="city-cafe">{design[2]}</option><option value="heritage-library">{historicLibraryCopy[lang][0]}</option><option value="monastery-library">{historicLibraryCopy[lang][1]}</option></select></label>
       <label className="flex flex-wrap items-center gap-3">{design[3]}<select value={graphics} className="rounded-xl border bg-white p-2" disabled={view==='map'} onChange={event=>{const value=event.target.value as RoomGraphics;setGraphics(value);safeLocalStorage.setString('zoneflow-room-graphics',value);}}>{(['natural','illustrated','cinematic'] as const).map((value,index)=><option key={value} value={value}>{design[index+4]}</option>)}</select></label></div>
       {isFlightAtmosphere(atmosphere) && <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2">{flightTimeCopy[0]}<select value={flightTime} disabled={view==='map'} className="rounded-xl border bg-white p-2" onChange={event=>{const value=parseFocusFlightTime(event.target.value);setFlightTime(value);safeLocalStorage.setString('zoneflow-flight-time',value);}}><option value="day">{flightTimeCopy[1]}</option><option value="night">{flightTimeCopy[2]}</option></select></label>

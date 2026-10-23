@@ -1,4 +1,5 @@
-export type RoomAtmosphere = 'library' | 'grand' | 'intimate' | 'modern-library' | 'plane' | 'business-plane' | 'airport' | 'cafe' | 'city-cafe' | 'office';
+export type RoomAtmosphere = 'library' | 'grand' | 'intimate' | 'modern-library' | 'heritage-library' | 'monastery-library' | 'plane' | 'business-plane' | 'airport' | 'cafe' | 'city-cafe' | 'office';
+export const historicLibraryCopy={he:['ספרייה אירופית היסטורית','ספריית מנזר מאבן'],en:['Historic European library','Stone monastery library'],es:['Biblioteca europea histórica','Biblioteca monástica de piedra'],zh:['欧洲历史图书馆','石砌修道院图书馆'],ar:['مكتبة أوروبية تاريخية','مكتبة دير حجرية'],ru:['Историческая европейская библиотека','Каменная монастырская библиотека']} as const;
 export type RoomGraphics = 'natural' | 'illustrated' | 'cinematic';
 export const isFlightAtmosphere = (kind: RoomAtmosphere) => kind === 'plane' || kind === 'business-plane';
 export const roomDesignCopy = {
