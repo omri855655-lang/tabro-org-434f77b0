@@ -11,6 +11,7 @@ import { focusRoomCopy } from '../src/lib/focusRoomCopy.ts';
 import { focusRoomViewCopy } from '../src/lib/focusRoomViewCopy.ts';
 import { normalizeFocusPresence } from '../src/lib/focusRoomPresence.ts';
 import { clampRoomPosition } from '../src/lib/focusRoom.ts';
+import * as avatarDesign from '../src/lib/focusAvatar.ts';
 
 const require = createRequire(import.meta.url);
 const element = tag => ({ children, onValueChange: _onValueChange, ...props }) => React.createElement(tag, props, children);
@@ -34,6 +35,7 @@ function loadComponent(filename, tab = 'rooms') {
     if (name === '@/lib/focusRoomCopy') return { focusRoomCopy };
     if (name === '@/lib/focusRoomViewCopy') return { focusRoomViewCopy };
     if (name === '@/lib/focusRoomPresence') return { normalizeFocusPresence };
+    if (name === '@/lib/focusAvatar') return avatarDesign;
     if (name === '@/lib/focusRoom') return { clampRoomPosition };
     if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
     if (name === './TogetherProfile') return loadComponent('TogetherProfile', tab);
@@ -56,7 +58,7 @@ test('Together profile keeps all eight avatars in a collapsed, labelled settings
   assert.ok(html.includes('<details'));
   assert.doesNotMatch(html, /<details[^>]*\sopen(?:=|>)/);
   assert.equal((html.match(/aria-label="דמות /g) || []).length, 8);
-  assert.equal((html.match(/aria-pressed="true"/g) || []).length, 1);
+  assert.equal((html.match(/<button[^>]*aria-label="דמות [^"]+"[^>]*aria-pressed="true"/g) || []).length, 1);
   assert.ok(html.includes('&lt;script&gt;'));
   assert.ok(html.includes('<label for='));
 });

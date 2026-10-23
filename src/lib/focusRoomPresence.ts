@@ -1,4 +1,5 @@
 import { clampRoomPosition } from './focusRoom.ts';
+import { normalizeAvatarStyle } from './focusAvatar.ts';
 import type { FocusRoomParticipant } from '../components/zoneflow/FocusRoomInterior';
 
 // Presence is client-supplied display data, never an authorization decision.
@@ -15,7 +16,7 @@ export function normalizeFocusPresence(state: unknown, me: FocusRoomParticipant)
           userId: value.userId, displayName: typeof value.displayName === 'string' ? value.displayName.slice(0, 80) : 'Tabro learner',
           ...clampRoomPosition({ x: value.x, y: value.y }),
           status: ['focusing', 'break', 'away'].includes(value.status) ? value.status : 'setting-up',
-          avatarStyle: Number.isInteger(value.avatarStyle) && value.avatarStyle >= 0 ? value.avatarStyle % 8 : 0,
+          avatarStyle: normalizeAvatarStyle(value.avatarStyle),
           activity: value.activity === 'book' || value.activity === 'notebook' ? value.activity : 'computer',
           seated: value.seated === true, durationMinutes: Math.min(240, Math.max(1, Number(value.durationMinutes) || 25)),
           isMe: false,

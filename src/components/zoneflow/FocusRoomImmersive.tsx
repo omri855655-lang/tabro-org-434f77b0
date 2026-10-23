@@ -10,6 +10,7 @@ import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/li
 import { buildFocusEnvironment, buildFocusStation } from './focusRoomEnvironment';
 import { attachRoomAssets } from './focusRoomAssets';
 import type { FocusFlightTime } from '@/lib/focusFlightTime';
+import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR, AVATAR_PANTS } from '@/lib/focusAvatar';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -155,22 +156,24 @@ export default function FocusRoomImmersive(props: Props) {
       sprite.scale.set(2.25, .35, 1); sprite.position.y = 2.9; return sprite;
     };
     const makeAvatar = (p: FocusRoomParticipant): Avatar => {
-      const index = Math.abs(Math.trunc(p.avatarStyle || 0)) % 8, skin = SKINS[index % 4];
+      const design=decodeAvatar(p.avatarStyle),index=design.shirt,skin=AVATAR_SKINS[design.skin];
       const root = new THREE.Group(), body = new THREE.Group(), head = new THREE.Group(); scene.add(root); root.add(body); body.add(head);
       box(body, SHIRTS[index], [0, 1.35, 0], [.7, .75, .43]);
       head.position.y = 2.1;
       ball(head, skin, [0, 0, 0], [.45, .48, .4]);
-      ball(head, index % 3 ? 0x49362d : 0x292d31, [0, .22, -.04], [.46, .3, .4]);
+      if(design.cut!==2)ball(head, AVATAR_HAIR[design.hair], [0, .22, -.04], [.46, .3, .4]);
+      if(design.cut===1)ball(head,AVATAR_HAIR[design.hair],[0,-.1,-.2],[.47,.48,.25]);
       for (const x of [-.16, .16]) ball(head, 0x292d31, [x, -.03, .37], [.045, .065, .025]);
       ball(head, 0xb17963, [0, -.22, .38], [.09, .02, .02]);
-      for (const x of [-.46, .46]) ball(head, 0x3e5757, [x, -.03, 0], [.08, .19, .16]);
+      if(design.accessory===0)for (const x of [-.46, .46]) ball(head, 0x3e5757, [x, -.03, 0], [.08, .19, .16]);
+      if(design.accessory===1){for(const x of [-.16,.16]){box(head,0x34434c,[x,-.03,.402],[.25,.17,.025]);box(head,0xa7c4ca,[x,-.03,.42],[.19,.11,.012]);}box(head,0x34434c,[0,-.03,.42],[.08,.025,.025]);}
       const arms: THREE.Group[] = [], legs: THREE.Group[] = [];
       for (const side of [-1, 1]) {
         const arm = new THREE.Group(); arm.position.set(side * .45, 1.6, 0); body.add(arm);
         box(arm, SHIRTS[index], [0, -.18, 0], [.22, .4, .25]);
         ball(arm, skin, [0, -.51, 0], [.12, .22, .12]); arms.push(arm);
         const leg = new THREE.Group(); leg.position.set(side * .2, 1, 0); body.add(leg);
-        box(leg, 0x39484d, [0, -.4, 0], [.26, .8, .27]);
+        box(leg, AVATAR_PANTS[design.pants], [0, -.4, 0], [.26, .8, .27]);
         box(leg, 0xe5ddc9, [0, -.85, .08], [.29, .18, .43]); legs.push(leg);
       }
       const label = makeLabel(p.displayName); root.add(label);
@@ -263,7 +266,7 @@ export default function FocusRoomImmersive(props: Props) {
         wasSeated = seated; lastMe = me.userId;
         const base = avatar.root.position.clone(), eye = seated ? 1.8 : 2.3;
         hands.position.copy(base); hands.rotation.y = flying || me.y > 57 ? Math.PI : 0;
-        const skin = mat(SKINS[Math.abs(Math.trunc(me.avatarStyle || 0)) % 4]);
+        const skin = mat(AVATAR_SKINS[decodeAvatar(me.avatarStyle).skin]);
         leftHand.material = skin; rightHand.material = skin;
         const movement = me.status === 'focusing' && !reduced.matches ? Math.sin(now * .008) * .025 : 0;
         leftHand.position.y = 1.27 + movement; rightHand.position.y = 1.27 - movement;

@@ -8,6 +8,7 @@ import { zoneflowExperienceCopy } from '../src/lib/zoneflowExperienceCopy.ts';
 import { focusRoomViewCopy } from '../src/lib/focusRoomViewCopy.ts';
 import * as journey from '../src/lib/focusRoomJourney.ts';
 import * as flightTime from '../src/lib/focusFlightTime.ts';
+import * as avatarDesign from '../src/lib/focusAvatar.ts';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -31,6 +32,7 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name === '@/lib/focusRoomViewCopy') return { focusRoomViewCopy };
   if (name === '@/lib/focusRoomJourney') return journey;
   if (name === '@/lib/focusFlightTime') return flightTime;
+  if (name === '@/lib/focusAvatar') return avatarDesign;
   if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => key === 'zoneflow-room-camera' ? 'map' : null, setString() {} } };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');
   if (name === '@/hooks/useLanguage') return { useLanguage: () => ({ lang: 'he', dir: 'rtl' }) };

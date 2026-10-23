@@ -51,7 +51,9 @@ function RoomAvatar({ person, walking }: { person: FocusRoomParticipant; walking
   const seated=person.seated&&!travelling;
   const seed = [...person.userId].reduce((sum, letter) => sum + letter.charCodeAt(0), 0);
   const variant = Number.isInteger(person.avatarStyle) && person.avatarStyle! >= 0 ? person.avatarStyle! : seed;
-  const [skin, hair, shirt] = AVATARS[variant % AVATARS.length];
+  const preset=AVATARS[variant % AVATARS.length],design=decodeAvatar(variant);
+  const hex=(color:number)=>`#${color.toString(16).padStart(6,'0')}`;
+  const [skin,hair,shirt]=variant<8?preset:[hex(AVATAR_SKINS[design.skin]),hex(AVATAR_HAIR[design.hair]),preset[2]];
   return <g ref={root} className={`focus-world-person ${travelling || walking && person.isMe ? 'is-walking' : ''} ${seated ? 'is-seated' : ''}`}
     data-participant={person.userId} style={{ transform: `translate(${person.x * 10}px, ${person.y * 7}px)` }}>
     <title>{person.displayName}</title>
@@ -149,3 +151,4 @@ export function FocusRoomWorld({ scene, participants, walking, deskLabel, select
     <RoomPlant x={55} y={649} /><RoomPlant x={947} y={648} />
   </svg>;
 }
+import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR } from '@/lib/focusAvatar';
