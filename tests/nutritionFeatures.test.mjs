@@ -25,3 +25,7 @@ test('health import avoids duplicate step sources and overlapping sleep stages',
 test('new nutrition and health labels are complete in six languages',()=>{
   for(const lang of ['he','en','es','ar','ru','zh']){assert.equal(mealPhotoCopy[lang].length,19);assert.equal(healthImportCopy[lang].length,8);assert.ok([...mealPhotoCopy[lang],...healthImportCopy[lang]].every(Boolean));}
 });
+test('meal-photo edge function bundles the same meal validator as the app',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  assert.equal(await readFile(new URL('../supabase/functions/task-ai-helper/mealEstimate.ts',import.meta.url),'utf8'),await readFile(new URL('../src/lib/mealEstimate.ts',import.meta.url),'utf8'));
+});
