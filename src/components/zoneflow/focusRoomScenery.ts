@@ -113,11 +113,18 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     if (geometry) { resources.add(geometry); scene.add(new THREE.Mesh(geometry, material)); }
   }
   const restores: (() => void)[] = [];
+  const targetAspect = target.width / target.height;
   windows.forEach((window, index) => {
     // Cropped UVs share one render-target texture without copying GPU pixels.
     const original = window.geometry, geometry = original.clone(), uv = geometry.getAttribute('uv');
     const slice = 1 / Math.max(1, windows.length);
-    for (let i = 0; i < uv.count; i++) uv.setX(i, (index + uv.getX(i)) * slice);
+    // Crop to the window's own proportions so tall arches are not stretched vertically.
+    if (!original.boundingBox) original.computeBoundingBox();
+    const box = original.boundingBox!, aspect = Math.max(.05, ((box.max.x - box.min.x) * Math.abs(window.scale.x)) / Math.max(.001, (box.max.y - box.min.y) * Math.abs(window.scale.y)));
+    let uSpan = Math.min(slice, aspect / targetAspect), vSpan = Math.min(1, uSpan * targetAspect / aspect);
+    if (!Number.isFinite(uSpan) || !Number.isFinite(vSpan)) { uSpan = slice; vSpan = 1; }
+    const u0 = (index + .5) * slice - uSpan / 2, v0 = (1 - vSpan) * .5;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + uv.getX(i) * uSpan, v0 + uv.getY(i) * vSpan);
     const previous = window.material, m = new THREE.MeshBasicMaterial({ map: target.texture, toneMapped: false });
     window.geometry = geometry; window.material = m; resources.add(geometry); resources.add(m);
     restores.push(() => { window.geometry = original; window.material = previous; });
@@ -147,6 +154,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       (ground.material as THREE.MeshStandardMaterial).roughness = wet ? .28 : .85;
       trees.rotation.z = moving ? Math.sin(clock * .28) * .006 : 0;
       clouds.position.x = Math.sin(clock * .012) * 10;
+      cloudMaterial.color.set(night ? 0x56627c : wet ? 0xaab4bb : sunset ? 0xffcfae : 0xffffff); cloudMaterial.opacity = night ? .5 : wet ? .95 : .9;
       if (airport || urban) transit.position.x = moving ? Math.sin(clock * (airport ? .012 : .035)) * 35 : -12;
       rain.visible = wet; rain.position.y = -(clock * 6 % 4);
       const previous = renderer.getRenderTarget();
