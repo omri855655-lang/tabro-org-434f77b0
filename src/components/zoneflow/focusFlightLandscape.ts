@@ -1,6 +1,38 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
+/** Rows of neighbourhood and farmland, 90 units apart from z=180. */
+export const FLIGHT_LANDSCAPE_ROWS = 24;
+
+/**
+ * Soft billboard cumulus high above the landscape. Lit spheres near the ground read as white
+ * saucers lying on the runway once the camera climbs past them.
+ */
+export function buildFlightClouds(parent: THREE.Object3D, count = 36) {
+  const root = new THREE.Group(); root.name = 'flight-clouds'; parent.add(root);
+  const size = 128, pixels = new Uint8Array(size * size / 2 * 4);
+  const puffs = [[.3, .6, .2], [.5, .5, .27], [.7, .58, .21], [.42, .68, .17], [.6, .7, .16]];
+  for (let y = 0; y < size / 2; y++) for (let x = 0; x < size; x++) {
+    const u = x / (size - 1), v = y / (size / 2 - 1);
+    let density = 0;
+    for (const [px, py, r] of puffs) density += Math.exp(-(((u - px) * 1.9) ** 2 + (v - py) ** 2) / (r * r * .5));
+    const alpha = Math.min(1, Math.max(0, density - .35) * 1.4) * Math.min(1, (1 - v) * 4, v * 6);
+    const shade = 255 - Math.round(Math.max(0, .5 - v) * 60);
+    pixels.set([shade, shade, Math.min(255, shade + 4), Math.round(alpha * 235)], (y * size + x) * 4);
+  }
+  const texture = new THREE.DataTexture(pixels, size, size / 2); texture.colorSpace = THREE.SRGBColorSpace; texture.magFilter = THREE.LinearFilter; texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, fog: true });
+  for (let i = 0; i < count; i++) {
+    const cloud = new THREE.Sprite(material); cloud.name = `flight-cloud-${i}`;
+    const width = 70 + (i * 37) % 5 * 22;
+    cloud.position.set(Math.sin(i * 2.4) * 420, 55 + (i * 29) % 6 * 17, 40 - i * 60 + Math.cos(i * 1.7) * 25);
+    cloud.scale.set(width, width * .38, 1); root.add(cloud);
+  }
+  let disposed = false;
+  return { root, material, dispose() { if (disposed) return; disposed = true; root.removeFromParent(); texture.dispose(); material.dispose(); } };
+}
+
+
 /** Continuous scenery, not a short ground tile that jumps back during takeoff. */
 export function buildFlightLandscape(parent: THREE.Object3D) {
   const root = new THREE.Group(); root.name = 'continuous-flight-landscape'; parent.add(root);
@@ -28,9 +60,10 @@ export function buildFlightLandscape(parent: THREE.Object3D) {
   }
   for (let i = 0; i < 5; i++) box(0x939d98, [140 + i * 24, 2, -320], [20, 8, 32]);
   box(0xb7b6aa, [130, 12, -50], [7, 28, 7]); box(0x426a7c, [130, 27, -50], [14, 5, 12]);
-  // An urban grid, green courtyards and agricultural parcels continue beyond the airport.
-  for (let col = 0; col < 7; col++) box(0x555e5a, [150 + col * 80, -2.05, -400], [6, .05, 1300]);
-  for (let row = 0; row < 13; row++) {
+  // An urban grid, green courtyards and agricultural parcels continue beyond the airport,
+  // far enough that the cruise view (terrain advanced by up to 900) still looks over detail, not bare ground.
+  for (let col = 0; col < 7; col++) box(0x555e5a, [150 + col * 80, -2.05, -900], [6, .05, 2300]);
+  for (let row = 0; row < FLIGHT_LANDSCAPE_ROWS; row++) {
     const z = 180 - row * 90;
     box(0x555e5a, [420, -2.05, z], [570, .05, 8]);
     for (let col = 0; col < 7; col++) {
@@ -43,6 +76,8 @@ export function buildFlightLandscape(parent: THREE.Object3D) {
       }
     }
     for (let col = 0; col < 3; col++) box((row + col) % 2 ? 0x8b9367 : 0x8d8262, [-45 - col * 36, -2.05, z], [31, .04, 82]);
+    // Past the runway end the strip between farmland and city is farmed too.
+    if (z < -820) for (let col = 0; col < 4; col++) box((row + col) % 2 ? 0x8d8262 : 0x8b9367, [-8 + col * 38, -2.05, z], [33, .04, 82]);
   }
   const resources: { dispose(): void }[] = [cube];
   for (const [color, geometries] of parts) {
