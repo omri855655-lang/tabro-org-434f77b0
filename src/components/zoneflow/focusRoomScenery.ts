@@ -5,6 +5,13 @@ import type { RoomAtmosphere, RoomGraphics } from '@/lib/focusRoomJourney';
 import { resolveRoomDaylight, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
 import { sceneryTravel, type SceneryPreset } from '@/lib/focusScenerySettings';
 
+/** Parked gate aircraft placement (the taxiing model scaled down) and its forward door, which the jet bridge meets. */
+export const GATE = { x: -22, z: -10, scale: .8 };
+export function gateDoor() {
+  // Model: fuselage radius 1.1 centred at y=3; forward door 5 units behind the nose (model x=-8).
+  return { x: GATE.x - 5 * GATE.scale, y: 3 * GATE.scale, z: GATE.z + 1.1 * GATE.scale };
+}
+
 /** One panoramic outdoor pass shared by the windows, with per-window crops. */
 export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.Mesh[], kind: RoomAtmosphere, graphics: RoomGraphics, preset: SceneryPreset = 'auto') {
   const scene = new THREE.Scene();
@@ -144,15 +151,17 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       for (const z of [-2.5, 2.5]) mesh(sphere, 0x536671, [-1, 2.1, z], [1.2, .45, .45], plane);
       for (const x of [-4, 2]) mesh(sphere, 0x283439, [x, 1.4, .7], [.35, .35, .25], plane);
     }
-    const parked = transit.clone(true); parked.name = 'parked-gate-aircraft'; parked.position.set(-34, 0, -10); parked.scale.setScalar(.8); scene.add(parked);
-    // Gate apron continues from the lounge to the aircraft, taxiway and distant runway.
+    // Parked at the gate inside the window panorama; the jet bridge runs from the terminal facade to the forward door.
+    const parked = transit.clone(true); parked.name = 'parked-gate-aircraft'; parked.position.set(GATE.x, 0, GATE.z); parked.scale.setScalar(GATE.scale); scene.add(parked);
     box(0xa7b0af, [-42, .02, -7], [56, .04, 18]);
     for (let x = -60; x < -15; x += 10) box(0xd5c48c, [x, .06, -9], [.12, .03, 12]);
-    box(0xadbabd, [-49, 3.3, -4], [20, 2.5, 2.2]);
-    box(0x536f7e, [-49, 3.5, -2.88], [18, .8, .04]);
-    for (const x of [-55, -43]) box(0x7c8c90, [x, 1.4, -4], [.4, 2.8, .4]);
-    box(0xe1dfcf, [-28, .9, -5], [3.4, 1.5, 1.4]);
-    box(0x526e7b, [-29.1, 1.3, -4.28], [.7, .6, .03]);
+    const door = gateDoor(), bridgeFront = door.z + .05, bridgeBack = 9, bridgeLength = bridgeBack - bridgeFront;
+    const bridge = box(0xadbabd, [door.x, door.y, (bridgeFront + bridgeBack) / 2], [2.2, 2.2, bridgeLength]); bridge.name = 'gate-jet-bridge';
+    box(0x536f7e, [door.x + 1.12, door.y + .3, (bridgeFront + bridgeBack) / 2], [.04, .7, bridgeLength - 2]);
+    box(0x9aa7aa, [door.x, door.y, bridgeFront + .8], [3, 2.6, 1.6]);
+    for (const z of [bridgeFront + 3, bridgeFront + 11]) box(0x7c8c90, [door.x, (door.y - 1.1) / 2, z], [.4, door.y - 1.1, .4]);
+    box(0xe1dfcf, [-17, .9, -4], [3.4, 1.5, 1.4]);
+    box(0x526e7b, [-18.1, 1.3, -3.28], [.7, .6, .03]);
     box(0x59636b, [0, .02, -57], [350, .04, 10]);
     for (let x = -168; x < 175; x += 12) box(0xf4e7b3, [x, .06, -57], [5, .02, .18]);
     for (let x = -80; x <= 80; x += 8) {
