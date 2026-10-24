@@ -15,6 +15,7 @@ import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR, AVATAR_PANTS } from '@/lib/foc
 import { sceneryTargets, roomLifeCopy } from '@/lib/focusRoomLife';
 import { createRoomScenery } from './focusRoomScenery';
 import { createDeskTimer } from './focusDeskTimer';
+import type { SceneryPreset } from '@/lib/focusScenerySettings';
 import { resolveRoomDaylight, roomCameraFov, roomPixelRatio, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
 
 type Position = { x: number; y: number };
@@ -29,6 +30,8 @@ interface Props {
   daylight?: RoomDaylight;
   weather?: RoomWeather;
   timer?: string;
+  sceneryPreset?: SceneryPreset;
+  libraryWindows?: boolean;
 }
 const SHIRTS = [0x589f95, 0xcd8975, 0xc6a15c, 0x839c68, 0xa49bbf, 0x7b9ebf, 0x9aa96b, 0xcc9baa];
 const SKINS = [0xe9b38d, 0xc08b65, 0x875b43, 0xf1c6a3];
@@ -108,9 +111,9 @@ export default function FocusRoomImmersive(props: Props) {
     sun.castShadow = true; const shadowSize = graphics === 'cinematic' && element.clientWidth > 800 ? 2048 : 1024; sun.shadow.mapSize.set(shadowSize, shadowSize);
     Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 18, bottom: -15, near: .5, far: 45 });
     sun.shadow.bias = -.001;
-    const environment = buildFocusEnvironment(scene, atmosphere, {box:envBox,ball:envBall,mat:environmentMat}, graphics, renderer, props.flightTime);
+    const environment = buildFocusEnvironment(scene, atmosphere, {box:envBox,ball:envBall,mat:environmentMat}, graphics, renderer, props.flightTime, props.libraryWindows);
     const ground = environment.ground;
-    const outdoors = !flying && environment.assetWindows.length ? createRoomScenery(renderer, environment.assetWindows, atmosphere, graphics) : null;
+    const outdoors = !flying && environment.assetWindows.length ? createRoomScenery(renderer, environment.assetWindows, atmosphere, graphics, props.sceneryPreset) : null;
     const targets: THREE.Object3D[] = [ground];
     const paperCanvas=document.createElement('canvas');paperCanvas.width=512;paperCanvas.height=768;
     const paper=paperCanvas.getContext('2d')!;const paperShade=paper.createLinearGradient(0,0,512,0);paperShade.addColorStop(0,'#c7bdab');paperShade.addColorStop(.08,'#f0eadb');paperShade.addColorStop(1,'#e7e1d0');paper.fillStyle=paperShade;paper.fillRect(0,0,512,768);
@@ -342,7 +345,7 @@ export default function FocusRoomImmersive(props: Props) {
       scene.environment = null; bounceLight?.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
-  }, [props.scene, props.atmosphere, props.graphics, props.flightTime, lang]);
+  }, [props.scene, props.atmosphere, props.graphics, props.flightTime, props.sceneryPreset, props.libraryWindows, lang]);
 
   return <div className="bg-[#eee4cf] text-[#304c3e]" data-room-asset-state={assetState}>
     {assetState&&<p role="status" className="bg-[#f8f5eb] px-4 py-2 text-xs" data-testid="room-asset-status">{({he:['טוען ריהוט מפורט ותאורה…','ריהוט תלת־ממדי מפורט ותאורת HDR','חלק מפרטי הריהוט לא נטענו; תצוגה בסיסית זמינה'],en:['Loading detailed furniture and lighting…','Detailed 3D furniture and HDR lighting','Some assets could not load; basic room available'],es:['Cargando muebles e iluminación…','Muebles 3D detallados e iluminación HDR','Algunos recursos no se cargaron; sala básica disponible'],zh:['正在加载精细家具和灯光…','精细3D家具与HDR灯光','部分资源未加载，基础房间仍可用'],ar:['تحميل الأثاث والإضاءة…','أثاث ثلاثي الأبعاد وإضاءة HDR','تعذر تحميل بعض الموارد؛ الغرفة الأساسية متاحة'],ru:['Загрузка мебели и освещения…','Детальная 3D-мебель и HDR-освещение','Часть ресурсов не загружена; доступна базовая комната']}[lang])[assetState==='loading'?0:assetState==='ready'?1:2]}</p>}

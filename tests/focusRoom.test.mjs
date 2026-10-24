@@ -11,6 +11,7 @@ import * as flightTime from '../src/lib/focusFlightTime.ts';
 import * as avatarDesign from '../src/lib/focusAvatar.ts';
 import * as atmosphere from '../src/lib/focusAtmosphere.ts';
 import * as deviceCopy from '../src/lib/focusDeviceCopy.ts';
+import * as scenerySettings from '../src/lib/focusScenerySettings.ts';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -39,6 +40,7 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name === '@/lib/focusAvatar') return avatarDesign;
   if (name === '@/lib/focusAtmosphere') return atmosphere;
   if (name === '@/lib/focusDeviceCopy') return deviceCopy;
+  if (name === '@/lib/focusScenerySettings') return scenerySettings;
   if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => roomStorage[key] ?? null, setString(key, value) { roomStorage[key] = value; } } };
   if (name === './FocusRoomImmersive') return { default: () => null };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');

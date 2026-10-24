@@ -3,9 +3,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import type { RoomAtmosphere, RoomGraphics } from '@/lib/focusRoomJourney';
 import { resolveRoomDaylight, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
+import { sceneryTravel, type SceneryPreset } from '@/lib/focusScenerySettings';
 
 /** One panoramic outdoor pass shared by the windows, with per-window crops. */
-export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.Mesh[], kind: RoomAtmosphere, graphics: RoomGraphics) {
+export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.Mesh[], kind: RoomAtmosphere, graphics: RoomGraphics, preset: SceneryPreset = 'auto') {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 3, .1, 220);
   camera.position.set(0, 5, 14); camera.lookAt(0, 5, -30);
@@ -25,22 +26,26 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   const box = (color: number, at: number[], size: number[], parent?: THREE.Object3D) => mesh(cube, color, at, size, parent);
   const hemisphere = new THREE.HemisphereLight(0xeaf4ff, 0x637960, 2);
   const sun = new THREE.DirectionalLight(0xffebce, 2.5); sun.position.set(-20, 30, 15); scene.add(hemisphere, sun);
-  const urban = ['city-cafe', 'office', 'modern-library'].includes(kind);
-  const historic = ['heritage-library', 'grand', 'monastery-library'].includes(kind);
   const airport = kind === 'airport';
+  const urban = !airport && (preset !== 'auto' || ['city-cafe', 'office', 'modern-library'].includes(kind));
+  const high = !airport && preset.endsWith('-high'), tokyo = !airport && preset.startsWith('tokyo');
+  const historic = !urban && ['heritage-library', 'grand', 'monastery-library'].includes(kind);
+  const eyeHeight = high ? 24 : 5;
+  camera.position.y = eyeHeight; camera.lookAt(0, high ? 16 : 5, -30);
+  scene.name = `living-scenery-${airport ? 'airport' : preset}`;
   const ground = box(urban || airport ? 0x8e9596 : 0x657c55, [0, -.3, -35], [180, .5, 160]);
   if (urban) {
     box(0x515a60, [0, .01, -6], [160, .04, 9]);
     for (let x = -70; x < 70; x += 7) box(0xe9e0c6, [x, .04, -6], [3, .02, .12]);
   } else if (!airport) box(0xc5baa0, [0, .01, -10], [5, .04, 90]);
   // Layered silhouettes create depth beyond the garden or street.
-  for (let i = 0; i < 9; i++) mesh(sphere, 0x6f8d8c, [(i - 4) * 24, -6, -92 - i % 3 * 9], [27, 19 + i % 4 * 3, 12]);
+  if (!urban && !airport) for (let i = 0; i < 9; i++) mesh(sphere, 0x6f8d8c, [(i - 4) * 24, -6, -92 - i % 3 * 9], [27, 19 + i % 4 * 3, 12]);
   const lit = new THREE.MeshStandardMaterial({ color: 0xd6c7a4, emissive: 0xffc778, emissiveIntensity: 0 }); resources.add(lit);
   const windowGeometry = new THREE.BoxGeometry(.65, 1.05, .04); resources.add(windowGeometry);
   const windowMatrices: THREE.Matrix4[] = [];
   if (urban || historic) {
     for (let i = 0; i < 11; i++) {
-      const x = (i - 5) * 8, z = historic ? -44 : -23 - i % 3 * 3, h = historic ? 11 : 9 + i % 4 * 2;
+      const x = (i - 5) * 8, z = historic ? -44 : high ? -45 - i % 3 * 7 : -23 - i % 3 * 3, h = historic ? 11 : high ? 20 + (i * 13) % 29 : 9 + i % 4 * 2;
       box([0xb9b1a1, 0xcbb99d, 0xa7b2af, 0xbda99a][i % 4], [x, h / 2, z], [7.6, h, 5]);
       for (const y of [1.2, h - .5, h + .15]) box(0xe1d5bd, [x, y, z + 2.65], [8, .22, .38]);
       if (historic) { const roof = new THREE.ConeGeometry(5.8, 3.5, 4); resources.add(roof); const m = mesh(roof, 0x4d6265, [x, h + 1.6, z], [1, 1, 1]); m.rotation.y = Math.PI / 4; }
@@ -49,6 +54,25 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
         box(0x52636a, [wx, y, z + 2.54], [.9, 1.4, .06]);
         windowMatrices.push(new THREE.Matrix4().makeTranslation(wx, y, z + 2.59));
       }
+    }
+  }
+  if (urban) {
+    // Distant towers sit behind the street facades, with a different silhouette for each city.
+    for (let i = 0; i < 19; i++) {
+      const x = (i - 9) * 8, h = 17 + (i * 17) % 37, z = -90 - i % 3 * 8;
+      box(tokyo ? 0x899aa6 : 0x9d9b93, [x, h / 2, z], [6, h, 6]);
+      for (let y = 4; y < h; y += 3) box(0x5b7280, [x, y, z + 3.05], [5.3, .65, .04]);
+      if (i % 4 === 0) { box(0x98a6ad, [x, h + 2, z], [3.6, 4, 3.6]); box(0x647783, [x, h + 6, z], [.18, 5, .18]); }
+    }
+    if (tokyo) {
+      for (const side of [-1, 1]) { const leg = box(0xbc6450, [18 + side * 2, 16, -72], [.65, 32, .65]); leg.rotation.z = side * .1; }
+      for (const y of [9, 18, 27]) box(0xe6bda0, [18, y, -72], [7 - y * .16, .6, 1.2]);
+      box(0xc8c7bd, [18, 36, -72], [.3, 15, .3]);
+    }
+    for (let i = 0; i < 10; i++) {
+      const x = (i - 4.5) * 8;
+      box(tokyo ? 0x786978 : 0x516b5e, [x, 2, -19], [4, .8, .8]);
+      for (let stripe = 0; stripe < 4; stripe++) box(0xd9cbb5, [x - 1.5 + stripe, 2.02, -18.55], [.4, .7, .03]);
     }
   }
   if (windowMatrices.length) { const lights = new THREE.InstancedMesh(windowGeometry, lit, windowMatrices.length); windowMatrices.forEach((m, i) => lights.setMatrixAt(i, m)); lights.computeBoundingSphere(); scene.add(lights); resources.add(lights); }
@@ -76,6 +100,37 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     transit.position.set(-12, 0, -24);
   } else if (urban) {
     box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = -6;
+  }
+  const traffic: THREE.Group[] = [], walkers: THREE.Group[] = [];
+  if (urban) {
+    transit.visible = false;
+    for (let i = 0; i < 8; i++) {
+      const car = new THREE.Group(); car.name = `street-car-${i}`; scene.add(car); traffic.push(car);
+      box(i % 3 === 0 ? (tokyo ? 0xe8e9e1 : 0xd4a638) : [0x496779, 0xa05748, 0xdee0d7][i % 3], [0, .6, 0], [3.2, .8, 1.35], car);
+      box(0x516c7b, [0, 1.15, 0], [1.6, .6, 1.15], car);
+      for (const x of [-1, 1]) for (const z of [-.65, .65]) mesh(sphere, 0x293236, [x, .35, z], [.34, .34, .18], car);
+    }
+    for (let i = 0; i < 12; i++) {
+      const person = new THREE.Group(); person.name = `street-walker-${i}`; scene.add(person); walkers.push(person);
+      mesh(sphere, 0xc4a38b, [0, 1.6, 0], [.18, .2, .18], person);
+      box([0x44505b, 0x776358, 0x81958a][i % 3], [0, 1, 0], [.4, .8, .27], person);
+      for (const x of [-.12, .12]) box(0x424853, [x, .35, 0], [.14, .7, .16], person);
+    }
+  }
+  let departure: THREE.Group | undefined;
+  if (airport) {
+    // A second aircraft climbs beyond the runway while the near aircraft taxis.
+    departure = transit.clone(true); departure.name = 'departing-aircraft'; scene.add(departure);
+    transit.name = 'taxiing-aircraft';
+    for (const plane of [transit, departure]) {
+      for (const z of [-2.5, 2.5]) mesh(sphere, 0x536671, [-1, 2.1, z], [1.2, .45, .45], plane);
+      for (const x of [-4, 2]) mesh(sphere, 0x283439, [x, 1.4, .7], [.35, .35, .25], plane);
+    }
+    for (let x = -80; x <= 80; x += 8) {
+      box(0xc4d1ac, [x, .15, -31], [.2, .2, .2]); box(0xc4d1ac, [x, .15, -15], [.2, .2, .2]);
+    }
+    box(0xa5b2b6, [36, 6, -65], [9, 12, 9]); box(0x426372, [36, 13, -65], [13, 3, 12]);
+    for (let i = 0; i < 5; i++) box(0xaeb8b9, [-48 + i * 18, 3, -76], [15, 6, 12]);
   }
   // Soft billboard cumulus: lit spheres read as floating discs through the windows.
   const cloudPixels = new Uint8Array(128 * 64 * 4);
@@ -147,7 +202,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     window.geometry = geometry; window.material = m; resources.add(geometry); resources.add(m);
     restores.push(() => { window.geometry = original; window.material = previous; });
   });
-  let previousKey = '', last = -1, clock = 0, stopped = false;
+  let previousKey = '', last = -1, clock = 0, lastMotionClock = 0, stopped = false;
   let distantLandscape: THREE.DataTexture | undefined;
   if (!urban && !airport && graphics !== 'illustrated') new RGBELoader().loadAsync('/focus-assets/forest_slope.hdr').then(texture => {
     if (stopped) { texture.dispose(); return; }
@@ -159,9 +214,10 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       if (stopped) return;
       if (moving) clock += Math.min(dt, .1);
       const phase = resolveRoomDaylight(daylight), key = `${phase}:${weather}`;
-      const step = Math.floor(clock * 6);
+      const step = Math.floor(clock * (graphics === 'illustrated' ? 8 : 12));
       if (key === previousKey && step === last) return;
       previousKey = key; last = step;
+      const motionClock = moving ? clock : lastMotionClock;
       const night = phase === 'night', sunset = phase === 'sunset', wet = weather === 'rain';
       const sky = night ? 0x1b2a47 : wet ? 0xa9b4ba : sunset ? 0xf0b98a : 0xcfe2ea;
       // The forest HDR suits clear daylight only; other moods need a visible sky so the windows change with them.
@@ -174,11 +230,21 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       sun.position.set(-20, night ? 30 : sunset ? 7 : 30, 15);
       lit.emissiveIntensity = night ? 1.6 : sunset ? .6 : 0;
       (ground.material as THREE.MeshStandardMaterial).roughness = wet ? .28 : .85;
-      trees.rotation.z = moving ? Math.sin(clock * .28) * .006 : 0;
-      clouds.position.x = Math.sin(clock * .012) * 10;
+      trees.rotation.z = Math.sin(motionClock * .28) * .006;
+      clouds.position.x = Math.sin(motionClock * .012) * 10;
       cloudMaterial.color.set(night ? 0x56627c : wet ? 0xaab4bb : sunset ? 0xffcfae : 0xffffff); cloudMaterial.opacity = night ? .5 : wet ? .95 : .9;
-      if (airport || urban) transit.position.x = moving ? Math.sin(clock * (airport ? .012 : .035)) * 35 : -12;
-      rain.visible = wet; rain.position.y = -(clock * 6 % 4);
+      if (airport) {
+        transit.position.x = -sceneryTravel(motionClock, 1.8, 60);
+        if (departure) {
+          const progress = ((motionClock + 12) % 80) / 80;
+          departure.position.set(160 - progress * 320, Math.max(0, progress - .38) * 40, -48);
+          departure.rotation.z = progress > .38 ? -.08 : 0;
+        }
+      }
+      traffic.forEach((car, i) => { const direction = i % 2 ? -1 : 1; car.position.set(direction * sceneryTravel(motionClock, 4 + i % 3, i * 23), 0, i % 2 ? -8 : -4); });
+      walkers.forEach((person, i) => { person.position.set((i % 2 ? -1 : 1) * sceneryTravel(motionClock, .65, i * 16), 0, -12.2 - i % 2 * 1.4); person.rotation.z = Math.sin(motionClock * 5 + i) * .025; });
+      rain.visible = wet; rain.position.y = -(motionClock * 6 % 4);
+      lastMotionClock = motionClock;
       const previous = renderer.getRenderTarget();
       try { renderer.setRenderTarget(target); renderer.render(scene, camera); }
       finally { renderer.setRenderTarget(previous); }

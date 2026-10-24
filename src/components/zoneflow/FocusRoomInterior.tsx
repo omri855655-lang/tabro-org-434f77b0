@@ -13,6 +13,7 @@ import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
 import { historicLibraryCopy } from '@/lib/focusRoomJourney';
 import { atmosphereCopy, parseRoomDaylight, parseRoomWeather } from '@/lib/focusAtmosphere';
 import { focusDeviceCopy } from '@/lib/focusDeviceCopy';
+import { SCENERY_PRESETS, parseSceneryPreset, isReadingRoom, scenerySettingsCopy } from '@/lib/focusScenerySettings';
 import './focusRoomStudio.css';
 import { FOCUS_FLIGHTS, flightPhase, roomJourneyCopy, roomDesignCopy, isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 
@@ -43,6 +44,9 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const design = roomDesignCopy[lang];
   const atmosphereTitles: Record<RoomAtmosphere,string> = { library:journey[1], grand:journey[2], intimate:journey[3], plane:journey[4], airport:journey[5], cafe:journey[6], office:journey[7], 'modern-library':design[0], 'business-plane':design[1], 'city-cafe':design[2], 'heritage-library':historicLibraryCopy[lang][0], 'monastery-library':historicLibraryCopy[lang][1] };
   const ambience = atmosphereCopy[lang];
+  const sceneryCopy = scenerySettingsCopy[lang];
+  const [sceneryPreset, setSceneryPreset] = useState(() => parseSceneryPreset(safeLocalStorage.getString('zoneflow-scenery-preset')));
+  const [libraryWindows, setLibraryWindows] = useState(() => safeLocalStorage.getString('zoneflow-library-windows') !== 'off');
   const [daylight,setDaylight] = useState(()=>parseRoomDaylight(safeLocalStorage.getString('zoneflow-room-daylight') || (isFlightAtmosphere(scene) ? safeLocalStorage.getString('zoneflow-flight-time') : null)));
   const [weather,setWeather] = useState(()=>parseRoomWeather(safeLocalStorage.getString('zoneflow-room-weather')));
   const [quiet,setQuiet] = useState(false);
@@ -150,6 +154,9 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
         {started && <span className="text-xs">{journey[16]}</span>}
       </div>}
       <div className="grid gap-3 sm:grid-cols-2">
+        {!isFlightAtmosphere(atmosphere) && atmosphere !== 'airport' && <label className="grid gap-2 text-xs">{sceneryCopy[0]}<select value={sceneryPreset} disabled={view === 'map' || (isReadingRoom(atmosphere) && !libraryWindows)} className="rounded-xl border bg-white p-3 text-sm" onChange={event => { const value = parseSceneryPreset(event.target.value); setSceneryPreset(value); safeLocalStorage.setString('zoneflow-scenery-preset', value); }}>{SCENERY_PRESETS.map((value, index) => <option key={value} value={value}>{sceneryCopy[index + 1]}</option>)}</select></label>}
+        {isReadingRoom(atmosphere) && <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={libraryWindows} disabled={view === 'map'} onChange={event => { setLibraryWindows(event.target.checked); safeLocalStorage.setString('zoneflow-library-windows', event.target.checked ? 'on' : 'off'); }} />{sceneryCopy[6]}</label>}
+        {!isFlightAtmosphere(atmosphere) && <p className="text-xs text-[#65786a] sm:col-span-2">{sceneryCopy[7]}</p>}
         <label className="grid gap-2 text-xs">{ambience.light}<select value={daylight} disabled={view==='map'} className="rounded-xl border bg-white p-3 text-sm" onChange={event=>{const value=parseRoomDaylight(event.target.value);setDaylight(value);safeLocalStorage.setString('zoneflow-room-daylight',value);}}>{(['auto','day','sunset','night'] as const).map(value=><option key={value} value={value}>{ambience[value]}</option>)}</select></label>
         <label className="grid gap-2 text-xs">{ambience.weather}<select value={weather} disabled={view==='map'} className="rounded-xl border bg-white p-3 text-sm" onChange={event=>{const value=parseRoomWeather(event.target.value);setWeather(value);safeLocalStorage.setString('zoneflow-room-weather',value);}}>{(['clear','rain'] as const).map(value=><option key={value} value={value}>{ambience[value]}</option>)}</select></label>
         <p className="text-xs text-[#65786a] sm:col-span-2">{ambience.note}</p>
@@ -158,7 +165,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       {view!=='map'&&<FocusRoomLife enabled={scenery} onChange={value=>{setScenery(value);safeLocalStorage.setString('zoneflow-room-life',value?'on':'off');}}/>}
       </div>
     </details>
-    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} graphics={graphics} daylight={daylight} weather={weather} scenery={scenery} elapsed={elapsed} started={started} running={active} timer={timer} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
+    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} graphics={graphics} daylight={daylight} weather={weather} scenery={scenery} sceneryPreset={sceneryPreset} libraryWindows={libraryWindows} elapsed={elapsed} started={started} running={active} timer={timer} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
       <div className="relative mx-auto cursor-crosshair" style={{ width: zoomed ? '150%' : '100%', maxWidth: zoomed ? undefined : '900px' }} onClick={moveFromPointer} aria-label={copy.space}>
         <FocusRoomWorld scene={scene} participants={participants} walking={walking} deskLabel={copy.desk} selectedSeat={selectedSeat} />
       </div>

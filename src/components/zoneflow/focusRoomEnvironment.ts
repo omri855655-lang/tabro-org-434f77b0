@@ -13,7 +13,7 @@ type Build = {
   mat: (color: number) => THREE.MeshStandardMaterial;
 };
 
-export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build, graphics: RoomGraphics = 'natural', renderer?: THREE.WebGLRenderer, flightTime: FocusFlightTime = 'day') {
+export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, b: Build, graphics: RoomGraphics = 'natural', renderer?: THREE.WebGLRenderer, flightTime: FocusFlightTime = 'day', libraryWindows = true) {
   const {box, ball, mat} = b;
   const monastery=kind==='monastery-library',historic=kind==='heritage-library'||monastery;
   const plane = isFlightAtmosphere(kind), business = kind === 'business-plane', airport = kind === 'airport', grand = kind === 'grand'||historic;
@@ -184,7 +184,12 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     for(const x of [-6,0,6])box(scene,0xf4eddc,[x,5.7,.5],[.08,.08,15]);
     for(const x of [-8,8]){plant(x,-6);box(scene,0x698777,[x,.8,7],[2,1.6,2]);}
   }else{
-    const count=cozy?2:3;for(let i=0;i<count;i++)window((i-(count-1)/2)*(cozy?6:6.4),cozy?2.8:grand?4.8:3.4,front+.2,cozy?3.4:4.4,cozy?3:grand?7.8:4.8);
+    const count=cozy?2:3;
+    for(let i=0;i<count;i++) {
+      const x=(i-(count-1)/2)*(cozy?6:6.4);
+      if(libraryWindows) window(x,cozy?2.8:grand?4.8:3.4,front+.2,cozy?3.4:4.4,cozy?3:grand?7.8:4.8);
+      else shelf(x,front+.45,0,cozy?3.5:grand?8.5:5);
+    }
     for(const side of [-1,1])for(let z=-6;z<9;z+=3.7)shelf(side*(width-.35),z,-side*Math.PI/2,monastery?5:cozy?3.5:grand?8.5:modern?3:5);
     if(modern){
       for(const z of [-5,1,7])box(scene,0xf4f1de,[0,height-.3,z],[15,.06,.15]);
