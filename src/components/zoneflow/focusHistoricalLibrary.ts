@@ -8,8 +8,9 @@ export function buildHistoricalLibrary(scene:THREE.Scene,b:Builders,monastery:bo
     const pixels=new Uint8Array(128*128*4);
     for(let y=0;y<128;y++)for(let x=0;x<128;x++){
       const edge=y%32<2||(x+(Math.floor(y/32)%2)*32)%64<2;
-      const value=edge?113:191+((x*13+y*7)%17);
-      const offset=(y*128+x)*4;pixels.set([value,value-8,value-22,255],offset);
+      // Warm, slightly darker limestone so the hall does not wash out to white under bounce light.
+      const value=edge?104:166+((x*13+y*7)%19);
+      const offset=(y*128+x)*4;pixels.set([value,value-12,value-32,255],offset);
     }
     const texture=new THREE.DataTexture(pixels,128,128);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(4,4);texture.needsUpdate=true;
     const material=new THREE.MeshStandardMaterial({map:texture,bumpMap:texture,bumpScale:.035,roughness:.97});resources.push(texture,material);

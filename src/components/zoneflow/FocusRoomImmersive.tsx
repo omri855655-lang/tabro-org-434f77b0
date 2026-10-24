@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ArrowDown, ArrowUp, RotateCcw, RotateCw } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
@@ -13,7 +14,7 @@ import type { FocusFlightTime } from '@/lib/focusFlightTime';
 import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR, AVATAR_PANTS } from '@/lib/focusAvatar';
 import { sceneryTargets, roomLifeCopy } from '@/lib/focusRoomLife';
 import { createRoomScenery } from './focusRoomScenery';
-import { resolveRoomDaylight, roomPixelRatio, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
+import { resolveRoomDaylight, roomCameraFov, roomPixelRatio, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -56,6 +57,10 @@ export default function FocusRoomImmersive(props: Props) {
     canvas.setAttribute('aria-hidden', 'true');
     element.appendChild(canvas);
     const scene = new THREE.Scene();
+    // Locally generated bounce light so ceilings, cabins and terminals are never lit only from above.
+    let bounceLight: THREE.WebGLRenderTarget | null = null;
+    try { const pmrem = new THREE.PMREMGenerator(renderer), room = new RoomEnvironment(); bounceLight = pmrem.fromScene(room, .04); room.dispose(); pmrem.dispose(); scene.environment = bounceLight.texture; }
+    catch { bounceLight = null; }
     const atmosphere = props.atmosphere || props.scene;
     const flying = isFlightAtmosphere(atmosphere);
     const night=flying&&props.flightTime==='night';
@@ -207,7 +212,7 @@ export default function FocusRoomImmersive(props: Props) {
       if (me) latest.current.onMove(safeFloorPosition({ x: me.x - Math.sin(yaw) * amount * 4, y: me.y - Math.cos(yaw) * amount * 4 }, layout));
     };
     controls.current = { turn, step };
-    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setPixelRatio(roomPixelRatio(window.devicePixelRatio,width,height,graphics!=='illustrated')); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix();avatars.forEach(avatar=>sizeLabel(avatar.label)); };
+    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setPixelRatio(roomPixelRatio(window.devicePixelRatio,width,height,graphics!=='illustrated')); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.fov = roomCameraFov(camera.aspect); camera.updateProjectionMatrix();avatars.forEach(avatar=>sizeLabel(avatar.label)); };
     const observer = new ResizeObserver(resize); observer.observe(element); resize();
     const contextLost = (event: Event) => { event.preventDefault(); latest.current.onUnavailable(); };
     canvas.addEventListener('webglcontextlost', contextLost);
@@ -247,7 +252,8 @@ export default function FocusRoomImmersive(props: Props) {
         sun.color.set(dark ? 0x86a8cf : golden ? 0xffb56e : 0xffe5be);
         sun.intensity = dark ? .25 : wet ? .6 : golden ? 1.4 : 1.9;
         sun.position.set(golden ? -13 : -5, golden ? 5 : 10, -5);
-        scene.environmentIntensity = dark ? .28 : golden ? .5 : .65;
+        // The generated bounce map is brighter than the local reading-room HDR, so it is scaled down.
+        scene.environmentIntensity = (dark ? .28 : golden ? .5 : .65) * (bounceLight && scene.environment === bounceLight.texture ? .55 : 1);
         outdoors?.update(dt, latest.current.daylight || 'auto', latest.current.weather || 'clear', !!latest.current.scenery && !reduced.matches);
       }
       const local = latest.current.participants.find(p => p.isMe);
@@ -327,6 +333,7 @@ export default function FocusRoomImmersive(props: Props) {
       outdoors?.dispose(); environment.dispose(); roundedCube.dispose();
       environmentMaterials.forEach(material=>material.dispose());grainTexture.dispose();
       paperGeometry.dispose();paperMaterial.dispose();paperTexture.dispose();
+      scene.environment = null; bounceLight?.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
   }, [props.scene, props.atmosphere, props.graphics, props.flightTime, lang]);

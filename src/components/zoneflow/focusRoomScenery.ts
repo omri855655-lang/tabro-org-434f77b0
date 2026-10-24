@@ -77,16 +77,49 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   } else if (urban) {
     box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = -6;
   }
-  const cloudGeometry = new THREE.SphereGeometry(1, 12, 8); resources.add(cloudGeometry);
-  const clouds = new THREE.InstancedMesh(cloudGeometry, material(0xe4e9e6), 30);
-  const cloudTransform = new THREE.Object3D();
-  for (let i = 0; i < 30; i++) { cloudTransform.position.set((i % 10 - 5) * 15, 21 + i % 3 * 4, -35 - Math.floor(i / 10) * 23); cloudTransform.scale.set(9, 1.3 + i % 3 * .5, 4); cloudTransform.updateMatrix(); clouds.setMatrixAt(i, cloudTransform.matrix); }
-  clouds.computeBoundingSphere(); scene.add(clouds); resources.add(clouds);
+  // Soft billboard cumulus: lit spheres read as floating discs through the windows.
+  const cloudPixels = new Uint8Array(128 * 64 * 4);
+  const puffs = [[.3, .62, .2], [.5, .5, .27], [.7, .6, .21], [.42, .68, .17], [.6, .7, .16]];
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+    const u = x / 127, v = y / 63;
+    let density = 0;
+    for (const [px, py, r] of puffs) density += Math.exp(-(((u - px) * 1.9) ** 2 + (v - py) ** 2) / (r * r * .5));
+    const alpha = Math.min(1, Math.max(0, density - .35) * 1.4) * Math.min(1, (1 - v) * 4);
+    const shade = 255 - Math.round(Math.max(0, v - .55) * 70);
+    cloudPixels.set([shade, shade, Math.min(255, shade + 4), Math.round(alpha * 235)], (y * 128 + x) * 4);
+  }
+  const cloudTexture = new THREE.DataTexture(cloudPixels, 128, 64); cloudTexture.flipY = true; cloudTexture.colorSpace = THREE.SRGBColorSpace; cloudTexture.magFilter = THREE.LinearFilter; cloudTexture.needsUpdate = true;
+  const cloudMaterial = new THREE.SpriteMaterial({ map: cloudTexture, transparent: true, depthWrite: false, fog: true });
+  resources.add(cloudTexture); resources.add(cloudMaterial);
+  const clouds = new THREE.Group(); scene.add(clouds);
+  for (let i = 0; i < 12; i++) {
+    const cloud = new THREE.Sprite(cloudMaterial);
+    cloud.position.set((i % 6 - 2.5) * 34 + Math.sin(i * 5) * 9, 24 + (i * 7) % 3 * 5, -70 - Math.floor(i / 6) * 34);
+    cloud.scale.set(34 + (i * 13) % 4 * 6, 12 + (i * 5) % 3 * 3, 1); clouds.add(cloud);
+  }
   const rainPositions = new Float32Array(500 * 3);
   for (let i = 0; i < 500; i++) rainPositions.set([Math.sin(i * 31) * 50, i % 25, -8 - (i * 17) % 55], i * 3);
   const rainGeometry = new THREE.BufferGeometry(); rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
   const rainMaterial = new THREE.PointsMaterial({ color: 0xcadce6, size: .08, transparent: true, opacity: .6, depthWrite: false });
   const rain = new THREE.Points(rainGeometry, rainMaterial); scene.add(rain); resources.add(rainGeometry); resources.add(rainMaterial);
+  const starPositions = new Float32Array(160 * 3);
+  for (let i = 0; i < 160; i++) starPositions.set([Math.sin(i * 12.9898) * 120, 22 + Math.abs(Math.sin(i * 78.233)) * 50, -150 + Math.cos(i * 3.7) * 10], i * 3);
+  const starGeometry = new THREE.BufferGeometry(); starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const starMaterial = new THREE.PointsMaterial({ color: 0xdfe8f5, size: 1.4, sizeAttenuation: false, fog: false });
+  const stars = new THREE.Points(starGeometry, starMaterial); stars.visible = false; scene.add(stars); resources.add(starGeometry); resources.add(starMaterial);
+  // A small vertical gradient replaces the flat colour sky for sunset, night and rain.
+  const skyPixels = new Uint8Array(64 * 4);
+  const skyTexture = new THREE.DataTexture(skyPixels, 1, 64); skyTexture.colorSpace = THREE.SRGBColorSpace; skyTexture.magFilter = THREE.LinearFilter; resources.add(skyTexture);
+  const paintSky = ([top, middle, horizon]: number[]) => {
+    const a = new THREE.Color(), b = new THREE.Color();
+    for (let row = 0; row < 64; row++) {
+      const v = row / 63;
+      const raw = THREE.LinearSRGBColorSpace; // keep raw sRGB bytes; the texture itself is tagged sRGB
+      if (v < .45) a.setHex(horizon, raw); else if (v < .7) a.setHex(horizon, raw).lerp(b.setHex(middle, raw), (v - .45) / .25); else a.setHex(middle, raw).lerp(b.setHex(top, raw), (v - .7) / .3);
+      skyPixels.set([Math.round(a.r * 255), Math.round(a.g * 255), Math.round(a.b * 255), 255], row * 4);
+    }
+    skyTexture.needsUpdate = true;
+  };
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
   for (const object of [...scene.children]) {
     if (!(object instanceof THREE.Mesh) || object instanceof THREE.InstancedMesh || Array.isArray(object.material) || object === ground) continue;
@@ -98,11 +131,18 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     if (geometry) { resources.add(geometry); scene.add(new THREE.Mesh(geometry, material)); }
   }
   const restores: (() => void)[] = [];
+  const targetAspect = target.width / target.height;
   windows.forEach((window, index) => {
     // Cropped UVs share one render-target texture without copying GPU pixels.
     const original = window.geometry, geometry = original.clone(), uv = geometry.getAttribute('uv');
     const slice = 1 / Math.max(1, windows.length);
-    for (let i = 0; i < uv.count; i++) uv.setX(i, (index + uv.getX(i)) * slice);
+    // Crop to the window's own proportions so tall arches are not stretched vertically.
+    if (!original.boundingBox) original.computeBoundingBox();
+    const box = original.boundingBox!, aspect = Math.max(.05, ((box.max.x - box.min.x) * Math.abs(window.scale.x)) / Math.max(.001, (box.max.y - box.min.y) * Math.abs(window.scale.y)));
+    let uSpan = Math.min(slice, aspect / targetAspect), vSpan = Math.min(1, uSpan * targetAspect / aspect);
+    if (!Number.isFinite(uSpan) || !Number.isFinite(vSpan)) { uSpan = slice; vSpan = 1; }
+    const u0 = (index + .5) * slice - uSpan / 2, v0 = (1 - vSpan) * .5;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + uv.getX(i) * uSpan, v0 + uv.getY(i) * vSpan);
     const previous = window.material, m = new THREE.MeshBasicMaterial({ map: target.texture, toneMapped: false });
     window.geometry = geometry; window.material = m; resources.add(geometry); resources.add(m);
     restores.push(() => { window.geometry = original; window.material = previous; });
@@ -123,15 +163,20 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       if (key === previousKey && step === last) return;
       previousKey = key; last = step;
       const night = phase === 'night', sunset = phase === 'sunset', wet = weather === 'rain';
-      const sky = night ? 0x14253d : wet ? 0x9aaeb9 : sunset ? 0xdbb29a : 0xb5d4e5;
-      scene.background = distantLandscape || new THREE.Color(sky); scene.backgroundIntensity = night ? .08 : sunset ? .5 : wet ? .6 : .9;
+      const sky = night ? 0x1b2a47 : wet ? 0xa9b4ba : sunset ? 0xf0b98a : 0xcfe2ea;
+      // The forest HDR suits clear daylight only; other moods need a visible sky so the windows change with them.
+      paintSky(night ? [0x050b1a, 0x13213b, sky] : wet ? [0x6f7e89, 0x95a3ab, sky] : sunset ? [0x46507f, 0xd98d72, sky] : [0x5f9bd0, 0x9fc6e2, sky]);
+      scene.background = distantLandscape && !night && !sunset && !wet ? distantLandscape : skyTexture; scene.backgroundIntensity = .9;
       scene.fog = new THREE.Fog(sky, wet ? 35 : 65, 170);
-      hemisphere.intensity = night ? .35 : wet ? 1.4 : 2;
-      sun.intensity = night ? .3 : wet ? .6 : sunset ? 2 : 2.5; sun.color.set(night ? 0x8eb8ea : sunset ? 0xffbd75 : 0xffedcc);
+      stars.visible = night && !wet;
+      hemisphere.intensity = night ? .16 : wet ? 1.2 : sunset ? 1.3 : 2; hemisphere.color.set(night ? 0x6f86b0 : sunset ? 0xffd9b8 : 0xeaf4ff);
+      sun.intensity = night ? .18 : wet ? .6 : sunset ? 2 : 2.5; sun.color.set(night ? 0x8eb8ea : sunset ? 0xff9f5a : 0xffedcc);
+      sun.position.set(-20, night ? 30 : sunset ? 7 : 30, 15);
       lit.emissiveIntensity = night ? 1.6 : sunset ? .6 : 0;
       (ground.material as THREE.MeshStandardMaterial).roughness = wet ? .28 : .85;
       trees.rotation.z = moving ? Math.sin(clock * .28) * .006 : 0;
       clouds.position.x = Math.sin(clock * .012) * 10;
+      cloudMaterial.color.set(night ? 0x56627c : wet ? 0xaab4bb : sunset ? 0xffcfae : 0xffffff); cloudMaterial.opacity = night ? .5 : wet ? .95 : .9;
       if (airport || urban) transit.position.x = moving ? Math.sin(clock * (airport ? .012 : .035)) * 35 : -12;
       rain.visible = wet; rain.position.y = -(clock * 6 % 4);
       const previous = renderer.getRenderTarget();
