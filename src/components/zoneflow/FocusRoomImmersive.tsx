@@ -143,7 +143,7 @@ export default function FocusRoomImmersive(props: Props) {
     });
     const assetEnabled=graphics!=='illustrated'&&['library','grand','intimate','cafe','city-cafe','heritage-library','monastery-library'].includes(atmosphere);
     setAssetState(assetEnabled?'loading':'');
-    const assets=assetEnabled?attachRoomAssets(scene,renderer,assetStations,environment.assetShelves,environment.bookPlaceholders,environment.assetWindows,atmosphere,{floor:ground,walls:environment.assetWalls}):null;
+    const assets=assetEnabled?attachRoomAssets(scene,renderer,assetStations,environment.assetShelves,environment.bookPlaceholders,environment.assetWindows,atmosphere,{floor:ground,walls:environment.assetWalls},element.clientWidth<640?10:graphics==='cinematic'?18:14):null;
     let assetsActive=true;
     assets?.ready.then(result=>{if(assetsActive)setAssetState(result.loaded?'ready':'fallback');});
     interface Avatar { root: THREE.Group; body: THREE.Group; arms: THREE.Group[]; legs: THREE.Group[]; head: THREE.Group; label: THREE.Sprite; labelKey: string; style: number; target: Position; route: Position[]; next: number; position: Position; }

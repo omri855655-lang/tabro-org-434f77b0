@@ -47,3 +47,21 @@ test('assets finishing after room disposal never attach and release their GPU re
   assert.equal(f.root.children.length,1);assert.equal(f.furniture.visible,true);
   assert.equal(f.scene.environment,null);assert.ok(counts.every(count=>count.value===1));
 });
+
+test('library book detail changes with camera distance without discarding close-up assets',async t=>{
+  const f=fixture();
+  t.mock.method(GLTFLoader.prototype,'loadAsync',async()=>{const scene=new THREE.Group();scene.add(new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshStandardMaterial()));return {scene};});
+  t.mock.method(RGBELoader.prototype,'loadAsync',async()=>{throw new Error('Offline fixture');});
+  t.mock.method(THREE.TextureLoader.prototype,'loadAsync',async()=>new THREE.Texture());
+  const shelf=new THREE.Group();shelf.userData.shelfHeight=8;f.scene.add(shelf);
+  const assets=attachRoomAssets(f.scene,f.renderer,[],[shelf],[],[],'grand',{floor:f.floor,walls:[f.wall]},10);
+  await assets.ready;f.scene.updateMatrixWorld(true);
+  const levels=[];f.scene.traverse(object=>{if(object.isLOD)levels.push(object);});assert.equal(levels.length,8);
+  const camera=new THREE.PerspectiveCamera();
+  for(const lod of levels){
+    camera.position.copy(lod.getWorldPosition(new THREE.Vector3())).add(new THREE.Vector3(0,0,2));camera.updateMatrixWorld();lod.update(camera);assert.equal(lod.getCurrentLevel(),0);
+    camera.position.z+=50;camera.updateMatrixWorld();lod.update(camera);assert.equal(lod.getCurrentLevel(),1);
+    assert.ok(lod.levels[1].object.geometry.getAttribute('position').count<400);
+  }
+  assets.dispose();assert.ok(!f.scene.getObjectByName('distance-aware-book-shelf'));assert.equal(shelf.visible,true);
+});

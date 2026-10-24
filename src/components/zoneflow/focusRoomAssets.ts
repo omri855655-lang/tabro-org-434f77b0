@@ -6,7 +6,7 @@ import type { RoomAtmosphere } from '@/lib/focusRoomJourney';
 
 type Station = { root: THREE.Group; furniture: THREE.Object3D[] };
 
-export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRenderer, stations: Station[], shelves: THREE.Group[], bookPlaceholders: THREE.Object3D[], windows:THREE.Mesh[], kind: RoomAtmosphere, surfaces:{floor:THREE.Mesh;walls:THREE.Mesh[]}) {
+export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRenderer, stations: Station[], shelves: THREE.Group[], bookPlaceholders: THREE.Object3D[], windows:THREE.Mesh[], kind: RoomAtmosphere, surfaces:{floor:THREE.Mesh;walls:THREE.Mesh[]}, detailDistance=14) {
   let stopped=false;
   const resources=new Set<{dispose:()=>void}>(), added:THREE.Object3D[]=[];
   const disposed=new WeakSet<object>(), restore:(()=>void)[]=[];
@@ -66,14 +66,29 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
   });
   const library=cafe?Promise.resolve():Promise.all([load('wooden_display_shelves_01'),load('book_encyclopedia_set_01')]).then(([shelf,books])=>{
     if(stopped||!shelf||!books)return;
+    // A distant shelf should not draw the 67k-triangle scanned book set.
+    const bookParts:THREE.BufferGeometry[]=[];
+    for(let i=0;i<14;i++){
+      const geometry=new THREE.BoxGeometry(.19,.48+i%3*.035,.35).translate(-1.4+i*.215,.27,0);
+      const color=new THREE.Color([0x526e61,0x9b704d,0x5e6574,0x875044,0xc1ac7f][i%5]);
+      const colors=new Float32Array(geometry.getAttribute('position').count*3);
+      for(let j=0;j<colors.length;j+=3)colors.set([color.r,color.g,color.b],j);
+      geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));bookParts.push(geometry);
+    }
+    const distantGeometry=keep(mergeGeometries(bookParts)!);bookParts.forEach(part=>part.dispose());
+    const distantMaterial=keep(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.92}));
     for(const placeholder of shelves){
       const root=new THREE.Group();root.position.copy(placeholder.position);root.rotation.copy(placeholder.rotation);scene.add(root);added.push(root);
       const height=Number(placeholder.userData.shelfHeight)||4.2;
       const levels=height>6?2:1,unitHeight=height/levels;
       for(let level=0;level<levels;level++)fit(shelf,new THREE.Vector3(3.5,unitHeight,.75),new THREE.Vector3(0,level*unitHeight,0),root);
       for(let row=0;row<4*levels;row++){
-        const set=fit(books,new THREE.Vector3(3.05,.56,.38),new THREE.Vector3(0,.45+Math.floor(row/4)*unitHeight+(row%4)*unitHeight*.226,.26),root);
+        const at=new THREE.Vector3(0,.45+Math.floor(row/4)*unitHeight+(row%4)*unitHeight*.226,.26);
+        const set=fit(books,new THREE.Vector3(3.05,.56,.38),at,root);
         set.traverse(object=>{if(object instanceof THREE.Mesh)object.castShadow=false;});
+        const lod=new THREE.LOD();lod.name='distance-aware-book-shelf';lod.position.copy(at);
+        set.position.sub(at);lod.addLevel(set,0);lod.addLevel(new THREE.Mesh(distantGeometry,distantMaterial),Math.max(6,detailDistance),.12);
+        root.add(lod);added.push(lod);
       }
       hide(placeholder);
     }
