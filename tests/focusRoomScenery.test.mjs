@@ -21,6 +21,9 @@ test('city views have distinct heights and moving traffic, and terminal keeps ai
     const scenery=exports.createRoomScenery(renderer,[window],'office','illustrated',preset);
     scenery.update(.1,'day','clear',true);
     assert.equal(camera.position.y,preset.endsWith('-high')?24:5);
+    // High floors shift the frame instead of tilting, so towers stay vertical; the ground reaches past the panorama edges.
+    assert.ok(Math.abs(camera.getWorldDirection(new THREE.Vector3()).y)<1e-6,'camera stays level');
+    const ground=scene.children.find(object=>object.isMesh&&object.scale.x>=600);assert.ok(ground,'ground extends beyond the wide view');
     const car=scene.getObjectByName('street-car-0');assert.ok(car);
     assert.ok(scene.getObjectByName('street-walker-11'));
     const x=car.position.x;
