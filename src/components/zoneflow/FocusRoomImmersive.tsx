@@ -14,7 +14,7 @@ import type { FocusFlightTime } from '@/lib/focusFlightTime';
 import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR, AVATAR_PANTS } from '@/lib/focusAvatar';
 import { sceneryTargets, roomLifeCopy } from '@/lib/focusRoomLife';
 import { createRoomScenery } from './focusRoomScenery';
-import { resolveRoomDaylight, roomPixelRatio, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
+import { resolveRoomDaylight, roomCameraFov, roomPixelRatio, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -212,7 +212,7 @@ export default function FocusRoomImmersive(props: Props) {
       if (me) latest.current.onMove(safeFloorPosition({ x: me.x - Math.sin(yaw) * amount * 4, y: me.y - Math.cos(yaw) * amount * 4 }, layout));
     };
     controls.current = { turn, step };
-    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setPixelRatio(roomPixelRatio(window.devicePixelRatio,width,height,graphics!=='illustrated')); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix();avatars.forEach(avatar=>sizeLabel(avatar.label)); };
+    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setPixelRatio(roomPixelRatio(window.devicePixelRatio,width,height,graphics!=='illustrated')); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.fov = roomCameraFov(camera.aspect); camera.updateProjectionMatrix();avatars.forEach(avatar=>sizeLabel(avatar.label)); };
     const observer = new ResizeObserver(resize); observer.observe(element); resize();
     const contextLost = (event: Event) => { event.preventDefault(); latest.current.onUnavailable(); };
     canvas.addEventListener('webglcontextlost', contextLost);
