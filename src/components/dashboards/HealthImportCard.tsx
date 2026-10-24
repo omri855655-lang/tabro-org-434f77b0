@@ -7,6 +7,8 @@ import {summarizeHealthRecords,type HealthRecord,type HealthDay} from '@/lib/hea
 import {Button} from '@/components/ui/button';
 import {nativeHealthAvailable,readNativeHealth} from '@/lib/nativeHealth';
 import {nutritionWorkspaceCopy} from '@/lib/nutritionWorkspaceCopy';
+import {mergeHealthDays} from '@/lib/healthSummaryImport';
+import {HealthSummaryImport} from './HealthSummaryImport';
 
 export function HealthImportCard(){const {user}=useAuth();return <HealthImport key={user?.id||'guest'} userId={user?.id||'guest'}/>;}
 function HealthImport({userId}:{userId:string}){
@@ -18,6 +20,7 @@ function HealthImport({userId}:{userId:string}){
     {nativeHealthAvailable()&&<Button disabled={busy} onClick={async()=>{setBusy(true);setError(false);try{const rows=await readNativeHealth();if(!rows.length)throw new Error('No health samples');window.localStorage.setItem(key,JSON.stringify(rows));setDays(rows);}catch{setError(true);}finally{setBusy(false);}}}>Apple Health</Button>}
     <p className="text-sm leading-relaxed text-muted-foreground">{extra[13]}</p>
     <p className="text-xs text-muted-foreground">{extra[12]}</p>
+    <HealthSummaryImport busy={busy} onError={()=>setError(true)} onImport={rows=>{const next=mergeHealthDays(days,rows);window.localStorage.setItem(key,JSON.stringify(next));setDays(next);setError(false);}} />
     <label className="block text-sm">{copy[1]}<input type="file" accept=".xml,text/xml,application/xml" disabled={busy} className="mt-2 block max-w-full text-xs" onChange={async event=>{
       const file=event.target.files?.[0];event.target.value='';if(!file)return;setBusy(true);setError(false);
       try{if(file.size>20000000)throw new Error('Too large');const xml=new DOMParser().parseFromString(await file.text(),'application/xml');if(xml.querySelector('parsererror')||xml.documentElement.nodeName!=='HealthData')throw new Error('Invalid export');
