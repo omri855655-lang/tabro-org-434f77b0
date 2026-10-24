@@ -36,6 +36,11 @@ test('city views have distinct heights and moving traffic, and terminal keeps ai
     terminal.update(.1,'day','clear',true);
     assert.equal(scene.getObjectByName('street-car-0'),undefined);
     const plane=scene.getObjectByName('departing-aircraft'),taxi=scene.getObjectByName('taxiing-aircraft');assert.ok(plane&&taxi);
+    // The jet bridge meets the parked aircraft's forward door, and the gate sits inside the window panorama.
+    const parked=scene.getObjectByName('parked-gate-aircraft'),bridge=new THREE.Box3().setFromObject(scene.children.find(object=>object.isMesh&&object.material.color?.getHex()===exports.GATE_BRIDGE_COLOR)),door=exports.gateDoor();
+    assert.ok(parked);assert.ok(Math.abs(bridge.min.z-door.z)<.2,`bridge ends ${bridge.min.z} vs door ${door.z}`);
+    assert.ok(bridge.min.x<=door.x&&bridge.max.x>=door.x&&bridge.min.y<door.y&&bridge.max.y>door.y);
+    camera.updateMatrixWorld();const ndc=parked.position.clone().setY(door.y).project(camera);assert.ok(Math.abs(ndc.x)<.9&&Math.abs(ndc.y)<1,`gate at ndc ${ndc.x}`);
     const start=taxi.position.x;
     for(let i=0;i<250;i++)terminal.update(.1,'day','clear',true);
     assert.ok(taxi.position.x<start);assert.ok(plane.position.y>0);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { buildFlightLandscape, flightLandscapePose, isWingWindow } from '../src/components/zoneflow/focusFlightLandscape.ts';
+import { buildFlightClouds, buildFlightLandscape, flightLandscapePose, isWingWindow, RUNWAY_HALF_WIDTH } from '../src/components/zoneflow/focusFlightLandscape.ts';
 
 test('aircraft has one wing-bearing window per side, not repeated wings in adjacent windows', () => {
   const positions=Array.from({length:9},(_,i)=>-10+i*2.5);
@@ -30,4 +30,21 @@ test('continuous airport landscape covers the distant horizon with bounded draw 
     const p=mesh.geometry.getAttribute('position');for(let i=0;i<p.count;i++)assert.ok([p.getX(i),p.getY(i),p.getZ(i)].every(Number.isFinite));
   }
   landscape.dispose();landscape.dispose();assert.equal(scene.children.length,0);assert.ok(counts.every(c=>c.n===1));
+});
+
+test('cruise view still looks over neighbourhoods, and taxiway connectors stop at the runway edge', () => {
+  const scene=new THREE.Scene(),landscape=buildFlightLandscape(scene);
+  const byColor=hex=>landscape.root.children.find(mesh=>mesh.material.color.getHex()===hex);
+  // Terrain advances at most 900; buildings must continue well past the camera at that point.
+  const buildings=new THREE.Box3().setFromObject(byColor(0x9b9c90));assert.ok(buildings.min.z<=-1800,`buildings end at ${buildings.min.z}`);
+  const connectors=new THREE.Box3().setFromObject(byColor(0x737e7e));assert.ok(connectors.min.x>=RUNWAY_HALF_WIDTH,`connector reaches x=${connectors.min.x}`);
+  landscape.dispose();
+});
+
+test('flight clouds are soft billboards high above the ground that dispose once', () => {
+  const parent=new THREE.Group(),clouds=buildFlightClouds(parent);
+  assert.ok(clouds.root.children.length>=20);
+  for(const cloud of clouds.root.children){assert.ok(cloud.isSprite);assert.ok(cloud.position.y>=50,'clouds never lie on the runway');assert.ok(cloud.position.toArray().every(Number.isFinite));}
+  let released=0;clouds.material.addEventListener('dispose',()=>released++);
+  clouds.dispose();clouds.dispose();assert.equal(parent.children.length,0);assert.equal(released,1);
 });

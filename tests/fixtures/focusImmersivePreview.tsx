@@ -9,7 +9,8 @@ function Preview() {
   const [seated,setSeated] = useState(false), [active,setActive] = useState(false);
   const [activity,setActivity] = useState<FocusActivity>('book');
   const [peer,setPeer] = useState(true);
-  const [duration,setDuration] = useState(25), [seconds,setSeconds] = useState(1500);
+  // ?elapsed=N starts the fixture N seconds into the session so takeoff/climb can be inspected without waiting.
+  const [duration,setDuration] = useState(25), [seconds,setSeconds] = useState(() => 1500 - Math.min(1500, Math.max(0, Number(new URLSearchParams(location.search).get('elapsed')) || 0)));
   useEffect(() => { if (!active) return; const interval = setInterval(() => setSeconds(value => Math.max(0,value - 1)),1000); return () => clearInterval(interval); },[active]);
   const participants:FocusRoomParticipant[] = [
     { userId:'me',displayName:'You / אני',...position,isMe:true,avatarStyle:1,status:active?'focusing':'setting-up',seated,activity,durationMinutes:duration },

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 import { buildAircraftCabin } from './focusAircraftCabin';
 import { buildAircraftExterior } from './focusAircraftExterior';
-import { buildFlightLandscape, flightLandscapePose, isWingWindow } from './focusFlightLandscape';
+import { buildFlightClouds, buildFlightLandscape, flightLandscapePose, isWingWindow } from './focusFlightLandscape';
 import { buildHistoricalLibrary } from './focusHistoricalLibrary';
 import type { FocusFlightTime } from '@/lib/focusFlightTime';
 import { buildRoomCraft } from './focusRoomCraft';
@@ -69,13 +69,14 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   let exterior:ReturnType<typeof buildAircraftExterior>|undefined;
   let flightTarget:THREE.WebGLRenderTarget|undefined,wingMaterial:THREE.MeshBasicMaterial|undefined;
   let landscapeTarget:THREE.WebGLRenderTarget|undefined,landscapeMaterial:THREE.MeshBasicMaterial|undefined;
+  let flightClouds:ReturnType<typeof buildFlightClouds>|undefined;
   if(flightView){
     flightView.background=new THREE.Color(night?0x101e35:0xb5d3e2);flightView.fog=new THREE.Fog(night?0x101e35:0xb5d3e2,180,1400);
     flightView.add(new THREE.HemisphereLight(night?0x7596bc:0xffffff,0x71867a,night?.4:2.4));const light=new THREE.DirectionalLight(night?0x96bce7:0xffefcf,night?.7:2);light.position.set(-5,15,8);flightView.add(light);
     flightView.add(wing,terrain);
     exterior=buildAircraftExterior(wing,business);disposables.push(exterior);
     disposables.push(buildFlightLandscape(terrain));
-    for(let i=0;i<15;i++)ball(flightView,0xf3f5ef,[Math.sin(i*7)*25,10+i%4*4,-30+i*3],[5,1.1,3]);
+    flightClouds=buildFlightClouds(terrain);disposables.push(flightClouds);flightClouds.material.color.set(night?0x5d6d84:0xffffff);
     const viewWidth=Math.min(graphics==='illustrated'?512:1024,renderer!.capabilities.maxTextureSize);
     flightTarget=new THREE.WebGLRenderTarget(viewWidth,viewWidth/2);flightTarget.texture.colorSpace=THREE.SRGBColorSpace;wingMaterial=new THREE.MeshBasicMaterial({map:flightTarget.texture});disposables.push(flightTarget,wingMaterial);
     landscapeTarget=new THREE.WebGLRenderTarget(viewWidth,viewWidth/2);landscapeTarget.texture.colorSpace=THREE.SRGBColorSpace;landscapeMaterial=new THREE.MeshBasicMaterial({map:landscapeTarget.texture});disposables.push(landscapeTarget,landscapeMaterial);
@@ -231,7 +232,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     const key=`${phase}:${weather}`;
     if(key!==weatherKey){
       weatherKey=key;night=phase==='night';golden=phase==='sunset';rain=weather==='rain';painted=-1;
-      if(flightView){const sky=night?0x101e35:rain?0x8d9eac:golden?0xd4ab96:0xb5d3e2;flightView.background=new THREE.Color(sky);flightView.fog=new THREE.Fog(sky,rain?100:180,rain?650:1400);flightView.traverse(object=>{if(object instanceof THREE.HemisphereLight)object.intensity=night?.45:rain?1.2:2.4;if(object instanceof THREE.DirectionalLight){object.intensity=night?.7:rain?.8:2;object.color.set(night?0x96bce7:golden?0xffbf8c:0xffefcf);}});}
+      if(flightView){const sky=night?0x101e35:rain?0x8d9eac:golden?0xd4ab96:0xb5d3e2;flightView.background=new THREE.Color(sky);flightView.fog=new THREE.Fog(sky,rain?100:180,rain?650:1400);flightClouds?.material.color.set(night?0x5d6d84:rain?0xb7bec4:golden?0xffd9bd:0xffffff);flightView.traverse(object=>{if(object instanceof THREE.HemisphereLight)object.intensity=night?.45:rain?1.2:2.4;if(object instanceof THREE.DirectionalLight){object.intensity=night?.7:rain?.8:2;object.color.set(night?0x96bce7:golden?0xffbf8c:0xffefcf);}});}
     }
     if(!plane)return;if(running&&!reduced)travel+=dt;const step=Math.floor(elapsed*2);
     if(step!==painted||Math.floor(travel*4)!==lastTravel){const lift=Math.min(1,elapsed/90);paintSky(lift,travel);renderFlight(lift,travel);painted=step;lastTravel=Math.floor(travel*4);}
