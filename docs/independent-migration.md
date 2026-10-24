@@ -30,7 +30,7 @@ Target Supabase server secrets: `GEMINI_API_KEY`, `RESEND_API_KEY_1` plus the se
 
 ## Data cutover work still required
 
-1. Obtain a restorable source database backup through the supported Cloud export workflow or a secure direct database connection. Schema migration files do not contain records, auth users or uploaded file contents.
+1. Obtain a restorable source database backup through the supported Cloud export workflow or a secure direct database connection. The owner has requested the export. Current Lovable exports are compressed PostgreSQL archives restored with `pg_restore`; they include auth users and password hashes but exclude Storage file contents and server secrets. Schema migration files do not contain records, auth users or uploaded file contents.
 2. Compare the complete source schema, policies, triggers, cron jobs, extensions and functions with the target. Test restore in a separate database before touching the owner target's existing finance service. A table-only JSON copy is insufficient.
 3. Migrate auth users/identities preserving IDs, references and password hashes using supported database tooling. Configure OAuth credentials, SMTP and redirect URLs; verify sign-in and account recovery. Existing browser sessions can require signing in again.
 4. Copy every bucket's files, metadata and policies; compare counts and file hashes. Read-only inventory counted 3 source objects.
@@ -45,5 +45,7 @@ An independent frontend preview is deployed at `https://tabro-independent.omri85
 No data, passwords, stored files, custom domains, subscriptions or production functions have been moved or changed by this branch. No Lovable agent was invoked for this migration work. Google/Resend calls were tested with mocks, not paid live requests. Target server secrets, source backup access and complete schema/data migration remain necessary to finish the move. The Cloudflare local OAuth connection is confirmed; the GitHub Actions environment still needs separate account-side CI credentials/configuration.
 
 Read-only relation/column comparison is saved in `independent-schema-audit.json`: the target lacks five source relations and seven columns. It has additional older relations as well, so running an unchecked restore over the target is not a valid migration procedure.
+
+`scripts/inspect-database-backup.mjs` checks a downloaded custom archive's header, calculates its SHA-256 and lists required Auth/application table-data entries using `pg_restore --list`. It does not execute archive SQL or connect to a database. Set `PG_RESTORE_BIN` to the restore binary path when it is not on PATH. Passing this inspection means the archive is ready for restore review, not that a full restore or row-count comparison has passed. Backup files and `.migration-private/` are ignored by Git.
 
 References: https://docs.lovable.dev/tips-tricks/external-deployment-hosting ; https://ai.google.dev/gemini-api/docs/openai ; https://developers.cloudflare.com/workers/static-assets/
