@@ -36,6 +36,15 @@ measurement; users can correct portions and nutrients before or after saving.
 - Health XML import now includes active energy (kcal/kJ) and exercise minutes.
   Source totals use the largest single source per day to avoid double counting,
   which can undercount disjoint sources. Activity does not increase food targets.
+- A downloadable CSV interchange template also accepts reviewed daily summaries
+  from other watches. JSON arrays with the same five fields are accepted. This
+  is explicitly manual import, not compatibility with arbitrary vendor exports.
+  Reimport updates days instead of adding their totals again; missing fields
+  preserve prior values. Only the most recent 30 days are retained.
+- Direct Samsung/Wear OS connections require a signed Android application with
+  Health Connect read permissions; no Android target exists yet. Garmin/Fitbit
+  direct account access requires separate provider app configuration and user
+  authorization. Neither is represented as connected by the import panel.
 
 - Existing `health_profiles` and its RLS remain unchanged.
 - Meals use the existing `tabro-meals:<userId>` browser key. The old 100-row
