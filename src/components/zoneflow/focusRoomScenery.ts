@@ -60,7 +60,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     // City rows fill the whole panorama width; the historic row stays a short quadrangle.
     const count = urban ? 25 : 11;
     for (let i = 0; i < count; i++) {
-      const x = (i - (count - 1) / 2) * 8, z = historic ? -44 : high ? -46 - i % 3 * 7 : -23 - i % 3 * 3, h = historic ? 11 : high ? 20 + (i * 13) % 29 : 9 + i % 4 * 2;
+      const x = (i - (count - 1) / 2) * 8, z = historic ? -44 : high ? -46 - i % 3 * 7 : -23 - i % 3 * 3, h = historic ? 11 : high ? 10 + (i * 13) % 23 : 9 + i % 4 * 2; // high floors look over most nearby roofs
       box(historic ? [0xb9b1a1, 0xcbb99d, 0xa7b2af, 0xbda99a][i % 4] : facadeColors[i % 4], [x, h / 2, z], [7.6, h, 5]);
       for (const y of [1.2, h - .5, h + .15]) box(0xe1d5bd, [x, y, z + 2.65], [8, .22, .38]);
       if (historic) { const roof = new THREE.ConeGeometry(5.8, 3.5, 4); resources.add(roof); const m = mesh(roof, 0x4d6265, [x, h + 1.6, z], [1, 1, 1]); m.rotation.y = Math.PI / 4; }
