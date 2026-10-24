@@ -8,8 +8,9 @@ import { sceneryTravel, type SceneryPreset } from '@/lib/focusScenerySettings';
 /** Parked gate aircraft placement (the taxiing model scaled down) and its forward door, which the jet bridge meets. */
 export const GATE = { x: -22, z: -10, scale: .8 };
 export function gateDoor() {
-  // Model: fuselage radius 1.1 centred at y=3; forward door 5 units behind the nose (model x=-8).
-  return { x: GATE.x - 5 * GATE.scale, y: 3 * GATE.scale, z: GATE.z + 1.1 * GATE.scale };
+  // Model: ellipsoid fuselage (semi-axes 8 x 1.1) centred at y=3; the forward door sits at model x=-5.
+  const doorX = -5, radius = 1.1 * Math.sqrt(1 - (doorX / 8) ** 2);
+  return { x: GATE.x + doorX * GATE.scale, y: 3 * GATE.scale, z: GATE.z + radius * GATE.scale, radius: radius * GATE.scale };
 }
 
 /** One panoramic outdoor pass shared by the windows, with per-window crops. */
@@ -156,10 +157,10 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     box(0xa7b0af, [-42, .02, -7], [56, .04, 18]);
     for (let x = -60; x < -15; x += 10) box(0xd5c48c, [x, .06, -9], [.12, .03, 12]);
     const door = gateDoor(), bridgeFront = door.z + .05, bridgeBack = 9, bridgeLength = bridgeBack - bridgeFront;
-    const bridge = box(0xadbabd, [door.x, door.y, (bridgeFront + bridgeBack) / 2], [2.2, 2.2, bridgeLength]); bridge.name = 'gate-jet-bridge';
-    box(0x536f7e, [door.x + 1.12, door.y + .3, (bridgeFront + bridgeBack) / 2], [.04, .7, bridgeLength - 2]);
-    box(0x9aa7aa, [door.x, door.y, bridgeFront + .8], [3, 2.6, 1.6]);
-    for (const z of [bridgeFront + 3, bridgeFront + 11]) box(0x7c8c90, [door.x, (door.y - 1.1) / 2, z], [.4, door.y - 1.1, .4]);
+    const bridge = box(0xadbabd, [door.x, door.y, (bridgeFront + bridgeBack) / 2], [2, 1.6, bridgeLength]); bridge.name = 'gate-jet-bridge';
+    box(0x536f7e, [door.x + 1.02, door.y + .2, (bridgeFront + bridgeBack) / 2], [.04, .55, bridgeLength - 2]);
+    box(0x9aa7aa, [door.x, door.y, bridgeFront + .8], [2.6, 1.9, 1.6]);
+    for (const z of [bridgeFront + 3, bridgeFront + 11]) box(0x7c8c90, [door.x, (door.y - .8) / 2, z], [.4, door.y - .8, .4]);
     box(0xe1dfcf, [-17, .9, -4], [3.4, 1.5, 1.4]);
     box(0x526e7b, [-18.1, 1.3, -3.28], [.7, .6, .03]);
     box(0x59636b, [0, .02, -57], [350, .04, 10]);
