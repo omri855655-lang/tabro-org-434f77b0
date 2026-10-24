@@ -77,11 +77,26 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   } else if (urban) {
     box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = -6;
   }
-  const cloudGeometry = new THREE.SphereGeometry(1, 12, 8); resources.add(cloudGeometry);
-  const clouds = new THREE.InstancedMesh(cloudGeometry, material(0xe4e9e6), 30);
-  const cloudTransform = new THREE.Object3D();
-  for (let i = 0; i < 30; i++) { cloudTransform.position.set((i % 10 - 5) * 15, 21 + i % 3 * 4, -35 - Math.floor(i / 10) * 23); cloudTransform.scale.set(9, 1.3 + i % 3 * .5, 4); cloudTransform.updateMatrix(); clouds.setMatrixAt(i, cloudTransform.matrix); }
-  clouds.computeBoundingSphere(); scene.add(clouds); resources.add(clouds);
+  // Soft billboard cumulus: lit spheres read as floating discs through the windows.
+  const cloudPixels = new Uint8Array(128 * 64 * 4);
+  const puffs = [[.3, .62, .2], [.5, .5, .27], [.7, .6, .21], [.42, .68, .17], [.6, .7, .16]];
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+    const u = x / 127, v = y / 63;
+    let density = 0;
+    for (const [px, py, r] of puffs) density += Math.exp(-(((u - px) * 1.9) ** 2 + (v - py) ** 2) / (r * r * .5));
+    const alpha = Math.min(1, Math.max(0, density - .35) * 1.4) * Math.min(1, (1 - v) * 4);
+    const shade = 255 - Math.round(Math.max(0, v - .55) * 70);
+    cloudPixels.set([shade, shade, Math.min(255, shade + 4), Math.round(alpha * 235)], (y * 128 + x) * 4);
+  }
+  const cloudTexture = new THREE.DataTexture(cloudPixels, 128, 64); cloudTexture.flipY = true; cloudTexture.colorSpace = THREE.SRGBColorSpace; cloudTexture.magFilter = THREE.LinearFilter; cloudTexture.needsUpdate = true;
+  const cloudMaterial = new THREE.SpriteMaterial({ map: cloudTexture, transparent: true, depthWrite: false, fog: true });
+  resources.add(cloudTexture); resources.add(cloudMaterial);
+  const clouds = new THREE.Group(); scene.add(clouds);
+  for (let i = 0; i < 12; i++) {
+    const cloud = new THREE.Sprite(cloudMaterial);
+    cloud.position.set((i % 6 - 2.5) * 34 + Math.sin(i * 5) * 9, 24 + (i * 7) % 3 * 5, -70 - Math.floor(i / 6) * 34);
+    cloud.scale.set(34 + (i * 13) % 4 * 6, 12 + (i * 5) % 3 * 3, 1); clouds.add(cloud);
+  }
   const rainPositions = new Float32Array(500 * 3);
   for (let i = 0; i < 500; i++) rainPositions.set([Math.sin(i * 31) * 50, i % 25, -8 - (i * 17) % 55], i * 3);
   const rainGeometry = new THREE.BufferGeometry(); rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
