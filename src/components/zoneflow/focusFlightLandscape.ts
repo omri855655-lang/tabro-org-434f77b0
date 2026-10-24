@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** Rows of neighbourhood and farmland, 90 units apart from z=180. */
 export const FLIGHT_LANDSCAPE_ROWS = 24;
+export const RUNWAY_HALF_WIDTH = 7;
 
 /**
  * Soft billboard cumulus high above the landscape. Lit spheres near the ground read as white
@@ -45,13 +46,14 @@ export function buildFlightLandscape(parent: THREE.Object3D) {
   box(0x647961, [0, -2.8, -600], [3200, 1, 3200]);
   box(0x365e70, [-620, -2.2, -600], [900, .05, 3200]);
   box(0xa9ae9d, [-163, -2.12, -600], [14, .06, 3200]);
-  box(0x444d50, [0, -2.05, -300], [14, .08, 1000]);
+  box(0x444d50, [0, -2.05, -300], [RUNWAY_HALF_WIDTH * 2, .08, 1000]);
   for (let z = -780; z < 200; z += 20) box(0xe5e0cd, [0, -1.98, z], [.35, .02, 8]);
   for (const x of [-6.4, 6.4]) box(0xe5e0cd, [x, -1.98, -300], [.12, .02, 1000]);
   for (let i = 0; i < 6; i++) for (const side of [-1, 1]) box(0xe5e0cd, [side * (1.4 + i * .7), -1.98, -20], [.3, .02, 16]);
   box(0x737e7e, [54, -2.03, -150], [70, .08, 290]);
   box(0x626e70, [22, -2.01, -150], [8, .1, 420]);
-  for (const z of [-250, -130, -10]) box(0x737e7e, [12, -2.01, z], [26, .1, 9]);
+  // Connectors join the parallel taxiway at the runway edge; they used to cross the centreline and read as a floating slab.
+  for (const z of [-250, -130, -10]) box(0x737e7e, [RUNWAY_HALF_WIDTH + 7.5, -2.02, z], [15, .1, 9]);
   box(0xabb6b6, [95, 3, -150], [20, 10, 270]);
   box(0x547481, [84.9, 4.5, -150], [.1, 5, 260]);
   for (let z = -260; z < -20; z += 30) {
