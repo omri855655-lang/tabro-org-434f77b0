@@ -1,0 +1,23 @@
+{
+  "sourceProject": "isnhgyycowmnlxtmbmwm",
+  "targetProject": "qfcuyrdxaambvppduslo",
+  "sourceTables": 69,
+  "targetTables": 84,
+  "missingTables": [
+    "project_task_intake_links",
+    "project_task_intake_submissions",
+    "task_intake_links",
+    "task_intake_submissions",
+    "zoneflow_learning_history"
+  ],
+  "missingColumns": [
+    "calendar_events.location",
+    "calendar_events.meeting_url",
+    "calendar_events.recurrence_rule",
+    "calendar_events.recurrence_group_id",
+    "recurring_task_skips.created_at",
+    "task_edit_history.user_id",
+    "zoneflow_focus_rooms.template_key"
+  ],
+  "typeDifferences": []
+}

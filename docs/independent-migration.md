@@ -40,6 +40,10 @@ Target Supabase server secrets: `GEMINI_API_KEY`, `RESEND_API_KEY_1` plus the se
 
 ## Current status
 
-Preparation only. No data, passwords, files, domains, subscriptions or production functions have been moved or changed by this branch. No Lovable agent was invoked for this migration work. Google/Resend calls were tested with mocks, not paid live requests. Account-side Cloudflare deployment credentials, target server secrets and secure source backup access remain necessary to finish the move.
+An independent frontend preview is deployed at `https://tabro-independent.omri855655.workers.dev` in the owner's confirmed Cloudflare account. Version: `0c76f3a7-e4ba-4039-a38c-96fa4f847495`. Its build uses the owner target `qfcuyrdxaambvppduslo`, not the Cloud source. Browser configuration is held in ignored `.env.independent.local`. Admin mail now follows the configured project unless explicitly overridden.
+
+No data, passwords, stored files, custom domains, subscriptions or production functions have been moved or changed by this branch. No Lovable agent was invoked for this migration work. Google/Resend calls were tested with mocks, not paid live requests. Target server secrets, source backup access and complete schema/data migration remain necessary to finish the move. The Cloudflare local OAuth connection is confirmed; the GitHub Actions environment still needs separate account-side CI credentials/configuration.
+
+Read-only relation/column comparison is saved in `independent-schema-audit.json`: the target lacks five source relations and seven columns. It has additional older relations as well, so running an unchecked restore over the target is not a valid migration procedure.
 
 References: https://docs.lovable.dev/tips-tricks/external-deployment-hosting ; https://ai.google.dev/gemini-api/docs/openai ; https://developers.cloudflare.com/workers/static-assets/
