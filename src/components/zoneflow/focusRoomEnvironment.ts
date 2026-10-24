@@ -119,7 +119,12 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
       for(const dx of [-w/4,0,w/4])box(root,0x947a4c,[dx,-half/2,.1],[.045,h-half,.08]);
       for(const dy of [-h/4,spring])box(root,0x947a4c,[0,dy,.1],[w,.055,.08]);
     }else{
-      box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=box(root,0xffffff,[0,0,.08],[w,h,.04]);view.material=skyMaterial;assetWindows.push(view);
+      // Flat rounded glass with 0..1 UVs: a rounded box's bevel UVs showed a strip of sky along the bottom of the view.
+      const r=Math.min(.3,w*.08,h*.08),hw=w/2,hh=h/2,shape=new THREE.Shape();
+      shape.moveTo(-hw+r,-hh);shape.lineTo(hw-r,-hh);shape.quadraticCurveTo(hw,-hh,hw,-hh+r);shape.lineTo(hw,hh-r);shape.quadraticCurveTo(hw,hh,hw-r,hh);shape.lineTo(-hw+r,hh);shape.quadraticCurveTo(-hw,hh,-hw,hh-r);shape.lineTo(-hw,-hh+r);shape.quadraticCurveTo(-hw,-hh,-hw+r,-hh);
+      const glass=new THREE.ShapeGeometry(shape,4),uv=glass.getAttribute('uv'),position=glass.getAttribute('position');
+      for(let i=0;i<uv.count;i++)uv.setXY(i,(position.getX(i)+hw)/w,(position.getY(i)+hh)/h);disposables.push(glass);
+      box(root,accent,[0,0,0],[w+.16,h+.16,.12]);const view=new THREE.Mesh(glass,skyMaterial);view.position.z=.075;root.add(view);assetWindows.push(view);
       box(root,accent,[0,0,.12],[.045,h,.04]);
     }
   };
