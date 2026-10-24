@@ -252,7 +252,8 @@ export default function FocusRoomImmersive(props: Props) {
         sun.color.set(dark ? 0x86a8cf : golden ? 0xffb56e : 0xffe5be);
         sun.intensity = dark ? .25 : wet ? .6 : golden ? 1.4 : 1.9;
         sun.position.set(golden ? -13 : -5, golden ? 5 : 10, -5);
-        scene.environmentIntensity = dark ? .28 : golden ? .5 : .65;
+        // The generated bounce map is brighter than the local reading-room HDR, so it is scaled down.
+        scene.environmentIntensity = (dark ? .28 : golden ? .5 : .65) * (bounceLight && scene.environment === bounceLight.texture ? .55 : 1);
         outdoors?.update(dt, latest.current.daylight || 'auto', latest.current.weather || 'clear', !!latest.current.scenery && !reduced.matches);
       }
       const local = latest.current.participants.find(p => p.isMe);
@@ -332,6 +333,7 @@ export default function FocusRoomImmersive(props: Props) {
       outdoors?.dispose(); environment.dispose(); roundedCube.dispose();
       environmentMaterials.forEach(material=>material.dispose());grainTexture.dispose();
       paperGeometry.dispose();paperMaterial.dispose();paperTexture.dispose();
+      scene.environment = null; bounceLight?.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
   }, [props.scene, props.atmosphere, props.graphics, props.flightTime, lang]);
