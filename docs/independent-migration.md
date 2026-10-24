@@ -16,7 +16,7 @@ The other owner project `slptgamuhzxiacmbpgkq` is inactive.
 - Welcome, invitation, task, contact, admin and push-related email sends use Resend directly. The queue worker also sends through Resend with an idempotency key. Queue-level unsubscribe headers and provider webhook handling require end-to-end review before enabling delivery.
 - The legacy browser auth wrapper uses Supabase OAuth directly; OAuth provider credentials and allowed redirects must be configured on the target. The Lovable auth SDK and development tagger were removed.
 - `wrangler.jsonc` serves the Vite SPA on Cloudflare Workers. It creates only a workers.dev preview, without modifying the custom domain.
-- The manual GitHub Actions workflow `independent-preview.yml` checks public target configuration, tests and builds before deployment. No new external infrastructure has been provisioned by merely adding this workflow.
+- The manual GitHub Actions template `deployment/independent-preview.workflow.yml` checks public target configuration, tests and builds before deployment. It must be installed as `.github/workflows/independent-preview.yml` with a GitHub credential authorized to manage workflows. The existing Git credential rejected workflow changes; the template is not currently active. No new external infrastructure has been provisioned by merely adding this template.
 
 ## Required account configuration
 
