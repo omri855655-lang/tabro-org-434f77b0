@@ -331,7 +331,7 @@ export default function FocusRoomImmersive(props: Props) {
     };
   }, [props.scene, props.atmosphere, props.graphics, props.flightTime, lang]);
 
-  return <div className="bg-[#eee4cf] text-[#304c3e]">
+  return <div className="bg-[#eee4cf] text-[#304c3e]" data-room-asset-state={assetState}>
     {assetState&&<p role="status" className="bg-[#f8f5eb] px-4 py-2 text-xs" data-testid="room-asset-status">{({he:['טוען ריהוט מפורט ותאורה…','ריהוט תלת־ממדי מפורט ותאורת HDR','חלק מפרטי הריהוט לא נטענו; תצוגה בסיסית זמינה'],en:['Loading detailed furniture and lighting…','Detailed 3D furniture and HDR lighting','Some assets could not load; basic room available'],es:['Cargando muebles e iluminación…','Muebles 3D detallados e iluminación HDR','Algunos recursos no se cargaron; sala básica disponible'],zh:['正在加载精细家具和灯光…','精细3D家具与HDR灯光','部分资源未加载，基础房间仍可用'],ar:['تحميل الأثاث والإضاءة…','أثاث ثلاثي الأبعاد وإضاءة HDR','تعذر تحميل بعض الموارد؛ الغرفة الأساسية متاحة'],ru:['Загрузка мебели и освещения…','Детальная 3D-мебель и HDR-освещение','Часть ресурсов не загружена; доступна базовая комната']}[lang])[assetState==='loading'?0:assetState==='ready'?1:2]}</p>}
     <div ref={host} data-testid="immersive-room" className="relative h-[420px] w-full sm:h-[560px]" tabIndex={0} role="group" aria-label={copy.camera}
       onKeyDown={event => { if ((event.target as HTMLElement).closest('button')) return; if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') controls.current?.turn(event.key === 'ArrowLeft' ? .2 : -.2); else controls.current?.step(event.key === 'ArrowUp' ? 1 : -1); }}>

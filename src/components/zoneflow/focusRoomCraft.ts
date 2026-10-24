@@ -13,6 +13,7 @@ export function buildRoomCraft(scene: THREE.Scene, kind: RoomAtmosphere, b: Buil
   const brass = 0xb29a65, wood = kind === 'heritage-library' ? 0x513523 : 0x77624d;
   const glow = new THREE.MeshStandardMaterial({ color: 0xffe6b4, emissive: 0xffd494, emissiveIntensity: .7, roughness: .4 }); resources.push(glow);
   const metal = new THREE.MeshStandardMaterial({ color: brass, metalness: .65, roughness: .3 }); resources.push(metal);
+  const ceramic = new THREE.MeshStandardMaterial({ color: 0xe8dfca, roughness: .24 }); resources.push(ceramic);
   const cylinder = new THREE.CylinderGeometry(1, 1, 1, 24), torus = new THREE.TorusGeometry(1, .045, 8, 32); resources.push(cylinder, torus);
   const round = (at: number[], size: number[], material: THREE.Material = metal) => {
     const mesh = new THREE.Mesh(cylinder, material); mesh.position.fromArray(at); mesh.scale.fromArray(size); root.add(mesh); return mesh;
@@ -43,7 +44,7 @@ export function buildRoomCraft(scene: THREE.Scene, kind: RoomAtmosphere, b: Buil
   } else if (cafe) {
     // A working coffee bar with cups, grinder, pastry dome and menu slats.
     for (let x = -6.8; x < 7; x += .22) b.box(root, kind === 'city-cafe' ? 0x585a53 : 0x856143, [x, .98, back - 1.58], [.06, 1.7, .04]);
-    for (const x of [-4.5, -4, -3.5, -3]) { round([x, 2.2, back - 1.1], [.13, .2, .13], glow); round([x, 2.1, back - 1.1], [.2, .025, .2]); }
+    for (const x of [-4.5, -4, -3.5, -3]) { round([x, 2.2, back - 1.1], [.13, .2, .13], ceramic); round([x, 2.1, back - 1.1], [.2, .025, .2]); }
     b.box(root, 0x334742, [2.5, 2.4, back - 1], [.5, .65, .6]); b.ball(root, 0x7e6452, [2.5, 2.9, back - 1], [.23, .3, .23]);
     round([4, 2.17, back - 1], [.8, .04, .5]);
     for (let i = 0; i < 5; i++) b.ball(root, 0xc19458, [3.5 + i * .23, 2.3, back - 1], [.13, .11, .16]);

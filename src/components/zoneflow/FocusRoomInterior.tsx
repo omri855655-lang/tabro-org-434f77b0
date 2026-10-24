@@ -40,6 +40,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const journey = roomJourneyCopy[lang];
   const [atmosphere, setAtmosphere] = useState<RoomAtmosphere>(scene==='library'?'heritage-library':scene);
   const design = roomDesignCopy[lang];
+  const atmosphereTitles: Record<RoomAtmosphere,string> = { library:journey[1], grand:journey[2], intimate:journey[3], plane:journey[4], airport:journey[5], cafe:journey[6], office:journey[7], 'modern-library':design[0], 'business-plane':design[1], 'city-cafe':design[2], 'heritage-library':historicLibraryCopy[lang][0], 'monastery-library':historicLibraryCopy[lang][1] };
   const ambience = atmosphereCopy[lang];
   const [daylight,setDaylight] = useState(()=>parseRoomDaylight(safeLocalStorage.getString('zoneflow-room-daylight') || (isFlightAtmosphere(scene) ? safeLocalStorage.getString('zoneflow-flight-time') : null)));
   const [weather,setWeather] = useState(()=>parseRoomWeather(safeLocalStorage.getString('zoneflow-room-weather')));
@@ -123,7 +124,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     </div>
     {unavailable && <p role="status" className="bg-amber-50 px-4 py-3 text-sm text-amber-900">{viewCopy.unavailable}</p>}
     <div className="room-view-bar flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
-      <span className="text-xs text-[#65786a]">{ambience.spaces}</span>
+      <span className="text-sm font-medium text-[#38594b]">{atmosphereTitles[atmosphere]}</span>
       <Button variant="ghost" size="sm" className="gap-2 rounded-full text-[#38594b]" aria-pressed={quiet} onClick={()=>setQuiet(value=>!value)}><Leaf className="h-4 w-4"/>{quiet?ambience.restore:ambience.quiet}</Button>
     </div>
     <details className="room-design-panel border-t border-[#dce3d7] bg-[#faf8ef] text-sm text-[#38594b]">

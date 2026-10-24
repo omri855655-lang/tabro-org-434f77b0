@@ -19,6 +19,7 @@
 .focus-room-studio .room-design-panel summary:focus-visible { outline: 3px solid #8da48b; outline-offset: -4px; }
 .focus-room-studio [data-testid='immersive-room'] { height: clamp(360px, 65dvh, 760px); }
 .focus-room-studio [data-testid='room-asset-status'] { font-size: 11px; color: #687969; }
+.focus-room-studio [data-room-asset-state='ready'] > [data-testid='room-asset-status'] { display: none; }
 .focus-room-studio[data-quiet='true'] .room-primary-controls,
 .focus-room-studio[data-quiet='true'] .room-design-panel,
 .focus-room-studio[data-quiet='true'] .room-seat-controls,
