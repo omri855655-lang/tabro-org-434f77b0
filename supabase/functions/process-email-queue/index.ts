@@ -283,12 +283,13 @@ Deno.serve(async (req) => {
       try {
         const delivery = await fetch('https://api.resend.com/emails', {
           method: 'POST', signal: AbortSignal.timeout(30000),
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': String(payload.idempotency_key || payload.message_id) },
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': String(payload.idempotency_key || payload.message_id || `${queue}/${msg.msg_id}`) },
           body: JSON.stringify({ to: payload.to, from: payload.from, subject: payload.subject, html: payload.html, text: payload.text }),
         })
         if (!delivery.ok) {
           const error = new Error(`Email delivery failed (${delivery.status})`)
-          Object.assign(error, { status: delivery.status })
+          const retryAfter = Number(delivery.headers.get('retry-after'));
+          Object.assign(error, { status: delivery.status, retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60 })
           throw error
         }
 
