@@ -39,7 +39,7 @@ export function buildRoomCraft(scene: THREE.Scene, kind: RoomAtmosphere, b: Buil
     }
     b.box(root, business ? 0x66594d : 0x405161, [0, .02, 1], [1.5, .025, 22]);
     for (let z = -10; z < 12; z += .32) b.box(root, business ? 0x82715c : 0x62727b, [0, .04, z], [1.45, .006, .012]);
-    for (const x of [-4.8, 4.8]) { b.box(root, 0xb9c1c0, [x, 1.8, front + .5], [1.2, 3.3, .5]); for (let y = .4; y < 3.4; y += .5) b.box(root, 0x6e7f85, [x, y, front + .78], [.8, .025, .04]); }
+    for (const x of [-5.3, 5.3]) { b.box(root, 0xb9c1c0, [x, 1.8, front + .3], [.7, 3.3, .4]); for (let y = .4; y < 3.4; y += .5) b.box(root, 0x6e7f85, [x, y, front + .52], [.55, .025, .04]); }
   } else if (cafe) {
     // A working coffee bar with cups, grinder, pastry dome and menu slats.
     for (let x = -6.8; x < 7; x += .22) b.box(root, kind === 'city-cafe' ? 0x585a53 : 0x856143, [x, .98, back - 1.58], [.06, 1.7, .04]);
@@ -53,8 +53,8 @@ export function buildRoomCraft(scene: THREE.Scene, kind: RoomAtmosphere, b: Buil
     if (kind === 'cafe') { bookSet(-6.5, 2.14, back - 1); bookSet(5, 2.14, back - 1); }
   } else if (kind === 'airport') {
     for (const side of [-1, 1]) {
-      b.box(root, 0x455d67, [side * 9, 1.1, -6], [2.5, 2.2, 1.2]);
-      litBox([side * 9, 1.5, -5.37], [1.7, .45, .025]);
+      b.box(root, 0x455d67, [side * 10.5, 1.1, -6], [2.5, 2.2, 1.2]);
+      litBox([side * 10.5, 1.5, -5.37], [1.7, .45, .025]);
       for (let z = -7; z < 9; z += 3.2) { b.box(root, 0x9cabb0, [side * 11.7, 3.7, z], [.12, 7.4, .18]); round([side * 8.9, .6, z], [.06, 1.2, .06]); }
     }
     for (const z of [-5, 1, 7]) litBox([0, height - .3, z], [18, .035, .16]);

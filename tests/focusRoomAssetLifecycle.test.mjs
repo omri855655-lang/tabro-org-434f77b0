@@ -23,12 +23,13 @@ test('cafe loads its own furniture, restores surfaces, and disposes only once',a
   t.mock.method(RGBELoader.prototype,'loadAsync',async()=>{throw new Error('HDR unavailable');});
   t.mock.method(THREE.TextureLoader.prototype,'loadAsync',async()=>watch(new THREE.Texture()));
   const previous=f.floor.material,environment=new THREE.Texture();f.scene.environment=environment;
-  const assets=attachRoomAssets(f.scene,f.renderer,[{root:f.root,furniture:[f.furniture]}],[],[],[f.window],'city-cafe',{floor:f.floor,walls:[f.wall]});
+  const lamp=new THREE.Object3D();lamp.userData.roomAccessory=true;f.root.add(lamp);
+  const assets=attachRoomAssets(f.scene,f.renderer,[{root:f.root,furniture:[f.furniture,lamp]}],[],[],[f.window],'city-cafe',{floor:f.floor,walls:[f.wall]});
   assert.equal((await assets.ready).loaded,false);
   assert.deepEqual(urls.sort(),['/focus-assets/WoodenChair_01/model.gltf','/focus-assets/round_wooden_table_02/model.gltf'].sort());
-  assert.equal(f.furniture.visible,false);assert.notEqual(f.floor.material,previous);
+  assert.equal(f.furniture.visible,false);assert.equal(lamp.visible,true);assert.notEqual(f.floor.material,previous);
   assets.dispose();assets.dispose();
-  assert.equal(f.furniture.visible,true);assert.equal(f.root.children.length,1);
+  assert.equal(f.furniture.visible,true);assert.equal(lamp.visible,true);assert.equal(f.root.children.length,2);
   assert.equal(f.floor.material,previous);assert.equal(f.scene.environment,environment);
   assert.ok(counts.every(count=>count.value===1));
 });

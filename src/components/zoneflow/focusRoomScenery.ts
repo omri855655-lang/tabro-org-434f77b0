@@ -109,7 +109,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   });
   let previousKey = '', last = -1, clock = 0, stopped = false;
   let distantLandscape: THREE.DataTexture | undefined;
-  if (!urban && !airport) new RGBELoader().loadAsync('/focus-assets/forest_slope.hdr').then(texture => {
+  if (!urban && !airport && graphics !== 'illustrated') new RGBELoader().loadAsync('/focus-assets/forest_slope.hdr').then(texture => {
     if (stopped) { texture.dispose(); return; }
     texture.mapping = THREE.EquirectangularReflectionMapping;
     resources.add(texture); distantLandscape = texture; previousKey = '';

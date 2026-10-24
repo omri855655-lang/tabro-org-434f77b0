@@ -244,11 +244,11 @@ export function buildFocusStation(parent:THREE.Group, kind:RoomAtmosphere, b:Pic
     for(const x of [-1.5,1.5])for(const z of [.3,2.2])box(parent,accent,[x,.5,z],[.09,1,.09]);
     box(parent,accent,[0,.58,-.14],[1.08,.15,.9]);box(parent,accent,[0,1.05,-.55],[1.08,1,.12]);
     for(const x of [-.43,.43])for(const z of [-.5,.15])box(parent,wood,[x,.28,z],[.09,.55,.09]);
-    if(!airport&&!cafe&&!office){box(parent,accent,[-1.45,1.75,1.9],[.05,1.1,.05]);ball(parent,accent,[-1.45,2.3,1.9],[.4,.14,.26]);ball(parent,0xffe6ad,[-1.45,2.2,1.9],[.3,.025,.2]);}
+    if(!airport&&!cafe&&!office){for(const accessory of [box(parent,accent,[-1.45,1.75,1.9],[.05,1.1,.05]),ball(parent,accent,[-1.45,2.3,1.9],[.4,.14,.26]),ball(parent,0xffe6ad,[-1.45,2.2,1.9],[.3,.025,.2])])accessory.userData.roomAccessory=true;}
     if(kind==='intimate'){for(const x of [-1.86,1.86])box(parent,wood,[x,1.45,1.3],[.08,.6,2.3]);}
     if(office){box(parent,0x82978b,[-1.85,1.6,1.25],[.08,1,2.3]);box(parent,0x82978b,[0,1.6,2.35],[3.8,1,.08]);}
-    if(cafe){ball(parent,0x788d65,[1.05,1.4,1.75],[.22,.22,.22]);box(parent,0xb28d6c,[1.05,1.25,1.75],[.22,.25,.22]);}
+    if(cafe){ball(parent,0x788d65,[1.05,1.4,1.75],[.22,.22,.22]).userData.roomAccessory=true;box(parent,0xb28d6c,[1.05,1.25,1.75],[.22,.25,.22]).userData.roomAccessory=true;}
   }
-  if(!plane)box(parent,0xf2e7d2,[1.3,1.35,.9],[.22,.32,.22]);
+  if(!plane)box(parent,0xf2e7d2,[1.3,1.35,.9],[.22,.32,.22]).userData.roomAccessory=true;
   return top;
 }

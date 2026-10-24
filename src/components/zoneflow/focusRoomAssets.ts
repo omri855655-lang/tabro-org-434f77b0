@@ -61,7 +61,7 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
     for(const station of stations){
       fit(table,new THREE.Vector3(cafe?2.5:3.9,1.18,cafe?2.5:2.3),new THREE.Vector3(0,0,1.25),station.root);
       fit(chair,new THREE.Vector3(1.08,1.1,.95),new THREE.Vector3(0,0,-.14),station.root);
-      station.furniture.forEach(hide);
+      station.furniture.filter(object=>!object.userData.roomAccessory).forEach(hide);
     }
   });
   const library=cafe?Promise.resolve():Promise.all([load('wooden_display_shelves_01'),load('book_encyclopedia_set_01')]).then(([shelf,books])=>{
