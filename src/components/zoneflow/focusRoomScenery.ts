@@ -114,7 +114,8 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     const a = new THREE.Color(), b = new THREE.Color();
     for (let row = 0; row < 64; row++) {
       const v = row / 63;
-      if (v < .45) a.setHex(horizon); else if (v < .7) a.setHex(horizon).lerp(b.setHex(middle), (v - .45) / .25); else a.setHex(middle).lerp(b.setHex(top), (v - .7) / .3);
+      const raw = THREE.LinearSRGBColorSpace; // keep raw sRGB bytes; the texture itself is tagged sRGB
+      if (v < .45) a.setHex(horizon, raw); else if (v < .7) a.setHex(horizon, raw).lerp(b.setHex(middle, raw), (v - .45) / .25); else a.setHex(middle, raw).lerp(b.setHex(top, raw), (v - .7) / .3);
       skyPixels.set([Math.round(a.r * 255), Math.round(a.g * 255), Math.round(a.b * 255), 255], row * 4);
     }
     skyTexture.needsUpdate = true;
