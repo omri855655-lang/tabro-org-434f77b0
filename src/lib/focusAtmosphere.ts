@@ -13,6 +13,12 @@ export function roomPixelRatio(deviceRatio: number, width: number, height: numbe
   const area = Math.max(1, width * height);
   return Math.max(.75, Math.min(deviceRatio || 1, detailed ? 2 : 1.5, Math.sqrt(2_800_000 / area)));
 }
+/** Vertical field of view that keeps about 64° visible horizontally on portrait phones, 62° on wider screens. */
+export function roomCameraFov(aspect: number) {
+  const safe = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  if (safe >= 1) return 62;
+  return Math.min(84, Math.max(62, 2 * Math.atan(Math.tan(32 * Math.PI / 180) / safe) * 180 / Math.PI));
+}
 export const atmosphereCopy = {
   he: { settings: 'עיצוב ואווירה', quiet: 'תצוגה שקטה', restore: 'הצג את כלי החדר', light: 'תאורה', auto: 'לפי השעה במכשיר', day: 'אור יום', sunset: 'שעת זהב', night: 'לילה', weather: 'נוף ומזג אוויר', clear: 'בהיר', rain: 'גשם עדין', note: 'האווירה לבחירתך, ולא תחזית מזג אוויר. שינויים אלה אישיים.', spaces: 'בחר מקום לשהות בו' },
   en: { settings: 'Design & atmosphere', quiet: 'Quiet view', restore: 'Show room controls', light: 'Lighting', auto: 'Device local time', day: 'Daylight', sunset: 'Golden hour', night: 'Night', weather: 'Scenery & weather', clear: 'Clear', rain: 'Gentle rain', note: 'Choose your own ambience, not a weather forecast. These settings are personal.', spaces: 'Find your place' },
