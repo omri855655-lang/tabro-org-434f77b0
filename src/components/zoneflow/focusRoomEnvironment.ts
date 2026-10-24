@@ -162,7 +162,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     }
   }else if(airport){
     for(let x=-10;x<=10;x+=4)window(x,3.6,front+.2,3.8,6.6);
-    for(const x of [-8,8]){box(scene,0x80989f,[x,4,.5],[.25,8,19]);label(x<0?'A12  →':'A14  →',[x,4.1,-5],[2.7,.9,.15]);plant(x,7,1.4);}
+    for(const x of [-8,8]){box(scene,0xb3c0c2,[x,4,.5],[.25,8,19]);label(x<0?'A12  →':'A14  →',[x,4.1,-5],[2.7,.9,.15]);plant(x,7,1.4);}
     for(const side of [-1,1])for(let z=2;z<=8;z+=2){box(scene,0x506875,[side*9,.65,z],[2.8,.22,1]);box(scene,0x506875,[side*9,1.1,z+.45],[2.8,.9,.15]);}
     label('DEPARTURES  /  ZONEFLOW',[0,5.8,front+.4],[7,1,.08]);
     const aircraft=new THREE.Group();aircraft.position.set(4,1.6,front+.5);scene.add(aircraft);
@@ -172,7 +172,8 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     for(const x of [-6,0,6])window(x,3,front+.2,4.5,4.5);
     box(scene,0x6a4a39,[0,1,back-.8],[15,2,1.5]);box(scene,0xd6bf9a,[0,2.05,back-.8],[15.5,.15,1.7]);
     box(scene,0x455456,[-3,2.6,back-1],[2,1,1]);for(const x of [-3.5,-2.5])box(scene,0xc9cac0,[x,2.5,back-1.55],[.3,.15,.25]);
-    label(city?'CITY COFFEE':'SLOW COFFEE',[0,4,front+.3],[5,1,.08],'#e9ddbf',city?'#303f45':'#745441');
+    // Sign sits above the glazing so the pendant lamps never cover it from the default camera.
+    label(city?'CITY COFFEE':'SLOW COFFEE',[0,5.65,front+.3],[4.4,.85,.08],'#e9ddbf',city?'#303f45':'#745441');
     if(city){for(const x of [-7,7])for(let z=-7;z<9;z+=2)box(scene,0xb0aaa0,[x,3,z],[.3,6,.3]);for(let i=0;i<7;i++)box(scene,0x404e52,[-6+i*2,5.6,0],[.08,.08,18]);}
     for(const x of [-7,7]){plant(x,-5,1.2);box(scene,0x8b6553,[x,1,5],[1.5,2,5]);}
     for(const x of [-5.2,0,5.2]){box(scene,0x4b3930,[x,4.8,0],[.03,2,.03]);ball(scene,0xd7aa6c,[x,3.8,0],[.6,.25,.6]);}
