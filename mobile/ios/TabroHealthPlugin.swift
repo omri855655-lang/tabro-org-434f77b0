@@ -22,11 +22,13 @@ public class TabroHealthPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc public func requestAuthorization(_ call: CAPPluginCall) {
         guard HKHealthStore.isHealthDataAvailable(),
               let steps = HKQuantityType.quantityType(forIdentifier: .stepCount),
-              let sleep = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) else {
+              let sleep = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis),
+              let energy = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned),
+              let exercise = HKQuantityType.quantityType(forIdentifier: .appleExerciseTime) else {
             call.reject("Health data unavailable")
             return
         }
-        store.requestAuthorization(toShare: [], read: [steps, sleep]) { completed, error in
+        store.requestAuthorization(toShare: [], read: [steps, sleep, energy, exercise]) { completed, error in
             if let error = error { call.reject(error.localizedDescription); return }
             // Completion does not prove that read permission was granted.
             call.resolve(["requested": completed])
@@ -39,6 +41,8 @@ public class TabroHealthPlugin: CAPPlugin, CAPBridgedPlugin {
                 let end = Date()
                 let start = calendar.date(byAdding: .day, value: -29, to: calendar.startOfDay(for: end))!
                 let steps = try await readSteps(start, end)
+                let energy = try await readSteps(start, end, identifier: .activeEnergyBurned, unit: .kilocalorie())
+                let exercise = try await readSteps(start, end, identifier: .appleExerciseTime, unit: .minute())
                 let intervals = try await readSleep(start, end)
                 var combined: [(Date, Date)] = []
                 for range in intervals.sorted(by: { $0.0 < $1.0 }) {
@@ -48,7 +52,7 @@ public class TabroHealthPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
                 var sleep: [String: [(Date, Date)]] = [:]
                 for interval in combined { sleep[dayKey(interval.1), default: []].append(interval) }
-                let dates = Set(steps.keys).union(sleep.keys).sorted(by: >)
+                let dates = Set(steps.keys).union(sleep.keys).union(energy.keys).union(exercise.keys).sorted(by: >)
                 let rows: [[String: Any]] = dates.map { date in
                     let ranges = (sleep[date] ?? []).sorted { $0.0 < $1.0 }
                     var merged: [(Date, Date)] = []
@@ -59,14 +63,16 @@ public class TabroHealthPlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                     let hours = merged.reduce(0.0) { $0 + $1.1.timeIntervalSince($1.0) } / 3600
                     return ["date": date, "steps": steps[date].map { $0 as Any } ?? NSNull(),
+                            "activeCalories": energy[date].map { $0 as Any } ?? NSNull(),
+                            "exerciseMinutes": exercise[date].map { $0 as Any } ?? NSNull(),
                             "sleepHours": ranges.isEmpty ? NSNull() : NSNumber(value: (hours * 10).rounded() / 10)]
                 }
                 call.resolve(["days": rows])
             } catch { call.reject(error.localizedDescription) }
         }
     }
-    private func readSteps(_ start: Date, _ end: Date) async throws -> [String: Double] {
-        let type = HKQuantityType.quantityType(forIdentifier: .stepCount)!
+    private func readSteps(_ start: Date, _ end: Date, identifier: HKQuantityTypeIdentifier = .stepCount, unit: HKUnit = .count()) async throws -> [String: Double] {
+        let type = HKQuantityType.quantityType(forIdentifier: identifier)!
         return try await withCheckedThrowingContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
             let query = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate,
@@ -75,7 +81,7 @@ public class TabroHealthPlugin: CAPPlugin, CAPBridgedPlugin {
                 if let error = error { continuation.resume(throwing: error); return }
                 var days: [String: Double] = [:]
                 collection?.enumerateStatistics(from: start, to: end) { statistic, _ in
-                    if let quantity = statistic.sumQuantity() { days[self.dayKey(statistic.startDate)] = quantity.doubleValue(for: .count()) }
+                    if let quantity = statistic.sumQuantity() { days[self.dayKey(statistic.startDate)] = quantity.doubleValue(for: unit) }
                 }
                 continuation.resume(returning: days)
             }

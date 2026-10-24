@@ -12,11 +12,12 @@ export interface NutritionProfile {
   dietary_preferences?: string[];
   health_goals?: string | null;
 }
-export interface NutritionPreferences { goal: NutritionGoal; eligible: boolean }
+export interface NutritionPreferences { goal: NutritionGoal; eligible: boolean; dailyCalories?: number }
 export const DEFAULT_NUTRITION_PREFERENCES: NutritionPreferences = { goal: 'maintain', eligible: false };
 export function parseNutritionPreferences(value: unknown): NutritionPreferences {
   const row = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-  return { goal: row.goal === 'lose' || row.goal === 'gain' ? row.goal : 'maintain', eligible: row.eligible === true };
+  const dailyCalories = typeof row.dailyCalories === 'number' && Number.isInteger(row.dailyCalories) && row.dailyCalories >= 1500 && row.dailyCalories <= 5000 ? row.dailyCalories : undefined;
+  return { goal: row.goal === 'lose' || row.goal === 'gain' ? row.goal : 'maintain', eligible: row.eligible === true, ...(dailyCalories === undefined ? {} : { dailyCalories }) };
 }
 export type NutritionTarget = { status: 'ready'; calories: number; maintenance: number; resting: number; goal: NutritionGoal }
   | { status: 'incomplete' | 'specialist' | 'unsupported' };
@@ -35,7 +36,9 @@ export function nutritionTarget(profile: NutritionProfile, preferences: Nutritio
   const resting = 10 * weight + 6.25 * height - 5 * age + (gender === 'male' ? 5 : -161);
   const maintenance = Math.round(resting * ACTIVITY_FACTORS[activity_level as keyof typeof ACTIVITY_FACTORS] / 50) * 50;
   const adjustment = preferences.goal === 'lose' ? -250 : preferences.goal === 'gain' ? 250 : 0;
-  const calories = Math.max(Math.ceil(resting / 50) * 50, 1500, maintenance + adjustment);
+  const custom = preferences.dailyCalories;
+  if (custom !== undefined && (!Number.isInteger(custom) || custom < Math.max(1500, Math.ceil(resting)) || custom > 5000 || (bmi < 18.5 && custom < maintenance))) return { status: 'specialist' };
+  const calories = custom ?? Math.max(Math.ceil(resting / 50) * 50, 1500, maintenance + adjustment);
   if (maintenance < 1500 || calories > 5000) return { status: 'specialist' };
   return { status: 'ready', calories, maintenance, resting: Math.round(resting), goal: preferences.goal };
 }

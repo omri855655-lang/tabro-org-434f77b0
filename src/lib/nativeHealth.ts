@@ -11,5 +11,6 @@ export async function readNativeHealth():Promise<HealthDay[]> {
   await native.requestAuthorization();
   const {days}=await native.readSummary();
   if(!Array.isArray(days))throw new Error('Invalid health response');
-  return days.filter(day=>/^\d{4}-\d{2}-\d{2}$/.test(day.date)&&(day.steps===null||Number.isFinite(day.steps)&&day.steps>=0&&day.steps<200000)&&(day.sleepHours===null||Number.isFinite(day.sleepHours)&&day.sleepHours>=0&&day.sleepHours<=24)).slice(0,30);
+  const optional=(value:number|null|undefined,max:number)=>value==null||Number.isFinite(value)&&value>=0&&value<=max;
+  return days.filter(day=>day&&/^\d{4}-\d{2}-\d{2}$/.test(day.date)&&(day.steps===null||Number.isFinite(day.steps)&&day.steps>=0&&day.steps<200000)&&(day.sleepHours===null||Number.isFinite(day.sleepHours)&&day.sleepHours>=0&&day.sleepHours<=24)&&optional(day.activeCalories,20000)&&optional(day.exerciseMinutes,1440)).slice(0,30);
 }

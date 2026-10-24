@@ -4,11 +4,24 @@ import { readFile } from 'node:fs/promises';
 import { ACTIVITY_FACTORS, nutritionTarget, dailyNutrition, localDay, validDay, parseMealHistory, parseNutritionPreferences, parseNutritionCoachContext, nutritionCoachFacts } from '../src/lib/nutritionPlan.ts';
 import { nutritionTrackerCopy } from '../src/lib/nutritionTrackerCopy.ts';
 import { prepareCoachRequest, NUTRITION_COACH_SAFETY } from '../supabase/functions/task-ai-helper/nutritionCoach.ts';
+import { nutritionWorkspaceCopy } from '../src/lib/nutritionWorkspaceCopy.ts';
 
 const profile = { age: 30, height: 180, weight: 80, gender: 'male', activity_level: 'moderate' };
 const preferences = { goal: 'maintain', eligible: true };
 const item = { name: 'Rice', grams: 100, calories: 130, protein: 3, carbs: 28, fat: 1 };
 const meal = (id, date, calories = 130) => ({ id, date, title: '', assumptions: '', items: [{ ...item, calories }] });
+
+test('personal goal persists and is used consistently in the summary and coach', () => {
+  const saved = parseNutritionPreferences(JSON.parse(JSON.stringify({ ...preferences, dailyCalories: 2200 })));
+  const target = nutritionTarget(profile, saved);
+  assert.equal(target.calories, 2200);
+  const context = parseNutritionCoachContext({ profile, preferences: saved, day: '2026-10-23', meals: [meal('1', '2026-10-23T12:00:00Z', 400)] });
+  assert.equal(nutritionCoachFacts(context).remaining, 1800);
+  for (const dailyCalories of [100, 1600, Infinity, 5001, 2200.5]) assert.notEqual(nutritionTarget(profile, { ...preferences, dailyCalories }).status, 'ready');
+  assert.notEqual(nutritionTarget({ ...profile, age: 16 }, saved).status, 'ready');
+  assert.equal(nutritionTarget(profile, { ...saved, dailyCalories: undefined }).calories, 2750);
+  for (const labels of Object.values(nutritionWorkspaceCopy)) { assert.equal(labels.length, 15); assert.ok(labels.every(Boolean)); }
+});
 
 test('Mifflin equation, activity and moderate goals have transparent guarded results', () => {
   const result = nutritionTarget(profile, preferences);
