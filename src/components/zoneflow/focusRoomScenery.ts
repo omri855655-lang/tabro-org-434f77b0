@@ -144,6 +144,17 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       for (const z of [-2.5, 2.5]) mesh(sphere, 0x536671, [-1, 2.1, z], [1.2, .45, .45], plane);
       for (const x of [-4, 2]) mesh(sphere, 0x283439, [x, 1.4, .7], [.35, .35, .25], plane);
     }
+    const parked = transit.clone(true); parked.name = 'parked-gate-aircraft'; parked.position.set(-34, 0, -10); parked.scale.setScalar(.8); scene.add(parked);
+    // Gate apron continues from the lounge to the aircraft, taxiway and distant runway.
+    box(0xa7b0af, [-42, .02, -7], [56, .04, 18]);
+    for (let x = -60; x < -15; x += 10) box(0xd5c48c, [x, .06, -9], [.12, .03, 12]);
+    box(0xadbabd, [-49, 3.3, -4], [20, 2.5, 2.2]);
+    box(0x536f7e, [-49, 3.5, -2.88], [18, .8, .04]);
+    for (const x of [-55, -43]) box(0x7c8c90, [x, 1.4, -4], [.4, 2.8, .4]);
+    box(0xe1dfcf, [-28, .9, -5], [3.4, 1.5, 1.4]);
+    box(0x526e7b, [-29.1, 1.3, -4.28], [.7, .6, .03]);
+    box(0x59636b, [0, .02, -57], [350, .04, 10]);
+    for (let x = -168; x < 175; x += 12) box(0xf4e7b3, [x, .06, -57], [5, .02, .18]);
     for (let x = -80; x <= 80; x += 8) {
       box(0xc4d1ac, [x, .15, -31], [.2, .2, .2]); box(0xc4d1ac, [x, .15, -15], [.2, .2, .2]);
     }
