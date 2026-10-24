@@ -62,7 +62,6 @@ Deno.serve(async (req) => {
         })
       }
 
-      const lovableKey = Deno.env.get('LOVABLE_API_KEY')
       const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
       const messageId = crypto.randomUUID()
 
@@ -98,18 +97,6 @@ Deno.serve(async (req) => {
       }
 
       const deliveryAttempts: Array<{ label: string; apiUrl: string; headers: Record<string, string> }> = []
-
-      if (lovableKey) {
-        deliveryAttempts.push({
-          label: 'lovable-gateway',
-          apiUrl: 'https://connector-gateway.lovable.dev/resend/emails',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${lovableKey}`,
-            'X-Connection-Api-Key': resendKey,
-          },
-        })
-      }
 
       deliveryAttempts.push({
         label: 'resend-direct',

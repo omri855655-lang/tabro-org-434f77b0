@@ -1,3 +1,4 @@
+import { fetchAI } from '../_shared/directAI.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
@@ -6,7 +7,6 @@ const corsHeaders = {
 };
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
-const AI_GATEWAY = "https://ai-gateway.lovable.dev/v1/chat/completions";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -100,10 +100,10 @@ Deno.serve(async (req) => {
     }
 
     // Classify emails using AI Gateway
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     const emailList = emails.map((e, i) => `${i + 1}. Subject: "${e.subject}" From: "${e.from}"`).join("\n");
 
-    const aiRes = await fetch(AI_GATEWAY, {
+    const aiRes = await fetchAI({
       method: "POST",
       headers: {
         "Content-Type": "application/json",

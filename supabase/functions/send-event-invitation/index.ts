@@ -139,7 +139,6 @@ Deno.serve(async (req) => {
 
     // Send emails with ICS attachment
     const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY')
-    const lovableKey = Deno.env.get('LOVABLE_API_KEY')
 
     if (resendKey) {
       const startTime = formatDateIL(event.start_time, 'long')
@@ -147,16 +146,9 @@ Deno.serve(async (req) => {
 
       for (const email of inviteeEmails) {
         try {
-          const apiUrl = lovableKey
-            ? 'https://connector-gateway.lovable.dev/resend/emails'
-            : 'https://api.resend.com/emails'
+          const apiUrl = 'https://api.resend.com/emails'
           const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-          if (lovableKey) {
-            headers['Authorization'] = `Bearer ${lovableKey}`
-            headers['X-Connection-Api-Key'] = resendKey
-          } else {
-            headers['Authorization'] = `Bearer ${resendKey}`
-          }
+          headers['Authorization'] = `Bearer ${resendKey}`
 
           await fetch(apiUrl, {
             method: 'POST',
