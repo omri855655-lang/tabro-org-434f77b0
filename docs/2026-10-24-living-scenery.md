@@ -9,3 +9,14 @@ City exteriors include layered buildings, a distinct Tokyo-inspired tower silhou
 New labels are present in all six app languages. Preferences are local to the browser, not shared room design changes. Timer, avatar identity, seat and participant presence remain controlled by their existing parent state.
 
 Tests cover city elevations, traffic motion, freeze behavior, airport isolation from city presets, aircraft movement, preference validation and translations. Browser visual QA, actual device performance and production publication must be recorded separately; automated checks alone do not establish visual realism.
+
+## Sandbox visual QA (aa1a450)
+
+Checked in the sandbox browser with the fictional `tests/fixtures/focusImmersive.html` only (software WebGL, illustrated style; one natural sample attempted). Fixes:
+- Rounded window glass showed a strip of sky along its bottom edge (bevel UVs of the rounded box); windows now use flat rounded glass with clean 0..1 UVs.
+- High floors tilted the camera down, so towers leaned; the frame is now shifted down with a level camera. Nearby roofs are lower so the view looks over the city, and a boulevard with traffic is visible below.
+- The ground ended inside the wide panorama (sky visible under its edge in outer windows); it now extends into the fog. City rows and distant towers span the full panorama width.
+- Shop fronts floated in front of the facades; they now sit on each facade. Street level has pavements, a kerb and lamp posts. Tokyo-inspired views have lighter facades, vertical signs and a taller lattice tower so they read differently from New York-inspired views.
+- The library windows checkbox is larger on phones.
+
+Limits: software WebGL advances the scenery clock slowly, so terminal motion was verified by rendering the shared outdoor view at fixed scenery times rather than by waiting 30 real seconds. No physical phone or GPU was tested.

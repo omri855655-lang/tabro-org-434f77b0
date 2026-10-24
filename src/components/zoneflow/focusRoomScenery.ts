@@ -31,26 +31,48 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   const high = !airport && preset.endsWith('-high'), tokyo = !airport && preset.startsWith('tokyo');
   const historic = !urban && ['heritage-library', 'grand', 'monastery-library'].includes(kind);
   const eyeHeight = high ? 24 : 5;
-  camera.position.y = eyeHeight; camera.lookAt(0, high ? 16 : 5, -30);
+  camera.position.y = eyeHeight;
+  if (high) {
+    // Shift the frame down instead of tilting the camera, so towers stay vertical from a high floor.
+    camera.fov = 74; camera.aspect = 3 / 1.236; camera.setViewOffset(3000, 1236, 0, 236, 3000, 1000);
+  }
+  camera.lookAt(0, eyeHeight, -30);
   scene.name = `living-scenery-${airport ? 'airport' : preset}`;
-  const ground = box(urban || airport ? 0x8e9596 : 0x657c55, [0, -.3, -35], [180, .5, 160]);
+  // The wide panorama reaches far to the sides; the ground must extend into the fog so no edge shows.
+  const ground = box(urban || airport ? 0x8e9596 : 0x657c55, [0, -.3, -150], [700, .5, 420]);
+  const streetZ = high ? -36 : -6;
   if (urban) {
-    box(0x515a60, [0, .01, -6], [160, .04, 9]);
-    for (let x = -70; x < 70; x += 7) box(0xe9e0c6, [x, .04, -6], [3, .02, .12]);
+    box(0x515a60, [0, .01, streetZ], [400, .04, 9]);
+    for (let x = -196; x < 200; x += 7) box(0xe9e0c6, [x, .04, streetZ], [3, .02, .12]);
+    // Pavements, a kerb and lamp posts give the street-level foreground real detail.
+    box(0xb9b6ac, [0, .03, streetZ + 9.2], [400, .06, 9.5]); box(0xd8d4c8, [0, .09, streetZ + 4.6], [400, .14, .25]);
+    box(0xb9b6ac, [0, .03, streetZ - 6.6], [400, .06, 4.2]);
+    for (let x = -60; x <= 60; x += 15) { box(0x3d474c, [x, 2.2, streetZ + 5.1], [.14, 4.4, .14]); box(0x3d474c, [x + .45, 4.35, streetZ + 5.1], [1, .1, .14]); }
+    if (high) for (const x of [-72, -28, 28, 72]) box(0x515a60, [x, .02, -70], [5, .04, 60]);
   } else if (!airport) box(0xc5baa0, [0, .01, -10], [5, .04, 90]);
   // Layered silhouettes create depth beyond the garden or street.
   if (!urban && !airport) for (let i = 0; i < 9; i++) mesh(sphere, 0x6f8d8c, [(i - 4) * 24, -6, -92 - i % 3 * 9], [27, 19 + i % 4 * 3, 12]);
   const lit = new THREE.MeshStandardMaterial({ color: 0xd6c7a4, emissive: 0xffc778, emissiveIntensity: 0 }); resources.add(lit);
   const windowGeometry = new THREE.BoxGeometry(.65, 1.05, .04); resources.add(windowGeometry);
   const windowMatrices: THREE.Matrix4[] = [];
+  const facadeColors = tokyo ? [0xc9cbc6, 0xb4b9bb, 0xd8d2c4, 0xa9b0b4] : [0xb9b1a1, 0xcbb99d, 0xa7b2af, 0xbda99a];
   if (urban || historic) {
-    for (let i = 0; i < 11; i++) {
-      const x = (i - 5) * 8, z = historic ? -44 : high ? -45 - i % 3 * 7 : -23 - i % 3 * 3, h = historic ? 11 : high ? 20 + (i * 13) % 29 : 9 + i % 4 * 2;
-      box([0xb9b1a1, 0xcbb99d, 0xa7b2af, 0xbda99a][i % 4], [x, h / 2, z], [7.6, h, 5]);
+    // City rows fill the whole panorama width; the historic row stays a short quadrangle.
+    const count = urban ? 25 : 11;
+    for (let i = 0; i < count; i++) {
+      const x = (i - (count - 1) / 2) * 8, z = historic ? -44 : high ? -46 - i % 3 * 7 : -23 - i % 3 * 3, h = historic ? 11 : high ? 10 + (i * 13) % 23 : 9 + i % 4 * 2; // high floors look over most nearby roofs
+      box(historic ? [0xb9b1a1, 0xcbb99d, 0xa7b2af, 0xbda99a][i % 4] : facadeColors[i % 4], [x, h / 2, z], [7.6, h, 5]);
       for (const y of [1.2, h - .5, h + .15]) box(0xe1d5bd, [x, y, z + 2.65], [8, .22, .38]);
       if (historic) { const roof = new THREE.ConeGeometry(5.8, 3.5, 4); resources.add(roof); const m = mesh(roof, 0x4d6265, [x, h + 1.6, z], [1, 1, 1]); m.rotation.y = Math.PI / 4; }
+      if (urban) {
+        // Shop fronts sit on each facade rather than floating in front of the row.
+        box(tokyo ? 0x786978 : 0x516b5e, [x, 2.55, z + 2.95], [6.4, .3, .9]);
+        box(0x3f5059, [x, 1.25, z + 2.56], [5.6, 1.9, .06]);
+        if (tokyo) box([0xc8574b, 0xd9ab3c, 0x4c84b4][i % 3], [x + 3.25, Math.min(h - 1.5, 5.5), z + 2.8], [.5, Math.min(5, h * .45), .22]);
+      }
       for (let row = 0; row < Math.floor(h / 2.4); row++) for (let col = -2; col <= 2; col++) {
         const y = 2 + row * 2.4, wx = x + col * 1.25;
+        if (urban && row === 0) continue;
         box(0x52636a, [wx, y, z + 2.54], [.9, 1.4, .06]);
         windowMatrices.push(new THREE.Matrix4().makeTranslation(wx, y, z + 2.59));
       }
@@ -58,21 +80,17 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   }
   if (urban) {
     // Distant towers sit behind the street facades, with a different silhouette for each city.
-    for (let i = 0; i < 19; i++) {
-      const x = (i - 9) * 8, h = 17 + (i * 17) % 37, z = -90 - i % 3 * 8;
+    for (let i = 0; i < 39; i++) {
+      const x = (i - 19) * 8, h = 17 + (i * 17) % 37, z = -90 - i % 3 * 8;
       box(tokyo ? 0x899aa6 : 0x9d9b93, [x, h / 2, z], [6, h, 6]);
       for (let y = 4; y < h; y += 3) box(0x5b7280, [x, y, z + 3.05], [5.3, .65, .04]);
       if (i % 4 === 0) { box(0x98a6ad, [x, h + 2, z], [3.6, 4, 3.6]); box(0x647783, [x, h + 6, z], [.18, 5, .18]); }
     }
     if (tokyo) {
-      for (const side of [-1, 1]) { const leg = box(0xbc6450, [18 + side * 2, 16, -72], [.65, 32, .65]); leg.rotation.z = side * .1; }
-      for (const y of [9, 18, 27]) box(0xe6bda0, [18, y, -72], [7 - y * .16, .6, 1.2]);
-      box(0xc8c7bd, [18, 36, -72], [.3, 15, .3]);
-    }
-    for (let i = 0; i < 10; i++) {
-      const x = (i - 4.5) * 8;
-      box(tokyo ? 0x786978 : 0x516b5e, [x, 2, -19], [4, .8, .8]);
-      for (let stripe = 0; stripe < 4; stripe++) box(0xd9cbb5, [x - 1.5 + stripe, 2.02, -18.55], [.4, .7, .03]);
+      // A lattice tower that rises clearly above the skyline from both street and high floor.
+      for (const side of [-1, 1]) { const leg = box(0xbc6450, [8 + side * 2.4, 20, -80], [.8, 40, .8]); leg.rotation.z = side * .1; }
+      for (const y of [10, 21, 31]) box(0xe6bda0, [8, y, -80], [7.2 - y * .17, .7, 1.4]);
+      box(0xc8c7bd, [8, 46, -80], [.35, 12, .35]);
     }
   }
   if (windowMatrices.length) { const lights = new THREE.InstancedMesh(windowGeometry, lit, windowMatrices.length); windowMatrices.forEach((m, i) => lights.setMatrixAt(i, m)); lights.computeBoundingSphere(); scene.add(lights); resources.add(lights); }
@@ -83,7 +101,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     const trunks = new THREE.InstancedMesh(cube, material(0x685648), 24);
     const transform = new THREE.Object3D();
     for (let i = 0; i < 24; i++) {
-      const x = (i % 12 - 5.5) * 7 + Math.sin(i * 3) * 2, z = -18 - Math.floor(i / 12) * 25;
+      const x = (i % 12 - 5.5) * 7 + Math.sin(i * 3) * 2, z = high ? -15 - Math.floor(i / 12) * 12 : -18 - Math.floor(i / 12) * 25;
       transform.position.set(x, 3, z); transform.scale.set(.32, 6, .32); transform.updateMatrix(); trunks.setMatrixAt(i, transform.matrix);
       for (let j = 0; j < 4; j++) { transform.position.set(x + Math.sin(j * 2) * 1.1, 5.3 + j * .65, z + Math.cos(j * 2)); transform.scale.set(1.8 + i % 3 * .25, 2.2, 1.8); transform.updateMatrix(); leaves.setMatrixAt(i * 4 + j, transform.matrix); }
     }
@@ -99,7 +117,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     for (let x = -5; x < 5; x += .6) box(0x334f61, [x, 3.4, 1], [.23, .24, .04], transit);
     transit.position.set(-12, 0, -24);
   } else if (urban) {
-    box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = -6;
+    box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = streetZ;
   }
   const traffic: THREE.Group[] = [], walkers: THREE.Group[] = [];
   if (urban) {
@@ -146,7 +164,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   const cloudTexture = new THREE.DataTexture(cloudPixels, 128, 64); cloudTexture.flipY = true; cloudTexture.colorSpace = THREE.SRGBColorSpace; cloudTexture.magFilter = THREE.LinearFilter; cloudTexture.needsUpdate = true;
   const cloudMaterial = new THREE.SpriteMaterial({ map: cloudTexture, transparent: true, depthWrite: false, fog: true });
   resources.add(cloudTexture); resources.add(cloudMaterial);
-  const clouds = new THREE.Group(); scene.add(clouds);
+  const clouds = new THREE.Group(); clouds.position.y = high ? 26 : 0; scene.add(clouds);
   for (let i = 0; i < 12; i++) {
     const cloud = new THREE.Sprite(cloudMaterial);
     cloud.position.set((i % 6 - 2.5) * 34 + Math.sin(i * 5) * 9, 24 + (i * 7) % 3 * 5, -70 - Math.floor(i / 6) * 34);
@@ -241,8 +259,8 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
           departure.rotation.z = progress > .38 ? -.08 : 0;
         }
       }
-      traffic.forEach((car, i) => { const direction = i % 2 ? -1 : 1; car.position.set(direction * sceneryTravel(motionClock, 4 + i % 3, i * 23), 0, i % 2 ? -8 : -4); });
-      walkers.forEach((person, i) => { person.position.set((i % 2 ? -1 : 1) * sceneryTravel(motionClock, .65, i * 16), 0, -12.2 - i % 2 * 1.4); person.rotation.z = Math.sin(motionClock * 5 + i) * .025; });
+      traffic.forEach((car, i) => { const direction = i % 2 ? -1 : 1; car.position.set(direction * sceneryTravel(motionClock, 4 + i % 3, i * 23), 0, streetZ + (i % 2 ? -2 : 2)); });
+      walkers.forEach((person, i) => { person.position.set((i % 2 ? -1 : 1) * sceneryTravel(motionClock, .65, i * 16), 0, streetZ - 5.8 - i % 2 * 1.2); person.rotation.z = Math.sin(motionClock * 5 + i) * .025; });
       rain.visible = wet; rain.position.y = -(motionClock * 6 % 4);
       lastMotionClock = motionClock;
       const previous = renderer.getRenderTarget();
