@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ArrowDown, ArrowUp, RotateCcw, RotateCw } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
@@ -56,6 +57,10 @@ export default function FocusRoomImmersive(props: Props) {
     canvas.setAttribute('aria-hidden', 'true');
     element.appendChild(canvas);
     const scene = new THREE.Scene();
+    // Locally generated bounce light so ceilings, cabins and terminals are never lit only from above.
+    let bounceLight: THREE.WebGLRenderTarget | null = null;
+    try { const pmrem = new THREE.PMREMGenerator(renderer), room = new RoomEnvironment(); bounceLight = pmrem.fromScene(room, .04); room.dispose(); pmrem.dispose(); scene.environment = bounceLight.texture; }
+    catch { bounceLight = null; }
     const atmosphere = props.atmosphere || props.scene;
     const flying = isFlightAtmosphere(atmosphere);
     const night=flying&&props.flightTime==='night';
