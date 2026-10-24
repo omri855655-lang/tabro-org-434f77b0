@@ -158,3 +158,21 @@ test('forward-facing aircraft seats remain reachable without crossing tray table
     }
   }
 });
+
+test('phone lighter-view hint shows in 3D natural view and stays hidden once dismissed or lighter view chosen', () => {
+  const render = storage => {
+    roomStorage = storage;
+    try {
+      return renderToStaticMarkup(React.createElement(exports.FocusRoomInterior, {
+        scene: 'library', name: 'Test room', topic: 'Focus', timer: '24:10', active: true, activity: 'computer',
+        participants: [{ userId: 'fixture', displayName: 'Learner', x: 50, y: 62, isMe: true, status: 'focusing', seated: true, activity: 'computer' }],
+        onToggle() {}, onReset() {}, onMove() {}, onActivityChange() {}, onSelectSeat() {},
+      }));
+    } finally { roomStorage = { 'zoneflow-room-camera': 'map' }; }
+  };
+  const hint = 'data-testid="room-device-hint"';
+  assert.ok(render({ 'zoneflow-room-camera': 'eye' }).includes(hint));
+  assert.ok(!render({ 'zoneflow-room-camera': 'eye', 'zoneflow-room-device-hint': 'dismissed' }).includes(hint));
+  assert.ok(!render({ 'zoneflow-room-camera': 'eye', 'zoneflow-room-graphics': 'illustrated' }).includes(hint));
+  assert.ok(!render({ 'zoneflow-room-camera': 'map' }).includes(hint));
+});
