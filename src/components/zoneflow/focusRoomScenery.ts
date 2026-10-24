@@ -145,11 +145,15 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       if (key === previousKey && step === last) return;
       previousKey = key; last = step;
       const night = phase === 'night', sunset = phase === 'sunset', wet = weather === 'rain';
-      const sky = night ? 0x14253d : wet ? 0x9aaeb9 : sunset ? 0xdbb29a : 0xb5d4e5;
-      scene.background = distantLandscape || new THREE.Color(sky); scene.backgroundIntensity = night ? .08 : sunset ? .5 : wet ? .6 : .9;
+      const sky = night ? 0x1b2a47 : wet ? 0xa9b4ba : sunset ? 0xf0b98a : 0xcfe2ea;
+      // The forest HDR suits clear daylight only; other moods need a visible sky so the windows change with them.
+      paintSky(night ? [0x050b1a, 0x13213b, sky] : wet ? [0x6f7e89, 0x95a3ab, sky] : sunset ? [0x46507f, 0xd98d72, sky] : [0x5f9bd0, 0x9fc6e2, sky]);
+      scene.background = distantLandscape && !night && !sunset && !wet ? distantLandscape : skyTexture; scene.backgroundIntensity = .9;
       scene.fog = new THREE.Fog(sky, wet ? 35 : 65, 170);
-      hemisphere.intensity = night ? .35 : wet ? 1.4 : 2;
-      sun.intensity = night ? .3 : wet ? .6 : sunset ? 2 : 2.5; sun.color.set(night ? 0x8eb8ea : sunset ? 0xffbd75 : 0xffedcc);
+      stars.visible = night && !wet;
+      hemisphere.intensity = night ? .16 : wet ? 1.2 : sunset ? 1.3 : 2; hemisphere.color.set(night ? 0x6f86b0 : sunset ? 0xffd9b8 : 0xeaf4ff);
+      sun.intensity = night ? .18 : wet ? .6 : sunset ? 2 : 2.5; sun.color.set(night ? 0x8eb8ea : sunset ? 0xff9f5a : 0xffedcc);
+      sun.position.set(-20, night ? 30 : sunset ? 7 : 30, 15);
       lit.emissiveIntensity = night ? 1.6 : sunset ? .6 : 0;
       (ground.material as THREE.MeshStandardMaterial).roughness = wet ? .28 : .85;
       trees.rotation.z = moving ? Math.sin(clock * .28) * .006 : 0;
