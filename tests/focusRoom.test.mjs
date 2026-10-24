@@ -10,6 +10,7 @@ import * as journey from '../src/lib/focusRoomJourney.ts';
 import * as flightTime from '../src/lib/focusFlightTime.ts';
 import * as avatarDesign from '../src/lib/focusAvatar.ts';
 import * as atmosphere from '../src/lib/focusAtmosphere.ts';
+import * as deviceCopy from '../src/lib/focusDeviceCopy.ts';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -36,6 +37,7 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name === '@/lib/focusFlightTime') return flightTime;
   if (name === '@/lib/focusAvatar') return avatarDesign;
   if (name === '@/lib/focusAtmosphere') return atmosphere;
+  if (name === '@/lib/focusDeviceCopy') return deviceCopy;
   if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => key === 'zoneflow-room-camera' ? 'map' : null, setString() {} } };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');
   if (name === './FocusRoomLife') return { FocusRoomLife:()=>null };

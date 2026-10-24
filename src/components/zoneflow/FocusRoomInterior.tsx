@@ -12,6 +12,7 @@ import { FocusRoomLife } from './FocusRoomLife';
 import { focusRoomViewCopy } from '@/lib/focusRoomViewCopy';
 import { historicLibraryCopy } from '@/lib/focusRoomJourney';
 import { atmosphereCopy, parseRoomDaylight, parseRoomWeather } from '@/lib/focusAtmosphere';
+import { focusDeviceCopy } from '@/lib/focusDeviceCopy';
 import './focusRoomStudio.css';
 import { FOCUS_FLIGHTS, flightPhase, roomJourneyCopy, roomDesignCopy, isFlightAtmosphere, type RoomAtmosphere, type RoomGraphics } from '@/lib/focusRoomJourney';
 
@@ -45,6 +46,8 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const [daylight,setDaylight] = useState(()=>parseRoomDaylight(safeLocalStorage.getString('zoneflow-room-daylight') || (isFlightAtmosphere(scene) ? safeLocalStorage.getString('zoneflow-flight-time') : null)));
   const [weather,setWeather] = useState(()=>parseRoomWeather(safeLocalStorage.getString('zoneflow-room-weather')));
   const [quiet,setQuiet] = useState(false);
+  const [deviceHintDismissed, setDeviceHintDismissed] = useState(false);
+  const deviceCopy = focusDeviceCopy[lang];
   const [graphics, setGraphics] = useState<RoomGraphics>(() => { const value=safeLocalStorage.getString('zoneflow-room-graphics');return value==='illustrated'||value==='cinematic'?value:'natural'; });
   const [flightId, setFlightId] = useState<string>(FOCUS_FLIGHTS[0].id);
   const flight = FOCUS_FLIGHTS.find(route => route.id === flightId)!;
@@ -123,6 +126,13 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       {view === 'map' && <Button size="sm" variant="ghost" className="gap-2 rounded-full text-[#527063]" aria-label={zoomed ? copy.zoomOut : copy.zoomIn} aria-pressed={zoomed} onClick={() => setZoomed(value => !value)}>{zoomed ? <Minus className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}{zoomed ? '100%' : '150%'}</Button>}
     </div>
     {unavailable && <p role="status" className="bg-amber-50 px-4 py-3 text-sm text-amber-900">{viewCopy.unavailable}</p>}
+    {!deviceHintDismissed && graphics !== 'illustrated' && view !== 'map' && <aside className="border-t border-[#dce3d7] bg-[#eef4ed] px-4 py-3 text-sm text-[#38594b] sm:hidden" data-testid="room-device-hint">
+      <p>{deviceCopy.hint}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => { setGraphics('illustrated'); setDeviceHintDismissed(true); }}>{deviceCopy.light}</Button>
+        <Button variant="ghost" onClick={() => setDeviceHintDismissed(true)}>{deviceCopy.keep}</Button>
+      </div>
+    </aside>}
     <div className="room-view-bar flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
       <span className="text-sm font-medium text-[#38594b]">{atmosphereTitles[atmosphere]}</span>
       <Button variant="ghost" size="sm" className="gap-2 rounded-full text-[#38594b]" aria-pressed={quiet} onClick={()=>setQuiet(value=>!value)}><Leaf className="h-4 w-4"/>{quiet?ambience.restore:ambience.quiet}</Button>
@@ -147,7 +157,7 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
       {view!=='map'&&<FocusRoomLife enabled={scenery} onChange={value=>{setScenery(value);safeLocalStorage.setString('zoneflow-room-life',value?'on':'off');}}/>}
       </div>
     </details>
-    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} graphics={graphics} daylight={daylight} weather={weather} scenery={scenery} elapsed={elapsed} started={started} running={active} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
+    {view !== 'map' ? <Suspense fallback={<p role="status" className="p-12 text-center">{viewCopy.loading}</p>}><FocusRoomImmersive scene={scene} atmosphere={atmosphere} graphics={graphics} daylight={daylight} weather={weather} scenery={scenery} elapsed={elapsed} started={started} running={active} timer={timer} participants={participants} mode={view} onMove={move} onSeat={chooseSeat} onUnavailable={()=>{setUnavailable(true);setView('map');}}/></Suspense> : <div className="overflow-auto bg-[#e4d9c0]" dir="ltr">
       <div className="relative mx-auto cursor-crosshair" style={{ width: zoomed ? '150%' : '100%', maxWidth: zoomed ? undefined : '900px' }} onClick={moveFromPointer} aria-label={copy.space}>
         <FocusRoomWorld scene={scene} participants={participants} walking={walking} deskLabel={copy.desk} selectedSeat={selectedSeat} />
       </div>

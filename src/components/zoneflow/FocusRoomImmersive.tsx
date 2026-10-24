@@ -14,6 +14,7 @@ import type { FocusFlightTime } from '@/lib/focusFlightTime';
 import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR, AVATAR_PANTS } from '@/lib/focusAvatar';
 import { sceneryTargets, roomLifeCopy } from '@/lib/focusRoomLife';
 import { createRoomScenery } from './focusRoomScenery';
+import { createDeskTimer } from './focusDeskTimer';
 import { resolveRoomDaylight, roomCameraFov, roomPixelRatio, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
 
 type Position = { x: number; y: number };
@@ -27,6 +28,7 @@ interface Props {
   flightTime?: FocusFlightTime;
   daylight?: RoomDaylight;
   weather?: RoomWeather;
+  timer?: string;
 }
 const SHIRTS = [0x589f95, 0xcd8975, 0xc6a15c, 0x839c68, 0xa49bbf, 0x7b9ebf, 0x9aa96b, 0xcc9baa];
 const SKINS = [0xe9b38d, 0xc08b65, 0x875b43, 0xf1c6a3];
@@ -123,7 +125,8 @@ export default function FocusRoomImmersive(props: Props) {
     const paperGeometry=new THREE.PlaneGeometry(.67,.94,16,1);paperGeometry.rotateX(-Math.PI/2);
     const vertices=paperGeometry.getAttribute('position');for(let i=0;i<vertices.count;i++)vertices.setY(i,.012*Math.sin((vertices.getX(i)+.335)/.67*Math.PI));paperGeometry.computeVertexNormals();
     const assetStations:{root:THREE.Group;furniture:THREE.Object3D[]}[]=[];
-    const deskProps: { computer: THREE.Group; book: THREE.Group; notebook: THREE.Group; pencil: THREE.Mesh; page: THREE.Mesh }[] = [];
+    const deskTimer = createDeskTimer(document.createElement('canvas'));
+    const deskProps: { computer: THREE.Group; screen: THREE.Mesh; book: THREE.Group; notebook: THREE.Group; pencil: THREE.Mesh; page: THREE.Mesh }[] = [];
     FOCUS_SEATS.forEach((seat, index) => {
       const desk = new THREE.Group(); desk.position.copy(world(seat)); scene.add(desk);
       if (flying || index >= 3) desk.rotation.y = Math.PI;
@@ -134,7 +137,7 @@ export default function FocusRoomImmersive(props: Props) {
       box(computer, 0x455354, [0, 1.25, .95], [1.25, .08, .8]);
       box(computer, 0x455354, [0, 1.65, 1.38], [1.25, .85, .08]);
       box(computer, 0xa2cec0, [0, 1.65, 1.33], [1.1, .7, .02]);
-      for (let i = 0; i < 4; i++) box(computer, 0xe5f0d8, [-.12, 1.88 - i * .13, 1.31], [.65 - (i % 2) * .2, .035, .01]);
+      const screen = deskTimer.createScreen(); computer.add(screen);
       for (let i = 0; i < 5; i++) box(computer, 0x82938e, [0, 1.3, .68 + i * .11], [.95, .015, .045]);
       roundedBox(book, 0x474e4c, [0, 1.25, .95], [1.45, .08, 1]);
       box(book,0xdad3c3,[0,1.29,.95],[1.39,.06,.96]);
@@ -144,7 +147,7 @@ export default function FocusRoomImmersive(props: Props) {
       box(notebook, 0xfaf0d8, [0, 1.27, .9], [1.1, .07, .95]);
       for (let i = 0; i < 6; i++) box(notebook, 0xb5c5c3, [0, 1.311, .55 + i * .13], [.9, .008, .012]);
       const pencil = box(notebook, 0xd1984e, [.25, 1.36, .75], [.035, .035, .65]); pencil.rotation.y = -.5;
-      deskProps.push({ computer, book, notebook, pencil, page });
+      deskProps.push({ computer, screen, book, notebook, pencil, page });
     });
     const assetEnabled=graphics!=='illustrated'&&['library','grand','intimate','cafe','city-cafe','heritage-library','monastery-library'].includes(atmosphere);
     setAssetState(assetEnabled?'loading':'');
@@ -295,9 +298,11 @@ export default function FocusRoomImmersive(props: Props) {
         avatar.arms.forEach((arm, i) => { arm.rotation.x = seated ? -1.85 + (p.status === 'focusing' ? wave * (p.activity === 'computer' ? .08 : .03) : 0) : walking ? wave * .45 * (i ? -1 : 1) : 0; });
         avatar.legs.forEach((leg, i) => { leg.rotation.x = seated ? -Math.PI / 2 : walking ? wave * .5 * (i ? 1 : -1) : 0; });
       }
+      deskTimer.update(latest.current.timer, !!latest.current.running);
       deskProps.forEach((items, index) => {
         const seat = FOCUS_SEATS[index], p = people.find(p => p.seated && Math.hypot(p.x - seat.x, p.y - seat.y) < 12);
         items.computer.visible = p?.activity === 'computer'; items.book.visible = !p || p.activity === 'book'; items.notebook.visible = p?.activity === 'notebook';
+        items.screen.visible = !!p?.isMe && p.activity === 'computer';
         const active = p?.status === 'focusing' && !reduced.matches;
         items.pencil.position.x = .25 + (active ? Math.sin(now * .005) * .12 : 0);
         items.page.rotation.z = active ? Math.max(0, Math.sin(now * .0008)) * .12 : 0;
@@ -333,6 +338,7 @@ export default function FocusRoomImmersive(props: Props) {
       outdoors?.dispose(); environment.dispose(); roundedCube.dispose();
       environmentMaterials.forEach(material=>material.dispose());grainTexture.dispose();
       paperGeometry.dispose();paperMaterial.dispose();paperTexture.dispose();
+      deskTimer.dispose();
       scene.environment = null; bounceLight?.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
