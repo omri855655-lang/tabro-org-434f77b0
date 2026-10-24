@@ -46,7 +46,8 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
   const [daylight,setDaylight] = useState(()=>parseRoomDaylight(safeLocalStorage.getString('zoneflow-room-daylight') || (isFlightAtmosphere(scene) ? safeLocalStorage.getString('zoneflow-flight-time') : null)));
   const [weather,setWeather] = useState(()=>parseRoomWeather(safeLocalStorage.getString('zoneflow-room-weather')));
   const [quiet,setQuiet] = useState(false);
-  const [deviceHintDismissed, setDeviceHintDismissed] = useState(false);
+  const [deviceHintDismissed, setDeviceHintDismissed] = useState(() => safeLocalStorage.getString('zoneflow-room-device-hint') === 'dismissed');
+  const dismissDeviceHint = () => { setDeviceHintDismissed(true); safeLocalStorage.setString('zoneflow-room-device-hint', 'dismissed'); };
   const deviceCopy = focusDeviceCopy[lang];
   const [graphics, setGraphics] = useState<RoomGraphics>(() => { const value=safeLocalStorage.getString('zoneflow-room-graphics');return value==='illustrated'||value==='cinematic'?value:'natural'; });
   const [flightId, setFlightId] = useState<string>(FOCUS_FLIGHTS[0].id);
@@ -129,8 +130,8 @@ export function FocusRoomInterior({ scene, name, topic, participants, timer, act
     {!deviceHintDismissed && graphics !== 'illustrated' && view !== 'map' && <aside className="border-t border-[#dce3d7] bg-[#eef4ed] px-4 py-3 text-sm text-[#38594b] sm:hidden" data-testid="room-device-hint">
       <p>{deviceCopy.hint}</p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => { setGraphics('illustrated'); setDeviceHintDismissed(true); }}>{deviceCopy.light}</Button>
-        <Button variant="ghost" onClick={() => setDeviceHintDismissed(true)}>{deviceCopy.keep}</Button>
+        <Button variant="outline" onClick={() => { setGraphics('illustrated'); safeLocalStorage.setString('zoneflow-room-graphics', 'illustrated'); dismissDeviceHint(); }}>{deviceCopy.light}</Button>
+        <Button variant="ghost" onClick={dismissDeviceHint}>{deviceCopy.keep}</Button>
       </div>
     </aside>}
     <div className="room-view-bar flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
