@@ -101,7 +101,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     const trunks = new THREE.InstancedMesh(cube, material(0x685648), 24);
     const transform = new THREE.Object3D();
     for (let i = 0; i < 24; i++) {
-      const x = (i % 12 - 5.5) * 7 + Math.sin(i * 3) * 2, z = -18 - Math.floor(i / 12) * 25;
+      const x = (i % 12 - 5.5) * 7 + Math.sin(i * 3) * 2, z = high ? -15 - Math.floor(i / 12) * 12 : -18 - Math.floor(i / 12) * 25;
       transform.position.set(x, 3, z); transform.scale.set(.32, 6, .32); transform.updateMatrix(); trunks.setMatrixAt(i, transform.matrix);
       for (let j = 0; j < 4; j++) { transform.position.set(x + Math.sin(j * 2) * 1.1, 5.3 + j * .65, z + Math.cos(j * 2)); transform.scale.set(1.8 + i % 3 * .25, 2.2, 1.8); transform.updateMatrix(); leaves.setMatrixAt(i * 4 + j, transform.matrix); }
     }
@@ -117,7 +117,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     for (let x = -5; x < 5; x += .6) box(0x334f61, [x, 3.4, 1], [.23, .24, .04], transit);
     transit.position.set(-12, 0, -24);
   } else if (urban) {
-    box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = -6;
+    box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = streetZ;
   }
   const traffic: THREE.Group[] = [], walkers: THREE.Group[] = [];
   if (urban) {
@@ -164,7 +164,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   const cloudTexture = new THREE.DataTexture(cloudPixels, 128, 64); cloudTexture.flipY = true; cloudTexture.colorSpace = THREE.SRGBColorSpace; cloudTexture.magFilter = THREE.LinearFilter; cloudTexture.needsUpdate = true;
   const cloudMaterial = new THREE.SpriteMaterial({ map: cloudTexture, transparent: true, depthWrite: false, fog: true });
   resources.add(cloudTexture); resources.add(cloudMaterial);
-  const clouds = new THREE.Group(); scene.add(clouds);
+  const clouds = new THREE.Group(); clouds.position.y = high ? 26 : 0; scene.add(clouds);
   for (let i = 0; i < 12; i++) {
     const cloud = new THREE.Sprite(cloudMaterial);
     cloud.position.set((i % 6 - 2.5) * 34 + Math.sin(i * 5) * 9, 24 + (i * 7) % 3 * 5, -70 - Math.floor(i / 6) * 34);
@@ -259,8 +259,8 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
           departure.rotation.z = progress > .38 ? -.08 : 0;
         }
       }
-      traffic.forEach((car, i) => { const direction = i % 2 ? -1 : 1; car.position.set(direction * sceneryTravel(motionClock, 4 + i % 3, i * 23), 0, i % 2 ? -8 : -4); });
-      walkers.forEach((person, i) => { person.position.set((i % 2 ? -1 : 1) * sceneryTravel(motionClock, .65, i * 16), 0, -12.2 - i % 2 * 1.4); person.rotation.z = Math.sin(motionClock * 5 + i) * .025; });
+      traffic.forEach((car, i) => { const direction = i % 2 ? -1 : 1; car.position.set(direction * sceneryTravel(motionClock, 4 + i % 3, i * 23), 0, streetZ + (i % 2 ? -2 : 2)); });
+      walkers.forEach((person, i) => { person.position.set((i % 2 ? -1 : 1) * sceneryTravel(motionClock, .65, i * 16), 0, streetZ - 5.8 - i % 2 * 1.2); person.rotation.z = Math.sin(motionClock * 5 + i) * .025; });
       rain.visible = wet; rain.position.y = -(motionClock * 6 % 4);
       lastMotionClock = motionClock;
       const previous = renderer.getRenderTarget();
