@@ -9,6 +9,7 @@ import { focusRoomViewCopy } from '../src/lib/focusRoomViewCopy.ts';
 import * as journey from '../src/lib/focusRoomJourney.ts';
 import * as flightTime from '../src/lib/focusFlightTime.ts';
 import * as avatarDesign from '../src/lib/focusAvatar.ts';
+import * as atmosphere from '../src/lib/focusAtmosphere.ts';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -25,6 +26,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: {
 const exports = {};
 vm.runInNewContext(compiled, { exports, require: name => {
   if (name.endsWith('.png')) return { default: 'room.png' };
+  if (name.endsWith('.css')) return {};
   if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
   if (name === '@/lib/focusRoomCopy') return { focusRoomCopy };
   if (name === '@/lib/focusRoom') return roomHelpers;
@@ -33,6 +35,7 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name === '@/lib/focusRoomJourney') return journey;
   if (name === '@/lib/focusFlightTime') return flightTime;
   if (name === '@/lib/focusAvatar') return avatarDesign;
+  if (name === '@/lib/focusAtmosphere') return atmosphere;
   if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => key === 'zoneflow-room-camera' ? 'map' : null, setString() {} } };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');
   if (name === './FocusRoomLife') return { FocusRoomLife:()=>null };
@@ -56,8 +59,9 @@ for (const scene of ['cafe', 'plane', 'library', 'office']) {
       assert.ok(html.includes(`${label} · 50 דקות`));
       assert.ok(html.includes('24:10'));
       if(scene==='plane'){
-        assert.ok(html.includes('טיסת יום'));
-        assert.ok(html.includes('טיסת לילה'));
+        assert.ok(html.includes('אור יום'));
+        assert.ok(html.includes('לילה'));
+        assert.ok(html.includes('לפי השעה במכשיר'));
       }
       assert.ok(html.includes('is-seated'));
       assert.equal((html.match(/data-furniture="desk"/g) || []).length, 6);

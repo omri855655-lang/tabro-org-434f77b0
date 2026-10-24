@@ -1,0 +1,143 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import type { RoomAtmosphere, RoomGraphics } from '@/lib/focusRoomJourney';
+import { resolveRoomDaylight, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
+
+/** One panoramic outdoor pass shared by the windows, with per-window crops. */
+export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.Mesh[], kind: RoomAtmosphere, graphics: RoomGraphics) {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(62, 3, .1, 220);
+  camera.position.set(0, 5, 14); camera.lookAt(0, 5, -30);
+  const width = Math.min(graphics === 'illustrated' ? 768 : 1536, renderer.capabilities.maxTextureSize);
+  const target = new THREE.WebGLRenderTarget(width, Math.round(width / 3));
+  const resources = new Set<{ dispose: () => void }>([target]);
+  const cube = new THREE.BoxGeometry(), sphere = new THREE.SphereGeometry(1, 16, 12);
+  resources.add(cube); resources.add(sphere);
+  const materials = new Map<number, THREE.MeshStandardMaterial>();
+  const material = (color: number) => {
+    if (!materials.has(color)) { const m = new THREE.MeshStandardMaterial({ color, roughness: .85 }); materials.set(color, m); resources.add(m); }
+    return materials.get(color)!;
+  };
+  const mesh = (geometry: THREE.BufferGeometry, color: number, at: number[], size: number[], parent: THREE.Object3D = scene) => {
+    const object = new THREE.Mesh(geometry, material(color)); object.position.fromArray(at); object.scale.fromArray(size); parent.add(object); return object;
+  };
+  const box = (color: number, at: number[], size: number[], parent?: THREE.Object3D) => mesh(cube, color, at, size, parent);
+  const hemisphere = new THREE.HemisphereLight(0xeaf4ff, 0x637960, 2);
+  const sun = new THREE.DirectionalLight(0xffebce, 2.5); sun.position.set(-20, 30, 15); scene.add(hemisphere, sun);
+  const urban = ['city-cafe', 'office', 'modern-library'].includes(kind);
+  const historic = ['heritage-library', 'grand', 'monastery-library'].includes(kind);
+  const airport = kind === 'airport';
+  const ground = box(urban || airport ? 0x8e9596 : 0x657c55, [0, -.3, -35], [180, .5, 160]);
+  if (urban) {
+    box(0x515a60, [0, .01, -6], [160, .04, 9]);
+    for (let x = -70; x < 70; x += 7) box(0xe9e0c6, [x, .04, -6], [3, .02, .12]);
+  } else if (!airport) box(0xc5baa0, [0, .01, -10], [5, .04, 90]);
+  // Layered silhouettes create depth beyond the garden or street.
+  for (let i = 0; i < 9; i++) mesh(sphere, 0x6f8d8c, [(i - 4) * 24, -6, -92 - i % 3 * 9], [27, 19 + i % 4 * 3, 12]);
+  const lit = new THREE.MeshStandardMaterial({ color: 0xd6c7a4, emissive: 0xffc778, emissiveIntensity: 0 }); resources.add(lit);
+  const windowGeometry = new THREE.BoxGeometry(.65, 1.05, .04); resources.add(windowGeometry);
+  const windowMatrices: THREE.Matrix4[] = [];
+  if (urban || historic) {
+    for (let i = 0; i < 11; i++) {
+      const x = (i - 5) * 8, z = historic ? -44 : -23 - i % 3 * 3, h = historic ? 11 : 9 + i % 4 * 2;
+      box([0xb9b1a1, 0xcbb99d, 0xa7b2af, 0xbda99a][i % 4], [x, h / 2, z], [7.6, h, 5]);
+      for (const y of [1.2, h - .5, h + .15]) box(0xe1d5bd, [x, y, z + 2.65], [8, .22, .38]);
+      if (historic) { const roof = new THREE.ConeGeometry(5.8, 3.5, 4); resources.add(roof); const m = mesh(roof, 0x4d6265, [x, h + 1.6, z], [1, 1, 1]); m.rotation.y = Math.PI / 4; }
+      for (let row = 0; row < Math.floor(h / 2.4); row++) for (let col = -2; col <= 2; col++) {
+        const y = 2 + row * 2.4, wx = x + col * 1.25;
+        box(0x52636a, [wx, y, z + 2.54], [.9, 1.4, .06]);
+        windowMatrices.push(new THREE.Matrix4().makeTranslation(wx, y, z + 2.59));
+      }
+    }
+  }
+  if (windowMatrices.length) { const lights = new THREE.InstancedMesh(windowGeometry, lit, windowMatrices.length); windowMatrices.forEach((m, i) => lights.setMatrixAt(i, m)); lights.computeBoundingSphere(); scene.add(lights); resources.add(lights); }
+  const trees = new THREE.Group(); scene.add(trees);
+  if (!airport) {
+    const leafGeometry = new THREE.IcosahedronGeometry(1, 2); resources.add(leafGeometry);
+    const leaves = new THREE.InstancedMesh(leafGeometry, material(0x52754e), 96);
+    const trunks = new THREE.InstancedMesh(cube, material(0x685648), 24);
+    const transform = new THREE.Object3D();
+    for (let i = 0; i < 24; i++) {
+      const x = (i % 12 - 5.5) * 7 + Math.sin(i * 3) * 2, z = -18 - Math.floor(i / 12) * 25;
+      transform.position.set(x, 3, z); transform.scale.set(.32, 6, .32); transform.updateMatrix(); trunks.setMatrixAt(i, transform.matrix);
+      for (let j = 0; j < 4; j++) { transform.position.set(x + Math.sin(j * 2) * 1.1, 5.3 + j * .65, z + Math.cos(j * 2)); transform.scale.set(1.8 + i % 3 * .25, 2.2, 1.8); transform.updateMatrix(); leaves.setMatrixAt(i * 4 + j, transform.matrix); }
+    }
+    leaves.computeBoundingSphere(); trunks.computeBoundingSphere(); trees.add(leaves, trunks); resources.add(leaves); resources.add(trunks);
+  }
+  const transit = new THREE.Group(); scene.add(transit);
+  if (airport) {
+    box(0x59636b, [0, .01, -23], [180, .04, 16]);
+    for (let x = -80; x < 80; x += 9) box(0xf4e7b3, [x, .06, -23], [4, .02, .2]);
+    mesh(sphere, 0xe9ece6, [0, 3, 0], [8, 1.1, 1.1], transit);
+    const wing = box(0xb4bdc0, [0, 2.7, 0], [3.8, .2, 14], transit); wing.rotation.y = .24;
+    const tail = box(0x385e67, [6, 4.4, 0], [2, 3, .25], transit); tail.rotation.z = -.25;
+    for (let x = -5; x < 5; x += .6) box(0x334f61, [x, 3.4, 1], [.23, .24, .04], transit);
+    transit.position.set(-12, 0, -24);
+  } else if (urban) {
+    box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = -6;
+  }
+  const cloudGeometry = new THREE.SphereGeometry(1, 12, 8); resources.add(cloudGeometry);
+  const clouds = new THREE.InstancedMesh(cloudGeometry, material(0xe4e9e6), 30);
+  const cloudTransform = new THREE.Object3D();
+  for (let i = 0; i < 30; i++) { cloudTransform.position.set((i % 10 - 5) * 15, 21 + i % 3 * 4, -35 - Math.floor(i / 10) * 23); cloudTransform.scale.set(9, 1.3 + i % 3 * .5, 4); cloudTransform.updateMatrix(); clouds.setMatrixAt(i, cloudTransform.matrix); }
+  clouds.computeBoundingSphere(); scene.add(clouds); resources.add(clouds);
+  const rainPositions = new Float32Array(500 * 3);
+  for (let i = 0; i < 500; i++) rainPositions.set([Math.sin(i * 31) * 50, i % 25, -8 - (i * 17) % 55], i * 3);
+  const rainGeometry = new THREE.BufferGeometry(); rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+  const rainMaterial = new THREE.PointsMaterial({ color: 0xcadce6, size: .08, transparent: true, opacity: .6, depthWrite: false });
+  const rain = new THREE.Points(rainGeometry, rainMaterial); scene.add(rain); resources.add(rainGeometry); resources.add(rainMaterial);
+  const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  for (const object of [...scene.children]) {
+    if (!(object instanceof THREE.Mesh) || object instanceof THREE.InstancedMesh || Array.isArray(object.material) || object === ground) continue;
+    object.updateMatrixWorld(); const parts = batches.get(object.material) || [];
+    parts.push(object.geometry.clone().applyMatrix4(object.matrixWorld)); batches.set(object.material, parts); scene.remove(object);
+  }
+  for (const [material, parts] of batches) {
+    const geometry = mergeGeometries(parts); parts.forEach(part => part.dispose());
+    if (geometry) { resources.add(geometry); scene.add(new THREE.Mesh(geometry, material)); }
+  }
+  const restores: (() => void)[] = [];
+  windows.forEach((window, index) => {
+    // Cropped UVs share one render-target texture without copying GPU pixels.
+    const original = window.geometry, geometry = original.clone(), uv = geometry.getAttribute('uv');
+    const slice = 1 / Math.max(1, windows.length);
+    for (let i = 0; i < uv.count; i++) uv.setX(i, (index + uv.getX(i)) * slice);
+    const previous = window.material, m = new THREE.MeshBasicMaterial({ map: target.texture, toneMapped: false });
+    window.geometry = geometry; window.material = m; resources.add(geometry); resources.add(m);
+    restores.push(() => { window.geometry = original; window.material = previous; });
+  });
+  let previousKey = '', last = -1, clock = 0, stopped = false;
+  let distantLandscape: THREE.DataTexture | undefined;
+  if (!urban && !airport) new RGBELoader().loadAsync('/focus-assets/forest_slope.hdr').then(texture => {
+    if (stopped) { texture.dispose(); return; }
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    resources.add(texture); distantLandscape = texture; previousKey = '';
+  }).catch(() => { /* The layered geometry remains usable when the local HDR is unavailable. */ });
+  return {
+    update(dt: number, daylight: RoomDaylight, weather: RoomWeather, moving: boolean) {
+      if (stopped) return;
+      if (moving) clock += Math.min(dt, .1);
+      const phase = resolveRoomDaylight(daylight), key = `${phase}:${weather}`;
+      const step = Math.floor(clock * 6);
+      if (key === previousKey && step === last) return;
+      previousKey = key; last = step;
+      const night = phase === 'night', sunset = phase === 'sunset', wet = weather === 'rain';
+      const sky = night ? 0x14253d : wet ? 0x9aaeb9 : sunset ? 0xdbb29a : 0xb5d4e5;
+      scene.background = distantLandscape || new THREE.Color(sky); scene.backgroundIntensity = night ? .08 : sunset ? .5 : wet ? .6 : .9;
+      scene.fog = new THREE.Fog(sky, wet ? 35 : 65, 170);
+      hemisphere.intensity = night ? .35 : wet ? 1.4 : 2;
+      sun.intensity = night ? .3 : wet ? .6 : sunset ? 2 : 2.5; sun.color.set(night ? 0x8eb8ea : sunset ? 0xffbd75 : 0xffedcc);
+      lit.emissiveIntensity = night ? 1.6 : sunset ? .6 : 0;
+      (ground.material as THREE.MeshStandardMaterial).roughness = wet ? .28 : .85;
+      trees.rotation.z = moving ? Math.sin(clock * .28) * .006 : 0;
+      clouds.position.x = Math.sin(clock * .012) * 10;
+      if (airport || urban) transit.position.x = moving ? Math.sin(clock * (airport ? .012 : .035)) * 35 : -12;
+      rain.visible = wet; rain.position.y = -(clock * 6 % 4);
+      const previous = renderer.getRenderTarget();
+      try { renderer.setRenderTarget(target); renderer.render(scene, camera); }
+      finally { renderer.setRenderTarget(previous); }
+    },
+    dispose() { if (stopped) return; stopped = true; restores.forEach(restore => restore()); resources.forEach(resource => resource.dispose()); scene.clear(); },
+  };
+}

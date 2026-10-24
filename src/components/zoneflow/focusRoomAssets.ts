@@ -84,13 +84,7 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
     const pmrem=new THREE.PMREMGenerator(renderer);const target=pmrem.fromEquirectangular(texture);pmrem.dispose();resources.add(target);
     scene.environment=target.texture;scene.environmentIntensity=.65;
   });
-  const outdoors=kind==='city-cafe'?Promise.resolve():new RGBELoader().loadAsync('/focus-assets/forest_slope.hdr').then(texture=>{
-    keep(texture);if(stopped)return;
-    windows.forEach((window,index)=>{
-      const map=texture.clone();map.repeat.set(.22,.6);map.offset.set(.12+index*.16,.18);map.needsUpdate=true;
-      const material=new THREE.MeshBasicMaterial({map});keep(map);keep(material);replaceMaterial(window,material);
-    });
-  });
+  // Live scenery owns the windows; async asset loads must not replace their materials.
   const textureLoader=new THREE.TextureLoader();
   const surface=async(meshes:THREE.Mesh[],id:string,repeat:number,roughness:number)=>{
     const textures=await Promise.all(['diff','nor_gl'].map(async channel=>keep(await textureLoader.loadAsync(`/focus-assets/${id}/${channel}.jpg`))));
@@ -102,7 +96,7 @@ export function attachRoomAssets(scene: THREE.Scene, renderer: THREE.WebGLRender
   };
   const architecture=kind==='monastery-library'?Promise.resolve():Promise.all([surface([surfaces.floor],'herringbone_parquet',5,.65),surface(surfaces.walls,'plastered_wall_02',4,.94)]);
   // Keep the working procedural room if a local asset cannot be loaded.
-  const ready=Promise.allSettled([furniture,library,lighting,outdoors,architecture]).then(results=>({loaded:results.every(result=>result.status==='fulfilled'),kind}));
+  const ready=Promise.allSettled([furniture,library,lighting,architecture]).then(results=>({loaded:results.every(result=>result.status==='fulfilled'),kind}));
   const previousEnvironment=scene.environment,previousIntensity=scene.environmentIntensity;
   return {ready,dispose:()=>{if(stopped)return;stopped=true;scene.environment=previousEnvironment;scene.environmentIntensity=previousIntensity;restore.reverse().forEach(action=>action());added.forEach(object=>object.removeFromParent());resources.forEach(release);resources.clear();}};
 }

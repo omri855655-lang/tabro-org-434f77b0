@@ -12,6 +12,8 @@ import { attachRoomAssets } from './focusRoomAssets';
 import type { FocusFlightTime } from '@/lib/focusFlightTime';
 import { decodeAvatar, AVATAR_SKINS, AVATAR_HAIR, AVATAR_PANTS } from '@/lib/focusAvatar';
 import { sceneryTargets, roomLifeCopy } from '@/lib/focusRoomLife';
+import { createRoomScenery } from './focusRoomScenery';
+import { resolveRoomDaylight, roomPixelRatio, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
 
 type Position = { x: number; y: number };
 interface Props {
@@ -22,6 +24,8 @@ interface Props {
   graphics?: RoomGraphics;
   scenery?: boolean;
   flightTime?: FocusFlightTime;
+  daylight?: RoomDaylight;
+  weather?: RoomWeather;
 }
 const SHIRTS = [0x589f95, 0xcd8975, 0xc6a15c, 0x839c68, 0xa49bbf, 0x7b9ebf, 0x9aa96b, 0xcc9baa];
 const SKINS = [0xe9b38d, 0xc08b65, 0x875b43, 0xf1c6a3];
@@ -41,7 +45,7 @@ export default function FocusRoomImmersive(props: Props) {
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' }); }
     catch { latest.current.onUnavailable(); return; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setPixelRatio(roomPixelRatio(window.devicePixelRatio, element.clientWidth, element.clientHeight, props.graphics !== 'illustrated'));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -75,7 +79,7 @@ export default function FocusRoomImmersive(props: Props) {
       if(!environmentMaterials.has(color))environmentMaterials.set(color,new THREE.MeshStandardMaterial({color,roughness:graphics==='illustrated'?1:graphics==='cinematic'?.48:.72,metalness:graphics==='cinematic'?.08:0,flatShading:graphics==='illustrated',bumpMap:graphics==='illustrated'?null:grainTexture,bumpScale:.015}));
       return environmentMaterials.get(color)!;
     };
-    const cube = new THREE.BoxGeometry(1, 1, 1), sphere = new THREE.SphereGeometry(1, 16, 12);
+    const cube = new THREE.BoxGeometry(1, 1, 1), sphere = new THREE.SphereGeometry(1, 24, 18);
     const cylinder = new THREE.CylinderGeometry(1, 1, 1, 12);
     const roundedCube = new RoundedBoxGeometry(1,1,1,3,.08);
     const mat = (color: number) => {
@@ -91,14 +95,15 @@ export default function FocusRoomImmersive(props: Props) {
     const roundedBox = (parent: THREE.Object3D, color: number, at: number[], size: number[]) => shape(parent, roundedCube, color, at, size);
     const envBox=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=roundedBox(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
     const envBall=(parent:THREE.Object3D,color:number,at:number[],size:number[])=>{const mesh=ball(parent,color,at,size);mesh.material=environmentMat(color);return mesh;};
-    scene.add(new THREE.HemisphereLight(night?0x8badd5:0xf7efdf, 0x74858b, night?.65:flying?1.8:.85));
+    const ambient = new THREE.HemisphereLight(night?0x8badd5:0xf7efdf, 0x74858b, night?.65:flying?1.8:.85); scene.add(ambient);
     const sun = new THREE.DirectionalLight(night?0xa0bfe9:0xffe5be, night?.35:flying?2.4:1.65); sun.position.set(-5, 10, -5); scene.add(sun);
     if(night)for(const z of [-6,1,8]){const lamp=new THREE.PointLight(0xffdfb1,9,10,2);lamp.position.set(0,3.2,z);scene.add(lamp);}
-    sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+    sun.castShadow = true; const shadowSize = graphics === 'cinematic' && element.clientWidth > 800 ? 2048 : 1024; sun.shadow.mapSize.set(shadowSize, shadowSize);
     Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 18, bottom: -15, near: .5, far: 45 });
     sun.shadow.bias = -.001;
     const environment = buildFocusEnvironment(scene, atmosphere, {box:envBox,ball:envBall,mat:environmentMat}, graphics, renderer, props.flightTime);
     const ground = environment.ground;
+    const outdoors = !flying && environment.assetWindows.length ? createRoomScenery(renderer, environment.assetWindows, atmosphere, graphics) : null;
     const targets: THREE.Object3D[] = [ground];
     const paperCanvas=document.createElement('canvas');paperCanvas.width=512;paperCanvas.height=768;
     const paper=paperCanvas.getContext('2d')!;const paperShade=paper.createLinearGradient(0,0,512,0);paperShade.addColorStop(0,'#c7bdab');paperShade.addColorStop(.08,'#f0eadb');paperShade.addColorStop(1,'#e7e1d0');paper.fillStyle=paperShade;paper.fillRect(0,0,512,768);
@@ -164,23 +169,29 @@ export default function FocusRoomImmersive(props: Props) {
     const makeAvatar = (p: FocusRoomParticipant): Avatar => {
       const design=decodeAvatar(p.avatarStyle),index=design.shirt,skin=AVATAR_SKINS[design.skin];
       const root = new THREE.Group(), body = new THREE.Group(), head = new THREE.Group(); scene.add(root); root.add(body); body.add(head);
-      box(body, SHIRTS[index], [0, 1.35, 0], [.7, .75, .43]);
+      roundedBox(body, SHIRTS[index], [0, 1.35, 0], [.7, .75, .43]);
+      roundedBox(body, SHIRTS[index], [0, 1.72, 0], [.4, .08, .3]);
+      roundedBox(body, SHIRTS[index], [.19, 1.42, .225], [.16, .15, .025]);
       head.position.y = 2.1;
       ball(head, skin, [0, 0, 0], [.45, .48, .4]);
       if(design.cut!==2)ball(head, AVATAR_HAIR[design.hair], [0, .22, -.04], [.46, .3, .4]);
       if(design.cut===1)ball(head,AVATAR_HAIR[design.hair],[0,-.1,-.2],[.47,.48,.25]);
       for (const x of [-.16, .16]) ball(head, 0x292d31, [x, -.03, .37], [.045, .065, .025]);
+      for (const x of [-.17, .15]) ball(head, 0xf6eee2, [x, -.01, .394], [.012, .016, .006]);
+      for (const x of [-.43, .43]) ball(head, skin, [x, -.04, 0], [.075, .12, .08]);
+      ball(head, skin, [0, -.1, .39], [.055, .07, .045]);
       ball(head, 0xb17963, [0, -.22, .38], [.09, .02, .02]);
       if(design.accessory===0)for (const x of [-.46, .46]) ball(head, 0x3e5757, [x, -.03, 0], [.08, .19, .16]);
       if(design.accessory===1){for(const x of [-.16,.16]){box(head,0x34434c,[x,-.03,.402],[.25,.17,.025]);box(head,0xa7c4ca,[x,-.03,.42],[.19,.11,.012]);}box(head,0x34434c,[0,-.03,.42],[.08,.025,.025]);}
       const arms: THREE.Group[] = [], legs: THREE.Group[] = [];
       for (const side of [-1, 1]) {
         const arm = new THREE.Group(); arm.position.set(side * .45, 1.6, 0); body.add(arm);
-        box(arm, SHIRTS[index], [0, -.18, 0], [.22, .4, .25]);
+        roundedBox(arm, SHIRTS[index], [0, -.18, 0], [.22, .4, .25]);
         ball(arm, skin, [0, -.51, 0], [.12, .22, .12]); arms.push(arm);
         const leg = new THREE.Group(); leg.position.set(side * .2, 1, 0); body.add(leg);
-        box(leg, AVATAR_PANTS[design.pants], [0, -.4, 0], [.26, .8, .27]);
-        box(leg, 0xe5ddc9, [0, -.85, .08], [.29, .18, .43]); legs.push(leg);
+        roundedBox(leg, AVATAR_PANTS[design.pants], [0, -.4, 0], [.26, .8, .27]);
+        roundedBox(leg, 0xe5ddc9, [0, -.85, .08], [.29, .18, .43]);
+        roundedBox(leg, 0xf7f0df, [0, -.93, .08], [.3, .04, .44]); legs.push(leg);
       }
       const label = makeLabel(p.displayName); root.add(label);
       root.traverse(object => { if (object instanceof THREE.Mesh) object.castShadow = true; });
@@ -196,7 +207,7 @@ export default function FocusRoomImmersive(props: Props) {
       if (me) latest.current.onMove(safeFloorPosition({ x: me.x - Math.sin(yaw) * amount * 4, y: me.y - Math.cos(yaw) * amount * 4 }, layout));
     };
     controls.current = { turn, step };
-    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix();avatars.forEach(avatar=>sizeLabel(avatar.label)); };
+    const resize = () => { const { width, height } = element.getBoundingClientRect(); renderer.setPixelRatio(roomPixelRatio(window.devicePixelRatio,width,height,graphics!=='illustrated')); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix();avatars.forEach(avatar=>sizeLabel(avatar.label)); };
     const observer = new ResizeObserver(resize); observer.observe(element); resize();
     const contextLost = (event: Event) => { event.preventDefault(); latest.current.onUnavailable(); };
     canvas.addEventListener('webglcontextlost', contextLost);
@@ -227,7 +238,18 @@ export default function FocusRoomImmersive(props: Props) {
       frame = requestAnimationFrame(tick);
       if (document.hidden || now - lastTime < 32) return;
       const dt = Math.min(.1, (now - lastTime) / 1000); lastTime = now;
-      environment.update(latest.current.elapsed || 0, !!latest.current.running, reduced.matches, dt);
+      const phase = resolveRoomDaylight(latest.current.daylight || latest.current.flightTime || 'auto');
+      environment.update(latest.current.elapsed || 0, !!latest.current.running, reduced.matches, dt, phase, latest.current.weather || 'clear');
+      {
+        const dark = phase === 'night', golden = phase === 'sunset', wet = latest.current.weather === 'rain';
+        ambient.intensity = dark ? .55 : wet ? .9 : 1.15;
+        ambient.color.set(dark ? 0x91adc8 : 0xf7efdf);
+        sun.color.set(dark ? 0x86a8cf : golden ? 0xffb56e : 0xffe5be);
+        sun.intensity = dark ? .25 : wet ? .6 : golden ? 1.4 : 1.9;
+        sun.position.set(golden ? -13 : -5, golden ? 5 : 10, -5);
+        scene.environmentIntensity = dark ? .28 : golden ? .5 : .65;
+        outdoors?.update(dt, latest.current.daylight || 'auto', latest.current.weather || 'clear', !!latest.current.scenery && !reduced.matches);
+      }
       const local = latest.current.participants.find(p => p.isMe);
       const people = latest.current.participants.filter(p => !p.isMe).slice(0, local ? 79 : 80);
       if (local) people.push(local);
@@ -302,7 +324,7 @@ export default function FocusRoomImmersive(props: Props) {
       cancelAnimationFrame(frame); observer.disconnect(); controls.current = undefined;
       canvas.removeEventListener('webglcontextlost', contextLost); canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', cancel);
       avatars.forEach(avatar => disposeLabel(avatar.label)); cube.dispose(); sphere.dispose(); cylinder.dispose(); materials.forEach(material => material.dispose());
-      environment.dispose(); roundedCube.dispose();
+      outdoors?.dispose(); environment.dispose(); roundedCube.dispose();
       environmentMaterials.forEach(material=>material.dispose());grainTexture.dispose();
       paperGeometry.dispose();paperMaterial.dispose();paperTexture.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
@@ -315,7 +337,7 @@ export default function FocusRoomImmersive(props: Props) {
       onKeyDown={event => { if ((event.target as HTMLElement).closest('button')) return; if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') controls.current?.turn(event.key === 'ArrowLeft' ? .2 : -.2); else controls.current?.step(event.key === 'ArrowUp' ? 1 : -1); }}>
       {!ready && <p className="absolute inset-0 grid place-items-center">{copy.loading}</p>}
     </div>
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#c9cbb8] bg-[#f8f5eb] px-4 py-3">
+    <div className="room-camera-controls flex flex-wrap items-center justify-between gap-3 border-t border-[#c9cbb8] bg-[#f8f5eb] px-4 py-3">
       <p className="max-w-xl text-xs leading-5">{copy.hint}</p>
       <div className="flex gap-2" dir="ltr">{[{icon:RotateCcw,label:copy.left,action:()=>controls.current?.turn(.3)},{icon:ArrowUp,label:copy.forward,action:()=>controls.current?.step(1)},{icon:ArrowDown,label:copy.back,action:()=>controls.current?.step(-1)},{icon:RotateCw,label:copy.right,action:()=>controls.current?.turn(-.3)}].map(({icon:Icon,label,action})=><button key={label} type="button" aria-label={label} onClick={action} className="rounded-xl border border-[#c5d1c0] bg-white p-3 hover:bg-[#e2eadd]"><Icon className="h-4 w-4"/></button>)}</div>
     </div>

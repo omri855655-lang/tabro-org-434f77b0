@@ -4,6 +4,8 @@ import { buildAircraftCabin } from './focusAircraftCabin';
 import { buildAircraftExterior } from './focusAircraftExterior';
 import { buildHistoricalLibrary } from './focusHistoricalLibrary';
 import type { FocusFlightTime } from '@/lib/focusFlightTime';
+import { buildRoomCraft } from './focusRoomCraft';
+import type { RoomDaylight, RoomWeather } from '@/lib/focusAtmosphere';
 
 type Build = {
   box: (parent: THREE.Object3D, color: number, at: number[], size: number[]) => THREE.Mesh;
@@ -15,7 +17,8 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   const {box, ball, mat} = b;
   const monastery=kind==='monastery-library',historic=kind==='heritage-library'||monastery;
   const plane = isFlightAtmosphere(kind), business = kind === 'business-plane', airport = kind === 'airport', grand = kind === 'grand'||historic;
-  const night=plane&&flightTime==='night';
+  let night=plane&&flightTime==='night';
+  let golden=false, rain=false;
   const cozy = kind === 'intimate', city = kind === 'city-cafe', modern = kind === 'modern-library', cafe = kind === 'cafe'||city, office = kind === 'office';
   const width = plane ? 5.8 : cozy ? 8 : airport ? 12 : 10;
   const height = plane ? 5 : grand ? 10 : cozy ? 4.5 : airport ? 8 : 6.4;
@@ -84,7 +87,7 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
   };
   renderFlight(0,0);
   const paintSky=(lift:number,travel:number)=>{
-    const ctx=skyContext,gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,night?'#08152e':'#75a7cb');gradient.addColorStop(.7,night?'#203d60':'#dae8e9');gradient.addColorStop(1,night?'#49546a':'#e7dec8');ctx.fillStyle=gradient;ctx.fillRect(0,0,512,256);
+    const ctx=skyContext,gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,night?'#08152e':rain?'#708b9c':golden?'#958baf':'#75a7cb');gradient.addColorStop(.7,night?'#203d60':golden?'#edb68e':'#dae8e9');gradient.addColorStop(1,night?'#49546a':golden?'#e8a76f':'#e7dec8');ctx.fillStyle=gradient;ctx.fillRect(0,0,512,256);
     if(night){ctx.fillStyle='#d6e1ed';for(let i=0;i<45;i++)ctx.fillRect((i*139)%512,(i*47)%125,1,1);}
     if(!plane&&!airport){
       ctx.fillStyle='#9eaa8e';ctx.fillRect(0,155,512,101);
@@ -195,13 +198,19 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     for(const x of [-width+1.2,width-1.2])plant(x,-7,cozy?.8:1.3);
   }
   if(historic)disposables.push(buildHistoricalLibrary(scene,{box},monastery,front,back,{floor:ground,walls:assetWalls}));
+  disposables.push(buildRoomCraft(scene,kind,{box,ball},width,height,front,back));
   if(bookBatches.size){
     // Thousands of book spines share five draw calls in the large reading hall.
     const geometry=new THREE.BoxGeometry(1,1,1);disposables.push(geometry);
     for(const [color,matrices] of bookBatches){const mesh=new THREE.InstancedMesh(geometry,mat(color),matrices.length);matrices.forEach((matrix,index)=>mesh.setMatrixAt(index,matrix));mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();scene.add(mesh);disposables.push(mesh);bookPlaceholders.push(mesh);}
   }
-  let painted=-1,travel=0,lastTravel=-1;
-  return {ground, width, front, back, assetWalls, assetShelves, bookPlaceholders, assetWindows, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number)=>{
+  let painted=-1,travel=0,lastTravel=-1,weatherKey='';
+  return {ground, width, front, back, assetWalls, assetShelves, bookPlaceholders, assetWindows, dispose:()=>disposables.forEach(item=>item.dispose()), update:(elapsed:number,running:boolean,reduced:boolean,dt:number,phase:Exclude<RoomDaylight,'auto'>='day',weather:RoomWeather='clear')=>{
+    const key=`${phase}:${weather}`;
+    if(key!==weatherKey){
+      weatherKey=key;night=phase==='night';golden=phase==='sunset';rain=weather==='rain';painted=-1;
+      if(flightView){const sky=night?0x101e35:rain?0x8d9eac:golden?0xd4ab96:0xb5d3e2;flightView.background=new THREE.Color(sky);flightView.fog=new THREE.Fog(sky,rain?22:40,110);flightView.traverse(object=>{if(object instanceof THREE.HemisphereLight)object.intensity=night?.45:rain?1.2:2.4;if(object instanceof THREE.DirectionalLight){object.intensity=night?.7:rain?.8:2;object.color.set(night?0x96bce7:golden?0xffbf8c:0xffefcf);}});}
+    }
     if(!plane)return;if(running&&!reduced)travel+=dt;const step=Math.floor(elapsed*2);
     if(step!==painted||Math.floor(travel*4)!==lastTravel){const lift=Math.min(1,elapsed/90);paintSky(lift,travel);renderFlight(lift,travel);painted=step;lastTravel=Math.floor(travel*4);}
   }};
