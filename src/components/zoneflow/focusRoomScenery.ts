@@ -7,6 +7,7 @@ import { sceneryTravel, type SceneryPreset } from '@/lib/focusScenerySettings';
 
 /** Parked gate aircraft placement (the taxiing model scaled down) and its forward door, which the jet bridge meets. */
 export const GATE = { x: -22, z: -10, scale: .8 };
+export const GATE_BRIDGE_COLOR = 0xadbabd;
 export function gateDoor() {
   // Model: ellipsoid fuselage (semi-axes 8 x 1.1) centred at y=3; the forward door sits at model x=-5.
   const doorX = -5, radius = 1.1 * Math.sqrt(1 - (doorX / 8) ** 2);
@@ -157,7 +158,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     box(0xa7b0af, [-42, .02, -7], [56, .04, 18]);
     for (let x = -60; x < -15; x += 10) box(0xd5c48c, [x, .06, -9], [.12, .03, 12]);
     const door = gateDoor(), bridgeFront = door.z + .05, bridgeBack = 9, bridgeLength = bridgeBack - bridgeFront;
-    const bridge = box(0xadbabd, [door.x, door.y, (bridgeFront + bridgeBack) / 2], [2, 1.6, bridgeLength]); bridge.name = 'gate-jet-bridge';
+    box(GATE_BRIDGE_COLOR, [door.x, door.y, (bridgeFront + bridgeBack) / 2], [2, 1.6, bridgeLength]);
     box(0x536f7e, [door.x + 1.02, door.y + .2, (bridgeFront + bridgeBack) / 2], [.04, .55, bridgeLength - 2]);
     box(0x9aa7aa, [door.x, door.y, bridgeFront + .8], [2.6, 1.9, 1.6]);
     for (const z of [bridgeFront + 3, bridgeFront + 11]) box(0x7c8c90, [door.x, (door.y - .8) / 2, z], [.4, door.y - .8, .4]);
