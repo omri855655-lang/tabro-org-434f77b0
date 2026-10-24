@@ -36,6 +36,7 @@ if (kind !== 'airport') {
     env.update(elapsed, true, false, travel - travelled, 'day', 'clear'); travelled = travel;
     camera.fov = 52; camera.aspect = W / H; camera.updateProjectionMatrix();
     camera.position.set(2.2, 2.55, 0); camera.lookAt(-5.8, 2.45, 0); renderer.render(scene, camera); snap(`${kind} left side, ${label}`);
+    camera.fov = 24; camera.updateProjectionMatrix(); camera.position.set(3.2, 2.6, 0); camera.lookAt(-5.8, 2.6, 0); renderer.render(scene, camera); snap(`${kind} wing window z=0 and neighbours, ${label}`); camera.fov = 52; camera.updateProjectionMatrix();
     camera.position.set(-2.5, 2.6, -9); camera.lookAt(-5.8, 2.5, 4); renderer.render(scene, camera); snap(`${kind} along left wall, ${label}`);
     const list = feeds(); list.forEach(([texture, count], i) => showTexture(texture, `feed ${i} used by ${count} windows, ${label}`));
   }
