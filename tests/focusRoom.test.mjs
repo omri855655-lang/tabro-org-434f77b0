@@ -19,6 +19,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
+let roomStorage = { 'zoneflow-room-camera': 'map' };
 function loadComponent(filename) {
 const source = fs.readFileSync(new URL(`../src/components/zoneflow/${filename}.tsx`, import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: {
@@ -38,7 +39,8 @@ vm.runInNewContext(compiled, { exports, require: name => {
   if (name === '@/lib/focusAvatar') return avatarDesign;
   if (name === '@/lib/focusAtmosphere') return atmosphere;
   if (name === '@/lib/focusDeviceCopy') return deviceCopy;
-  if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => key === 'zoneflow-room-camera' ? 'map' : null, setString() {} } };
+  if (name === '@/lib/safeLocalStorage') return { safeLocalStorage: { getString: key => roomStorage[key] ?? null, setString(key, value) { roomStorage[key] = value; } } };
+  if (name === './FocusRoomImmersive') return { default: () => null };
   if (name === './FocusRoomWorld') return loadComponent('FocusRoomWorld');
   if (name === './FocusRoomLife') return { FocusRoomLife:()=>null };
   if (name === '@/hooks/useLanguage') return { useLanguage: () => ({ lang: 'he', dir: 'rtl' }) };
