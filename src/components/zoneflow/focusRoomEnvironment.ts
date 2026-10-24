@@ -99,7 +99,10 @@ export function buildFocusEnvironment(scene: THREE.Scene, kind: RoomAtmosphere, 
     const root=new THREE.Group();root.position.set(x,y,z);root.rotation.y=side;scene.add(root);
     if(plane){
       const shape=new THREE.Shape();const r=.35,hw=w/2,hh=h/2;shape.moveTo(-hw+r,-hh);shape.lineTo(hw-r,-hh);shape.quadraticCurveTo(hw,-hh,hw,-hh+r);shape.lineTo(hw,hh-r);shape.quadraticCurveTo(hw,hh,hw-r,hh);shape.lineTo(-hw+r,hh);shape.quadraticCurveTo(-hw,hh,-hw,hh-r);shape.lineTo(-hw,-hh+r);shape.quadraticCurveTo(-hw,-hh,-hw+r,-hh);
-      const geometry=new THREE.ShapeGeometry(shape);const uv=geometry.getAttribute('uv'),position=geometry.getAttribute('position');for(let i=0;i<uv.count;i++)uv.setXY(i,(position.getX(i)+hw)/w,(position.getY(i)+hh)/h);disposables.push(geometry);
+      // Crop the 2:1 sky/wing views to the window's proportions so clouds stay wide instead of becoming round dots;
+      // the crop slides along the cabin so neighbouring windows show a continuous panorama.
+      const span=Math.min(1,(w/h)/2),u0=THREE.MathUtils.clamp((z-front)/(back-front),0,1)*(1-span);
+      const geometry=new THREE.ShapeGeometry(shape);const uv=geometry.getAttribute('uv'),position=geometry.getAttribute('position');for(let i=0;i<uv.count;i++)uv.setXY(i,u0+(position.getX(i)+hw)/w*span,(position.getY(i)+hh)/h);disposables.push(geometry);
       const surround=new THREE.Mesh(geometry,mat(0xe0e1da));surround.scale.set(1.4,1.3,1);root.add(surround);
       const rim=new THREE.Mesh(geometry,mat(0x9aa9b0));rim.scale.set(1.18,1.14,1);rim.position.z=.025;root.add(rim);
       const inner=new THREE.Mesh(geometry,mat(0x3b515c));inner.scale.set(1.06,1.06,1);inner.position.z=.045;root.add(inner);
