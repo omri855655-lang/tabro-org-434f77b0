@@ -5,6 +5,7 @@ import { dailyNutrition, localDay, nutritionTarget, validDay, type NutritionProf
 import { nutritionTrackerCopy } from '@/lib/nutritionTrackerCopy';
 import { mealPhotoCopy } from '@/lib/nutritionFeaturesCopy';
 import { Button } from '@/components/ui/button';
+import { NutritionGoalEditor } from './NutritionGoalEditor';
 
 export function NutritionDailySummary({ profile, journal, onEditProfile }: { profile: NutritionProfile; journal: NutritionJournal; onEditProfile: () => void }) {
   const { lang } = useLanguage(), c = nutritionTrackerCopy[lang], m = mealPhotoCopy[lang];
@@ -37,6 +38,7 @@ export function NutritionDailySummary({ profile, journal, onEditProfile }: { pro
     <div className="space-y-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-3"><label className="text-sm">{c.goal}<select value={journal.preferences.goal} onChange={e => journal.savePreferences({ ...journal.preferences, goal: e.target.value as NutritionGoal })} className="ms-2 min-h-10 rounded-lg border bg-background px-3">{(['maintain', 'lose', 'gain'] as const).map(goal => <option key={goal} value={goal}>{c[goal]}</option>)}</select></label></div>
       <label className="flex items-start gap-2 text-xs leading-relaxed"><input className="mt-1 h-4 w-4 shrink-0 accent-emerald-600" type="checkbox" checked={journal.preferences.eligible} onChange={e => journal.savePreferences({ ...journal.preferences, eligible: e.target.checked })} />{c.eligibility}</label>
+      <NutritionGoalEditor key={journal.preferences.dailyCalories ?? 'automatic'} profile={profile} journal={journal} />
       {target.status !== 'ready' && <p role="status" className="rounded-lg bg-muted p-3 text-sm">{target.status === 'incomplete' ? c.profileNeeded : target.status === 'specialist' ? c.specialist : c.unsupported}</p>}
       <p className="text-xs leading-relaxed text-muted-foreground">{c.estimate}</p>
       <details className="text-xs text-muted-foreground"><summary className="cursor-pointer font-medium">{c.method}</summary><p className="my-2 leading-relaxed">{c.methodBody}</p><div className="flex flex-wrap gap-3"><a className="underline" target="_blank" rel="noreferrer" href="https://pubmed.ncbi.nlm.nih.gov/2305711/">Mifflin–St Jeor</a><a className="underline" target="_blank" rel="noreferrer" href="https://www.niddk.nih.gov/bwp">NIDDK · {c.sources}</a></div></details>

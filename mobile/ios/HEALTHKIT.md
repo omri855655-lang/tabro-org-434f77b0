@@ -5,7 +5,7 @@ The web build cannot register a native iOS plugin. This source is ready for inte
 1. Add an iOS platform with Capacitor in the mobile build workspace.
 2. Add `TabroHealthPlugin.swift` to the app target. Register `TabroHealthPlugin()` in the custom `CAPBridgeViewController.capacitorDidLoad()` using `bridge?.registerPluginInstance(...)`.
 3. Enable HealthKit for the app identifier and provisioning profile.
-4. Set `NSHealthShareUsageDescription` to a localized explanation of sleep and step-count reading. The component requests read access only, and never writes HealthKit data.
+4. Set `NSHealthShareUsageDescription` to a localized explanation of sleep, step-count, active-energy and exercise-minute reading. The component requests read access only, and never writes HealthKit data.
 5. Build, sign and install on an iPhone. The health panel enables its native connection button only when the installed plugin is available.
 
 Use the production Tabro frontend in the mobile configuration. Do not ship the current development preview URL from `capacitor.config.ts` as a production app.
