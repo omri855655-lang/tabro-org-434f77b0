@@ -102,6 +102,23 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   const rainGeometry = new THREE.BufferGeometry(); rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
   const rainMaterial = new THREE.PointsMaterial({ color: 0xcadce6, size: .08, transparent: true, opacity: .6, depthWrite: false });
   const rain = new THREE.Points(rainGeometry, rainMaterial); scene.add(rain); resources.add(rainGeometry); resources.add(rainMaterial);
+  const starPositions = new Float32Array(160 * 3);
+  for (let i = 0; i < 160; i++) starPositions.set([Math.sin(i * 12.9898) * 120, 22 + Math.abs(Math.sin(i * 78.233)) * 50, -150 + Math.cos(i * 3.7) * 10], i * 3);
+  const starGeometry = new THREE.BufferGeometry(); starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const starMaterial = new THREE.PointsMaterial({ color: 0xdfe8f5, size: 1.4, sizeAttenuation: false, fog: false });
+  const stars = new THREE.Points(starGeometry, starMaterial); stars.visible = false; scene.add(stars); resources.add(starGeometry); resources.add(starMaterial);
+  // A small vertical gradient replaces the flat colour sky for sunset, night and rain.
+  const skyPixels = new Uint8Array(64 * 4);
+  const skyTexture = new THREE.DataTexture(skyPixels, 1, 64); skyTexture.colorSpace = THREE.SRGBColorSpace; skyTexture.magFilter = THREE.LinearFilter; resources.add(skyTexture);
+  const paintSky = ([top, middle, horizon]: number[]) => {
+    const a = new THREE.Color(), b = new THREE.Color();
+    for (let row = 0; row < 64; row++) {
+      const v = row / 63;
+      if (v < .45) a.setHex(horizon); else if (v < .7) a.setHex(horizon).lerp(b.setHex(middle), (v - .45) / .25); else a.setHex(middle).lerp(b.setHex(top), (v - .7) / .3);
+      skyPixels.set([Math.round(a.r * 255), Math.round(a.g * 255), Math.round(a.b * 255), 255], row * 4);
+    }
+    skyTexture.needsUpdate = true;
+  };
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
   for (const object of [...scene.children]) {
     if (!(object instanceof THREE.Mesh) || object instanceof THREE.InstancedMesh || Array.isArray(object.material) || object === ground) continue;
