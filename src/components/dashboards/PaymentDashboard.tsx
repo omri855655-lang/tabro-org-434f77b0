@@ -35,6 +35,8 @@ import { withFinanceReadTimeout } from "@/lib/financeRequest";
 import { cleanMerchantName, getFinanceCategoryGroup, inferFinanceSubcategory, normalizeFinanceCategory } from "@/lib/financeCategorization";
 import { financeCalendarDate, financeEntryCurrency, formatFinanceMoney } from "@/lib/financeInsights";
 import { buildCardCashflows, cashflowCardKey } from "@/lib/cardCashflow";
+import { forecastAmexInstallments } from "@/lib/amexInstallmentForecast";
+import AmexInstallmentEstimates from "./AmexInstallmentEstimates";
 import { summarizeLiquidBalances } from "@/lib/financeBalances";
 import { buildFinanceCoach, canConfirmFinanceRefund, type RefundSelection } from "@/lib/financeCoach";
 
@@ -62,6 +64,8 @@ interface Payment {
 
 interface FinancialTransaction {
   id: string;
+  external_transaction_id?: string | null;
+  installment_number?: number | null;
   amount: number;
   currency?: string | null;
   installment_total?: number | null;
@@ -484,7 +488,7 @@ const PaymentDashboard = () => {
 
       let transactionsResult = await withFinanceReadTimeout(supabase
         .from("financial_transactions")
-          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
+          .select("id, external_transaction_id, amount, currency, installment_number, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data, hidden")
         .eq("user_id", user.id)
         .order("transaction_date", { ascending: false }));
 
@@ -493,7 +497,7 @@ const PaymentDashboard = () => {
       if (transactionsResult.error) {
         const fallbackResult = await withFinanceReadTimeout(supabase
           .from("financial_transactions")
-          .select("id, amount, currency, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data")
+          .select("id, external_transaction_id, amount, currency, installment_number, installment_total, category, subcategory, direction, description, merchant, transaction_date, posted_date, created_at, provider, source_type, source_connection_id, raw_data")
           .eq("user_id", user.id)
           .order("transaction_date", { ascending: false }));
         transactionsResult = {
@@ -1022,6 +1026,11 @@ const PaymentDashboard = () => {
     return [...cards.values()];
   }, [financialAccounts, transactions]);
 
+  const installmentEstimates = useMemo(() => {
+    const now = new Date(), end = new Date(); end.setDate(now.getDate() + 90);
+    return forecastAmexInstallments(transactions, format(now, "yyyy-MM-dd"), format(end, "yyyy-MM-dd"));
+  }, [transactions]);
+
   const cardCashflows = useMemo(() => {
     const now = dateOnly(new Date());
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90);
@@ -1516,6 +1525,7 @@ ${context}
       </TabsContent>
 
       <TabsContent value="forecast" className="space-y-4">
+        <AmexInstallmentEstimates rows={installmentEstimates} isRtl={isRtl} />
         <Card className="border-sky-200/70 bg-sky-50/40 dark:bg-sky-950/10">
           <CardContent className="space-y-4 p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">

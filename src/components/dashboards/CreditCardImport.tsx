@@ -12,8 +12,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { detectProvider, financialProviders, parseCSV, type ParsedTransaction } from "@/lib/financialProviders";
 import { applyStatementBillingDate, findStatementTable, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "@/lib/cardStatement";
-import { importParsedFinancialTransactions } from "@/lib/financialImport";
-import { AMEX_CSV_TEMPLATE, decodeStatementText, parseAmexStatement } from "@/lib/amexStatement";
+import { importParsedFinancialTransactions, previewBillingDateChanges, type BillingDateChange } from "@/lib/financialImport";
+import { AMEX_CSV_TEMPLATE, decodeStatementText, parseAmexStatement, reconcileAmexStatement } from "@/lib/amexStatement";
 import { AmexStatementPreview } from "./AmexStatementPreview";
 
 type CreditCardConnection = Pick<Database["public"]["Tables"]["credit_card_connections"]["Row"],
@@ -40,6 +40,9 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
   const [billingDateChoice, setBillingDateChoice] = useState("");
   const [skippedRows, setSkippedRows] = useState(0);
   const [fileError, setFileError] = useState("");
+  const [dateChanges, setDateChanges] = useState<BillingDateChange[] | null>(null);
+  const [reconciliation, setReconciliation] = useState<ReturnType<typeof reconcileAmexStatement>>([]);
+  const importPending = useRef(false);
   const readVersion = useRef(0);
 
   const isRtl = lang === "he" || lang === "ar";
@@ -52,6 +55,8 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     setSkippedRows(0);
     setConfirmUnidentified(false);
     setBillingDateChoice("");
+    setDateChanges(null);
+    setReconciliation([]);
     if (fileRef.current) fileRef.current.value = "";
   }, []);
 
@@ -106,6 +111,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
 
     const amexResult = amex ? parseAmexStatement(rows, headers) : null;
     const providerRows = amexResult ? amexResult.transactions : provider.parse(rows, headers);
+    setReconciliation(amexResult ? reconcileAmexStatement(rows, headers, providerRows) : []);
     setSkippedRows(amexResult?.skipped || 0);
     setFileError(amexResult?.unsupported ? (isRtl
       ? "לא זוהו עמודות תאריך עסקה, בית עסק וסכום. אפשר להשתמש בתבנית CSV למטה."
@@ -163,38 +169,48 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     }
   };
 
-  const importTransactions = async () => {
+  const importTransactions = async (approveDateChanges = false) => {
     const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
-    if (!user || !selectedConnection?.card_last_digits || !selectedRows.length) return;
+    if (!user || !selectedConnection?.card_last_digits || !selectedRows.length || importPending.current) return;
+    importPending.current = true;
     setImporting(true);
 
     try {
-      const result = await importParsedFinancialTransactions({
+      const input = {
         userId: user.id,
         parsed: sanitizeStatementRows(applyStatementBillingDate(selectedRows, billingDateChoice)),
         provider: selectedConnection.provider,
         sourceType: "credit_card_import",
         sourceConnectionId: selectedConnection.id,
         accountExternalId: `csv-card:${selectedConnection.id}`,
-      });
+      };
+      if (!approveDateChanges) {
+        const changes = await previewBillingDateChanges(input);
+        if (changes.length) { setDateChanges(changes); return; }
+      }
+      const result = await importParsedFinancialTransactions({ ...input, approvedBillingDateChanges: approveDateChanges ? dateChanges || [] : [] });
 
       await onImported?.();
       toast.success(
         isRtl
-          ? `${result.imported} עסקאות נשמרו · ${result.skipped} עסקאות קיימות דולגו`
-          : `${result.imported} transactions saved · ${result.skipped} existing transactions skipped`,
+          ? `${result.imported} עסקאות נשמרו · ${result.updated} תאריכי חיוב עודכנו · ${result.skipped} עסקאות קיימות דולגו`
+          : `${result.imported} transactions saved · ${result.updated} billing dates updated · ${result.skipped} existing transactions skipped`,
       );
+      if (result.conflicts) toast.warning(isRtl ? `${result.conflicts} תאריכים לא עודכנו כי הנתונים השתנו. העלה שוב ובדוק את הטיוטה.` : `${result.conflicts} dates were not updated because data changed. Upload again and review.`);
       setTransactions([]);
       setProviderId("");
       setFileName("");
       setConfirmUnidentified(false);
       setBillingDateChoice("");
+      setDateChanges(null);
+      setReconciliation([]);
       if (fileRef.current) fileRef.current.value = "";
     } catch (error) {
       console.error("Credit card import error:", error);
       toast.error(isRtl ? "שגיאה בייבוא פירוט האשראי" : "Error importing credit card statement");
     } finally {
       setImporting(false);
+      importPending.current = false;
     }
   };
 
@@ -255,6 +271,9 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
           window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         }}>{isRtl ? "הורדת תבנית CSV ריקה" : "Download blank CSV template"}</Button>}
         {fileError && <p role="alert" className="text-sm text-destructive">{fileError}</p>}
+        {reconciliation.map(check => <p key={check.currency} role="status" className={`rounded-lg border p-3 text-xs ${check.matches ? 'border-emerald-200 text-emerald-800 dark:text-emerald-300' : 'border-amber-300 text-amber-800 dark:text-amber-300'}`}>
+          {isRtl ? `בדיקת הדוח המלא (${check.currency}): נקרא ${check.parsed.toFixed(2)}, סיכום בדוח ${check.reported.toFixed(2)}. ${check.matches ? 'הסכומים תואמים.' : 'יש הפרש; בדוק שורות שנדחו לפני האישור.'}` : `Full statement check (${check.currency}): parsed ${check.parsed.toFixed(2)}, reported ${check.reported.toFixed(2)}. ${check.matches ? 'Totals match.' : 'Mismatch; review excluded rows before confirming.'}`}
+        </p>)}
         {skippedRows > 0 && <p role="status" className="text-xs text-amber-700">{isRtl
           ? `${skippedRows} שורות לא ייובאו (למשל סיכומים, ביטולים או סכום, תאריך או מטבע חסרים). בדוק מול הפירוט המקורי לפני אישור.`
           : `${skippedRows} rows excluded (such as totals, voids or missing amount, date or currency). Compare with the original statement before confirming.`}</p>}
@@ -286,7 +305,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
             )}
             <label className="block space-y-1 rounded-lg border p-3 text-xs">
               <span className="block font-semibold">{isRtl ? "מתי ייפרע החיוב של הפירוט הזה?" : "When will this statement be charged?"}</span>
-              <input type="date" value={billingDateChoice} onInput={(event) => setBillingDateChoice(event.currentTarget.value)} onChange={(event) => setBillingDateChoice(event.target.value)} className="h-9 rounded-md border bg-background px-2" dir="ltr" disabled={importing} />
+              <input type="date" value={billingDateChoice} onChange={(event) => { setBillingDateChoice(event.target.value); setDateChanges(null); }} className="h-9 rounded-md border bg-background px-2" dir="ltr" disabled={importing} />
               <span className="block text-muted-foreground">{isRtl
                 ? "אפשר לתקן את התאריך שזוהה בקובץ. אם הוא לא ידוע, השאר ריק: ההוצאות ייובאו, אך לא ייווצר חיוב עתידי. תאריכי חיוב מפורשים לכל עסקה נשמרים בנפרד."
                 : "You can correct the detected date. Leave it blank if unknown: expenses import without a future charge. Per-transaction due dates remain separate."}</span>
@@ -309,7 +328,13 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
                 <div className="p-2 text-xs text-muted-foreground text-center">+{selectedRows.length - 20} more</div>
               )}
             </div>}
-            <Button size="sm" onClick={importTransactions} disabled={importing || selectedRows.length === 0}>
+            {dateChanges !== null && <section className="space-y-3 rounded-xl border border-amber-300 p-3" aria-label={isRtl ? "טיוטת עדכון תאריכי חיוב" : "Billing date update draft"}>
+              <h4 className="font-semibold">{isRtl ? `עדכון ${dateChanges.length} תאריכי חיוב קיימים` : `Update ${dateChanges.length} existing billing dates`}</h4>
+              <p className="text-xs text-muted-foreground">{isRtl ? "רק תאריכי החיוב המוצגים ישתנו. פילוחים, סכומים וקישורי זיכויים יישמרו. עסקאות חדשות בקובץ יתווספו באותו אישור." : "Only the listed billing dates change. Categories, amounts and refund links stay intact. New file transactions are added with the same confirmation."}</p>
+              <div className="max-h-56 space-y-2 overflow-auto">{dateChanges.map(change => <div key={change.id} className="rounded-lg bg-muted p-2 text-xs"><strong className="block">{change.description}</strong><span>{isRtl ? "לפני: " : "Before: "}{change.previousDate || (isRtl ? "ללא תאריך" : "No date")} · {isRtl ? "אחרי: " : "After: "}{change.nextDate}</span></div>)}</div>
+              <div className="flex flex-wrap gap-2"><Button size="sm" disabled={importing} onClick={() => void importTransactions(true)}>{isRtl ? "אשר עדכון וייבוא" : "Confirm updates and import"}</Button><Button size="sm" variant="outline" disabled={importing} onClick={() => setDateChanges(null)}>{isRtl ? "חזור לבדיקה" : "Back to review"}</Button></div>
+            </section>}
+            <Button size="sm" onClick={() => void importTransactions()} disabled={importing || selectedRows.length === 0 || dateChanges !== null}>
               {importing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
               {t("confirm")} ({selectedRows.length})
             </Button>

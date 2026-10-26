@@ -6,16 +6,26 @@ import ts from "typescript";
 import { parseAmexStatement } from "../src/lib/amexStatement.ts";
 import { sanitizeStatementRows, applyStatementBillingDate } from "../src/lib/cardStatement.ts";
 
-function harness() {
+function harness(options = {}) {
   const stored = [];
   const supabase = { from(table) {
     assert.equal(table, "financial_transactions");
     const filters = {};
+    let updateFields;
+    const matches = row => Object.entries(filters).every(([k,v]) => k === 'raw_data' && typeof v === 'string' ? JSON.stringify(row[k]) === v : row[k] === v);
     const query = {
-      select() { return query; },
+      select() {
+        if (!updateFields) return query;
+        options.beforeUpdate?.(stored);
+        const selected = stored.filter(matches);
+        selected.forEach(row => Object.assign(row, structuredClone(updateFields)));
+        return Promise.resolve({data:selected.map(row=>({id:row.id})),error:null});
+      },
       eq(key, value) { filters[key] = value; return query; },
+      is(key, value) { filters[key] = value; return query; },
+      update(values) { updateFields=values; return query; },
       async in(key, values) { return { data: stored.filter(row => Object.entries(filters).every(([k, v]) => row[k] === v) && values.includes(row[key])), error: null }; },
-      async insert(rows) { stored.push(...structuredClone(rows)); return { error: null }; },
+      async insert(rows) { for (const row of structuredClone(rows)) stored.push({...row,id:`row-${stored.length}`}); return { error: null }; },
     };
     return query;
   } };
@@ -24,7 +34,7 @@ function harness() {
   }).outputText;
   const exports = {};
   vm.runInNewContext(javascript, { exports, require: () => ({ supabase }) });
-  return { stored, run: exports.importParsedFinancialTransactions };
+  return { stored, run: exports.importParsedFinancialTransactions, preview:exports.previewBillingDateChanges };
 }
 
 test("actual shared importer preserves duplicate occurrences, skips reimport and retains reviewed categories", async () => {
@@ -57,4 +67,42 @@ test("actual shared importer preserves duplicate occurrences, skips reimport and
   assert.equal(stored[2].raw_data.refund_expense_id, stored[0].external_transaction_id);
   assert.equal((await run({ ...input, sourceConnectionId: "card-b" })).imported, 4);
   assert.equal((await run({ ...input, userId: "user-b" })).imported, 4);
+});
+
+const billingInput = date => ({userId:'owner',provider:'amex',sourceType:'credit_card_import',sourceConnectionId:'card-a',accountExternalId:'csv-card:card-a',parsed:applyStatementBillingDate(parseAmexStatement([['2026-09-10','Shop','100','ILS']],['Date','Description','Amount','Currency']).transactions,date)});
+test('date updates require approval and preserve manual classification and refund metadata',async()=>{
+  const {stored,run,preview}=harness();
+  await run(billingInput('2026-10-10'));
+  stored[0].category='Manually reviewed';stored[0].raw_data.refund_expense_id='linked-refund';
+  const input=billingInput('2026-10-02');
+  const draft=await preview(input);
+  assert.equal(draft.length,1);assert.equal(draft[0].previousDate,'2026-10-10');assert.equal(draft[0].nextDate,'2026-10-02');
+  assert.equal(stored[0].raw_data.billing_date,'2026-10-10','Preview does not write');
+  assert.equal((await run(input)).updated,0,'No silent updates');
+  const result=await run({...input,approvedBillingDateChanges:draft});
+  assert.equal(result.imported,0);assert.equal(result.updated,1);assert.equal(stored.length,1);
+  assert.equal(stored[0].raw_data.billing_date,'2026-10-02');
+  assert.equal(stored[0].category,'Manually reviewed');assert.equal(stored[0].raw_data.refund_expense_id,'linked-refund');
+  assert.equal((await preview(input)).length,0);
+});
+test('stale approvals and changes made during a write never overwrite newer metadata',async()=>{
+  const h=harness();await h.run(billingInput('2026-10-10'));
+  const input=billingInput('2026-10-02'),draft=await h.preview(input);
+  h.stored[0].raw_data.billing_date='2026-10-05';
+  assert.equal((await h.run({...input,approvedBillingDateChanges:draft})).conflicts,1);
+  assert.equal(h.stored[0].raw_data.billing_date,'2026-10-05');
+  const raced=harness({beforeUpdate:stored=>{stored[0].raw_data.refund_expense_id='new-link';}});
+  await raced.run(billingInput('2026-10-10'));
+  const approval=await raced.preview(input);
+  const result=await raced.run({...input,approvedBillingDateChanges:approval});
+  assert.equal(result.conflicts,1);assert.equal(result.updated,0);
+  assert.equal(raced.stored[0].raw_data.billing_date,'2026-10-10');assert.equal(raced.stored[0].raw_data.refund_expense_id,'new-link');
+});
+test('approval cannot cross user or card scope and an empty date never erases a known date',async()=>{
+  const h=harness();await h.run(billingInput('2026-10-10'));
+  const input=billingInput('2026-10-02'),draft=await h.preview(input);
+  assert.equal((await h.preview(billingInput(''))).length,0);
+  assert.equal((await h.preview({...input,provider:'max'})).length,0);
+  assert.equal((await h.run({...input,userId:'another-owner',approvedBillingDateChanges:draft})).updated,0);
+  assert.equal(h.stored[0].raw_data.billing_date,'2026-10-10');
 });
