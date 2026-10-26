@@ -105,4 +105,26 @@ export function summarizeAmexStatement(rows: ParsedTransaction[]) {
   return [...totals.values()];
 }
 
+export function reconcileAmexStatement(rows: string[][], headers: string[], transactions: ParsedTransaction[]) {
+  const amountIndex = headers.findIndex(header => /סכום\s*(?:ה?חיוב|לחיוב)/.test(clean(header)));
+  const currencyIndex = headers.findIndex(header => /מטבע\s*(?:ה?חיוב)/.test(clean(header)));
+  if (amountIndex < 0) return [];
+  const reported = new Map<string, number[]>();
+  for (const row of rows) {
+    const label = row.find(value => /סה["״]?כ\s+לחיוב\s+החודש\s+בכרטיס/.test(clean(value)));
+    if (!label) continue;
+    const amount = parseAmexAmount(row[amountIndex] || '');
+    const currency = currencyCode(row[currencyIndex] || (/בש["״]?ח/.test(label) ? 'ILS' : ''));
+    if (amount === null || currency === 'UNKNOWN') continue;
+    reported.set(currency, [...(reported.get(currency) || []), amount]);
+  }
+  const totals = summarizeAmexStatement(transactions);
+  // Multiple totals for a currency can belong to different sections/cards; never add them blindly.
+  return [...reported].filter(([, amounts]) => amounts.length === 1).map(([currency, amounts]) => {
+    const parsed = totals.find(total => total.currency === currency)?.net || 0;
+    const difference = Math.round((parsed - amounts[0]) * 100) / 100;
+    return { currency, reported: amounts[0], parsed, difference, matches: difference === 0 };
+  });
+}
+
 export const AMEX_CSV_TEMPLATE = '\uFEFFתאריך עסקה,שם בית העסק,סכום חיוב,מטבע חיוב,מספר כרטיס,תאריך חיוב,תשלומים,קטגוריה\r\n';
