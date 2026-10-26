@@ -140,6 +140,266 @@ const TASK_ACTION_LABELS: Record<string, string> = {
   deleted: "מחיקה",
 };
 
+// Editable cell with suggestions for description
+const EditableCellWithSuggestions = ({
+  value,
+  taskId,
+  tasks,
+  className,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  taskId: string;
+  tasks: Task[];
+  className: string;
+  onSave: (value: string) => void;
+  onCancel: () => void;
+}) => {
+  const [editValue, setEditValue] = useState(value);
+  const settled = useRef(false);
+  const save = (next: string) => { if (!settled.current) { settled.current = true; onSave(next); } };
+  const cancel = () => { if (!settled.current) { settled.current = true; onCancel(); } };
+  const [showSuggestionsLocal, setShowSuggestionsLocal] = useState(false);
+
+  const similarTasks = useMemo(() => {
+    if (!editValue.trim() || editValue.length < 2) return [];
+    const input = editValue.toLowerCase();
+    return tasks.filter(
+      (task) =>
+        task.id !== taskId &&
+        task.description.toLowerCase().includes(input)
+    ).slice(0, 5);
+  }, [editValue, taskId, tasks]);
+
+  return (
+    <div className="relative">
+      <textarea
+        value={editValue}
+        onChange={(e) => {
+          setEditValue(e.target.value);
+          setShowSuggestionsLocal(true);
+        }}
+        onBlur={() => {
+          setTimeout(() => {
+            setShowSuggestionsLocal(false);
+            save(editValue);
+          }, 200);
+        }}
+        onKeyDown={(e) => {
+          // Ctrl+K or Ctrl+Enter for new line
+          if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.key === 'Enter')) {
+            e.preventDefault();
+            const target = e.target as HTMLTextAreaElement;
+            const start = target.selectionStart;
+            const end = target.selectionEnd;
+            const newValue = editValue.substring(0, start) + '\n' + editValue.substring(end);
+            setEditValue(newValue);
+            // Set cursor position after the newline
+            setTimeout(() => {
+              target.selectionStart = target.selectionEnd = start + 1;
+            }, 0);
+            return;
+          }
+          if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+            e.preventDefault();
+            setShowSuggestionsLocal(false);
+            save(editValue);
+          } else if (e.key === "Escape") {
+            setShowSuggestionsLocal(false);
+            cancel();
+          }
+        }}
+        className={cn(
+          "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1 resize-none min-h-[32px]",
+          className
+        )}
+        autoFocus
+        dir="rtl"
+        rows={Math.max(1, editValue.split('\n').length)}
+      />
+      {showSuggestionsLocal && similarTasks.length > 0 && (
+        <div className="absolute top-full right-0 left-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 max-h-48 overflow-auto">
+          <div className="p-2 text-xs text-muted-foreground border-b">משימות דומות:</div>
+          {similarTasks.map((task) => (
+            <div
+              key={task.id}
+              className="px-3 py-2 text-sm hover:bg-accent cursor-pointer"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setEditValue(task.description);
+              }}
+            >
+              <span className="font-medium">{task.description}</span>
+              <span className={cn(
+                "mr-2 text-xs px-1.5 py-0.5 rounded",
+                statusColors[task.status]
+              )}>
+                {task.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+const EditableCellInput = ({
+  value,
+  field,
+  existingCategories,
+  existingResponsibles,
+  className,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  field: keyof Task;
+  existingCategories: string[];
+  existingResponsibles: string[];
+  className: string;
+  onSave: (value: string) => void;
+  onCancel: () => void;
+}) => {
+  const [editValue, setEditValue] = useState(value);
+  const settled = useRef(false);
+  const save = (next: string) => { if (!settled.current) { settled.current = true; onSave(next); } };
+  const cancel = () => { if (!settled.current) { settled.current = true; onCancel(); } };
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const suggestions = useMemo(() => {
+    if (field !== "category" && field !== "responsible") return [];
+    const list = field === "category" ? existingCategories : existingResponsibles;
+    if (!editValue.trim()) return list;
+    const lower = editValue.toLowerCase();
+    // Show startsWith matches first, then includes matches
+    const startsWith = list.filter(item => item.toLowerCase().startsWith(lower));
+    const includes = list.filter(item => !item.toLowerCase().startsWith(lower) && item.toLowerCase().includes(lower));
+    return [...startsWith, ...includes];
+  }, [editValue, field, existingCategories, existingResponsibles]);
+
+  // For date fields, use input type date
+  if (field === "plannedEnd") {
+    return (
+      <input
+        type="date"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={() => save(editValue)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            save(editValue);
+          } else if (e.key === "Escape") {
+            cancel();
+          }
+        }}
+        className={cn(
+          "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1",
+          className
+        )}
+        autoFocus
+        dir="auto"
+      />
+    );
+  }
+
+  // For category/responsible fields, show autocomplete
+  if (field === "category" || field === "responsible") {
+    return (
+      <div className="relative">
+        <input
+          type="text"
+          value={editValue}
+          onChange={(e) => {
+            setEditValue(e.target.value);
+            setShowSuggestions(true);
+          }}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => {
+            setTimeout(() => {
+              setShowSuggestions(false);
+              save(editValue);
+            }, 200);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              setShowSuggestions(false);
+              save(editValue);
+            } else if (e.key === "Escape") {
+              setShowSuggestions(false);
+              cancel();
+            }
+          }}
+          className={cn(
+            "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1 h-8",
+            className
+          )}
+          autoFocus
+          dir="auto"
+        />
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute top-full right-0 left-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 max-h-36 overflow-auto">
+            {suggestions.map((item, index) => (
+              <div
+                key={index}
+                className="px-3 py-2 text-sm hover:bg-accent cursor-pointer"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setEditValue(item);
+                  setShowSuggestions(false);
+                  save(item);
+                }}
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // For text fields, use textarea to support multiline with Ctrl+K
+  return (
+    <textarea
+      value={editValue}
+      onChange={(e) => setEditValue(e.target.value)}
+      onBlur={() => save(editValue)}
+      onKeyDown={(e) => {
+        // Ctrl+K or Ctrl+Enter for new line
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.key === 'Enter')) {
+          e.preventDefault();
+          const target = e.target as HTMLTextAreaElement;
+          const start = target.selectionStart;
+          const end = target.selectionEnd;
+          const newValue = editValue.substring(0, start) + '\n' + editValue.substring(end);
+          setEditValue(newValue);
+          setTimeout(() => {
+            target.selectionStart = target.selectionEnd = start + 1;
+          }, 0);
+          return;
+        }
+        if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          e.preventDefault();
+          save(editValue);
+        } else if (e.key === "Escape") {
+          cancel();
+        }
+      }}
+      className={cn(
+        "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1 resize-none min-h-[32px]",
+        className
+      )}
+      autoFocus
+      dir="auto"
+      rows={Math.max(1, editValue.split('\n').length)}
+    />
+  );
+};
+
 const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
   const isSharedSheet = !!fixedSheetOwnerId;
   const [sharedCollapsed, setSharedCollapsed] = useState(false);
@@ -774,105 +1034,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     minWidth: getEffectiveColumnWidth(key),
   }), [getEffectiveColumnWidth]);
 
-  // Editable cell with suggestions for description
-  const EditableCellWithSuggestions = ({
-    value,
-    taskId,
-    className,
-    onSave,
-    onCancel,
-  }: {
-    value: string;
-    taskId: string;
-    className: string;
-    onSave: (value: string) => void;
-    onCancel: () => void;
-  }) => {
-    const [editValue, setEditValue] = useState(value);
-    const [showSuggestionsLocal, setShowSuggestionsLocal] = useState(false);
-
-    const similarTasks = useMemo(() => {
-      if (!editValue.trim() || editValue.length < 2) return [];
-      const input = editValue.toLowerCase();
-      return tasks.filter(
-        (task) => 
-          task.id !== taskId &&
-          task.description.toLowerCase().includes(input)
-      ).slice(0, 5);
-    }, [editValue, taskId]);
-
-    return (
-      <div className="relative">
-        <textarea
-          value={editValue}
-          onChange={(e) => {
-            setEditValue(e.target.value);
-            setShowSuggestionsLocal(true);
-          }}
-          onBlur={() => {
-            setTimeout(() => {
-              setShowSuggestionsLocal(false);
-              onSave(editValue);
-            }, 200);
-          }}
-          onKeyDown={(e) => {
-            // Ctrl+K or Ctrl+Enter for new line
-            if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.key === 'Enter')) {
-              e.preventDefault();
-              const target = e.target as HTMLTextAreaElement;
-              const start = target.selectionStart;
-              const end = target.selectionEnd;
-              const newValue = editValue.substring(0, start) + '\n' + editValue.substring(end);
-              setEditValue(newValue);
-              // Set cursor position after the newline
-              setTimeout(() => {
-                target.selectionStart = target.selectionEnd = start + 1;
-              }, 0);
-              return;
-            }
-            if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-              e.preventDefault();
-              setShowSuggestionsLocal(false);
-              onSave(editValue);
-            } else if (e.key === "Escape") {
-              setShowSuggestionsLocal(false);
-              onCancel();
-            }
-          }}
-          className={cn(
-            "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1 resize-none min-h-[32px]",
-            className
-          )}
-          autoFocus
-          dir="rtl"
-          rows={Math.max(1, editValue.split('\n').length)}
-        />
-        {showSuggestionsLocal && similarTasks.length > 0 && (
-          <div className="absolute top-full right-0 left-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 max-h-48 overflow-auto">
-            <div className="p-2 text-xs text-muted-foreground border-b">משימות דומות:</div>
-            {similarTasks.map((task) => (
-              <div
-                key={task.id}
-                className="px-3 py-2 text-sm hover:bg-accent cursor-pointer"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setEditValue(task.description);
-                }}
-              >
-                <span className="font-medium">{task.description}</span>
-                <span className={cn(
-                  "mr-2 text-xs px-1.5 py-0.5 rounded",
-                  statusColors[task.status]
-                )}>
-                  {task.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // Fetch ALL unique values for category and responsible across ALL tasks (not just current sheet)
   // sorted by most recent usage
@@ -914,152 +1075,6 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const existingCategories = allCategories;
   const existingResponsibles = allResponsibles;
 
-  const EditableCellInput = ({
-    value,
-    field,
-    className,
-    onSave,
-    onCancel,
-  }: {
-    value: string;
-    field: keyof Task;
-    className: string;
-    onSave: (value: string) => void;
-    onCancel: () => void;
-  }) => {
-    const [editValue, setEditValue] = useState(value);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-
-    const suggestions = useMemo(() => {
-      if (field !== "category" && field !== "responsible") return [];
-      const list = field === "category" ? existingCategories : existingResponsibles;
-      if (!editValue.trim()) return list;
-      const lower = editValue.toLowerCase();
-      // Show startsWith matches first, then includes matches
-      const startsWith = list.filter(item => item.toLowerCase().startsWith(lower));
-      const includes = list.filter(item => !item.toLowerCase().startsWith(lower) && item.toLowerCase().includes(lower));
-      return [...startsWith, ...includes];
-    }, [editValue, field]);
-
-    // For date fields, use input type date
-    if (field === "plannedEnd") {
-      return (
-        <input
-          type="date"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={() => onSave(editValue)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              onSave(editValue);
-            } else if (e.key === "Escape") {
-              onCancel();
-            }
-          }}
-          className={cn(
-            "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1",
-            className
-          )}
-          autoFocus
-          dir="auto"
-        />
-      );
-    }
-
-    // For category/responsible fields, show autocomplete
-    if (field === "category" || field === "responsible") {
-      return (
-        <div className="relative">
-          <input
-            type="text"
-            value={editValue}
-            onChange={(e) => {
-              setEditValue(e.target.value);
-              setShowSuggestions(true);
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => {
-              setTimeout(() => {
-                setShowSuggestions(false);
-                onSave(editValue);
-              }, 200);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                setShowSuggestions(false);
-                onSave(editValue);
-              } else if (e.key === "Escape") {
-                setShowSuggestions(false);
-                onCancel();
-              }
-            }}
-            className={cn(
-              "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1 h-8",
-              className
-            )}
-            autoFocus
-            dir="auto"
-          />
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute top-full right-0 left-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 max-h-36 overflow-auto">
-              {suggestions.map((item, index) => (
-                <div
-                  key={index}
-                  className="px-3 py-2 text-sm hover:bg-accent cursor-pointer"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    setEditValue(item);
-                    setShowSuggestions(false);
-                    onSave(item);
-                  }}
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // For text fields, use textarea to support multiline with Ctrl+K
-    return (
-      <textarea
-        value={editValue}
-        onChange={(e) => setEditValue(e.target.value)}
-        onBlur={() => onSave(editValue)}
-        onKeyDown={(e) => {
-          // Ctrl+K or Ctrl+Enter for new line
-          if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.key === 'Enter')) {
-            e.preventDefault();
-            const target = e.target as HTMLTextAreaElement;
-            const start = target.selectionStart;
-            const end = target.selectionEnd;
-            const newValue = editValue.substring(0, start) + '\n' + editValue.substring(end);
-            setEditValue(newValue);
-            setTimeout(() => {
-              target.selectionStart = target.selectionEnd = start + 1;
-            }, 0);
-            return;
-          }
-          if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-            e.preventDefault();
-            onSave(editValue);
-          } else if (e.key === "Escape") {
-            onCancel();
-          }
-        }}
-        className={cn(
-          "w-full bg-transparent outline-none ring-2 ring-primary rounded px-1 resize-none min-h-[32px]",
-          className
-        )}
-        autoFocus
-        dir="auto"
-        rows={Math.max(1, editValue.split('\n').length)}
-      />
-    );
-  };
 
   const renderEditableCell = (
     value: string,
@@ -1074,6 +1089,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       if (field === "description") {
         return (
           <EditableCellWithSuggestions
+            key={`${taskId}:${field}`}
+            tasks={tasks}
             value={value}
             taskId={taskId}
             className={className}
@@ -1088,6 +1105,9 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
 
       return (
         <EditableCellInput
+          key={`${taskId}:${field}`}
+          existingCategories={existingCategories}
+          existingResponsibles={existingResponsibles}
           value={value}
           field={field}
           className={className}
