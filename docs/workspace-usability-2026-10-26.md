@@ -40,3 +40,18 @@
   destinations until their write permissions are resolved explicitly.
 - Independent-hosting/provider migration remains paused. Publish only product
   feature commits onto the Lovable-connected branch, not the migration commits.
+
+## Lovable release preparation
+
+- Verified in the project's Git settings that the connected repository is
+  omri855655-lang/tabro-org-434f77b0, branch main.
+- Cherry-picked nutrition, daily health import, course companion, reviewed Amex
+  corrections, and this usability change onto the current main base.
+- Confirmed the release does not change the Supabase client, Lovable login
+  integration, environment file, dependency lockfile, or Vite configuration.
+- The exact release passed all 258 product tests, TypeScript, and Vite build.
+  Four migration-only tests remain on the independent-hosting branch.
+- Existing lint totals were compared before/after on each touched legacy file:
+  no new errors or warnings. Large-bundle build warnings remain.
+- Publication is left to the user in Lovable. Git synchronization is not proof
+  of a production deployment or of the task-ai-helper function being redeployed.
