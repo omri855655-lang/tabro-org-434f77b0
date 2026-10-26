@@ -70,8 +70,9 @@ serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        if (taskDescription.length > 5000) {
-          return new Response(JSON.stringify({ error: "תיאור המשימה ארוך מדי (מקסימום 5000 תווים)" }), {
+        const descriptionLimit = ['course_breakdown', 'learning_recommendations'].includes(taskCategory) ? 60000 : 5000;
+        if (taskDescription.length > descriptionLimit) {
+          return new Response(JSON.stringify({ error: `תיאור המשימה ארוך מדי (מקסימום ${descriptionLimit} תווים)` }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -85,8 +86,9 @@ serve(async (req) => {
         });
       }
 
-      if (customPrompt && (typeof customPrompt !== "string" || customPrompt.length > 5000)) {
-        return new Response(JSON.stringify({ error: "פרומפט ארוך מדי (מקסימום 5000 תווים)" }), {
+      const customPromptLimit = type === 'custom' ? 60000 : 5000;
+      if (customPrompt && (typeof customPrompt !== "string" || customPrompt.length > customPromptLimit)) {
+        return new Response(JSON.stringify({ error: `פרומפט ארוך מדי (מקסימום ${customPromptLimit} תווים)` }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
