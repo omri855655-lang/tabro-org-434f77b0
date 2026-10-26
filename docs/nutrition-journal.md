@@ -25,6 +25,27 @@ measurement; users can correct portions and nutrients before or after saving.
 
 ## Persistence and Privacy
 
+- A personal daily calorie goal can be saved or cleared to return to automatic
+  estimates. The same eligibility and profile checks apply; custom goals must
+  be integer values from 1,500 to 5,000 and no lower than estimated resting
+  needs. These limits are application guardrails, not individual medical advice.
+- A sticky today-only summary remains visible across nutrition and sleep tabs;
+  the journal below can still browse historical days independently.
+- The available-food form sends ingredients to the existing coach alongside the
+  selected day's context. Suggestions never create meal records automatically.
+- Health XML import now includes active energy (kcal/kJ) and exercise minutes.
+  Source totals use the largest single source per day to avoid double counting,
+  which can undercount disjoint sources. Activity does not increase food targets.
+- A downloadable CSV interchange template also accepts reviewed daily summaries
+  from other watches. JSON arrays with the same five fields are accepted. This
+  is explicitly manual import, not compatibility with arbitrary vendor exports.
+  Reimport updates days instead of adding their totals again; missing fields
+  preserve prior values. Only the most recent 30 days are retained.
+- Direct Samsung/Wear OS connections require a signed Android application with
+  Health Connect read permissions; no Android target exists yet. Garmin/Fitbit
+  direct account access requires separate provider app configuration and user
+  authorization. Neither is represented as connected by the import panel.
+
 - Existing `health_profiles` and its RLS remain unchanged.
 - Meals use the existing `tabro-meals:<userId>` browser key. The old 100-row
   truncation was removed. Capacity failures are reported without clearing data.
@@ -57,8 +78,9 @@ with moderate activity estimates 2,750 kcal. Saving 500 kcal leaves 2,250;
 editing it to 600 leaves 2,150; deleting restores 2,750. Past-day entries must
 not affect today's totals. Also check desktop, 390 px, Hebrew, English and Arabic.
 
-Deploy only `task-ai-helper` to the app's Lovable Cloud backend, not the separate
-finance backend. Keep the function-local `nutritionPlan.ts` identical to the app
+The independent-hosting branch uses direct AI and requires its own configured
+provider key and backend deployment. Do not invoke the paid Lovable agent to
+deploy these changes. Keep the function-local `nutritionPlan.ts` identical to the app
 copy; only `supabase/functions/` is bundled during edge deployment.
 
 Actual photo estimation and native Apple Health integration require additional

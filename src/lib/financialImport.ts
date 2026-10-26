@@ -10,6 +10,15 @@ interface ImportParsedFinancialTransactionsParams {
   sourceType?: string;
   sourceConnectionId?: string;
   accountExternalId?: string;
+  approvedBillingDateChanges?: BillingDateChange[];
+}
+
+export interface BillingDateChange {
+  id: string;
+  externalId: string;
+  description: string;
+  previousDate: string | null;
+  nextDate: string;
 }
 
 const chunk = <T,>(items: T[], size: number) => {
@@ -41,7 +50,7 @@ const buildExternalId = (tx: ParsedTransaction, index: number, provider: string,
     .trim();
 };
 
-export async function importParsedFinancialTransactions({
+function normalizeImportRows({
   userId,
   parsed,
   provider,
@@ -87,35 +96,81 @@ export async function importParsedFinancialTransactions({
     new Map(normalizedRows.map((row) => [row.external_transaction_id, row])).values(),
   );
 
-  let skipped = normalizedRows.length - uniqueRows.length;
-  const existingExternalIds = new Set<string>();
+  return { uniqueRows, skipped: normalizedRows.length - uniqueRows.length };
+}
 
-  for (const idsChunk of chunk(uniqueRows.map((row) => row.external_transaction_id), 200)) {
+type StoredImportRow = { id: string; external_transaction_id: string; raw_data: Record<string, unknown> | null };
+async function readExistingRows(input: ImportParsedFinancialTransactionsParams, externalIds: string[]) {
+  const existing = new Map<string, StoredImportRow>();
+
+  for (const idsChunk of chunk(externalIds, 200)) {
     const { data, error } = await supabase
-      .from("financial_transactions" as any)
-      .select("external_transaction_id")
-      .eq("user_id", userId)
-      .eq("source_type", sourceType)
-      .eq("source_connection_id", sourceConnectionId)
+      .from("financial_transactions")
+      .select("id, external_transaction_id, raw_data")
+      .eq("user_id", input.userId)
+      .eq("source_type", input.sourceType || "csv")
+      .eq("source_connection_id", input.sourceConnectionId || IMPORT_SOURCE_CONNECTION_ID)
       .in("external_transaction_id", idsChunk);
 
     if (error) throw error;
 
-    (data || []).forEach((row: any) => {
-      if (row.external_transaction_id) existingExternalIds.add(row.external_transaction_id);
+    (data || []).forEach(row => {
+      if (row.external_transaction_id) existing.set(row.external_transaction_id, { ...row, raw_data: row.raw_data && typeof row.raw_data === 'object' && !Array.isArray(row.raw_data) ? row.raw_data : null });
     });
   }
+  return existing;
+}
 
-  const rowsToInsert = uniqueRows.filter((row) => !existingExternalIds.has(row.external_transaction_id));
+export async function previewBillingDateChanges(input: ImportParsedFinancialTransactionsParams): Promise<BillingDateChange[]> {
+  if (input.sourceType !== "credit_card_import" || input.provider !== "amex") return [];
+  const { uniqueRows } = normalizeImportRows(input);
+  const existing = await readExistingRows(input, uniqueRows.map(row => row.external_transaction_id));
+  return uniqueRows.flatMap(row => {
+    const old = existing.get(row.external_transaction_id);
+    const previousDate = typeof old?.raw_data?.billing_date === "string" ? old.raw_data.billing_date : null;
+    const nextDate = row.raw_data.billing_date;
+    return old?.id && nextDate && nextDate !== previousDate
+      ? [{ id: old.id, externalId: row.external_transaction_id, description: row.description, previousDate, nextDate }]
+      : [];
+  });
+}
+
+export async function importParsedFinancialTransactions(input: ImportParsedFinancialTransactionsParams) {
+  const { uniqueRows, skipped: initialSkipped } = normalizeImportRows(input);
+  let skipped = initialSkipped;
+  const existing = await readExistingRows(input, uniqueRows.map(row => row.external_transaction_id));
+  const rowsToInsert = uniqueRows.filter(row => !existing.has(row.external_transaction_id));
   skipped += uniqueRows.length - rowsToInsert.length;
+
+  let updated = 0, conflicts = 0;
+  if (input.provider === "amex" && input.sourceType === "credit_card_import") {
+    const approved = new Map((input.approvedBillingDateChanges || []).map(change => [change.externalId, change]));
+    for (const row of uniqueRows) {
+      const approval = approved.get(row.external_transaction_id);
+      const old = existing.get(row.external_transaction_id);
+      if (!approval || !old) continue;
+      const previousDate = typeof old.raw_data?.billing_date === "string" ? old.raw_data.billing_date : null;
+      if (old.id !== approval.id || row.raw_data.billing_date !== approval.nextDate || previousDate !== approval.previousDate) {
+        conflicts += 1; continue;
+      }
+      // Compare the complete metadata snapshot to avoid overwriting concurrent refund links or edits.
+      let query = supabase.from("financial_transactions").update({ raw_data: { ...(old.raw_data || {}), billing_date: approval.nextDate } })
+        .eq("id", old.id).eq("user_id", input.userId).eq("source_type", input.sourceType)
+        .eq("source_connection_id", input.sourceConnectionId || IMPORT_SOURCE_CONNECTION_ID);
+      query = old.raw_data === null ? query.is("raw_data", null) : query.eq("raw_data", JSON.stringify(old.raw_data));
+      const { data, error } = await query.select("id");
+      if (error) throw error;
+      if (data?.length === 1) { updated += 1; skipped -= 1; } else conflicts += 1;
+    }
+  }
 
   let imported = 0;
 
   for (const rowsChunk of chunk(rowsToInsert, 100)) {
-    const { error } = await supabase.from("financial_transactions" as any).insert(rowsChunk as any);
+    const { error } = await supabase.from("financial_transactions").insert(rowsChunk);
     if (error) throw error;
     imported += rowsChunk.length;
   }
 
-  return { imported, skipped };
+  return { imported, skipped, updated, conflicts };
 }

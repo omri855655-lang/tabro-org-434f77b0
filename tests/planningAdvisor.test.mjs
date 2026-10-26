@@ -18,7 +18,12 @@ test('advisor request is explicitly advice-only with bounded, structured referen
   const prompt=advisorPrompt('ar','Project','a'.repeat(13000),'b'.repeat(9000),Array.from({length:10},()=>({role:'user',content:'c'.repeat(3000)})));
   assert.match(prompt,/never claim to save tasks/);
   const data=JSON.parse(prompt.split('\nDATA:\n')[1]);
-  assert.equal(data.request.length,ADVISOR_MAX_REQUEST);assert.equal(data.context.length,6000);assert.equal(data.history.length,4);assert.equal(data.history[0].content.length,1500);
+  assert.equal(data.request.length,ADVISOR_MAX_REQUEST);assert.equal(data.context.length,9000);assert.equal(data.history.length,4);assert.equal(data.history[0].content.length,1500);
+});
+test('escaped context and requests remain inside the custom endpoint budget',()=>{
+  const prompt=advisorPrompt('he','A'.repeat(500),'\u0001'.repeat(12000),'\u0002'.repeat(50000),Array.from({length:4},()=>({role:'user',content:'\u0003'.repeat(2000)})));
+  assert.ok(prompt.length<60000);
+  assert.equal(JSON.parse(prompt.split('\nDATA:\n')[1]).contextTruncated,true);
 });
 test('advisor waits are bounded even when the underlying request ignores cancellation',async()=>{
   const controller=new AbortController();

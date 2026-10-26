@@ -4,6 +4,13 @@ import {parseMealEstimate,mealTotals,scaleMealItem} from '../src/lib/mealEstimat
 import {summarizeHealthRecords} from '../src/lib/healthImport.ts';
 import {mealPhotoCopy,healthImportCopy} from '../src/lib/nutritionFeaturesCopy.ts';
 const food={name:'Rice',grams:200,calories:260,protein:5,carbs:56,fat:1};
+test('activity import converts energy units without double-counting phone and watch',()=>{
+  const record=(type,value,unit,sourceName='Watch')=>({type,value,unit,sourceName,startDate:'2026-10-22 12:00:00 +0300',endDate:'2026-10-22 13:00:00 +0300'});
+  const energy=record('HKQuantityTypeIdentifierActiveEnergyBurned','418.4','kJ');
+  const days=summarizeHealthRecords([energy,energy,record(energy.type,'80','kcal','Phone'),record('HKQuantityTypeIdentifierAppleExerciseTime','30','min'),record(energy.type,'999','unsupported')]);
+  assert.equal(days.length,1);assert.equal(days[0].activeCalories,100);assert.equal(days[0].exerciseMinutes,30);
+  assert.equal(days[0].steps,null);assert.equal(days[0].sleepHours,null);
+});
 test('meal quantities scale reviewed nutrients and reject malformed analysis',()=>{
   const half=scaleMealItem(food,100);assert.equal(half.calories,130);assert.equal(half.carbs,28);
   assert.equal(mealTotals([half,half]).calories,260);

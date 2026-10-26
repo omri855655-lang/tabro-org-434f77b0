@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 supabase/.temp/
+.migration-private/
+*.backup
+*.dump
 
 # Editor directories and files
 .vscode/*

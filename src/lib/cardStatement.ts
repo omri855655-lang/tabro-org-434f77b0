@@ -35,7 +35,7 @@ export function findStatementTable(csv: { headers: string[]; rows: string[][] })
 }
 
 export function statementBillingDate(preamble: string[], parsed: ParsedTransaction[], fileName: string): string | undefined {
-  const match = preamble.join(" ").match(/לחיוב\s*ב[\s:-]*([0-3]?\d)[./]([01]?\d)(?:[./](\d{2}|\d{4}))?/);
+  const match = preamble.join(" ").match(/לחיוב\s*ב[\s:־–-]*([0-3]?\d)[./]([01]?\d)(?:[./](\d{4}|\d{2}))?(?![\d./])/);
   if (!match) return undefined;
   const [, day, month, explicitYear] = match;
   const filePeriod = fileName.match(/^\d{4}[_-](\d{1,2})[_-](20\d{2})\./);

@@ -20,7 +20,7 @@ export default function PlanningAdvisor({ id, title, context }: { id: string; ti
   const { user } = useAuth();
   return <PlanningAdvisorPanel key={`${user?.id || 'guest'}:${id}`} storageKey={`planning-advisor:${user?.id || 'guest'}:${id}`} title={title} context={context} />;
 }
-export function PlanningAdvisorPanel({ storageKey: key, title, context, requestAdvice=askAdvisor }: { storageKey: string; title: string; context: string; requestAdvice?:AdvisorRequest }) {
+export function PlanningAdvisorPanel({ storageKey: key, title, context, requestAdvice=askAdvisor, quickPrompts=[] }: { storageKey: string; title: string; context: string; requestAdvice?:AdvisorRequest; quickPrompts?: { label: string; prompt: string }[] }) {
   const { lang, dir } = useLanguage();
   const copy = planningToolsCopy[lang];
   const ui = advisorCopy[lang];
@@ -76,6 +76,7 @@ export function PlanningAdvisorPanel({ storageKey: key, title, context, requestA
     <summary className="cursor-pointer font-semibold">{copy.advisor} · {title}</summary>
     <p className="my-3 text-sm text-muted-foreground">{copy.advisorHint}</p>
     <p className="mb-3 text-xs text-muted-foreground">{ui.adviceOnly}</p>
+    <div className="my-3 flex flex-wrap gap-2">{quickPrompts.map(item => <Button key={item.label} size="sm" variant="outline" disabled={busy || loadingFile} onClick={() => { setPrompt(item.prompt); setNotice(''); }}>{item.label}</Button>)}</div>
     {storageFailed && <p role="alert" className="my-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{ui.storage}</p>}
     {messages.length>visible && <Button variant="ghost" size="sm" onClick={()=>setVisible(count=>count+40)}>{ui.older}</Button>}
     <div className="max-h-80 space-y-3 overflow-auto" aria-live="polite">{messages.slice(-visible).map((m, i) => <div key={Math.max(0,messages.length-visible)+i} className={`break-words whitespace-pre-wrap rounded-xl p-3 text-sm ${m.role === 'user' ? 'bg-muted' : 'border bg-primary/5'}`}><span className="mb-1 block text-xs font-semibold text-muted-foreground">{m.role === 'user' ? copy.me : copy.advisor}</span>{m.content}</div>)}</div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -141,14 +141,16 @@ export function useTasks(
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTasks = useCallback(async () => {
+  const requestSequence = useRef(0);
+  const fetchTasks = useCallback(async (showLoading = false) => {
+    const requestId = ++requestSequence.current;
     if (!user) {
       setTasks([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (showLoading) setLoading(true);
 
     try {
       let query = supabase
@@ -187,17 +189,18 @@ export function useTasks(
         return task;
       });
 
-      setTasks(mappedTasks);
+      if (requestId === requestSequence.current) setTasks(mappedTasks);
     } catch (error: any) {
       console.error("Error fetching tasks:", error);
       toast.error("שגיאה בטעינת משימות");
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
   }, [user, taskType, sheetName, ownerId]);
 
   useEffect(() => {
-    fetchTasks();
+    void fetchTasks(true);
+    return () => { requestSequence.current += 1; };
   }, [fetchTasks]);
 
   useEffect(() => {

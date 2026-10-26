@@ -279,17 +279,9 @@ serve(async (req: Request): Promise<Response> => {
       console.log(`Sending email to ${userEmail}: ${subject}`);
 
       try {
-        const lovableKey = Deno.env.get('LOVABLE_API_KEY');
-        const apiUrl = lovableKey
-          ? 'https://connector-gateway.lovable.dev/resend/emails'
-          : 'https://api.resend.com/emails';
+        const apiUrl = 'https://api.resend.com/emails';
         const emailHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (lovableKey) {
-          emailHeaders['Authorization'] = `Bearer ${lovableKey}`;
-          emailHeaders['X-Connection-Api-Key'] = RESEND_API_KEY!;
-        } else {
-          emailHeaders['Authorization'] = `Bearer ${RESEND_API_KEY}`;
-        }
+        emailHeaders['Authorization'] = `Bearer ${RESEND_API_KEY}`;
         const emailResponse = await fetch(apiUrl, {
           method: "POST",
           headers: emailHeaders,

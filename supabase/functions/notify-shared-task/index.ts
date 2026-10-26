@@ -13,20 +13,12 @@ async function sendEmailUnified(
   html: string,
   from: string = 'Tabro <noreply@notify.tabro.org>',
 ) {
-  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
   const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY');
   if (!resendKey) return false;
 
-  const apiUrl = lovableKey
-    ? 'https://connector-gateway.lovable.dev/resend/emails'
-    : 'https://api.resend.com/emails';
+  const apiUrl = 'https://api.resend.com/emails';
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (lovableKey) {
-    headers['Authorization'] = `Bearer ${lovableKey}`;
-    headers['X-Connection-Api-Key'] = resendKey;
-  } else {
-    headers['Authorization'] = `Bearer ${resendKey}`;
-  }
+  headers['Authorization'] = `Bearer ${resendKey}`;
 
   const res = await fetch(apiUrl, {
     method: 'POST',

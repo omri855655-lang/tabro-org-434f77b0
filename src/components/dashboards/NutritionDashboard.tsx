@@ -7,7 +7,8 @@ import { useDashboardChatHistory } from '@/hooks/useDashboardChatHistory';
 import { useDashboardDisplay } from '@/hooks/useDashboardDisplay';
 import { useNutritionJournal } from '@/hooks/useNutritionJournal';
 import { supabase } from '@/integrations/supabase/client';
-import { ACTIVITY_FACTORS, mealsForDay, type NutritionProfile } from '@/lib/nutritionPlan';
+import { ACTIVITY_FACTORS, dailyNutrition, nutritionTarget, mealsForDay, type NutritionProfile } from '@/lib/nutritionPlan';
+import { nutritionWorkspaceCopy } from '@/lib/nutritionWorkspaceCopy';
 import { nutritionTrackerCopy } from '@/lib/nutritionTrackerCopy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,10 @@ function NutritionWorkspace({ userId }: { userId?: string }) {
   const profileRef = useRef<HTMLDivElement>(null);
   const nutritionChat = useDashboardChatHistory('nutrition'), sleepChat = useDashboardChatHistory('sleep');
   const [aiLoading, setAiLoading] = useState(false);
+  const [availableFood, setAvailableFood] = useState('');
+  const extra = nutritionWorkspaceCopy[lang];
+  const target = nutritionTarget(savedProfile, journal.preferences);
+  const todaySummary = dailyNutrition(journal.history, journal.today, target);
 
   useEffect(() => {
     if (!userId) return;
@@ -103,6 +108,12 @@ function NutritionWorkspace({ userId }: { userId?: string }) {
 
   return <div className="mx-auto max-w-4xl space-y-4 p-3 sm:p-4" dir={dir}>
     <div className="flex flex-wrap items-center gap-3"><Apple className="h-6 w-6 text-primary" /><h2 className="text-2xl font-bold">{c.dashboard}</h2><div className="flex-1" /><DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} /></div>
+    <div className="sticky top-0 z-20 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur" aria-label={c.daily}>
+      <p className="mb-2 text-xs font-medium">{extra[14]}</p>
+      <dl className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+        {[[c.target, target.status === 'ready' ? target.calories : null], [c.logged, todaySummary.calories], [todaySummary.remaining !== null && todaySummary.remaining < 0 ? c.above : c.remaining, todaySummary.remaining === null ? null : Math.abs(todaySummary.remaining)]].map(([label, value]) => <div key={String(label)}><dt className="text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{typeof value === 'number' ? Math.round(value).toLocaleString(lang) : '—'} {c.kcal}</dd></div>)}
+      </dl>
+    </div>
     {!profileLoaded && <p role="status" className="text-sm">{c.loading}</p>}
     {profileError && <div role="alert" className="rounded-xl border p-3 text-sm"><p>{c.profileError}</p><Button variant="outline" className="mt-2" onClick={() => setRetry(value => value + 1)}>{c.reload}</Button></div>}
     <div ref={profileRef}><Collapsible open={profileOpen} onOpenChange={setProfileOpen}>
@@ -127,6 +138,10 @@ function NutritionWorkspace({ userId }: { userId?: string }) {
         <NutritionDailySummary profile={savedProfile} journal={journal} onEditProfile={editProfile} />
         <MealPhotoJournal userId={userId} journal={journal} profile={savedProfile} />
         <p className="px-1 text-xs leading-relaxed text-muted-foreground">{c.aiPrivacy}</p>
+        <form className="space-y-3 rounded-2xl border bg-card p-4" onSubmit={event => { event.preventDefault(); void sendMessage('nutrition', `${extra[8]}\n${availableFood.trim()}`); }}>
+          <label className="block font-medium">{extra[5]}<Textarea className="mt-2" maxLength={1200} value={availableFood} onChange={e => setAvailableFood(e.target.value)} placeholder={extra[6]} /></label>
+          <Button type="submit" disabled={!availableFood.trim() || aiLoading || !userId}>{aiLoading ? c.loading : extra[7]}</Button>
+        </form>
         <AiChatPanel title={c.coach} messages={nutritionChat.messages} loaded={nutritionChat.loaded} aiLoading={aiLoading} archive={nutritionChat.archive} onSend={msg => void sendMessage('nutrition', msg)} onClearAndArchive={nutritionChat.clearAndArchive} onLoadConversation={nutritionChat.loadConversation} placeholder={c.ask} emptyText={c.ask} quickPrompts={c.nutritionPrompts} />
       </TabsContent>
       <TabsContent value="sleep" className="space-y-4"><HealthImportCard /><AiChatPanel title={c.sleepCoach} messages={sleepChat.messages} loaded={sleepChat.loaded} aiLoading={aiLoading} archive={sleepChat.archive} onSend={msg => void sendMessage('sleep', msg)} onClearAndArchive={sleepChat.clearAndArchive} onLoadConversation={sleepChat.loadConversation} placeholder={c.askSleep} emptyText={c.askSleep} quickPrompts={c.sleepPrompts} /></TabsContent>

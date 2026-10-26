@@ -29,13 +29,18 @@ export default function CardCashflowOverview({ cards, hiddenKeys, onVisibility, 
             <p className="text-xs text-muted-foreground">{isRtl ? "החיוב הקרוב לפי הנתונים הקיימים" : "Next debit from available data"}</p>
             {next ? <><strong className="mt-1 block text-xl tabular-nums">{next.credit ? `${isRtl ? "יתרת זיכוי" : "Credit balance"} ${money(next.credit)}` : money(next.amount)}</strong><span className="text-xs">{new Date(`${next.date}T12:00:00`).toLocaleDateString(locale)} · {next.estimated ? (isRtl ? "אומדן לפי יום פירעון" : "Billing-day estimate") : (isRtl ? "לפי התנועות שדווחו, לא בהכרח חיוב סופי" : "Reported transactions, not necessarily final")}</span></> : <strong className="mt-1 block text-sm">{isRtl ? "אין חיוב עתידי ידוע" : "No upcoming charge known"}</strong>}
           </div>
+          {card.undated > 0 && <p className="text-xs text-amber-700 dark:text-amber-400">{isRtl ? `${card.undated} תנועות ללא מועד חיוב לא נכללו בתחזית.` : `${card.undated} undated transactions excluded from the forecast.`}</p>}
+          {card.foreignCurrencies.length > 0 && <p className="text-xs text-muted-foreground">{isRtl ? "מטבעות נפרדים, ללא המרה משוערת:" : "Separate currencies, no estimated conversion:"} {card.foreignCurrencies.join(", ")}</p>}
+          <details className="rounded-xl border bg-background/50 p-3">
+          <summary className="cursor-pointer text-xs font-medium">{isRtl ? "חודשים נוספים והגדרת יום פירעון" : "More months and billing day"}</summary>
+          <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{months.map(month => {
             const charges = card.charges.filter(charge => charge.date.startsWith(month));
             return <div key={month} className="rounded-xl border p-2 text-xs"><span className="block text-muted-foreground">{new Date(`${month}-01T12:00:00`).toLocaleDateString(locale, { month: "short", year: "2-digit" })}</span><strong className="mt-1 block tabular-nums">{charges.length ? money(charges.reduce((sum, charge) => sum + charge.amount, 0)) : (isRtl ? "לא דווח" : "Not reported")}</strong>{charges.some(charge => charge.estimated) && <small>{isRtl ? "אומדן" : "Estimate"}</small>}</div>;
           })}</div>
           <label className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>{isRtl ? "יום פירעון לתנועות ללא תאריך" : "Billing day for undated transactions"}</span><select className="h-9 rounded-lg border bg-background px-2" aria-label={`${isRtl ? "יום פירעון" : "Billing day"} ${label(card)}`} disabled={saving} value={card.billingDay || ""} onChange={event => onBillingDay(card.key, event.target.value ? Number(event.target.value) : null)}><option value="">{isRtl ? "ללא אומדן" : "No estimate"}</option>{Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}</select></label>
-          {card.undated > 0 && <p className="text-xs text-amber-700 dark:text-amber-400">{isRtl ? `${card.undated} תנועות ללא מועד חיוב לא נכללו בתחזית.` : `${card.undated} undated transactions excluded from the forecast.`}</p>}
-          {card.foreignCurrencies.length > 0 && <p className="text-xs text-muted-foreground">{isRtl ? "מטבעות נפרדים, ללא המרה משוערת:" : "Separate currencies, no estimated conversion:"} {card.foreignCurrencies.join(", ")}</p>}
+          <p className="text-xs leading-5 text-muted-foreground">{isRtl ? "יום הפירעון משמש רק כשאין תאריך בעסקה. הוא אינו משנה תאריך שנקרא מהדוח. תיקון תאריך בדוח שכבר יובא נעשה בייבוא חוזר ובאישור טיוטת העדכון." : "The billing day only estimates undated transactions. It does not override statement dates. Reimport and approve the update draft to correct an imported date."}</p>
+          </div></details>
         </article>;
       })}
     </div>

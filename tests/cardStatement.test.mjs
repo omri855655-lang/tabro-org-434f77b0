@@ -60,6 +60,15 @@ test("statement rows keep only expenses and retain explicit billing dates", () =
   assert.equal(cardLastFour(rows[0].raw_data), "1234");
 });
 
+test('statement preamble retains four-digit years and Hebrew punctuation',()=>{
+  const rows=[{transaction_date:'2026-09-15'}];
+  assert.equal(statementBillingDate(['לחיוב ב-02.10.2026'],rows,'statement.xlsx'),'2026-10-02');
+  assert.equal(statementBillingDate(['לחיוב ב־02.10.26'],rows,'statement.xlsx'),'2026-10-02');
+  assert.equal(statementBillingDate(['לחיוב ב-02.10'],rows,'1193_10_2026.xlsx'),'2026-10-02');
+  assert.equal(statementBillingDate(['לחיוב ב-31.02.2026'],rows,'statement.xlsx'),undefined);
+  assert.equal(statementBillingDate(['לחיוב ב-02.10.20265'],rows,'statement.xlsx'),undefined);
+});
+
 test("card parser prefers the ILS billed amount over foreign transaction amount", () => {
   const headers = ["תאריך עסקה", "שם בית העסק", "סכום עסקה", "מטבע עסקה", "סכום חיוב בש\"ח"];
   const rows = [["16/09/2026", "foreign shop", "30", "USD", "112.50"]];
