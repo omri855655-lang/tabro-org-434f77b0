@@ -35,21 +35,21 @@ import { toast } from "sonner";
 // Background themes
 const BG_THEMES = [
   // Dark themes
-  { id: "dark", name: "חשוך", bg: "bg-[#0a0a0f]", text: "text-[#e8e8ed]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#e8e8ed]/40", subtleText: "text-[#e8e8ed]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
-  { id: "bottle-green", name: "ירוק בקבוק", bg: "bg-[#0a2818]", text: "text-[#d0f0d8]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#d0f0d8]/40", subtleText: "text-[#d0f0d8]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
-  { id: "mint-green", name: "ירוק מנטה", bg: "bg-[#0d2b2a]", text: "text-[#b8f0e8]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#b8f0e8]/40", subtleText: "text-[#b8f0e8]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
-  { id: "deep-blue", name: "כחול עמוק", bg: "bg-[#0a1628]", text: "text-[#c8d8f0]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#c8d8f0]/40", subtleText: "text-[#c8d8f0]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
-  { id: "ocean-teal", name: "אוקיינוס", bg: "bg-[#0a1f2e]", text: "text-[#a8dce8]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#a8dce8]/40", subtleText: "text-[#a8dce8]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
-  { id: "warm-brown", name: "חום חם", bg: "bg-[#1a1410]", text: "text-[#e8ddd0]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#e8ddd0]/40", subtleText: "text-[#e8ddd0]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
-  { id: "midnight-purple", name: "סגול לילה", bg: "bg-[#140a20]", text: "text-[#d8c8f0]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#d8c8f0]/40", subtleText: "text-[#d8c8f0]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
-  { id: "charcoal", name: "פחם", bg: "bg-[#1a1a1a]", text: "text-[#d4d4d4]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-[#d4d4d4]/40", subtleText: "text-[#d4d4d4]/60", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "dark", name: "חשוך", bg: "bg-[#0a0a0f]", text: "text-[#e8e8ed]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "bottle-green", name: "ירוק בקבוק", bg: "bg-[#0a2818]", text: "text-[#d0f0d8]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "mint-green", name: "ירוק מנטה", bg: "bg-[#0d2b2a]", text: "text-[#b8f0e8]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "deep-blue", name: "כחול עמוק", bg: "bg-[#0a1628]", text: "text-[#c8d8f0]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "ocean-teal", name: "אוקיינוס", bg: "bg-[#0a1f2e]", text: "text-[#a8dce8]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "warm-brown", name: "חום חם", bg: "bg-[#1a1410]", text: "text-[#e8ddd0]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "midnight-purple", name: "סגול לילה", bg: "bg-[#140a20]", text: "text-[#d8c8f0]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
+  { id: "charcoal", name: "פחם", bg: "bg-[#1a1a1a]", text: "text-[#d4d4d4]", isLight: false, cardBg: "bg-white/5", cardBorder: "border-white/5", mutedText: "text-slate-300", subtleText: "text-slate-200", inputBg: "bg-white/5", inputBorder: "border-white/10", hoverBg: "hover:bg-white/10", ringColor: "ring-white/30", activeBg: "bg-white/10" },
   // Light themes
-  { id: "light-cream", name: "קרם בהיר", bg: "bg-[#faf8f5]", text: "text-[#2a2520]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#e8e0d8]", mutedText: "text-[#2a2520]/50", subtleText: "text-[#2a2520]/70", inputBg: "bg-[#f0ece8]", inputBorder: "border-[#d8d0c8]", hoverBg: "hover:bg-[#f0ece8]", ringColor: "ring-[#2a2520]/20", activeBg: "bg-[#e8e0d8]" },
-  { id: "light-sky", name: "שמיים", bg: "bg-[#f0f6ff]", text: "text-[#1a2a40]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#d0e0f0]", mutedText: "text-[#1a2a40]/50", subtleText: "text-[#1a2a40]/70", inputBg: "bg-[#e8f0fa]", inputBorder: "border-[#c8d8e8]", hoverBg: "hover:bg-[#e0ecf8]", ringColor: "ring-[#1a2a40]/20", activeBg: "bg-[#d0e0f0]" },
-  { id: "light-mint", name: "מנטה בהיר", bg: "bg-[#f0faf5]", text: "text-[#1a3028]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#c8e8d8]", mutedText: "text-[#1a3028]/50", subtleText: "text-[#1a3028]/70", inputBg: "bg-[#e8f5f0]", inputBorder: "border-[#b8d8c8]", hoverBg: "hover:bg-[#e0f0e8]", ringColor: "ring-[#1a3028]/20", activeBg: "bg-[#c8e8d8]" },
-  { id: "light-lavender", name: "לבנדר", bg: "bg-[#f5f0ff]", text: "text-[#28203a]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#d8c8f0]", mutedText: "text-[#28203a]/50", subtleText: "text-[#28203a]/70", inputBg: "bg-[#efe8fa]", inputBorder: "border-[#d0c0e8]", hoverBg: "hover:bg-[#e8e0f5]", ringColor: "ring-[#28203a]/20", activeBg: "bg-[#d8c8f0]" },
-  { id: "light-peach", name: "אפרסק", bg: "bg-[#fff8f0]", text: "text-[#3a2820]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#f0d8c0]", mutedText: "text-[#3a2820]/50", subtleText: "text-[#3a2820]/70", inputBg: "bg-[#faf0e8]", inputBorder: "border-[#e8d0b8]", hoverBg: "hover:bg-[#f5ece0]", ringColor: "ring-[#3a2820]/20", activeBg: "bg-[#f0d8c0]" },
-  { id: "light-white", name: "לבן נקי", bg: "bg-white", text: "text-[#1a1a2e]", isLight: true, cardBg: "bg-[#f8f8fc]", cardBorder: "border-[#e0e0e8]", mutedText: "text-[#1a1a2e]/50", subtleText: "text-[#1a1a2e]/70", inputBg: "bg-[#f0f0f5]", inputBorder: "border-[#d8d8e0]", hoverBg: "hover:bg-[#f0f0f5]", ringColor: "ring-[#1a1a2e]/20", activeBg: "bg-[#e0e0e8]" },
+  { id: "light-cream", name: "קרם בהיר", bg: "bg-[#faf8f5]", text: "text-[#2a2520]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#e8e0d8]", mutedText: "text-slate-600", subtleText: "text-slate-700", inputBg: "bg-[#f0ece8]", inputBorder: "border-[#d8d0c8]", hoverBg: "hover:bg-[#f0ece8]", ringColor: "ring-[#2a2520]/20", activeBg: "bg-[#e8e0d8]" },
+  { id: "light-sky", name: "שמיים", bg: "bg-[#f0f6ff]", text: "text-[#1a2a40]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#d0e0f0]", mutedText: "text-slate-600", subtleText: "text-slate-700", inputBg: "bg-[#e8f0fa]", inputBorder: "border-[#c8d8e8]", hoverBg: "hover:bg-[#e0ecf8]", ringColor: "ring-[#1a2a40]/20", activeBg: "bg-[#d0e0f0]" },
+  { id: "light-mint", name: "מנטה בהיר", bg: "bg-[#f0faf5]", text: "text-[#1a3028]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#c8e8d8]", mutedText: "text-slate-600", subtleText: "text-slate-700", inputBg: "bg-[#e8f5f0]", inputBorder: "border-[#b8d8c8]", hoverBg: "hover:bg-[#e0f0e8]", ringColor: "ring-[#1a3028]/20", activeBg: "bg-[#c8e8d8]" },
+  { id: "light-lavender", name: "לבנדר", bg: "bg-[#f5f0ff]", text: "text-[#28203a]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#d8c8f0]", mutedText: "text-slate-600", subtleText: "text-slate-700", inputBg: "bg-[#efe8fa]", inputBorder: "border-[#d0c0e8]", hoverBg: "hover:bg-[#e8e0f5]", ringColor: "ring-[#28203a]/20", activeBg: "bg-[#d8c8f0]" },
+  { id: "light-peach", name: "אפרסק", bg: "bg-[#fff8f0]", text: "text-[#3a2820]", isLight: true, cardBg: "bg-white", cardBorder: "border-[#f0d8c0]", mutedText: "text-slate-600", subtleText: "text-slate-700", inputBg: "bg-[#faf0e8]", inputBorder: "border-[#e8d0b8]", hoverBg: "hover:bg-[#f5ece0]", ringColor: "ring-[#3a2820]/20", activeBg: "bg-[#f0d8c0]" },
+  { id: "light-white", name: "לבן נקי", bg: "bg-white", text: "text-[#1a1a2e]", isLight: true, cardBg: "bg-[#f8f8fc]", cardBorder: "border-[#e0e0e8]", mutedText: "text-slate-600", subtleText: "text-slate-700", inputBg: "bg-[#f0f0f5]", inputBorder: "border-[#d8d8e0]", hoverBg: "hover:bg-[#f0f0f5]", ringColor: "ring-[#1a1a2e]/20", activeBg: "bg-[#e0e0e8]" },
 ];
 
 // Roadmap steps
@@ -526,7 +526,7 @@ const ZoneFlowDashboard = () => {
   const upcomingTask = calendarTasks.find(t => new Date(t.start_time) >= now) || calendarTasks[calendarTasks.length - 1];
   const currentTheme = BG_THEMES.find(t => t.id === bgTheme) || BG_THEMES[0];
   const isLight = currentTheme.isLight;
-  const themeCard = currentTheme.cardBg + " " + currentTheme.cardBorder;
+  const themeCard = currentTheme.cardBg + " " + currentTheme.cardBorder + " " + currentTheme.text;
   const themeMuted = currentTheme.mutedText;
   const themeSubtle = currentTheme.subtleText;
   const themeInput = currentTheme.inputBg + " " + currentTheme.inputBorder;
@@ -585,29 +585,26 @@ const ZoneFlowDashboard = () => {
           <>
         {/* Background selector + AI Chat button */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs ${themeMuted}`}>רקע:</span>
-          <div className="flex gap-1 flex-wrap">
-            <span className={`text-[10px] ${themeMuted} self-center ml-1`}>🌙</span>
-            {BG_THEMES.filter(t => !t.isLight).map(theme => (
-              <button
-                key={theme.id}
-                onClick={() => setBgTheme(theme.id)}
-                className={`px-2.5 py-1 rounded-full text-xs transition-all ${bgTheme === theme.id ? `ring-2 ${currentTheme.ringColor} ${currentTheme.activeBg}` : `${currentTheme.inputBg} ${currentTheme.hoverBg}`}`}
-              >
-                {theme.name}
-              </button>
-            ))}
-            <span className={`text-[10px] ${themeMuted} self-center ml-2 mr-1`}>☀️</span>
-            {BG_THEMES.filter(t => t.isLight).map(theme => (
-              <button
-                key={theme.id}
-                onClick={() => setBgTheme(theme.id)}
-                className={`px-2.5 py-1 rounded-full text-xs transition-all ${bgTheme === theme.id ? `ring-2 ${currentTheme.ringColor} ${currentTheme.activeBg}` : `${currentTheme.inputBg} ${currentTheme.hoverBg}`}`}
-              >
-                {theme.name}
-              </button>
-            ))}
-          </div>
+          <details className="group w-full sm:w-auto">
+            <summary className={`cursor-pointer rounded-xl border px-3 py-2 text-sm ${currentTheme.cardBorder}`}>
+              <Settings2 className="me-2 inline h-4 w-4" />עיצוב ורקע · {currentTheme.name}
+            </summary>
+            <div className={`mt-2 max-w-xl rounded-xl border p-3 ${themeCard}`}>
+              {[false, true].map(light => (
+                <fieldset key={String(light)} className="mb-2">
+                  <legend className={`mb-2 text-xs ${themeSubtle}`}>{light ? 'גוונים בהירים' : 'גוונים כהים'}</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {BG_THEMES.filter(theme => theme.isLight === light).map(theme => (
+                      <button key={theme.id} type="button" aria-pressed={bgTheme === theme.id} onClick={() => setBgTheme(theme.id)}
+                        className={`rounded-full px-3 py-2 text-xs focus-visible:outline focus-visible:outline-2 ${bgTheme === theme.id ? `ring-2 ${currentTheme.ringColor} ${currentTheme.activeBg}` : `${currentTheme.inputBg} ${currentTheme.hoverBg}`}`}>
+                        {theme.name}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+          </details>
           <button
             onClick={() => setShowAiChat(!showAiChat)}
             className={`mr-auto px-3 py-1.5 rounded-full text-xs ${isLight ? "bg-violet-100 text-violet-700 hover:bg-violet-200" : "bg-violet-500/20 text-violet-300 hover:bg-violet-500/30"} flex items-center gap-1.5 transition-all`}
@@ -619,7 +616,7 @@ const ZoneFlowDashboard = () => {
 
         {/* AI Chat panel */}
         {showAiChat && (
-          <Card className={`${isLight ? "bg-violet-50 border-violet-200" : "bg-white/5 border-violet-500/20"}`}>
+          <Card className={`text-inherit ${isLight ? "bg-violet-50 border-violet-200" : "bg-white/5 border-violet-500/20"}`}>
             <CardContent className="p-4 space-y-3">
               <div className="max-h-[300px] overflow-y-auto space-y-2">
                 {aiMessages.length === 0 && (
@@ -649,7 +646,7 @@ const ZoneFlowDashboard = () => {
         )}
         {/* Upcoming calendar task banner */}
         {upcomingTask && (
-          <Card className="bg-gradient-to-r from-violet-500/10 to-cyan-500/10 border-violet-500/20">
+          <Card className="text-inherit bg-gradient-to-r from-violet-500/10 to-cyan-500/10 border-violet-500/20">
             <CardContent className="p-4 flex items-center gap-4">
               <CalendarClock className="h-8 w-8 text-violet-400 flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -702,7 +699,7 @@ const ZoneFlowDashboard = () => {
 
         {/* Today's calendar tasks */}
         {calendarTasks.length > 0 && (
-          <Card className="bg-white/5 border-white/5">
+          <Card className="text-inherit bg-white/5 border-white/5">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
                 <CalendarClock className="h-4 w-4 text-violet-400" />
@@ -738,7 +735,7 @@ const ZoneFlowDashboard = () => {
         )}
 
         {/* Sound Player with categories */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               🎧 נגן תדרים וצלילים
@@ -872,7 +869,7 @@ const ZoneFlowDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
@@ -1278,7 +1275,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* YouTube Music by Category */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               <Music className="h-4 w-4 text-rose-400" />
@@ -1587,7 +1584,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {shouldShowSharedYoutubeViewer && (
-          <Card className="bg-white/5 border-white/5">
+          <Card className="text-inherit bg-white/5 border-white/5">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
                 <Music className="h-4 w-4 text-cyan-300" />
@@ -1646,7 +1643,7 @@ const ZoneFlowDashboard = () => {
         )}
 
         {/* Study With Me */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               📚 Study With Me — לומדים ביחד
@@ -1723,7 +1720,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Read With Me */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               📖 Read With Me — קוראים ביחד
@@ -1828,7 +1825,7 @@ const ZoneFlowDashboard = () => {
         <div className="grid lg:grid-cols-3 gap-4">
 
           {/* Stopwatch */}
-          <Card className="bg-white/5 border-white/5">
+          <Card className="text-inherit bg-white/5 border-white/5">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <StopCircle className="h-4 w-4 text-emerald-400" />
@@ -1884,7 +1881,7 @@ const ZoneFlowDashboard = () => {
           </Card>
 
           {/* Tasks */}
-          <Card className="bg-white/5 border-white/5">
+          <Card className="text-inherit bg-white/5 border-white/5">
             <CardHeader className="pb-3">
               <Tabs value={workMode} onValueChange={(v) => setWorkMode(v as "deep" | "shallow")}>
                 <TabsList className="bg-white/5 w-full">
@@ -1930,7 +1927,7 @@ const ZoneFlowDashboard = () => {
           </Card>
 
           {/* Roadmap */}
-          <Card className="bg-white/5 border-white/5">
+          <Card className="text-inherit bg-white/5 border-white/5">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
                 <Map className="h-4 w-4 text-amber-400" />
@@ -1980,7 +1977,7 @@ const ZoneFlowDashboard = () => {
         </div>
 
         {/* Motivation section */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               <Flame className="h-4 w-4 text-orange-400" />
@@ -2013,7 +2010,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Morning Habits Guide */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               <span className="text-lg">🌅</span>
@@ -2046,7 +2043,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Deep vs Shallow Work Guide */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               <span className="text-lg">{DEEP_SHALLOW_WORK_GUIDE.icon}</span>
@@ -2077,7 +2074,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Sleep Habits Guide */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               <span className="text-lg">{SLEEP_HABITS_GUIDE.icon}</span>
@@ -2108,7 +2105,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Nutrition Guide */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               <span className="text-lg">{NUTRITION_GUIDE.icon}</span>
@@ -2148,7 +2145,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Guides section */}
-        <Card className="bg-white/5 border-white/5">
+        <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
               <BookOpen className="h-4 w-4 text-rose-400" />

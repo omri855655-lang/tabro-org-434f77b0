@@ -31,6 +31,8 @@ import { escapePrintText, printDocument } from "@/lib/printDocument";
 import { createCalendarExport } from "@/lib/calendarExport";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useUltraDesign } from '@/hooks/useUltraDesign';
+import { plannerStartNow, plannerScrollTop, hasMatchingPlannerTask } from "@/lib/plannerDefaults";
+import { PlannerTaskOffer } from "@/components/PlannerTaskOffer";
 
 interface AggregatedTask {
   id: string;
@@ -197,6 +199,7 @@ const PersonalPlanner = () => {
 
   const [sendingInvites, setSendingInvites] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false);
+  const [taskOffer, setTaskOffer] = useState<CalendarEvent | null>(null);
   const [selectedTaskForAi, setSelectedTaskForAi] = useState<{ title: string; description: string; category: string } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
@@ -209,6 +212,7 @@ const PersonalPlanner = () => {
     // Radix normally releases these styles after its exit animation. Resetting
     // them on the next frame also covers interrupted mobile/dialog transitions.
     window.requestAnimationFrame(() => {
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
       document.body.style.pointerEvents = "";
       document.body.style.overflow = "";
       document.documentElement.style.pointerEvents = "";
@@ -218,6 +222,7 @@ const PersonalPlanner = () => {
   useEffect(() => {
     if (showQuickEventDialog || showEventDialog) return;
     const cleanup = window.setTimeout(() => {
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
       setEditingEvent(null);
       setQuickEditorAnchor(null);
       document.body.style.pointerEvents = "";
@@ -262,6 +267,22 @@ const PersonalPlanner = () => {
   } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const scrolledGridKey = useRef("");
+  const gridDayKey = format(currentDate, "yyyy-MM-dd");
+  useEffect(() => {
+    if (viewMode !== "day" && viewMode !== "week") {
+      scrolledGridKey.current = "";
+      return;
+    }
+    const key = `${viewMode}:${gridDayKey}`;
+    if (scrolledGridKey.current === key) return;
+    const frame = requestAnimationFrame(() => {
+      if (!gridRef.current) return;
+      gridRef.current.scrollTop = plannerScrollTop(new Date(), hourHeight, hourHeights);
+      scrolledGridKey.current = key;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [gridDayKey, viewMode, hourHeight, hourHeights]);
   const desktopTaskListRef = useRef<HTMLDivElement>(null);
   const quickEditorAnchorRef = useRef<HTMLButtonElement | null>(null);
   const quickDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1438,19 +1459,6 @@ const PersonalPlanner = () => {
       } else {
         const isCustom = !newEventData.sourceId && (newEventData.sourceType === "custom" || !newEventData.sourceType);
       
-        // Check for duplicate tasks
-        if (isCustom) {
-          const titleLower = newEventData.title.toLowerCase().trim();
-          const allTaskTitles = [
-            ...personalTasks.filter(t => !t.archived).map(t => t.description?.toLowerCase().trim()),
-            ...workTasks.filter(t => !t.archived).map(t => t.description?.toLowerCase().trim()),
-          ];
-          const duplicate = allTaskTitles.find(t => t && (t === titleLower || t.includes(titleLower) || titleLower.includes(t)));
-          if (duplicate) {
-            const proceed = confirm(`⚠️ נמצאה משימה דומה: "${duplicate}"\nהאם להמשיך בכל זאת?`);
-            if (!proceed) return;
-          }
-        }
 
         const eventPayload = {
           title: newEventData.title,
@@ -1470,6 +1478,14 @@ const PersonalPlanner = () => {
           : await addEventSeries(eventPayload, newEventData.recurrence, recurrenceCounts[newEventData.recurrence]);
 
         if (!savedEvent) return;
+
+        if (isCustom && !hasMatchingPlannerTask(savedEvent.title, [
+          ...personalTasks.filter(task => !task.archived).map(task => task.description),
+          ...workTasks.filter(task => !task.archived).map(task => task.description),
+          ...projectTasks.map(task => task.title),
+          ...customBoardItems.map(task => task.title),
+          ...recurringTasks.map(task => task.title),
+        ])) setTaskOffer(savedEvent);
 
         // Send invitations if emails provided
         if (newEventData.inviteeEmails.trim()) {
@@ -1622,8 +1638,9 @@ const PersonalPlanner = () => {
     }
   }, []);
 
-  const handleAddCustomEvent = () => {
-    createQuickEventAt(new Date(), 9, 0);
+  const handleAddCustomEvent = (preset?: typeof QUICK_EVENT_PRESETS[number]) => {
+    const now = plannerStartNow();
+    createQuickEventAt(now, now.getHours(), now.getMinutes(), preset);
   };
 
   const openPlanningAgent = () => {
@@ -1646,7 +1663,7 @@ const PersonalPlanner = () => {
       if (event.key.toLowerCase() === "n") {
         event.preventDefault();
         const now = new Date();
-        createQuickEventAt(currentDate, now.getHours(), Math.floor(now.getMinutes() / 15) * 15);
+        createQuickEventAt(plannerStartNow(now), now.getHours(), now.getMinutes());
         return;
       }
       if (event.key.toLowerCase() === "t") {
@@ -2205,7 +2222,7 @@ const PersonalPlanner = () => {
             <h3 className="font-semibold">אין אירועים ב-30 הימים הקרובים</h3>
             <p className="mt-1 text-sm text-muted-foreground">אפשר להוסיף אירוע חדש או לגרור משימה מהצד אל תצוגת יום או שבוע.</p>
           </div>
-          <Button onClick={handleAddCustomEvent} className="gap-2">
+          <Button onClick={() => handleAddCustomEvent()} className="gap-2">
             <Plus className="h-4 w-4" />
             אירוע חדש
           </Button>
@@ -2964,7 +2981,7 @@ const PersonalPlanner = () => {
               </div>
             )}
 
-            <Button variant="outline" size="sm" className="gap-1 h-8" onClick={handleAddCustomEvent}>
+            <Button variant="outline" size="sm" className="gap-1 h-8" onClick={() => handleAddCustomEvent()}>
               <Plus className="h-3.5 w-3.5" />
               אירוע
             </Button>
@@ -2981,7 +2998,7 @@ const PersonalPlanner = () => {
               variant="outline"
               size="sm"
               className="gap-1 h-8"
-              onClick={() => createQuickEventAt(currentDate, 9, 0, QUICK_EVENT_PRESETS[0])}
+              onClick={() => handleAddCustomEvent(QUICK_EVENT_PRESETS[0])}
             >
               <Sparkles className="h-3.5 w-3.5" />
               פגישה מהירה
@@ -3038,7 +3055,7 @@ const PersonalPlanner = () => {
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => createQuickEventAt(currentDate, 9, 0, preset)}
+                onClick={() => handleAddCustomEvent(preset)}
               >
                 <Plus className="h-3 w-3" />
                 {preset.label}
@@ -3663,6 +3680,10 @@ const PersonalPlanner = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {taskOffer && user && !showEventDialog && !showQuickEventDialog && (
+        <PlannerTaskOffer key={taskOffer.id} event={taskOffer} userId={user.id} boards={customBoards}
+          onClose={() => setTaskOffer(null)} onLinked={() => { void refetchCalendarEvents(); }} />
+      )}
       {/* Floating resize time tooltip */}
       {resizeTimeTooltip && (
         <div

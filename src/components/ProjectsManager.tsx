@@ -147,6 +147,7 @@ const ProjectsManager = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [newProject, setNewProject] = useState({ title: '', description: '' });
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [newTaskTitle, setNewTaskTitle] = useState<Record<string, string>>({});
   const [addLinkDialogOpen, setAddLinkDialogOpen] = useState<string | null>(null);
@@ -332,6 +333,7 @@ const ProjectsManager = () => {
 
       toast.success('הפרויקט נוסף בהצלחה');
       setNewProject({ title: '', description: '' });
+      setNewProjectOpen(false);
       setInitialProjectMembers([{ email: "", role: "member", jobTitle: "" }]);
       fetchProjects();
     }
@@ -986,61 +988,26 @@ ${message}
   const activeGanttProject = projects.find((project) => project.id === activeGanttProjectId) || null;
 
   return (
-    <div className="h-full flex flex-col gap-4 p-4 overflow-hidden bg-gradient-to-b from-background via-background to-muted/20" dir="rtl">
-      <div className="rounded-2xl border bg-card/80 p-5 shadow-sm flex-shrink-0">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs text-primary">
-              <FolderKanban className="h-3.5 w-3.5" />
-              מרחב פרויקטים חכם
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-2xl font-bold tracking-tight">ניהול פרויקטים ברור, צוותי, ומדויק</h2>
-              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                כאן אתה רואה מהר מה מתקדם, מה נתקע, מה דחוף, ומי אחראי על כל חלק. השדרוג במסך הזה נועד לתת לך מבט ניהולי אמיתי בלי לאבד את הפעולות שכבר עבדו.
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 lg:min-w-[320px]">
-            <div className="rounded-xl border bg-background p-3">
-              <div className="text-xs text-muted-foreground">סה״כ פרויקטים</div>
-              <div className="mt-1 text-2xl font-semibold">{projects.length}</div>
-            </div>
-            <div className="rounded-xl border bg-background p-3">
-              <div className="text-xs text-muted-foreground">סה״כ משימות</div>
-              <div className="mt-1 text-2xl font-semibold">{totalTasks}</div>
-            </div>
-            <div className="rounded-xl border bg-background p-3">
-              <div className="text-xs text-muted-foreground">דחופות פתוחות</div>
-              <div className="mt-1 text-2xl font-semibold text-rose-600">{urgentTasks}</div>
-            </div>
-            <div className="rounded-xl border bg-background p-3">
-              <div className="text-xs text-muted-foreground">באיחור</div>
-              <div className="mt-1 text-2xl font-semibold text-amber-600">{overdueTasks}</div>
-            </div>
-          </div>
+    <div className="h-full flex flex-col gap-4 p-4 overflow-y-auto bg-gradient-to-b from-background via-background to-muted/20" dir="rtl">
+      <div className="rounded-2xl border bg-card/80 p-4 shadow-sm flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-xl font-bold"><FolderKanban className="h-5 w-5 text-primary" />פרויקטים</h2>
+          <Button onClick={() => setNewProjectOpen(value => !value)} aria-expanded={newProjectOpen} aria-controls="new-project-form">
+            <Plus className="ml-2 h-4 w-4" />{newProjectOpen ? 'סגור טופס' : 'פרויקט חדש'}
+          </Button>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-xl border border-primary/20 bg-primary/10 p-4">
-            <div className="text-2xl font-bold text-primary">{activeCount}</div>
-            <div className="text-sm text-muted-foreground">פעילים</div>
-          </div>
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-            <div className="text-2xl font-bold text-emerald-700">{completedCount}</div>
-            <div className="text-sm text-muted-foreground">הושלמו</div>
-          </div>
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
-            <div className="text-2xl font-bold text-amber-700">{onHoldCount}</div>
-            <div className="text-sm text-muted-foreground">בהמתנה</div>
-          </div>
-          <div className="rounded-xl border bg-muted/70 p-4">
-            <div className="text-2xl font-bold text-foreground">{filteredProjects.length}</div>
-            <div className="text-sm text-muted-foreground">מוצגים כרגע</div>
-          </div>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+          <span><strong className="text-foreground">{projects.length}</strong> פרויקטים</span>
+          <span><strong className="text-foreground">{totalTasks}</strong> משימות</span>
+          <span>{activeCount} פעילים</span>
+          <span>{completedCount} הושלמו</span>
+          <span>{onHoldCount} בהמתנה</span>
+          <span className="text-rose-700 dark:text-rose-300">{urgentTasks} דחופות</span>
+          <span className="text-amber-800 dark:text-amber-300">{overdueTasks} באיחור</span>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] flex-shrink-0">
+      <div className="grid gap-3 flex-shrink-0">
         <div className="rounded-2xl border bg-card/80 p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -1073,13 +1040,10 @@ ${message}
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">תוצאות: {filteredProjects.length}</span>
-            <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">פעילים: {activeCount}</span>
-            <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">באיחור: {overdueTasks}</span>
-            <span className="rounded-full border bg-background px-3 py-1 text-muted-foreground">דחופות: {urgentTasks}</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-card/80 p-4 shadow-sm">
+        <div id="new-project-form" hidden={!newProjectOpen} className="rounded-2xl border bg-card/80 p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Plus className="h-4 w-4 text-primary" />
             <div>
@@ -1162,7 +1126,7 @@ ${message}
       </div>
 
       {/* Projects list with scroll */}
-      <div className="flex-1 min-h-0 overflow-hidden rounded-2xl border bg-card/70 shadow-sm">
+      <div className="flex-1 min-h-[240px] overflow-hidden rounded-2xl border bg-card/70 shadow-sm">
         <div className="h-full overflow-auto">
           {filteredProjects.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
