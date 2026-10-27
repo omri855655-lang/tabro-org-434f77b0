@@ -13,7 +13,7 @@ export interface InstallmentEvidence {
   installment_number?: number | null;
   installment_total?: number | null;
   hidden?: boolean;
-  raw_data?: { billing_date?: string | null; status?: string | null } | null;
+  raw_data?: { billing_date?: string | null; status?: string | null; statement_canonical_id?: string } | null;
 }
 export interface InstallmentEstimate { key: string; date: string; amount: number; currency: string; description: string; installment: number; total: number }
 
@@ -31,7 +31,7 @@ export function forecastAmexInstallments(rows: readonly InstallmentEvidence[], f
   const groups = new Map<string, { rows: InstallmentEvidence[]; blocked: boolean }>();
   for (const row of rows) {
     if (row.source_type !== 'credit_card_import' || row.provider !== 'amex' || !row.source_connection_id) continue;
-    const external = row.external_transaction_id || '';
+    const external = row.raw_data?.statement_canonical_id || row.external_transaction_id || '';
     if (!external.startsWith('amex-csv-v1:')) continue;
     let identity: unknown;
     try { identity = JSON.parse(external.slice('amex-csv-v1:'.length).replace(/:\d+$/, '')); } catch { continue; }

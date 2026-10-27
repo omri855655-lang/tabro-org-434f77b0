@@ -1,9 +1,8 @@
 const canUseStorage = () => typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 
 const readRaw = (key: string): string | null => {
-  if (!canUseStorage()) return null;
-
   try {
+    if (!canUseStorage()) return null;
     return window.localStorage.getItem(key);
   } catch {
     return null;
@@ -11,9 +10,8 @@ const readRaw = (key: string): string | null => {
 };
 
 const writeRaw = (key: string, value: string) => {
-  if (!canUseStorage()) return;
-
   try {
+    if (!canUseStorage()) return;
     window.localStorage.setItem(key, value);
   } catch {
     // Ignore storage quota and privacy mode errors.
@@ -21,9 +19,8 @@ const writeRaw = (key: string, value: string) => {
 };
 
 const remove = (key: string) => {
-  if (!canUseStorage()) return;
-
   try {
+    if (!canUseStorage()) return;
     window.localStorage.removeItem(key);
   } catch {
     // Ignore storage access errors.

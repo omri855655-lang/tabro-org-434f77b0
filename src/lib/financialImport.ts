@@ -117,6 +117,21 @@ async function readExistingRows(input: ImportParsedFinancialTransactionsParams, 
     (data || []).forEach(row => {
       if (row.external_transaction_id) existing.set(row.external_transaction_id, { ...row, raw_data: row.raw_data && typeof row.raw_data === 'object' && !Array.isArray(row.raw_data) ? row.raw_data : null });
     });
+    if (input.provider === "amex" && input.sourceType === "credit_card_import") {
+      const { data: aliases, error: aliasError } = await supabase.from("financial_transactions")
+        .select("id, external_transaction_id, raw_data").eq("user_id", input.userId)
+        .eq("source_type", input.sourceType).eq("provider", "amex")
+        .eq("source_connection_id", input.sourceConnectionId || IMPORT_SOURCE_CONNECTION_ID)
+        .in("raw_data->>statement_canonical_id", idsChunk);
+      if (aliasError) throw aliasError;
+      for (const row of aliases || []) {
+        const raw = row.raw_data && typeof row.raw_data === "object" && !Array.isArray(row.raw_data) ? row.raw_data : null;
+        const canonical = raw?.statement_canonical_id;
+        if (typeof canonical !== "string") continue;
+        if (existing.has(canonical) && existing.get(canonical)!.id !== row.id) throw new Error("Ambiguous Amex import identity");
+        existing.set(canonical, { ...row, raw_data: raw });
+      }
+    }
   }
   return existing;
 }

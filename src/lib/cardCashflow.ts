@@ -26,7 +26,7 @@ export interface CardCashflowTransaction {
   currency?: string | null;
   hidden?: boolean;
   backend?: "legacy" | "cloud";
-  raw_data?: { account_external_id?: string | null; billing_date?: string | null; statement_credit?: boolean; status?: string | null } | null;
+  raw_data?: { account_external_id?: string | null; billing_date?: string | null; statement_credit?: boolean; status?: string | null; statement_excluded?: boolean } | null;
 }
 
 export interface CardCashflowCharge {
@@ -105,7 +105,7 @@ export function buildCardCashflows(
     const foreign = new Set<string>();
     let undated = 0;
     for (const row of transactions) {
-      if (!matches(account, row) || row.hidden || seen.has(row.id) || !Number.isFinite(row.amount) || row.amount <= 0) continue;
+      if (!matches(account, row) || row.hidden || row.raw_data?.statement_excluded === true || seen.has(row.id) || !Number.isFinite(row.amount) || row.amount <= 0) continue;
       seen.add(row.id);
       if (/cancelled|canceled|void|בוטל/i.test(row.raw_data?.status || "")) continue;
       if (row.direction !== "expense" && !(row.direction === "income"

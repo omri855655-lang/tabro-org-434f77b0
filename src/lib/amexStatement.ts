@@ -29,7 +29,38 @@ export function decodeStatementText(buffer: ArrayBuffer): string {
   catch { return new TextDecoder("windows-1255").decode(buffer); }
 }
 
-export function parseAmexStatement(rows: string[][], originalHeaders: string[]) {
+export interface AmexLegacyCorrection { legacyExternalId: string; next: ParsedTransaction | null }
+interface AmexParseResult {
+  transactions: ParsedTransaction[]; skipped: number; unsupported: boolean;
+  legacyCorrections: AmexLegacyCorrection[]; pending: ParsedTransaction[];
+}
+
+function billedHeaderIndex(rows: string[][]) {
+  return rows.findIndex(row => row.some(value => /תאריך\s*(?:ה?עסקה|רכישה)|^(?:transaction date|purchase date|date)$/i.test(clean(value)))
+    && row.some(value => /סכום\s*(?:ה?חיוב|לחיוב)|billing\s*amount|amount\s*billed/i.test(clean(value))));
+}
+
+export function parseAmexStatement(rows: string[][], originalHeaders: string[], legacy = false): AmexParseResult {
+  const billedSection = billedHeaderIndex(rows);
+  const startsWithBilled = originalHeaders.some(value => /סכום\s*(?:ה?חיוב|לחיוב)|billing\s*amount|amount\s*billed/i.test(clean(value)));
+  if (!legacy && !startsWithBilled && billedSection >= 0) {
+    const result = parseAmexStatement(rows.slice(billedSection + 1), rows[billedSection]);
+    const occurrences = new Map<string, number>();
+    // Reproduce old IDs from the same file, never fuzzy-match merchant names in stored history.
+    rows.forEach((row, index) => {
+      const old = parseAmexStatement([row], originalHeaders, true).transactions[0];
+      if (!old?.external_transaction_id) return;
+      const occurrence = (occurrences.get(old.external_transaction_id) || 0) + 1;
+      occurrences.set(old.external_transaction_id, occurrence);
+      const next = index > billedSection ? parseAmexStatement([row], rows[billedSection], true).transactions[0] : null;
+      if (index < billedSection) result.pending.push(old);
+      if (next || index < billedSection) result.legacyCorrections.push({
+        legacyExternalId: occurrence === 1 ? old.external_transaction_id : `${old.external_transaction_id}:${occurrence}`,
+        next: next || null,
+      });
+    });
+    return result;
+  }
   const headers = originalHeaders.map(clean);
   const index = (pattern: RegExp) => headers.findIndex((header) => pattern.test(header));
   const date = index(/תאריך\s*(?:ה?עסקה|רכישה)|^(?:transaction\s*date|purchase\s*date|date)$/i);
@@ -52,7 +83,7 @@ export function parseAmexStatement(rows: string[][], originalHeaders: string[]) 
   const transactions: ParsedTransaction[] = [];
   let skipped = 0;
   if (date < 0 || merchant < 0 || (billed < 0 && original < 0)) {
-    return { transactions, skipped: rows.length, unsupported: true };
+    return { transactions, skipped: rows.length, unsupported: true, legacyCorrections: [], pending: [] };
   }
   for (const row of rows) {
     const get = (i: number) => clean(row[i] || "");
@@ -90,7 +121,7 @@ export function parseAmexStatement(rows: string[][], originalHeaders: string[]) 
         ...(credit ? { statement_credit: true } : {}) },
     });
   }
-  return { transactions, skipped, unsupported: false };
+  return { transactions, skipped, unsupported: false, legacyCorrections: [], pending: [] };
 }
 
 export function summarizeAmexStatement(rows: ParsedTransaction[]) {
@@ -106,6 +137,10 @@ export function summarizeAmexStatement(rows: ParsedTransaction[]) {
 }
 
 export function reconcileAmexStatement(rows: string[][], headers: string[], transactions: ParsedTransaction[]) {
+  const billedSection = billedHeaderIndex(rows);
+  if (billedSection >= 0 && !headers.some(header => /סכום\s*(?:ה?חיוב|לחיוב)|billing\s*amount|amount\s*billed/i.test(clean(header)))) {
+    return reconcileAmexStatement(rows.slice(billedSection + 1), rows[billedSection], transactions);
+  }
   const amountIndex = headers.findIndex(header => /סכום\s*(?:ה?חיוב|לחיוב)/.test(clean(header)));
   const currencyIndex = headers.findIndex(header => /מטבע\s*(?:ה?חיוב)/.test(clean(header)));
   if (amountIndex < 0) return [];

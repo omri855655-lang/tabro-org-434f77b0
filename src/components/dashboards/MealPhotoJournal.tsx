@@ -6,6 +6,7 @@ import {mealPhotoCopy} from '@/lib/nutritionFeaturesCopy';
 import {nutritionTrackerCopy} from '@/lib/nutritionTrackerCopy';
 import {dailyNutrition,localDay,nutritionTarget,type NutritionProfile} from '@/lib/nutritionPlan';
 import {parseMealEstimate,mealTotals,scaleMealItem,type MealEstimate,type MealItem} from '@/lib/mealEstimate';
+import {MealTextEstimator} from './MealTextEstimator';
 import {Button} from '@/components/ui/button';
 
 async function photoData(file:File):Promise<string> {
@@ -51,9 +52,10 @@ export function MealPhotoJournal({userId,journal,profile}:{userId?:string;journa
   return <section dir={dir} className="space-y-4 rounded-2xl border bg-card p-4 text-card-foreground">
     <h3 className="text-lg font-semibold">{copy[0]}</h3><p className="text-xs text-muted-foreground">{copy[15]}</p>
     <div className="flex flex-wrap items-center gap-3"><label className="max-w-full rounded-xl border px-3 py-2 text-sm">{copy[1]}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={busy} className="block max-w-full text-xs" onChange={async event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;setBusy(true);reset();setMessage('');try{setPhoto(await photoData(file));}catch{setPhoto('');setMessage(copy[14]);}finally{setBusy(false);}}}/></label><Button disabled={!photo||busy||!userId} onClick={()=>void analyze()}>{busy?copy[3]:copy[2]}</Button><Button variant="outline" disabled={busy} onClick={()=>{reset();setMessage('');setMeal({title:'',items:[blank()],assumptions:''});}}>{copy[16]}</Button></div>
+    <MealTextEstimator key={userId || 'guest'} userId={userId} busy={busy} draft={meal} onBusy={setBusy} onEstimate={estimate=>{setMeal(estimate);setPhoto('');setMessage('');}} />
     {photo&&<img src={photo} alt={copy[0]} className="max-h-52 rounded-xl object-contain"/>}
     {message&&<p role="status" className="text-sm">{message}</p>}
-    {meal&&<div className="space-y-3"><p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{copy[4]}</p>{meal.assumptions&&<p className="text-xs text-muted-foreground">{meal.assumptions}</p>}
+    {meal&&<fieldset disabled={busy} className="space-y-3"><p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{copy[4]}</p>{meal.assumptions&&<p className="text-xs text-muted-foreground">{meal.assumptions}</p>}
       <label className="block text-sm">{c.eatenAt}<input type="datetime-local" className="ms-2 max-w-full rounded-lg border bg-background p-2" value={eatenAt} max={inputTime(new Date())} onChange={event=>setEatenAt(event.target.value)}/></label>
       {meal.items.map((item,index)=><fieldset key={index} className="grid gap-3 rounded-xl border p-3 sm:grid-cols-3"><label className="text-xs">{copy[17]}<input className="mt-1 w-full rounded border bg-background p-2" value={item.name} maxLength={120} onChange={event=>change(index,{...item,name:event.target.value})}/></label>
         {(['grams','calories','protein','carbs','fat'] as const).map((field,i)=><label key={field} className="text-xs">{copy[i+8]}<input className="mt-1 w-full rounded border bg-background p-2" type="number" min="0" max={field==='grams'?5000:field==='calories'?15000:2000} step="0.1" value={Math.round(item[field]*10)/10} onChange={event=>{const value=Math.max(0,Math.min(field==='grams'?5000:field==='calories'?15000:2000,Number(event.target.value)||0));change(index,field==='grams'?scaleMealItem(item,value):{...item,[field]:value});}}/></label>)}
@@ -61,7 +63,7 @@ export function MealPhotoJournal({userId,journal,profile}:{userId?:string;journa
       <Button variant="outline" onClick={()=>setMeal({...meal,items:[...meal.items,blank()]})} disabled={meal.items.length>=30}>{copy[18]}</Button>
       {total&&<p className="font-medium">{copy[9]}: {Math.round(total.calories)} · {copy[10]}: {Math.round(total.protein)}g · {copy[11]}: {Math.round(total.carbs)}g · {copy[12]}: {Math.round(total.fat)}g</p>}
       {preview!==null&&<p role="status" className="rounded-lg bg-muted p-3 text-sm">{c.preview}: {Math.round(preview).toLocaleString(lang)} {c.kcal}</p>}
-      <div className="flex flex-wrap gap-2"><Button disabled={busy||!meal.items.length||!dateValid} onClick={save}>{copy[5]}</Button><Button variant="ghost" onClick={reset}>{c.cancel}</Button></div></div>}
+      <div className="flex flex-wrap gap-2"><Button disabled={busy||!meal.items.length||!dateValid} onClick={save}>{copy[5]}</Button><Button variant="ghost" onClick={reset}>{c.cancel}</Button></div></fieldset>}
     <h4 className="text-sm font-semibold">{c.meals} ({summary.entries.length})</h4>{summary.entries.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(entry=><article key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm"><div><time dateTime={entry.date}>{new Date(entry.date).toLocaleString(lang,{dateStyle:'medium',timeStyle:'short'})}</time><p>{entry.items.map(item=>item.name).join(', ')}</p><span className="text-xs">{Math.round(mealTotals(entry.items).calories)} {copy[9]}</span></div><div className="flex gap-1"><Button size="sm" variant="outline" disabled={busy} onClick={()=>{setPhoto('');setMeal({...entry,items:entry.items.map(item=>({...item}))});setEditing(entry.id);setEatenAt(inputTime(new Date(entry.date)));setMessage('');}}>{c.edit}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={()=>{if(journal.saveMeals(current=>current.filter(meal=>meal.id!==entry.id))&&editing===entry.id)reset();}}>{copy[7]}</Button></div></article>)}
   </section>;
 }

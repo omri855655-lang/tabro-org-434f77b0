@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useLearningHistory } from "@/hooks/useLearningHistory";
 import { LEARNING_PATHS, learningCopy, learningLabels } from "@/lib/learningCopy";
+import { LearningTopicDraw } from "./LearningTopicDraw";
+import { pickLearningTopic } from "@/lib/learningDraw";
 import type { LearningEntry } from "@/lib/learningHistory";
 
 const CATEGORIES = Object.keys(LEARNING_PATHS);
@@ -27,6 +29,8 @@ function LearningStudio({ userId }: { userId?: string }) {
   const [subtopic, setSubtopic] = useState(LEARNING_PATHS[category][0]);
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("beginner");
   const [topic, setTopic] = useState<{ title:string; content:string; category:string; subtopic:string; level:string } | null>(null);
+  const [draw, setDraw] = useState<{ category: string; subtopic: string; id: number } | null>(null);
+  const generating = useRef(false);
   const [offlineLesson, setOfflineLesson] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,9 +66,11 @@ function LearningStudio({ userId }: { userId?: string }) {
   const filtered = useMemo(() => history.filter(entry => `${entry.title} ${entry.summary} ${learningLabels(lang,entry.category,entry.subtopic).category}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())), [history, lang, query]);
 
   const generateTopic = async (surprise = false) => {
-    if (loading || saving) return;
-    const selected = surprise ? CATEGORIES[Math.floor(Math.random()*CATEGORIES.length)] : category;
-    const selectedSubtopic = surprise ? LEARNING_PATHS[selected][Math.floor(Math.random()*LEARNING_PATHS[selected].length)] : subtopic;
+    if (generating.current || loading || saving) return;
+    generating.current = true;
+    const selection = surprise ? pickLearningTopic(LEARNING_PATHS) : { category, subtopic };
+    const selected = selection.category, selectedSubtopic = selection.subtopic;
+    setDraw(surprise ? { ...selection, id: Date.now() } : null);
     const label = learningLabels(lang, selected, selectedSubtopic);
     setCategory(selected); setSubtopic(selectedSubtopic); setLoading(true); setTopic(null);
     setSummary(""); setFeedback(""); setOfflineLesson(false); resetTimer();
@@ -81,7 +87,7 @@ function LearningStudio({ userId }: { userId?: string }) {
       if (alive.current) setTopic({ title:parsed.title.slice(0,500), content:parsed.content.slice(0,20000), category:selected, subtopic:selectedSubtopic, level });
     } catch {
       if (alive.current) { setOfflineLesson(true); setTopic({ title:label.subtopic, content:copy.offline, category:selected, subtopic:selectedSubtopic, level }); toast.info(copy.fallback); }
-    } finally { window.clearTimeout(deadline); if (alive.current) setLoading(false); }
+    } finally { window.clearTimeout(deadline); generating.current = false; if (alive.current) setLoading(false); }
   };
 
   const completeLesson = async () => {
@@ -109,6 +115,7 @@ function LearningStudio({ userId }: { userId?: string }) {
   };
   const review = (entry: LearningEntry) => {
     if (loading || saving) return;
+    setDraw(null);
     setTopic({title:entry.title,content:entry.content || entry.summary,category:entry.category,subtopic:entry.subtopic || "",level:entry.level || "beginner"}); setSummary(entry.summary);
     setFeedback(entry.feedback || copy.already); setOfflineLesson(false); resetTimer();
   };
@@ -121,7 +128,7 @@ function LearningStudio({ userId }: { userId?: string }) {
         <div className="rounded-2xl border bg-white p-3 text-xs"><strong>{copy.path}: {labels.subtopic}</strong><p className="mt-1">{copy.next}: {completed+1}</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-200"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-600" style={{width:`${Math.min(100,completed*20)}%`}}/></div><p className="mt-2 text-slate-500">{completed ? `${copy.concepts}: ${completed}` : copy.first}</p></div>
         <div className="flex flex-wrap gap-2"><Button disabled={loading || saving} onClick={()=>void generateTopic()} className="bg-[#263f38] text-white hover:bg-[#36584e]">{loading ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <Sparkles className="me-2 h-4 w-4"/>}{copy.generate}</Button><Button variant="outline" disabled={loading || saving} onClick={()=>void generateTopic(true)}>{copy.surprise}</Button></div>
       </div>
-      <div className="rounded-3xl border border-[#e2d8c2] bg-white p-5">{loading ? <div className="grid min-h-60 place-items-center"><Loader2 className="h-8 w-8 animate-spin text-amber-700"/></div> : topic ? <><div className="flex items-start justify-between gap-3"><div><span className="text-xs font-semibold text-amber-700">{offlineLesson ? copy.fallback : copy.today}</span><h3 className="mt-2 text-2xl font-semibold">{topic.title}</h3></div><span className="rounded-xl bg-[#263f38] p-3 font-mono text-white">{formatClock(secondsLeft)}</span></div><p className="mt-4 whitespace-pre-wrap rounded-2xl bg-[#fbfaf6] p-4 text-sm leading-7">{topic.content}</p><div className="mt-4 flex gap-2"><Button disabled={running || !secondsLeft} onClick={()=>{targetEnd.current=Date.now()+secondsLeft*1000;setRunning(true);}}><Play className="me-2 h-4 w-4"/>{running ? copy.learning : secondsLeft<600 ? copy.resume : copy.timer}</Button><Button aria-label={copy.reset} variant="ghost" onClick={resetTimer}><RotateCcw className="h-4 w-4"/></Button></div></> : <div className="grid min-h-60 place-items-center text-center text-slate-500"><div><BookOpenCheck className="mx-auto h-10 w-10"/><p className="mt-3 text-sm">{copy.choose}</p></div></div>}</div>
+      <div className="rounded-3xl border border-[#e2d8c2] bg-white p-5">{draw && <LearningTopicDraw key={draw.id} category={draw.category} subtopic={draw.subtopic} lang={lang} />}{loading ? <div className="grid min-h-60 place-items-center"><Loader2 className="h-8 w-8 animate-spin text-amber-700"/></div> : topic ? <><div className="flex items-start justify-between gap-3"><div><span className="text-xs font-semibold text-amber-700">{offlineLesson ? copy.fallback : copy.today}</span><h3 className="mt-2 text-2xl font-semibold">{topic.title}</h3></div><span className="rounded-xl bg-[#263f38] p-3 font-mono text-white">{formatClock(secondsLeft)}</span></div><p className="mt-4 whitespace-pre-wrap rounded-2xl bg-[#fbfaf6] p-4 text-sm leading-7">{topic.content}</p><div className="mt-4 flex gap-2"><Button disabled={running || !secondsLeft} onClick={()=>{targetEnd.current=Date.now()+secondsLeft*1000;setRunning(true);}}><Play className="me-2 h-4 w-4"/>{running ? copy.learning : secondsLeft<600 ? copy.resume : copy.timer}</Button><Button aria-label={copy.reset} variant="ghost" onClick={resetTimer}><RotateCcw className="h-4 w-4"/></Button></div></> : <div className="grid min-h-60 place-items-center text-center text-slate-500"><div><BookOpenCheck className="mx-auto h-10 w-10"/><p className="mt-3 text-sm">{copy.choose}</p></div></div>}</div>
     </section>
     {topic && <section className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]"><div className="rounded-3xl border bg-white p-5"><h3 className="font-semibold">{copy.question}</h3><p className="mt-1 text-xs text-slate-500">{copy.minimum}</p><Textarea aria-label={copy.question} value={summary} onChange={e=>setSummary(e.target.value)} placeholder={copy.placeholder} disabled={saving || !!feedback} className="mt-3 min-h-32"/><Button className="mt-3" disabled={saving || !!feedback || summary.trim().length<30} onClick={()=>void completeLesson()}>{saving ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <CheckCircle2 className="me-2 h-4 w-4"/>}{copy.save}</Button>{feedback && <p className="mt-4 whitespace-pre-wrap rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6">{feedback}</p>}</div><div className="grid grid-cols-2 gap-3"><div className="rounded-3xl border bg-white p-4"><Flame className="h-5 w-5 text-orange-600"/><strong className="mt-3 block text-3xl">{stats.streak}</strong><span className="text-xs text-slate-500">{copy.streak}</span></div><div className="rounded-3xl border bg-white p-4"><Clock3 className="h-5 w-5 text-sky-600"/><strong className="mt-3 block text-3xl">{history.length}</strong><span className="text-xs text-slate-500">{copy.topics}</span></div><div className="col-span-2 rounded-3xl border bg-white p-4"><h3 className="text-sm font-semibold">{copy.progress}</h3><div className="mt-3 flex flex-wrap gap-2">{Object.entries(stats.categories).map(([name,count])=><span key={name} className="rounded-full bg-slate-100 px-3 py-1 text-xs">{learningLabels(lang,name).category} · {count}</span>)}</div></div></div></section>}
     <section className="rounded-3xl border bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-semibold"><History className="h-5 w-5 text-slate-500"/>{copy.history} ({history.length})</h3><Button variant="outline" size="sm" disabled={!history.length} onClick={exportHistory}><Download className="me-2 h-4 w-4"/>{copy.export}</Button></div><label className="mt-4 flex items-center gap-2 rounded-xl border px-3"><Search className="h-4 w-4 text-slate-500"/><input className="h-10 w-full min-w-0 bg-transparent text-sm outline-none" aria-label={copy.search} placeholder={copy.search} value={query} onChange={e=>{setQuery(e.target.value);setVisible(12);}}/></label><div className="mt-4 grid gap-3 md:grid-cols-2">{filtered.slice(0,visible).map(entry=><article key={entry.id} className="rounded-2xl border p-4"><div className="flex items-start justify-between gap-2"><h4 className="text-sm font-semibold">{entry.title}</h4><time className="shrink-0 text-[11px] text-slate-500">{new Date(entry.date).toLocaleDateString(locales[lang])}</time></div><span className="mt-1 block text-xs text-amber-700">{learningLabels(lang,entry.category,entry.subtopic).category}</span><p className="mt-3 line-clamp-4 whitespace-pre-wrap text-xs leading-6 text-slate-600">{entry.summary}</p><Button variant="ghost" size="sm" className="mt-2" disabled={loading || saving} onClick={()=>review(entry)}>{copy.review}</Button></article>)}</div>{!filtered.length && <p className="py-5 text-sm text-slate-500">{copy.empty}</p>}{filtered.length>visible && <Button variant="outline" className="mt-4" onClick={()=>setVisible(value=>value+12)}>{copy.more}</Button>}</section>

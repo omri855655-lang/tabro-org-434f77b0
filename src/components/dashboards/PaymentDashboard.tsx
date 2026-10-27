@@ -518,6 +518,7 @@ const PaymentDashboard = () => {
         ...item,
         account_external_id: item.raw_data?.account_external_id || null,
         backend: "legacy" as const,
+        hidden: item.hidden || (item.raw_data as Record<string, unknown> | null)?.statement_excluded === true,
       }));
       const cloudTransactions = (cloudFinanceResult.transactions || []).map((item) => ({
         ...item,
@@ -821,7 +822,7 @@ const PaymentDashboard = () => {
       notes: null,
       sheet_name: "actual",
       archived: false,
-      hidden: Boolean(transaction.hidden),
+      hidden: Boolean(transaction.hidden || (transaction.raw_data as Record<string, unknown> | null)?.statement_excluded === true),
       created_at: transaction.transaction_date || transaction.created_at,
       });
     });

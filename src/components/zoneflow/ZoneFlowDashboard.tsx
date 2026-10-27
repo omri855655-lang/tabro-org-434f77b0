@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ZoneFlowMusicPlayer } from "./ZoneFlowMusicPlayer";
 import { useDailyStopwatch } from "@/hooks/useDailyStopwatch";
+import { ZoneFlowGuide } from "./ZoneFlowGuide";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useZoneFlowRewards } from "@/hooks/useZoneFlowRewards";
 import { safeLocalStorage } from "@/lib/safeLocalStorage";
@@ -2010,6 +2011,7 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Morning Habits Guide */}
+        <ZoneFlowGuide id="morning" userId={user?.id} title={MORNING_HABITS_GUIDE.title}>
         <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
@@ -2041,8 +2043,10 @@ const ZoneFlowDashboard = () => {
             ))}
           </CardContent>
         </Card>
+        </ZoneFlowGuide>
 
         {/* Deep vs Shallow Work Guide */}
+        <ZoneFlowGuide id="work" userId={user?.id} title={DEEP_SHALLOW_WORK_GUIDE.title}>
         <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
@@ -2074,6 +2078,8 @@ const ZoneFlowDashboard = () => {
         </Card>
 
         {/* Sleep Habits Guide */}
+        </ZoneFlowGuide>
+        <ZoneFlowGuide id="sleep" userId={user?.id} title={SLEEP_HABITS_GUIDE.title}>
         <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
@@ -2103,8 +2109,10 @@ const ZoneFlowDashboard = () => {
             ))}
           </CardContent>
         </Card>
+        </ZoneFlowGuide>
 
         {/* Nutrition Guide */}
+        <ZoneFlowGuide id="nutrition" userId={user?.id} title={NUTRITION_GUIDE.title}>
         <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
@@ -2143,8 +2151,10 @@ const ZoneFlowDashboard = () => {
             </Button>
           </CardContent>
         </Card>
+        </ZoneFlowGuide>
 
         {/* Guides section */}
+        <ZoneFlowGuide id="short" userId={user?.id} title={lang === "he" ? "מדריכים קצרים" : lang === "ar" ? "أدلة قصيرة" : lang === "es" ? "Guías breves" : lang === "zh" ? "简短指南" : lang === "ru" ? "Краткие руководства" : "Short guides"}>
         <Card className="text-inherit bg-white/5 border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-[#e8e8ed]">
@@ -2172,6 +2182,7 @@ const ZoneFlowDashboard = () => {
             ))}
           </CardContent>
         </Card>
+        </ZoneFlowGuide>
           </>
         )}
         </ZoneFlowWorkspaceBoundary>

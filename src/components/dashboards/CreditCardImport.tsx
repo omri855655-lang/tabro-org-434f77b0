@@ -14,6 +14,8 @@ import { detectProvider, financialProviders, parseCSV, type ParsedTransaction } 
 import { applyStatementBillingDate, findStatementTable, nextCsvBillingEstimateDate, sanitizeStatementRows, selectCardRows, statementBillingDate, statementFileCardLastFour, statementRows } from "@/lib/cardStatement";
 import { importParsedFinancialTransactions, previewBillingDateChanges, type BillingDateChange } from "@/lib/financialImport";
 import { AMEX_CSV_TEMPLATE, decodeStatementText, parseAmexStatement, reconcileAmexStatement } from "@/lib/amexStatement";
+import { applyAmexImportRepairs, previewAmexImportRepairs, type AmexRepairDraft } from "@/lib/amexImportRepair";
+import type { AmexLegacyCorrection } from "@/lib/amexStatement";
 import { AmexStatementPreview } from "./AmexStatementPreview";
 
 type CreditCardConnection = Pick<Database["public"]["Tables"]["credit_card_connections"]["Row"],
@@ -42,6 +44,10 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
   const [fileError, setFileError] = useState("");
   const [dateChanges, setDateChanges] = useState<BillingDateChange[] | null>(null);
   const [reconciliation, setReconciliation] = useState<ReturnType<typeof reconcileAmexStatement>>([]);
+  const [legacyCorrections, setLegacyCorrections] = useState<AmexLegacyCorrection[]>([]);
+  const [repairDraft, setRepairDraft] = useState<AmexRepairDraft[] | null>(null);
+  const [pendingRows, setPendingRows] = useState<ParsedTransaction[]>([]);
+  const [acceptMismatch, setAcceptMismatch] = useState(false);
   const importPending = useRef(false);
   const readVersion = useRef(0);
 
@@ -57,6 +63,8 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     setBillingDateChoice("");
     setDateChanges(null);
     setReconciliation([]);
+    setAcceptMismatch(false);
+    setLegacyCorrections([]); setRepairDraft(null); setPendingRows([]);
     if (fileRef.current) fileRef.current.value = "";
   }, []);
 
@@ -110,6 +118,8 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     }
 
     const amexResult = amex ? parseAmexStatement(rows, headers) : null;
+    setLegacyCorrections(amexResult?.legacyCorrections || []);
+    setPendingRows(amexResult?.pending || []);
     const providerRows = amexResult ? amexResult.transactions : provider.parse(rows, headers);
     setReconciliation(amexResult ? reconcileAmexStatement(rows, headers, providerRows) : []);
     setSkippedRows(amexResult?.skipped || 0);
@@ -171,7 +181,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
 
   const importTransactions = async (approveDateChanges = false) => {
     const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
-    if (!user || !selectedConnection?.card_last_digits || !selectedRows.length || importPending.current) return;
+    if (!user || !selectedConnection?.card_last_digits || !selectedRows.length || importPending.current || mismatchNeedsReview) return;
     importPending.current = true;
     setImporting(true);
 
@@ -184,6 +194,10 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
         sourceConnectionId: selectedConnection.id,
         accountExternalId: `csv-card:${selectedConnection.id}`,
       };
+      if (selectedConnection.provider === "amex") {
+        const repairs = await previewAmexImportRepairs({ ...input, legacyCorrections });
+        if (repairs.length) { setRepairDraft(repairs); return; }
+      }
       if (!approveDateChanges) {
         const changes = await previewBillingDateChanges(input);
         if (changes.length) { setDateChanges(changes); return; }
@@ -198,6 +212,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
       );
       if (result.conflicts) toast.warning(isRtl ? `${result.conflicts} תאריכים לא עודכנו כי הנתונים השתנו. העלה שוב ובדוק את הטיוטה.` : `${result.conflicts} dates were not updated because data changed. Upload again and review.`);
       setTransactions([]);
+      setRepairDraft(null); setLegacyCorrections([]); setPendingRows([]);
       setProviderId("");
       setFileName("");
       setConfirmUnidentified(false);
@@ -214,6 +229,26 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     }
   };
 
+  const confirmRepair = async () => {
+    if (!user || !selectedConnection || !repairDraft || importing || importPending.current || mismatchNeedsReview) return;
+    importPending.current = true; setImporting(true);
+    let completed = false;
+    try {
+      const result = await applyAmexImportRepairs({
+        userId: user.id, sourceConnectionId: selectedConnection.id, legacyCorrections,
+        parsed: sanitizeStatementRows(applyStatementBillingDate(selectedRows, billingDateChoice)),
+      }, repairDraft);
+      await onImported?.();
+      if (result.conflicts) {
+        toast.warning(isRtl ? "חלק מהנתונים השתנו בזמן הבדיקה. יש לבדוק מחדש לפני המשך ייבוא." : "Some records changed. Review again before importing.");
+      } else completed = true;
+      setRepairDraft(null);
+    } catch {
+      toast.error(isRtl ? "התיקון לא הושלם. לא יתווספו עסקאות חדשות לפני בדיקה חוזרת." : "Repair incomplete. No new transactions will be added before another review.");
+    } finally { setImporting(false); importPending.current = false; }
+    if (completed) await importTransactions();
+  };
+
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
   const isAmex = selectedConnection?.provider === "amex" || requestedProvider === "amex";
   const visibleConnections = connections.filter((card) => !requestedProvider || card.provider === requestedProvider);
@@ -225,6 +260,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
   const selectedRows = cardRows && !fileCardMismatch
     ? [...cardRows.matching, ...(confirmUnidentified || fileCard === selectedConnection?.card_last_digits ? cardRows.unidentified : [])]
     : [];
+  const mismatchNeedsReview = reconciliation.some(check => !check.matches) && !acceptMismatch;
 
   return (
     <Card>
@@ -274,6 +310,17 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
         {reconciliation.map(check => <p key={check.currency} role="status" className={`rounded-lg border p-3 text-xs ${check.matches ? 'border-emerald-200 text-emerald-800 dark:text-emerald-300' : 'border-amber-300 text-amber-800 dark:text-amber-300'}`}>
           {isRtl ? `בדיקת הדוח המלא (${check.currency}): נקרא ${check.parsed.toFixed(2)}, סיכום בדוח ${check.reported.toFixed(2)}. ${check.matches ? 'הסכומים תואמים.' : 'יש הפרש; בדוק שורות שנדחו לפני האישור.'}` : `Full statement check (${check.currency}): parsed ${check.parsed.toFixed(2)}, reported ${check.reported.toFixed(2)}. ${check.matches ? 'Totals match.' : 'Mismatch; review excluded rows before confirming.'}`}
         </p>)}
+        {isAmex && transactions.length > 0 && reconciliation.length === 0 && <p role="status" className="rounded-lg border p-3 text-xs text-muted-foreground">{isRtl
+          ? "לא זוהה סיכום חד-משמעי בדוח ולכן התאמת הסכומים לא אומתה. השווה את החיוב נטו למקור לפני שמירה."
+          : "No unambiguous statement total was found, so totals have not been verified. Compare the net amount with the original before saving."}</p>}
+        {reconciliation.some(check => !check.matches) && <label className="flex items-start gap-2 rounded-lg border border-amber-300 p-3 text-sm">
+          <input type="checkbox" className="mt-1" checked={acceptMismatch} disabled={importing} onChange={event => { setAcceptMismatch(event.target.checked); setDateChanges(null); }} />
+          <span>{isRtl ? "בדקתי את ההפרש מול הדוח המקורי ואני מאשר לייבא את השורות שנקראו בלבד, למרות אי-ההתאמה."
+            : "I reviewed the difference against the original and approve importing only the parsed rows despite the mismatch."}</span>
+        </label>}
+        {pendingRows.length > 0 && <p role="status" className="rounded-lg border p-3 text-sm">{isRtl
+          ? `${pendingRows.length} עסקאות שטרם נקלטו מוצגות בנפרד בקובץ ולא ייובאו כהוצאות או כחיוב לחודש.`
+          : `${pendingRows.length} unsettled transactions are excluded from expenses and the statement charge.`}</p>}
         {skippedRows > 0 && <p role="status" className="text-xs text-amber-700">{isRtl
           ? `${skippedRows} שורות לא ייובאו (למשל סיכומים, ביטולים או סכום, תאריך או מטבע חסרים). בדוק מול הפירוט המקורי לפני אישור.`
           : `${skippedRows} rows excluded (such as totals, voids or missing amount, date or currency). Compare with the original statement before confirming.`}</p>}
@@ -305,7 +352,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
             )}
             <label className="block space-y-1 rounded-lg border p-3 text-xs">
               <span className="block font-semibold">{isRtl ? "מתי ייפרע החיוב של הפירוט הזה?" : "When will this statement be charged?"}</span>
-              <input type="date" value={billingDateChoice} onChange={(event) => { setBillingDateChoice(event.target.value); setDateChanges(null); }} className="h-9 rounded-md border bg-background px-2" dir="ltr" disabled={importing} />
+              <input type="date" value={billingDateChoice} onChange={(event) => { setBillingDateChoice(event.target.value); setDateChanges(null); setRepairDraft(null); }} className="h-9 rounded-md border bg-background px-2" dir="ltr" disabled={importing} />
               <span className="block text-muted-foreground">{isRtl
                 ? "אפשר לתקן את התאריך שזוהה בקובץ. אם הוא לא ידוע, השאר ריק: ההוצאות ייובאו, אך לא ייווצר חיוב עתידי. תאריכי חיוב מפורשים לכל עסקה נשמרים בנפרד."
                 : "You can correct the detected date. Leave it blank if unknown: expenses import without a future charge. Per-transaction due dates remain separate."}</span>
@@ -328,13 +375,26 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
                 <div className="p-2 text-xs text-muted-foreground text-center">+{selectedRows.length - 20} more</div>
               )}
             </div>}
+            {repairDraft !== null && <section className="space-y-3 rounded-xl border border-amber-300 p-3" aria-label={isRtl ? "טיוטת תיקון ייבוא Amex קודם" : "Previous Amex import repair draft"}>
+              <h4 className="font-semibold">{isRtl ? "נמצא ייבוא קודם שנקרא לפי טבלת העסקאות הממתינות" : "A previous import used the unsettled table headers"}</h4>
+              <p className="text-xs leading-6">{isRtl
+                ? "רק הרשומות המזוהות מהקובץ הזה ובכרטיס שנבחר יעודכנו. הפילוחים וקישורי הזיכויים יישמרו. עסקאות ממתינות יוסתרו מהדוחות ללא מחיקה; סכומי החיוב והתשלומים יתוקנו לפי הפירוט. לאחר התיקון יתווספו רק עסקאות חסרות."
+                : "Only matched records from this file and selected card change. Categories and refund links are preserved. Unsettled rows are excluded without deletion; billed amounts and installments are corrected. Only missing transactions are then added."}</p>
+              <div className="max-h-64 space-y-2 overflow-auto">{repairDraft.map(item => <div key={item.id} className="rounded-lg bg-muted p-2 text-xs">
+                <strong className="block break-words">{item.pending ? (isRtl ? "עסקה שטרם נקלטה" : "Unsettled transaction") : item.description}</strong>
+                <span>{item.before.amount.toFixed(2)} {item.before.currency} → {item.pending ? (isRtl ? "לא נכללת בחיוב" : "Excluded from charge") : `${item.patch.amount.toFixed(2)} ${item.patch.currency}`}</span>
+                {!item.pending && <span className="block">{String(item.patch.raw_data.billing_date || "")}{item.patch.installment_total ? ` · ${item.patch.installment_number}/${item.patch.installment_total}` : ""}</span>}
+              </div>)}</div>
+              <Button size="sm" disabled={importing || mismatchNeedsReview} onClick={() => void confirmRepair()}>{isRtl ? "אשר תיקון הרשומות והמשך ייבוא" : "Confirm repair and continue import"}</Button>
+              <Button size="sm" variant="ghost" disabled={importing} onClick={() => setRepairDraft(null)}>{isRtl ? "חזור לבדיקה" : "Back to review"}</Button>
+            </section>}
             {dateChanges !== null && <section className="space-y-3 rounded-xl border border-amber-300 p-3" aria-label={isRtl ? "טיוטת עדכון תאריכי חיוב" : "Billing date update draft"}>
               <h4 className="font-semibold">{isRtl ? `עדכון ${dateChanges.length} תאריכי חיוב קיימים` : `Update ${dateChanges.length} existing billing dates`}</h4>
               <p className="text-xs text-muted-foreground">{isRtl ? "רק תאריכי החיוב המוצגים ישתנו. פילוחים, סכומים וקישורי זיכויים יישמרו. עסקאות חדשות בקובץ יתווספו באותו אישור." : "Only the listed billing dates change. Categories, amounts and refund links stay intact. New file transactions are added with the same confirmation."}</p>
               <div className="max-h-56 space-y-2 overflow-auto">{dateChanges.map(change => <div key={change.id} className="rounded-lg bg-muted p-2 text-xs"><strong className="block">{change.description}</strong><span>{isRtl ? "לפני: " : "Before: "}{change.previousDate || (isRtl ? "ללא תאריך" : "No date")} · {isRtl ? "אחרי: " : "After: "}{change.nextDate}</span></div>)}</div>
               <div className="flex flex-wrap gap-2"><Button size="sm" disabled={importing} onClick={() => void importTransactions(true)}>{isRtl ? "אשר עדכון וייבוא" : "Confirm updates and import"}</Button><Button size="sm" variant="outline" disabled={importing} onClick={() => setDateChanges(null)}>{isRtl ? "חזור לבדיקה" : "Back to review"}</Button></div>
             </section>}
-            <Button size="sm" onClick={() => void importTransactions()} disabled={importing || selectedRows.length === 0 || dateChanges !== null}>
+            <Button size="sm" onClick={() => void importTransactions()} disabled={importing || mismatchNeedsReview || selectedRows.length === 0 || dateChanges !== null || repairDraft !== null}>
               {importing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
               {t("confirm")} ({selectedRows.length})
             </Button>
