@@ -110,7 +110,7 @@ async function readExistingRows(input: ImportParsedFinancialTransactionsParams, 
       .eq("user_id", input.userId)
       .eq("source_type", input.sourceType || "csv")
       .eq("source_connection_id", input.sourceConnectionId || IMPORT_SOURCE_CONNECTION_ID)
-      .in("external_transaction_id", idsChunk);
+      .filter("external_transaction_id", "in", `(${idsChunk.map(id => JSON.stringify(id)).join(",")})`);
 
     if (error) throw error;
 
@@ -122,7 +122,7 @@ async function readExistingRows(input: ImportParsedFinancialTransactionsParams, 
         .select("id, external_transaction_id, raw_data").eq("user_id", input.userId)
         .eq("source_type", input.sourceType).eq("provider", "amex")
         .eq("source_connection_id", input.sourceConnectionId || IMPORT_SOURCE_CONNECTION_ID)
-        .in("raw_data->>statement_canonical_id", idsChunk);
+        .filter("raw_data->>statement_canonical_id", "in", `(${idsChunk.map(id => JSON.stringify(id)).join(",")})`);
       if (aliasError) throw aliasError;
       for (const row of aliases || []) {
         const raw = row.raw_data && typeof row.raw_data === "object" && !Array.isArray(row.raw_data) ? row.raw_data : null;

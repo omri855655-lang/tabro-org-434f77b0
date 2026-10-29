@@ -104,5 +104,7 @@ test('statement mismatch confirmation is enforced before any import request and 
   const importer = source('src/components/dashboards/CreditCardImport.tsx');
   assert.match(importer, /importPending\.current \|\| mismatchNeedsReview\) return/);
   assert.match(importer, /setAcceptMismatch\(false\)/);
-  assert.match(importer, /reconciliation\.some\(check => !check.matches\) && !acceptMismatch/);
+  assert.match(importer, /\(unverifiedTotal \|\| reconciliation\.some\(check => !check.matches\)\) && !acceptMismatch/);
+  assert.match(importer, /if \(!approveDateChanges && !approveSave\) \{ setReadyToSave\(true\); return; \}/);
+  assert.ok(importer.indexOf('setReadyToSave(true); return;') < importer.indexOf('const result = await importParsedFinancialTransactions'));
 });

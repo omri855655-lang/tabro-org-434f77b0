@@ -27,7 +27,9 @@ export async function previewAmexImportRepairs(input: AmexRepairInput): Promise<
     const { data, error } = await supabase.from("financial_transactions")
       .select("id, external_transaction_id, amount, currency, installment_number, installment_total, raw_data")
       .eq("user_id", input.userId).eq("source_type", "credit_card_import").eq("provider", "amex")
-      .eq("source_connection_id", input.sourceConnectionId).in("external_transaction_id", ids.slice(offset, offset + 200));
+      .eq("source_connection_id", input.sourceConnectionId)
+      // JSON-based IDs contain quotes and backslashes that .in() does not escape.
+      .filter("external_transaction_id", "in", `(${ids.slice(offset, offset + 200).map(id => JSON.stringify(id)).join(",")})`);
     if (error) throw error;
     for (const row of data || []) stored.set(row.external_transaction_id, row as Stored);
   }

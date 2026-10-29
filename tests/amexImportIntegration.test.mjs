@@ -25,6 +25,7 @@ function harness(options = {}) {
       is(key, value) { filters[key] = value; return query; },
       update(values) { updateFields=values; return query; },
       async in(key, values) { return { data: stored.filter(row => Object.entries(filters).every(([k, v]) => row[k] === v) && values.includes(row[key])), error: null }; },
+      filter(key, operator, value) { assert.equal(operator, "in"); return query.in(key, JSON.parse(`[${value.slice(1,-1)}]`)); },
       async insert(rows) { for (const row of structuredClone(rows)) stored.push({...row,id:`row-${stored.length}`}); return { error: null }; },
     };
     return query;

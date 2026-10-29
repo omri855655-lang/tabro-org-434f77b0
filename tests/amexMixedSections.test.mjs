@@ -46,6 +46,7 @@ function harness(options = {}) {
         return Promise.resolve({data:selected.map(row=>({id:row.id})),error:null});
       },
       async in(key,values) { return {data:structuredClone(stored.filter(row=>matches(row)&&values.includes(readValue(row,key)))),error:null}; },
+      filter(key,operator,value) { assert.equal(operator,"in"); return query.in(key,JSON.parse(`[${value.slice(1,-1)}]`)); },
       async insert(values) { for(const row of values) stored.push({...structuredClone(row),id:`id-${stored.length}`}); return {error:null}; },
     };
     return query;

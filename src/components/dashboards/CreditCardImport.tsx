@@ -48,6 +48,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
   const [repairDraft, setRepairDraft] = useState<AmexRepairDraft[] | null>(null);
   const [pendingRows, setPendingRows] = useState<ParsedTransaction[]>([]);
   const [acceptMismatch, setAcceptMismatch] = useState(false);
+  const [readyToSave, setReadyToSave] = useState(false);
   const importPending = useRef(false);
   const readVersion = useRef(0);
 
@@ -64,6 +65,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     setDateChanges(null);
     setReconciliation([]);
     setAcceptMismatch(false);
+    setReadyToSave(false);
     setLegacyCorrections([]); setRepairDraft(null); setPendingRows([]);
     if (fileRef.current) fileRef.current.value = "";
   }, []);
@@ -179,7 +181,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     }
   };
 
-  const importTransactions = async (approveDateChanges = false) => {
+  const importTransactions = async (approveDateChanges = false, approveSave = false) => {
     const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
     if (!user || !selectedConnection?.card_last_digits || !selectedRows.length || importPending.current || mismatchNeedsReview) return;
     importPending.current = true;
@@ -202,6 +204,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
         const changes = await previewBillingDateChanges(input);
         if (changes.length) { setDateChanges(changes); return; }
       }
+      if (!approveDateChanges && !approveSave) { setReadyToSave(true); return; }
       const result = await importParsedFinancialTransactions({ ...input, approvedBillingDateChanges: approveDateChanges ? dateChanges || [] : [] });
 
       await onImported?.();
@@ -212,6 +215,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
       );
       if (result.conflicts) toast.warning(isRtl ? `${result.conflicts} תאריכים לא עודכנו כי הנתונים השתנו. העלה שוב ובדוק את הטיוטה.` : `${result.conflicts} dates were not updated because data changed. Upload again and review.`);
       setTransactions([]);
+      setReadyToSave(false);
       setRepairDraft(null); setLegacyCorrections([]); setPendingRows([]);
       setProviderId("");
       setFileName("");
@@ -246,7 +250,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
     } catch {
       toast.error(isRtl ? "התיקון לא הושלם. לא יתווספו עסקאות חדשות לפני בדיקה חוזרת." : "Repair incomplete. No new transactions will be added before another review.");
     } finally { setImporting(false); importPending.current = false; }
-    if (completed) await importTransactions();
+    if (completed) await importTransactions(false, true);
   };
 
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
@@ -260,17 +264,19 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
   const selectedRows = cardRows && !fileCardMismatch
     ? [...cardRows.matching, ...(confirmUnidentified || fileCard === selectedConnection?.card_last_digits ? cardRows.unidentified : [])]
     : [];
-  const mismatchNeedsReview = reconciliation.some(check => !check.matches) && !acceptMismatch;
+  const unverifiedTotal = isAmex && transactions.length > 0 && reconciliation.length === 0;
+  const mismatchNeedsReview = (unverifiedTotal || reconciliation.some(check => !check.matches)) && !acceptMismatch;
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <FileSpreadsheet className="h-4 w-4" />
-          {isAmex ? "American Express · CSV" : t("importCreditCard")}
+          {isAmex ? "American Express · Excel / CSV" : t("importCreditCard")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">{isRtl ? "1. בחר כרטיס · 2. העלה קובץ · 3. בדוק ושמור. הבדיקה לבדה אינה שומרת עסקאות." : "1. Choose card · 2. Upload file · 3. Review and save. Checking alone does not save transactions."}</p>
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             {isAmex ? (isRtl
@@ -313,6 +319,10 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
         {isAmex && transactions.length > 0 && reconciliation.length === 0 && <p role="status" className="rounded-lg border p-3 text-xs text-muted-foreground">{isRtl
           ? "לא זוהה סיכום חד-משמעי בדוח ולכן התאמת הסכומים לא אומתה. השווה את החיוב נטו למקור לפני שמירה."
           : "No unambiguous statement total was found, so totals have not been verified. Compare the net amount with the original before saving."}</p>}
+        {unverifiedTotal && <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+          <input type="checkbox" checked={acceptMismatch} disabled={importing} onChange={event => { setAcceptMismatch(event.target.checked); setReadyToSave(false); }} />
+          <span>{isRtl ? "השוויתי את הסכום והתאריך לדוח המקורי. אני מבין שלא נמצאה בדיקת סיכום אוטומטית." : "I compared the amount and date with the original. I understand there is no automatic total verification."}</span>
+        </label>}
         {reconciliation.some(check => !check.matches) && <label className="flex items-start gap-2 rounded-lg border border-amber-300 p-3 text-sm">
           <input type="checkbox" className="mt-1" checked={acceptMismatch} disabled={importing} onChange={event => { setAcceptMismatch(event.target.checked); setDateChanges(null); }} />
           <span>{isRtl ? "בדקתי את ההפרש מול הדוח המקורי ואני מאשר לייבא את השורות שנקראו בלבד, למרות אי-ההתאמה."
@@ -352,7 +362,7 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
             )}
             <label className="block space-y-1 rounded-lg border p-3 text-xs">
               <span className="block font-semibold">{isRtl ? "מתי ייפרע החיוב של הפירוט הזה?" : "When will this statement be charged?"}</span>
-              <input type="date" value={billingDateChoice} onChange={(event) => { setBillingDateChoice(event.target.value); setDateChanges(null); setRepairDraft(null); }} className="h-9 rounded-md border bg-background px-2" dir="ltr" disabled={importing} />
+              <input type="date" value={billingDateChoice} onChange={(event) => { setBillingDateChoice(event.target.value); setDateChanges(null); setRepairDraft(null); setReadyToSave(false); }} className="h-9 rounded-md border bg-background px-2" dir="ltr" disabled={importing} />
               <span className="block text-muted-foreground">{isRtl
                 ? "אפשר לתקן את התאריך שזוהה בקובץ. אם הוא לא ידוע, השאר ריק: ההוצאות ייובאו, אך לא ייווצר חיוב עתידי. תאריכי חיוב מפורשים לכל עסקה נשמרים בנפרד."
                 : "You can correct the detected date. Leave it blank if unknown: expenses import without a future charge. Per-transaction due dates remain separate."}</span>
@@ -394,9 +404,13 @@ const CreditCardImport = ({ onImported, suggestedBillingDayForCard, requestedPro
               <div className="max-h-56 space-y-2 overflow-auto">{dateChanges.map(change => <div key={change.id} className="rounded-lg bg-muted p-2 text-xs"><strong className="block">{change.description}</strong><span>{isRtl ? "לפני: " : "Before: "}{change.previousDate || (isRtl ? "ללא תאריך" : "No date")} · {isRtl ? "אחרי: " : "After: "}{change.nextDate}</span></div>)}</div>
               <div className="flex flex-wrap gap-2"><Button size="sm" disabled={importing} onClick={() => void importTransactions(true)}>{isRtl ? "אשר עדכון וייבוא" : "Confirm updates and import"}</Button><Button size="sm" variant="outline" disabled={importing} onClick={() => setDateChanges(null)}>{isRtl ? "חזור לבדיקה" : "Back to review"}</Button></div>
             </section>}
-            <Button size="sm" onClick={() => void importTransactions()} disabled={importing || mismatchNeedsReview || selectedRows.length === 0 || dateChanges !== null || repairDraft !== null}>
+            {readyToSave && <section className="rounded-lg border p-3 space-y-2" aria-label={isRtl ? "מוכן לשמירה" : "Ready to save"}>
+              <p className="text-sm">{isRtl ? "הבדיקה הסתיימה. בלחיצה על שמירה יתווספו רק עסקאות שטרם זוהו בכרטיס הזה; פילוחים קיימים לא יוחלפו." : "Review complete. Saving adds only transactions not already identified for this card; existing categories are preserved."}</p>
+              <Button size="sm" disabled={importing || mismatchNeedsReview} onClick={() => void importTransactions(false, true)}>{isRtl ? "שמור את הייבוא" : "Save import"}</Button>
+            </section>}
+            <Button size="sm" onClick={() => void importTransactions()} disabled={importing || mismatchNeedsReview || selectedRows.length === 0 || dateChanges !== null || repairDraft !== null || readyToSave}>
               {importing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
-              {t("confirm")} ({selectedRows.length})
+              {isRtl ? "בדיקת נתונים לפני שמירה" : "Check before saving"} ({selectedRows.length})
             </Button>
           </div>
         )}
