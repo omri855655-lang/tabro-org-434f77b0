@@ -208,7 +208,7 @@ serve(async (req) => {
                 <p><strong>${escapeHtml(creatorName)}</strong> צירף/ה משימה חדשה ${sheetName ? `ל<strong>${escapeHtml(sheetName)}</strong>` : ""}.</p>
                 ${normalizedTaskDescription ? `<p>המשימה: <strong>${escapeHtml(normalizedTaskDescription)}</strong></p>` : ""}
                 <hr style="margin: 20px 0;" />
-                <a href="https://omrigabayexcel.site/personal" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
+                <a href="https://tabro.org/personal" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none;">
                   פתח את האפליקציה
                 </a>
               </div>

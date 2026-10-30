@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PUBLIC_APP_ORIGIN } from "@/lib/publicSite";
 import { Copy, ExternalLink, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,7 +42,7 @@ const PublicTaskIntakeLink = ({ taskType, sheetName }: PublicTaskIntakeLinkProps
       setOpen(false);
       return;
     }
-    setUrl(`${window.location.origin}/task-request/${data}`);
+    setUrl(`${PUBLIC_APP_ORIGIN}/task-request/${data}`);
   };
 
   const copyLink = async () => {

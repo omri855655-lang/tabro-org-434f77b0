@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PUBLIC_APP_ORIGIN } from "@/lib/publicSite";
 import { Check, Copy, Eye, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,7 +53,7 @@ export function GanttSharePanel({ projectId, projectTitle, createLinkRequest=cre
     try {
       const data = await createLinkRequest(projectId,controller.signal);
       if(!validGanttToken(data))throw new Error('Invalid viewing token');
-      if(alive.current)setUrl(`${window.location.origin}/project-gantt/${data}`);
+      if(alive.current)setUrl(`${PUBLIC_APP_ORIGIN}/project-gantt/${data}`);
     } catch {if(alive.current)toast.error(copy.createError);}
     finally {clearTimeout(timer);pending.current=false;if(alive.current)setLoading(false);}
   };

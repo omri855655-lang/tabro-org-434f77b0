@@ -46,7 +46,7 @@ function generateICS(event: any, inviterName: string, inviterEmail: string): str
     `DESCRIPTION:${description}`,
     `ORGANIZER;CN=${inviterName}:mailto:${inviterEmail}`,
     'STATUS:CONFIRMED',
-    `URL:https://tabro-org.lovable.app/personal`,
+    `URL:https://tabro.org/personal`,
     'BEGIN:VALARM',
     'TRIGGER:-PT10M',
     'ACTION:DISPLAY',
@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
                       היכנס/י לאפליקציה כדי לאשר או לדחות את ההזמנה.
                     </p>
                     <div style="text-align: center; margin-top: 16px;">
-                      <a href="https://tabro-org.lovable.app/personal" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                      <a href="https://tabro.org/personal" style="display: inline-block; background: #667eea; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                         פתח את המתכנן
                       </a>
                     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PUBLIC_APP_ORIGIN } from "@/lib/publicSite";
 import { Check, Copy, Link2, Loader2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +25,7 @@ export default function ProjectTaskIntakeLink({ projectId, projectTitle }: { pro
       toast.error("לא הצלחנו ליצור קישור לפרויקט");
       return;
     }
-    setUrl(`${window.location.origin}/project-request/${data}`);
+    setUrl(`${PUBLIC_APP_ORIGIN}/project-request/${data}`);
   };
 
   const copy = async () => {

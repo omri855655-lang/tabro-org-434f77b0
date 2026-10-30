@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { FinancePeriodBrief } from "./FinancePeriodBrief";
+import { summarizeBudgetMovements } from "@/lib/financeBudget";
 import { CloudFinanceConnector } from "@/components/dashboards/CloudFinanceConnector";
 import BankConnect from "@/components/dashboards/BankConnect";
 import CreditCardConnect from "@/components/dashboards/CreditCardConnect";
@@ -934,8 +936,8 @@ const PaymentDashboard = () => {
   const totalExpenses = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense").reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries]);
   const totalIncome = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "income").reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries]);
   const totalSpending = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category)).reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries, isSavingsCategory]);
-  // Period-filtered spending for budget comparison (excludes fixed/recurring)
-  const periodSpending = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense" && !isSavingsCategory(p.category) && !p.recurring).reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries, isSavingsCategory]);
+  // The budget tracks all actual outflows, including transfers, less identified refunds.
+  const periodSpending = useMemo(() => summarizeBudgetMovements(visiblePeriodEntries).net, [visiblePeriodEntries]);
   const dedicatedSavings = useMemo(() => visiblePeriodEntries.filter(p => p.payment_type === "expense" && isSavingsCategory(p.category)).reduce((s, p) => s + p.amount, 0), [visiblePeriodEntries, isSavingsCategory]);
   const balance = totalIncome - totalExpenses;
   const availableToSave = totalIncome - totalSpending;
@@ -1487,6 +1489,7 @@ ${context}
         </Button>
         }>
       <TabsContent value="overview" className="space-y-4">
+        <FinancePeriodBrief entries={dashboardEntries} isRtl={isRtl} refreshKey={`${budgetPeriod}:${budgetTarget}`} onBudget={period => { setBudgetPeriod(period); setViewMonth(financeCalendarDate(new Date())!.slice(0, 7)); setActiveTab("budget"); }} />
         <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} cardSection={<CardCashflowOverview cards={cardCashflows} hiddenKeys={hiddenCardKeys} onVisibility={(key, hidden) => void setCardVisibility(key, hidden)} onBillingDay={(key, day) => void saveCardBillingDay(key, day)} saving={savingCardPreferences} isRtl={isRtl} />} />
         <div className="grid gap-3 sm:grid-cols-3">
           {[
@@ -1629,7 +1632,7 @@ ${context}
                   <span>{t("spentLabel" as any)}: ₪{periodSpending.toLocaleString()}</span>
                   <span>{t("targetLabel" as any)}: ₪{budgetTarget.toLocaleString()}</span>
                 </div>
-                <Progress value={Math.min((periodSpending / budgetTarget) * 100, 100)} className={`h-3 ${periodSpending > budgetTarget ? "[&>div]:bg-destructive" : "[&>div]:bg-primary"}`} />
+                <Progress value={Math.max(0, Math.min((periodSpending / budgetTarget) * 100, 100))} className={`h-3 ${periodSpending > budgetTarget ? "[&>div]:bg-destructive" : "[&>div]:bg-primary"}`} />
                 <div className="flex justify-between mt-2">
                   <span className={`text-sm font-semibold ${periodSpending > budgetTarget ? "text-destructive" : "text-primary"}`}>
                     {periodSpending > budgetTarget ? `${t("budgetExceeded" as any)} ₪${(periodSpending - budgetTarget).toLocaleString()} ⚠️` : `${t("budgetRemaining" as any)} ₪${(budgetTarget - periodSpending).toLocaleString()} ✅`}
@@ -1637,7 +1640,7 @@ ${context}
                   <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => { setEditingBudget(true); setBudgetInput(String(budgetTarget)); }}>{t("editing" as any)}</Button>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {t("savingsNotCounted" as any)}
+                  {isRtl ? "כולל כל התנועות היוצאות ששולמו, גם קבועות, חיסכון והעברות, בניכוי זיכויים מזוהים. חיובי כרטיס מרוכזים אינם מקוזזים מפירוט הרכישות. שקלים בלבד." : "Includes all paid outflows, recurring payments, savings and transfers, less identified refunds. Card settlements are not offset against purchases. ILS only."}
                 </p>
               </div>
             ) : (
