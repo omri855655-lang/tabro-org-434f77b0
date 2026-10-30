@@ -42,6 +42,8 @@ import { taskHeaders } from "@/data/initialTasks";
 import { useCompactWorkspace } from '@/hooks/use-mobile';
 import { useLanguage } from '@/hooks/useLanguage';
 import { mobileWorkspaceCopy } from '@/lib/mobileWorkspaceCopy';
+import { useTaskColumnVisibility } from '@/hooks/useTaskColumnVisibility';
+import { OPTIONAL_TASK_COLUMNS, taskColumnStorageKey } from '@/lib/taskColumnVisibility';
 
 interface TaskSpreadsheetDbProps {
   title: string;
@@ -417,6 +419,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName !== undefined ? fixedSheetName : null);
   const effectiveSheet = fixedSheetName !== undefined ? fixedSheetName : selectedSheet;
   const effectiveOwnerId = fixedSheetOwnerId ?? user?.id;
+  const columnVisibility = useTaskColumnVisibility(taskColumnStorageKey(user?.id || "guest", effectiveOwnerId || "guest", taskType, effectiveSheet));
+  const visibleColumns = TASK_TABLE_COLUMNS.filter(column => !columnVisibility.hidden.includes(column.key));
   const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: string; field: keyof Task } | null>(null);
@@ -1030,9 +1034,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   }, [columnWidths, fitTableToScreen]);
 
   const getColumnStyle = useCallback((key: TaskColumnKey) => ({
+    display: columnVisibility.hidden.includes(key) ? "none" : undefined,
     width: getEffectiveColumnWidth(key),
     minWidth: getEffectiveColumnWidth(key),
-  }), [getEffectiveColumnWidth]);
+  }), [getEffectiveColumnWidth, columnVisibility.hidden]);
 
 
   // Fetch ALL unique values for category and responsible across ALL tasks (not just current sheet)
@@ -1327,6 +1332,21 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
             {fitTableToScreen ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
             {fitTableToScreen ? "חזור לרוחב רגיל" : "התאם למסך"}
           </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">עמודות בטבלה{columnVisibility.hidden.length ? ` (${columnVisibility.hidden.length} מוסתרות)` : ""}</Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 max-h-[420px] overflow-y-auto" align="end" dir="rtl">
+              <p className="font-semibold text-sm">מה להציג בלוח הזה?</p>
+              <p className="text-xs text-muted-foreground my-2">ההסתרה אישית ונשמרת בדפדפן הזה לכל לוח. תוכן המשימות, הפרטים המלאים והייצוא נשמרים. בתצוגות אחרות אין שינוי.</p>
+              {TASK_TABLE_COLUMNS.filter(column => OPTIONAL_TASK_COLUMNS.some(key => key === column.key)).map(column => <label key={column.key} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
+                <input type="checkbox" checked={!columnVisibility.hidden.includes(column.key)} onChange={() => columnVisibility.toggle(column.key)} />
+                {column.label}
+              </label>)}
+              <Button size="sm" variant="ghost" onClick={columnVisibility.reset}>הצג את כל העמודות</Button>
+              {columnVisibility.saveFailed && <p role="status" className="text-xs text-destructive">ההעדפה פעילה כרגע, אך לא נשמרה בדפדפן.</p>}
+            </PopoverContent>
+          </Popover>
           {/* View mode buttons */}
           <div className="flex items-center border rounded-md overflow-hidden h-8">
             {([
@@ -1374,7 +1394,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         {/* Sticky category/column headers bar */}
         {dashViewMode === 'table' && <div ref={stickyHeaderScrollRef} className="max-w-full overflow-x-auto border-t border-border/50">
           <div className="flex items-stretch bg-muted/50 text-[11px] text-muted-foreground min-w-max">
-            {TASK_TABLE_COLUMNS.map((column) => (
+            {visibleColumns.map((column) => (
               <div
                 key={column.key}
                 className="relative shrink-0 px-3 py-1.5 border-l border-border/40 font-medium"
@@ -1571,15 +1591,15 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
           
             return (
             <div ref={tableScrollRef} data-task-table className="min-h-0 h-full overflow-auto scroll-smooth">
-              <table className={`w-full border-collapse ${fitTableToScreen ? "min-w-full text-[11px]" : "min-w-[1200px]"}`}>
+              <table className={`w-full border-collapse ${fitTableToScreen ? "text-[11px]" : ""}`} style={{ minWidth: visibleColumns.reduce((sum, column) => sum + getEffectiveColumnWidth(column.key), 0) }}>
             <colgroup>
-              {TASK_TABLE_COLUMNS.map((column) => (
+              {visibleColumns.map((column) => (
                 <col key={column.key} style={{ width: getEffectiveColumnWidth(column.key) }} />
               ))}
             </colgroup>
             <thead className="sr-only">
               <tr className="bg-muted">
-                {TASK_TABLE_COLUMNS.map((column) => (
+                {visibleColumns.map((column) => (
                   <th
                     key={column.key}
                     className="px-3 py-2 text-right text-sm font-medium text-muted-foreground border-b border-border whitespace-nowrap"

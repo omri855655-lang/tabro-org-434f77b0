@@ -11,6 +11,7 @@ RUN apt-get update \
 ENV NODE_ENV=production
 ENV PII_REDACTION=on
 ENV FINANCE_BROWSER_EXECUTABLE=/usr/bin/chromium
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 WORKDIR /app
 COPY package*.json ./

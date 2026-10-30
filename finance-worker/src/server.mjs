@@ -8,6 +8,7 @@ import {
   SCRAPERS,
 } from "@sergienko4/israeli-bank-scrapers";
 import { credentialsForScraper } from "./scraper-policy.mjs";
+import { engineForProvider, scrapeOfficialAmex } from "./amex-engine.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -326,6 +327,9 @@ function scraperOptions(companyId) {
 
 async function scrapeInstitution(companyId, credentials) {
   if (!PROVIDERS[companyId]) throw new Error(`Unsupported financial institution: ${companyId}`);
+  if (engineForProvider(companyId, process.env.FINANCE_AMEX_ENGINE || "official") === "official-amex") {
+    return scrapeOfficialAmex(credentials, { executablePath: env("FINANCE_BROWSER_EXECUTABLE") });
+  }
   const browser = await chromium.launch({
     executablePath: env("FINANCE_BROWSER_EXECUTABLE"),
     headless: true,
@@ -344,6 +348,7 @@ app.get("/health", (_request, response) => response.json({
   service: "tabro-finance-worker",
   version: "0.2.0",
   engine: WORKER_ENGINE,
+  amex_engine: engineForProvider("amex", process.env.FINANCE_AMEX_ENGINE || "official"),
 }));
 
 async function syncConnection({ userId, connectionId, companyId, credentials: submittedCredentials, storeCredentials = true }) {

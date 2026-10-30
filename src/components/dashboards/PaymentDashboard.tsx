@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { FinancePeriodBrief } from "./FinancePeriodBrief";
+import GiftCardWallet from "./GiftCardWallet";
 import { summarizeBudgetMovements } from "@/lib/financeBudget";
 import { CloudFinanceConnector } from "@/components/dashboards/CloudFinanceConnector";
 import BankConnect from "@/components/dashboards/BankConnect";
@@ -563,7 +564,7 @@ const PaymentDashboard = () => {
         id: `cloud:${item.id}`,
         backend: "cloud" as const,
       }));
-      setFinancialAccounts([...cloudAccounts, ...legacyAccounts, ...importedCardAccounts]);
+      setFinancialAccounts([...cloudAccounts, ...legacyAccounts, ...importedCardAccounts].filter(account => account.account_type?.toUpperCase() !== "GIFT_CARD"));
       setFinanceUnavailable(false);
     } catch (error) {
       console.warn("Finance data could not be loaded", error);
@@ -1489,6 +1490,7 @@ ${context}
         </Button>
         }>
       <TabsContent value="overview" className="space-y-4">
+        <GiftCardWallet key={user?.id} userId={user?.id} />
         <FinancePeriodBrief entries={dashboardEntries} isRtl={isRtl} refreshKey={`${budgetPeriod}:${budgetTarget}`} onBudget={period => { setBudgetPeriod(period); setViewMonth(financeCalendarDate(new Date())!.slice(0, 7)); setActiveTab("budget"); }} />
         <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} cardSection={<CardCashflowOverview cards={cardCashflows} hiddenKeys={hiddenCardKeys} onVisibility={(key, hidden) => void setCardVisibility(key, hidden)} onBillingDay={(key, day) => void saveCardBillingDay(key, day)} saving={savingCardPreferences} isRtl={isRtl} />} />
         <div className="grid gap-3 sm:grid-cols-3">

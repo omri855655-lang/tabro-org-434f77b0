@@ -16,7 +16,7 @@ export function summarizeLiquidBalances(accounts: LiquidAccount[]) {
     const key = `${account.provider_name || ""}:${account.external_account_id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    if (account.account_type?.toUpperCase() === "CARD" || (account.currency && account.currency !== "ILS")) continue;
+    if (["CARD", "GIFT_CARD"].includes(account.account_type?.toUpperCase() || "") || (account.currency && account.currency !== "ILS")) continue;
     const value = account.available_balance ?? account.current_balance;
     if (value == null || !Number.isFinite(value)) continue;
     if (value >= 0) available += value;
