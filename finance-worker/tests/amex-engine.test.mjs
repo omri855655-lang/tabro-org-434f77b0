@@ -63,3 +63,40 @@ test('origin and block guard stop credential POSTs, while cooperating with offic
   assert.equal(state.untrusted,true);
   assert.deepEqual(events.pop(),['abort',1000]);
 });
+
+test('block diagnostics distinguish login phases without retaining private query data', async () => {
+  for (const [path, stage, resource] of [
+    ['/personalarea/Login?private=fixture-secret', 'login-page', 'document'],
+    ['/services/ProxyRequestHandler.ashx?reqName=ValidateIdData&id=fixture-secret', 'identity-validation', 'fetch'],
+    ['/services/ProxyRequestHandler.ashx?reqName=performLogonI&password=fixture-secret', 'password-login', 'xhr'],
+    ['/services/ProxyRequestHandler.ashx?reqName=private-fixture-secret', 'issuer-api', 'xhr'],
+    ['/private-fixture-secret.css', 'other-resource', 'stylesheet'],
+  ]) {
+    const handlers = {}, state = {};
+    await protectAmexPage({ setRequestInterception: async () => {}, on: (name, cb) => { handlers[name] = cb; } }, state);
+    handlers.response({ url: () => `https://he.americanexpress.co.il${path}`, status: () => 403,
+      request: () => ({ resourceType: () => resource }) });
+    assert.deepEqual(state.blockDetail, { status: 403, stage, resource, passwordRequestObserved: false });
+    assert.doesNotMatch(JSON.stringify(state), /fixture-secret/);
+    handlers.response({ url: () => 'https://he.americanexpress.co.il/later', status: () => 429 });
+    assert.equal(state.blockDetail.stage, stage, 'retain the first rejection');
+  }
+});
+
+test('HTTP rejection diagnostics survive scraper throws and contain no raw error', async () => {
+  let closed = false;
+  const handlers = {};
+  const page = { setRequestInterception: async () => {}, on: (name, cb) => { handlers[name] = cb; } };
+  const browser = { newPage: async () => page, close: async () => { closed = true; } };
+  const loadEngine = async () => ({ launch: async () => browser, createScraper: () => ({ scrape: async () => {
+    await browser.newPage();
+    handlers.response({ url: () => 'https://he.americanexpress.co.il/personalarea/Login?secret=fixture-secret', status: () => 429,
+      request: () => ({ resourceType: () => 'document' }) });
+    throw new Error('fixture-secret');
+  } }) });
+  const result = await scrapeOfficialAmex(credentials, { executablePath: '/fixture/chromium', loadEngine });
+  assert.equal(result.errorType, 'WAF_BLOCKED');
+  assert.match(result.errorMessage, /HTTP_429; stage=login-page; resource=document; password_request=not-observed/);
+  assert.doesNotMatch(JSON.stringify(result), /fixture-secret/);
+  assert.equal(closed, true);
+});
