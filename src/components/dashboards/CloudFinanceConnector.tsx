@@ -106,6 +106,8 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   const [connectionsUnavailable, setConnectionsUnavailable] = useState(false);
   const previousConnections = useRef<CloudConnection[]>([]);
   const [credentialMode, setCredentialMode] = useState<"one_time" | "automatic">("one_time");
+  const [amexTrialEnabled, setAmexTrialEnabled] = useState(false);
+  const directConnectionEnabled = companyId !== "amex" || amexTrialEnabled;
 
   const selected = providers[companyId];
   const currentLanguage = fieldLabels.username[lang] ? lang : "en";
@@ -155,6 +157,8 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
 
   useEffect(() => {
     setCredentials({});
+    setAmexTrialEnabled(false);
+    if (companyId === "amex") setCredentialMode("one_time");
   }, [companyId]);
 
   const canConnect = useMemo(
@@ -163,7 +167,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
   );
 
   const connect = async () => {
-    if (!canConnect || busy || connectionsUnavailable) return;
+    if (!canConnect || !directConnectionEnabled || busy || connectionsUnavailable) return;
     setBusy("connect");
     setConnections(current => current.map(connection => connection.metadata?.company_id === companyId && connection.status === 'error'
       ? { ...connection, status: 'syncing', last_error: null } : connection));
@@ -279,14 +283,18 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
               </Select>
             </div>
 
-            {companyId === "amex" && onCsvFallback && <Alert>
+            {companyId === "amex" && <Alert>
               <FileSpreadsheet className="h-4 w-4" />
-              <AlertTitle>{lang === "he" ? "אמריקן אקספרס: ייבוא CSV זמני" : "American Express: temporary CSV import"}</AlertTitle>
+              <AlertTitle>{lang === "he" ? "אמריקן אקספרס: מסלול חיבור חדש בניסיון" : "American Express: new connection trial"}</AlertTitle>
               <AlertDescription>{lang === "he"
-                ? "החיבור הישיר עדיין חסום. אפשר לייבא פירוט, לבדוק פילוח ולאשר מועד חיוב בלי להזין סיסמה. שאר הבנקים וחברות האשראי ממשיכים כרגיל."
-                : "The direct connection is still blocked. Import a statement, review categories and confirm the due date without entering a password. Other banks and cards are unchanged."}</AlertDescription>
+                ? "אפשר לנסות מתאם נפרד המבוסס על ספריית קוד פתוח. זה אינו API רשמי של החברה, והגישה עדיין עלולה להיחסם. ייבוא CSV / Excel נשאר זמין; ניסיון שנכשל לא מוחק נתונים קיימים."
+                : "Try a separate adapter based on an open-source library. This is not an official issuer API and access may still be blocked. CSV / Excel import remains available; a failed attempt does not delete existing data."}
+                {!amexTrialEnabled && <Button type="button" variant="outline" className="mt-3 block" onClick={() => setAmexTrialEnabled(true)}>
+                  {lang === "he" ? "פתח ניסיון חיבור Amex" : "Open Amex connection trial"}
+                </Button>}
+              </AlertDescription>
             </Alert>}
-            {selected && !(companyId === "amex" && onCsvFallback) && (
+            {selected && directConnectionEnabled && (
               <div className="space-y-3">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <button type="button" className={`rounded-xl border p-3 text-start ${credentialMode === "one_time" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" : "border-border"}`} onClick={() => setCredentialMode("one_time")}>
@@ -321,7 +329,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
               </div>
             )}
 
-            {!(companyId === "amex" && onCsvFallback) && <Button onClick={connect} disabled={!canConnect || !!busy || connectionsUnavailable || loading} className="gap-2">
+            {directConnectionEnabled && <Button onClick={connect} disabled={!canConnect || !!busy || connectionsUnavailable || loading} className="gap-2">
               {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
               {labels.connect}
             </Button>}
@@ -358,7 +366,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
                   </div>
                   {connection.last_error && <p className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">{financeErrorMessage(connection.last_error, lang, connection.last_error)}</p>}
                   <div className="flex flex-wrap gap-2">
-                    {connection.metadata?.credential_storage !== "none" && !(connection.metadata?.company_id === "amex" && onCsvFallback) && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={!!busy || connectionsUnavailable || ["pending", "syncing"].includes(connection.status)}>
+                    {connection.metadata?.credential_storage !== "none" && (connection.metadata?.company_id !== "amex" || amexTrialEnabled) && <Button size="sm" variant="outline" onClick={() => sync(connection.id)} disabled={!!busy || connectionsUnavailable || ["pending", "syncing"].includes(connection.status)}>
                       {busy === connection.id ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="me-1 h-3.5 w-3.5" />}
                       {labels.sync}
                     </Button>}

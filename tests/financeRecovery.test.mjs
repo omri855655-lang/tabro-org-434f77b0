@@ -164,6 +164,35 @@ test("a failed connection-list refresh keeps prior records and marks status unkn
   assert.equal(state.loading, false);
 });
 
+test("Amex requires an explicit trial choice; other providers remain available", () => {
+  for (const companyId of ["amex", "max", "visaCal", "isracard", "discount"]) {
+    for (const amexTrialEnabled of [false, true]) {
+      const enabled = callbackFromFile("../src/components/dashboards/CloudFinanceConnector.tsx", "directConnectionEnabled", { companyId, amexTrialEnabled });
+      assert.equal(enabled, companyId !== "amex" || amexTrialEnabled);
+    }
+  }
+});
+
+test("Amex trial sends no login before opt-in and defaults to one-time credentials", async () => {
+  for (const directConnectionEnabled of [false, true]) {
+    const calls = [];
+    const connect = callbackFromFile("../src/components/dashboards/CloudFinanceConnector.tsx", "connect", {
+      canConnect: true, directConnectionEnabled, busy: null, connectionsUnavailable: false,
+      companyId: "amex", credentials: { password: "test-only" }, credentialMode: "one_time", lang: "he",
+      setBusy() {}, setConnections() {}, setCredentials() {}, setCompanyId() {},
+      toast: { success() {}, error() {} }, load: async () => {}, onChanged: undefined,
+      invoke: async (action, payload) => { calls.push({ action, payload }); return { pending: true }; },
+    });
+    await connect();
+    assert.equal(calls.length, directConnectionEnabled ? 1 : 0);
+    if (directConnectionEnabled) {
+      assert.equal(calls[0].action, "connect");
+      assert.equal(calls[0].payload.companyId, "amex");
+      assert.equal(calls[0].payload.storeCredentials, false);
+    }
+  }
+});
+
 test("cached lazy-import errors are distinguished from ordinary rendering failures", () => {
   assert.equal(isModuleLoadFailure(new TypeError("Failed to fetch dynamically imported module: https://example.test/assets/PaymentDashboard-old.js")), true);
   assert.equal(isModuleLoadFailure(new Error("Importing a module script failed.")), true);

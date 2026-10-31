@@ -2082,7 +2082,7 @@ ${context}
           <div id="credit-card-csv-fallback" className="space-y-4 scroll-mt-6">
             <div className="rounded-2xl border bg-muted/20 p-4">
               <h3 className="mb-1 font-semibold">{isRtl ? "ייבוא פירוט כרטיס" : "Import a card statement"}</h3>
-              <p className="mb-3 text-xs leading-5 text-muted-foreground">{isRtl ? "אמריקן אקספרס זמין כרגע דרך CSV או Excel. ייבוא נוסף לאותו כרטיס בודק כפילויות ושומר סיווגים שכבר אישרת." : "American Express currently uses CSV or Excel. Reimporting to the same card checks duplicates and keeps reviewed categories."}</p>
+              <p className="mb-3 text-xs leading-5 text-muted-foreground">{isRtl ? "באמריקן אקספרס אפשר לייבא CSV או Excel, או לפתוח ניסיון חיבור באזור החיבורים למטה. ייבוא נוסף לאותו כרטיס בודק כפילויות ושומר סיווגים שכבר אישרת." : "For American Express, import CSV or Excel, or open a connection trial in the connections section below. Reimporting to the same card checks duplicates and keeps reviewed categories."}</p>
               <div className="flex flex-wrap gap-2">
             <Button onClick={() => openCsvFallback("amex")} className="gap-2">
               {isRtl ? "אמריקן אקספרס · ייבוא CSV זמני" : "American Express · temporary CSV import"}
