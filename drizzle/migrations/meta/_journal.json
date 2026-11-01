@@ -134,6 +134,13 @@
       "when": 1793534821455,
       "tag": "0018_email_sync_message_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793541173119,
+      "tag": "0019_notification_deliveries",
+      "breakpoints": true
     }
   ]
 }
