@@ -99,10 +99,10 @@ const CardsView = ({ items, emptyText = 'אין פריטים', onStatusChange, o
             {item.status && (
               item.statusOptions && onStatusChange ? (
                 <Select value={item.status} onValueChange={(v) => onStatusChange(item.id, v)}>
-                  <SelectTrigger className="w-[100px] h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                  <SelectTrigger aria-label={`סטטוס: ${item.title}`} className="w-[110px] h-11 sm:h-7 text-xs" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
                     {item.statusOptions.map(o => (
                       <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                     ))}

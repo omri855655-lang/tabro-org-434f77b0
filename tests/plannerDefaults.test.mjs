@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { plannerStartNow, plannerScrollTop, hasMatchingPlannerTask } from "../src/lib/plannerDefaults.ts";
+import { plannerStartNow, plannerScrollTop, hasMatchingPlannerTask, plannerTaskDraft } from "../src/lib/plannerDefaults.ts";
 import { createPlannerTask } from "../src/lib/plannerTaskCreation.ts";
 
 test("new activity uses today's local minute without mutating the clock", () => {
@@ -12,6 +12,27 @@ test("new activity uses today's local minute without mutating the clock", () => 
   assert.equal(start.getSeconds(), 0);
   assert.equal(now.getSeconds(), 42);
   assert.equal(new Date(start.getTime() + 30 * 60000).getDate(), 27);
+});
+
+test("mobile scheduling retains selected day, current time, category and original task link", () => {
+  for (const [source, expected] of Object.entries({ work: 'work_task', personal: 'personal_task', recurring: 'recurring_task', project: 'project_task', board: 'board', course: 'course' })) {
+    const now = new Date(2026, 9, 31, 23, 55, 42);
+    const day = new Date(2027, 0, 31);
+    const draft = plannerTaskDraft({ id: 'original', title: 'Read', category: 'Study', source }, day, now);
+    assert.equal(draft.start.getFullYear(), 2027);
+    assert.equal(draft.start.getMonth(), 0);
+    assert.equal(draft.start.getDate(), 31);
+    assert.equal(draft.start.getHours(), 23);
+    assert.equal(draft.start.getMinutes(), 55);
+    assert.equal(draft.start.getSeconds(), 0);
+    assert.equal(draft.end.getMonth(), 1);
+    assert.equal(draft.end.getTime() - draft.start.getTime(), 30 * 60_000);
+    assert.equal(draft.sourceId, 'original');
+    assert.equal(draft.sourceType, expected);
+    assert.equal(draft.category, 'Study');
+    assert.equal(now.getSeconds(), 42);
+    assert.equal(day.getHours(), 0);
+  }
 });
 
 test("initial timeline offset follows now and respects resized hours", () => {

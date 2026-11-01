@@ -38,31 +38,40 @@ export function usePushNotifications() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     setIsSupported(supported);
-
-    if (supported && user) {
-      checkSubscription();
-    } else {
-      setLoading(false);
-    }
-  }, [user]);
-
-  const checkSubscription = useCallback(async () => {
-    try {
-      const registration = await getOrRegisterSW();
-      const subscription = await (registration as any).pushManager?.getSubscription();
-      setIsSubscribed(!!subscription);
-    } catch (e) {
-      console.error("Error checking push subscription:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    const check = async () => {
+      setIsSubscribed(false);
+      if (!supported || !user) { setLoading(false); return; }
+      try {
+        const registration = await navigator.serviceWorker.getRegistration("/");
+        const subscription = await registration?.pushManager.getSubscription();
+        if (!subscription) return;
+        // Browser permission alone does not mean this account can receive pushes.
+        const { data, error } = await supabase.from("push_subscriptions").select("id")
+          .eq("user_id", user.id).eq("endpoint", subscription.endpoint).maybeSingle();
+        if (error) throw error;
+        if (!cancelled) setIsSubscribed(Boolean(data) && Notification.permission === "granted");
+      } catch {
+        if (!cancelled) setIsSubscribed(false);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void check();
+    window.addEventListener("tabro-push-changed", check);
+    window.addEventListener("focus", check);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("tabro-push-changed", check);
+      window.removeEventListener("focus", check);
+    };
+  }, [user?.id]);
 
   const subscribe = useCallback(async () => {
     if (!user || !isSupported) return false;
-
+    setLoading(true);
     try {
       if (!window.isSecureContext) {
         toast.error("התראות Push דורשות חיבור מאובטח (HTTPS) או אפליקציה מותקנת");
@@ -120,6 +129,7 @@ export function usePushNotifications() {
           if (error) throw error;
 
           setIsSubscribed(true);
+          window.dispatchEvent(new Event("tabro-push-changed"));
           toast.success("התראות push כבר היו פעילות וחוברו מחדש לחשבון שלך");
           return true;
         }
@@ -171,12 +181,15 @@ export function usePushNotifications() {
       if (error) throw error;
 
       setIsSubscribed(true);
-      toast.success("התראות push הופעלו! תקבל תזכורות 5 דקות לפני כל אירוע");
+      window.dispatchEvent(new Event("tabro-push-changed"));
+      toast.success("המכשיר נרשם לקבלת התראות לחשבון שלך");
       return true;
     } catch (e: any) {
       console.error("Push subscription error:", e);
       toast.error(`שגיאה בהפעלת התראות: ${e.message || "נסה שוב"}`);
       return false;
+    } finally {
+      setLoading(false);
     }
   }, [user, isSupported]);
 
@@ -195,6 +208,7 @@ export function usePushNotifications() {
           .eq("user_id", user.id);
       }
       setIsSubscribed(false);
+      window.dispatchEvent(new Event("tabro-push-changed"));
       toast.success("התראות push כובו");
     } catch (e: any) {
       console.error("Error unsubscribing:", e);
@@ -202,5 +216,22 @@ export function usePushNotifications() {
     }
   }, [user]);
 
-  return { isSubscribed, isSupported, loading, subscribe, unsubscribe };
+  const testLocalNotification = async () => {
+    try {
+      if (!isSupported || Notification.permission !== "granted") {
+        toast.error("יש לחבר ולאשר התראות במכשיר קודם");
+        return;
+      }
+      const registration = await getOrRegisterSW();
+      await registration.showNotification("Tabro: בדיקת התראות במכשיר", {
+        body: "זו בדיקה מקומית בלבד, לא בדיקת שליחה מהשרת.",
+        tag: "tabro-local-test", icon: "/app-icon.png", data: { url: "/personal" },
+      });
+      toast.info("בקשת תצוגה נשלחה למכשיר. אם לא הופיעה, בדוק מצב ריכוז והרשאות התראות.");
+    } catch {
+      toast.error("המכשיר לא הצליח להציג התראה. בדוק את הרשאות האתר בהגדרות המכשיר.");
+    }
+  };
+
+  return { isSubscribed, isSupported, loading, subscribe, unsubscribe, testLocalNotification };
 }

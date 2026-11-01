@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -206,6 +207,7 @@ const withPlannerChannelSync = (planner: PlannerSettings): PlannerSettings => {
 
 const NotificationSettings = () => {
   const { user } = useAuth();
+  const push = usePushNotifications();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -362,31 +364,6 @@ const NotificationSettings = () => {
     });
   };
 
-  const requestPushPermission = async () => {
-    try {
-      if (typeof window === "undefined" || !("Notification" in window)) {
-        toast.error("הדפדפן הזה לא תומך בהתראות Push");
-        return;
-      }
-      const result = await Notification.requestPermission();
-      if (result === "granted") {
-        toast.success("התראות Push אושרו");
-      } else if (result === "denied") {
-        toast.error("ההתראות נחסמו. אפשר לשנות זאת מהגדרות הדפדפן.");
-      } else {
-        toast.info("הבקשה להתראות נסגרה בלי אישור");
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("לא הצלחנו לבקש הרשאת התראות");
-    }
-  };
-
-  const pushStatus = useMemo(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
-    return Notification.permission;
-  }, []);
-
   if (!loaded) {
     return <div className="py-4 text-sm text-muted-foreground">טוען התראות...</div>;
   }
@@ -410,15 +387,18 @@ const NotificationSettings = () => {
             <CardContent className="space-y-3 pt-0">
               {key === "push" && (
                 <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3 text-[11px] text-muted-foreground">
-                  <p>באייפון כדאי לאשר התראות בדפדפן ולהוסיף את Tabro למסך הבית כדי לקבל חוויה קרובה לאפליקציה.</p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={pushStatus === "granted" ? "default" : "outline"}>
-                      {pushStatus === "granted" ? "התראות מאושרות" : pushStatus === "denied" ? "התראות חסומות" : pushStatus === "unsupported" ? "לא נתמך" : "טרם אושר"}
+                  <p>באייפון עם iOS 16.4 ומעלה: הוסף את Tabro למסך הבית, פתח אותו מהסמל ואז לחץ על חיבור התראות. ההרשמה נפרדת לכל מכשיר ולכל דומיין.</p>
+                  <p>הרשאת דפדפן אינה מספיקה: המכשיר צריך להיות רשום גם לחשבון. מצב ריכוז והגדרות האייפון עשויים להשתיק התראות.</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={push.isSubscribed ? "default" : "outline"}>
+                      {push.loading ? "בודק רישום..." : push.isSubscribed ? "המכשיר רשום לחשבון" : !push.isSupported ? "נדרש דפדפן תומך / פתיחה ממסך הבית" : "המכשיר אינו מחובר להתראות"}
                     </Badge>
-                    <Button variant="outline" size="sm" onClick={() => void requestPushPermission()}>
-                      בקש הרשאת Push
+                    <Button variant="outline" size="sm" className="min-h-11" disabled={push.loading || !push.isSupported} onClick={() => void push.subscribe()}>
+                      {push.isSubscribed ? "חיבור מחדש" : "חיבור התראות למכשיר"}
                     </Button>
+                    <Button variant="outline" size="sm" className="min-h-11" disabled={push.loading || !push.isSubscribed} onClick={() => void push.testLocalNotification()}>בדיקת תצוגה במכשיר</Button>
                   </div>
+                  <p>בדיקת התצוגה היא מקומית בלבד; היא אינה מאשרת שהשרת שלח Push או מייל.</p>
                 </div>
               )}
 

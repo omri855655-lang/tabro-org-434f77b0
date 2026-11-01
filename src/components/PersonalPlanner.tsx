@@ -31,7 +31,7 @@ import { escapePrintText, printDocument } from "@/lib/printDocument";
 import { createCalendarExport } from "@/lib/calendarExport";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useUltraDesign } from '@/hooks/useUltraDesign';
-import { plannerStartNow, plannerScrollTop, hasMatchingPlannerTask } from "@/lib/plannerDefaults";
+import { plannerStartNow, plannerScrollTop, hasMatchingPlannerTask, plannerTaskDraft } from "@/lib/plannerDefaults";
 import { PlannerTaskOffer } from "@/components/PlannerTaskOffer";
 
 interface AggregatedTask {
@@ -2785,11 +2785,14 @@ const PersonalPlanner = () => {
 
       {isMobile && (
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetContent side="right" className="w-[92vw] max-w-none p-0" dir="rtl">
+          <SheetContent side="right" className="flex w-[92vw] max-w-none flex-col gap-0 p-0" dir="rtl"
+            onCloseAutoFocus={(event) => {
+              if (showEventDialog || mentalDialogOpen || aiDialogOpen) event.preventDefault();
+            }}>
             <SheetHeader className="border-b border-border p-4 text-right">
               <SheetTitle>משימות ללוז</SheetTitle>
               <SheetDescription className="sr-only">
-                רשימת משימות לחיפוש, גרירה ושיבוץ מהיר ללוח הזמנים.
+                חפש וסנן משימות, ולחץ על שיבוץ בלוז כדי לבחור תאריך ושעה.
               </SheetDescription>
             </SheetHeader>
             <div className="border-b border-border p-3">
@@ -2803,12 +2806,57 @@ const PersonalPlanner = () => {
                 <Input
                   value={taskSearch}
                   onChange={(e) => setTaskSearch(e.target.value)}
-                  placeholder="חפש משימה"
+                  placeholder="חפש משימה, קטגוריה או מקור"
+                  aria-label="חיפוש משימות לשיבוץ"
                   className="h-9 pr-9 text-sm"
                 />
               </div>
             </div>
-            <ScrollArea className="h-[calc(var(--tabro-viewport-height,100dvh)-140px)]">
+            <ScrollArea className="min-h-0 flex-1">
+              <details className="border-b p-3">
+                <summary className="min-h-11 cursor-pointer py-2 font-medium">סינון משימות ולוחות</summary>
+                <div className="flex flex-wrap gap-2 py-2">
+                  {([
+                    ["all", "הכל"], ["personal", "אישי"], ["work", "עבודה"],
+                    ["project", "פרויקט"], ["recurring", "יומי"],
+                    ["urgent", "דחוף"], ["overdue", "באיחור"], ["today", "היום"], ["week", "השבוע הקרוב"],
+                  ] as [TaskFilter, string][]).map(([key, label]) => (
+                    <Button key={key} type="button" variant={activeFilters.has(key) ? "default" : "outline"}
+                      aria-pressed={activeFilters.has(key)} className="min-h-11" onClick={() => toggleFilter(key)}>{label}</Button>
+                  ))}
+                </div>
+                {customBoards.length > 0 && <fieldset className="space-y-2 py-2">
+                  <legend className="text-sm font-medium">לוחות נוספים</legend>
+                  {customBoards.map(board => <label key={board.id} className="flex min-h-11 items-center gap-2 text-sm">
+                    <Checkbox checked={selectedBoardIds.has(board.id)} onCheckedChange={(checked) => setSelectedBoardIds(prev => {
+                      const next = new Set(prev);
+                      if (checked) next.add(board.id); else next.delete(board.id);
+                      return next;
+                    })} />{board.name}
+                  </label>)}
+                </fieldset>}
+                <fieldset className="space-y-2 py-2">
+                  <legend className="text-sm font-medium">תוכן נוסף לשיבוץ</legend>
+                  {[
+                    { label: "סדרות וסרטים", checked: showShowsInPlanner, set: setShowShowsInPlanner },
+                    { label: "קורסים", checked: showCoursesInPlanner, set: setShowCoursesInPlanner },
+                    { label: "פודקאסטים", checked: showPodcastsInPlanner, set: setShowPodcastsInPlanner },
+                    { label: "ספרים", checked: showBooksInPlanner, set: setShowBooksInPlanner },
+                  ].map(option => <label key={option.label} className="flex min-h-11 items-center gap-2 text-sm">
+                    <Checkbox checked={option.checked} onCheckedChange={(checked) => option.set(!!checked)} />{option.label}
+                  </label>)}
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      ["shows_series", "סדרות", showShowsInPlanner], ["shows_movies", "סרטים", showShowsInPlanner],
+                      ["courses", "קורסים", showCoursesInPlanner], ["podcasts", "פודקאסטים", showPodcastsInPlanner],
+                      ["books", "ספרים", showBooksInPlanner],
+                    ] as [TaskFilter, string, boolean][]).filter(([, , enabled]) => enabled).map(([key, label]) => (
+                      <Button key={key} type="button" className="min-h-11" variant={activeFilters.has(key) ? "default" : "outline"}
+                        aria-pressed={activeFilters.has(key)} onClick={() => toggleFilter(key)}>רק {label}</Button>
+                    ))}
+                  </div>
+                </fieldset>
+              </details>
               <div className="p-3 space-y-2">
                 {visibleTasks.map((task) => {
                   const srcColor = getSourceColor(task.source);
@@ -2817,12 +2865,6 @@ const PersonalPlanner = () => {
                   return (
                     <div
                       key={`mobile-${task.source}-${task.id}`}
-                      draggable
-                      onDragStart={(e) => handleDragStart(task, e)}
-                      onDragEnd={handleDragEnd}
-                      onTouchStart={(e) => handleTouchStart(e, task)}
-                      onTouchMove={(e) => handleTouchMove(e)}
-                      onTouchEnd={(e) => handleTouchEnd(e)}
                       className={`rounded-xl border p-2 text-sm border-l-4 ${task.overdue ? "ring-1 ring-red-400" : ""}`}
                       style={{ borderLeftColor: srcColor, backgroundColor: srcColor + "12" }}
                     >
@@ -2851,16 +2893,24 @@ const PersonalPlanner = () => {
                         )}
                       </div>
                       <div className="text-xs font-medium line-clamp-2 pr-4">{task.title || "(ללא כותרת)"}</div>
+                      <Button type="button" className="mt-3 min-h-11 w-full" onClick={() => {
+                        resetDragState();
+                        setSidebarOpen(false);
+                        openNewEventDialog({
+                          ...plannerTaskDraft(task, currentDate), mode: "full",
+                        });
+                      }}>שיבוץ בלוז</Button>
                       {(plannerTask || task.title) && (
                         <div className="mt-2 flex flex-wrap gap-1">
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-6 gap-1 px-2 text-[10px]"
+                            className="min-h-11 gap-1 px-2 text-xs"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
+                              setSidebarOpen(false);
                               void handleAiHelp(task.title, plannerTask?.description || task.title, plannerTask?.category || task.category);
                             }}
                           >
@@ -2872,10 +2922,11 @@ const PersonalPlanner = () => {
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-6 gap-1 px-2 text-[10px]"
+                              className="min-h-11 gap-1 px-2 text-xs"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                setSidebarOpen(false);
                                 setMentalTask(plannerTask);
                                 setMentalDialogOpen(true);
                               }}
@@ -2889,6 +2940,7 @@ const PersonalPlanner = () => {
                     </div>
                   );
                 })}
+                {visibleTasks.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">לא נמצאו משימות לפי החיפוש והסינון</p>}
               </div>
             </ScrollArea>
           </SheetContent>
