@@ -77,7 +77,7 @@ export async function vapidDiagnostics(publicKey: string | undefined, privateKey
     const subtle = globalThis.crypto.subtle;
     const jwk = { kty: "EC", crv: "P-256", d: bytesToB64url(priv!), x: bytesToB64url(pub!.slice(1, 33)), y: bytesToB64url(pub!.slice(33, 65)), ext: true };
     const signer = await subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
-    const verifier = await subtle.importKey("raw", pub!, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const verifier = await subtle.importKey("raw", pub! as BufferSource, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
     const probe = new TextEncoder().encode("tabro-vapid-probe");
     const signature = await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, signer, probe);
     result.pairValid = await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, verifier, signature, probe);

@@ -1,5 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-scheduler-token",
+};
 import { israelClock, israelDayStartUtc } from "../_shared/briefingSchedule.ts";
 import { pushServiceName, summarizePushResults, vapidDiagnostics } from "../_shared/pushDiagnostics.ts";
 import { deliverToSubscriptions, vapidFromEnv } from "../_shared/webPush.ts";

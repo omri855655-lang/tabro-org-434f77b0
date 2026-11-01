@@ -22,7 +22,7 @@ export async function deliverToSubscriptions(admin: any, subs: StoredSubscriptio
     try {
       const message: PushMessage = { data: JSON.stringify(data), options: { ttl } };
       const payload = await buildPushPayload(message, { endpoint: sub.endpoint, expirationTime: null, keys: { p256dh: sub.p256dh, auth: sub.auth } }, vapid);
-      const res = await fetch(sub.endpoint, { method: payload.method || "POST", headers: payload.headers, body: payload.body, signal: AbortSignal.timeout(15_000) });
+      const res = await fetch(sub.endpoint, { method: payload.method || "POST", headers: payload.headers, body: payload.body as BodyInit, signal: AbortSignal.timeout(15_000) });
       status = res.status;
       body = res.ok ? "" : (await res.text().catch(() => "")).slice(0, 2000);
     } catch {
