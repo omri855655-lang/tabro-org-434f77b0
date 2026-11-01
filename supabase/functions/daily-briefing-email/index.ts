@@ -43,7 +43,11 @@ Deno.serve(async (req) => {
   try {
     if (req.headers.get("x-scheduler-token")) {
       if (!(await hasSchedulerToken(req, admin, "daily_briefing"))) return json({ error: "Unauthorized" }, 401);
-      return json(await dispatch(admin, url, new Date(), body.dryRun === true));
+      // A dry run may evaluate another instant (for schedule checks) but never sends.
+      const dryRun = body.dryRun === true;
+      const at = dryRun && typeof body.at === "string" ? new Date(body.at) : new Date();
+      if (Number.isNaN(at.getTime())) return json({ error: "Invalid time" }, 400);
+      return json(await dispatch(admin, url, at, dryRun));
     }
 
     const auth = req.headers.get("Authorization");
