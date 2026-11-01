@@ -120,6 +120,13 @@
       "when": 1793532496766,
       "tag": "0016_daily_briefing_email_deliveries",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793532851510,
+      "tag": "0017_notifications_scheduler_token",
+      "breakpoints": true
     }
   ]
 }
