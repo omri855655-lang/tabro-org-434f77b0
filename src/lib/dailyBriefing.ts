@@ -5,6 +5,13 @@ export type BriefingTask = { id: string; description: string; status: string | n
 export type BriefingEvent = { id: string; title: string; start_time: string; end_time: string; location: string | null; all_day: boolean | null; description?: string | null };
 export type BriefingMail = { email_subject: string | null; email_from: string | null; email_date: string | null; category: string | null };
 
+export function recurringBriefingTasks(tasks: { id: string; title: string; description: string | null; frequency: string; day_of_week: number | null; day_of_month: number | null; reminder_time: string | null }[], completedIds: string[], now = new Date()): BriefingTask[] {
+  const today = israelDate(now);
+  const day = new Date(`${today}T12:00:00Z`);
+  return tasks.filter(task => !completedIds.includes(task.id) && (task.frequency === "daily" || (task.frequency === "weekly" && task.day_of_week === day.getUTCDay()) || (task.frequency === "monthly" && task.day_of_month === day.getUTCDate())))
+    .map(task => ({ id: `recurring:${task.id}`, description: task.title, status: null, planned_end: today, urgent: false, overdue: false, archived: false, responsible: null, task_type: "recurring", progress: [task.reminder_time ? `שעה מתוכננת: ${task.reminder_time}` : "", task.description].filter(Boolean).join(" · ") }));
+}
+
 export function israelDate(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }

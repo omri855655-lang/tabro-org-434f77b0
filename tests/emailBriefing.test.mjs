@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { triageEmail } from '../supabase/functions/_shared/emailTriage.ts';
-import { makeDailyBriefing, israelDate } from '../src/lib/dailyBriefing.ts';
+import { makeDailyBriefing, israelDate, recurringBriefingTasks } from '../src/lib/dailyBriefing.ts';
 
 const mail = (subject, category = 'personal') => ({ email_subject: subject, email_from: 'Service <team@example.com>', category });
 test('urgent and security messages are not buried by promotional labels', () => {
@@ -22,6 +22,12 @@ test('user categories override heuristics and partial preference records are sup
 });
 
 const now = new Date('2026-11-01T14:00:00Z');
+test('includes due recurring tasks once and omits completed or not due occurrences', () => {
+  const recurring = (id, frequency, day_of_week = null, day_of_month = null) => ({ id, title:id, frequency, day_of_week, day_of_month, description:null, reminder_time:'16:00' });
+  const tasks = recurringBriefingTasks([recurring('daily', 'daily'), recurring('done', 'daily'), recurring('sunday', 'weekly', 0), recurring('monday', 'weekly', 1), recurring('first', 'monthly', null, 1)], ['done'], now);
+  assert.deepEqual(tasks.map(task => task.id), ['recurring:daily', 'recurring:sunday', 'recurring:first']);
+  assert.ok(tasks.every(task => task.progress.includes('16:00')));
+});
 const task = (id, patch = {}) => ({ id, description: id, status: 'בטיפול', planned_end: '2026-11-01', urgent: false, overdue: false, archived: false, responsible: null, task_type: 'work', ...patch });
 const event = (id, start, end) => ({ id, title: id, start_time: start, end_time: end, location: null, all_day: false });
 test('uses Israel date at midnight and summer DST', () => {
