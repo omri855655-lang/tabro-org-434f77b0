@@ -42,7 +42,10 @@ export function visualOrder(line: string): string {
   if (!line) return line;
   const levels = bidi.getEmbeddingLevels(line, "rtl");
   const chars = line.split("");
-  for (const [index, mirror] of bidi.getMirroredCharactersMap(line, levels)) chars[index] = mirror;
+  // Mirror brackets in right-to-left runs (bidi-js 1.0.3's map helper returns nothing).
+  chars.forEach((char, index) => {
+    if (levels.levels[index] & 1) chars[index] = bidi.getMirroredCharacter(char) || char;
+  });
   for (const [start, end] of bidi.getReorderSegments(line, levels)) {
     const slice = chars.slice(start, end + 1).reverse();
     chars.splice(start, slice.length, ...slice);
