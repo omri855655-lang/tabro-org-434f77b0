@@ -53,6 +53,11 @@ export function normalizeMailPreferences(raw: unknown): MailPreferences {
 // Any one-time/verification/reset code, regardless of age: by the time a push lands the
 // user is usually already looking at the login screen, and old codes are pure noise.
 const CODE_SUBJECT = /\b(verification code|security code|one.time (pass)?code|otp|login code|sign.in code|password reset code|confirm(ation)? code)\b|קוד אימות|קוד חד.?פעמי|קוד כניסה|קוד התחברות|סיסמה חד.?פעמית/iu;
+// Strong subject signals only: a bare "today"/"היום" (common in digests and Tabro's own
+// briefings) is not enough to interrupt someone.
+const STRONG_SUBJECT = /\b(action required|reply needed|response required|deadline|urgent|asap|overdue|password|security alert|suspicious|unauthorized|account locked)\b|נדרשת פעולה|נדרש אישור|מועד אחרון|לטיפול|נא להשיב|דחוף|באיחור|פעילות חשודה|התראת אבטחה|חשבון.*נחסם/iu;
+// Tabro's own notifications (briefings, reminders) must never trigger mail alerts.
+const isSelfSender = (domain: string) => domain === "tabro.org" || domain.endsWith(".tabro.org");
 const PROMO_CATEGORIES = new Set(["newsletter", "promotion", "promotions", "social"]);
 const QUIET_BUCKETS = new Set<MailBucket>(["promotions", "low", "updates", "shopping"]);
 
@@ -65,7 +70,7 @@ export interface AlertMail {
 
 export type AlertDecision =
   | { alert: true; reason: "vip" | "keyword" | "preference" | "security" | "action" }
-  | { alert: false; reason: "disabled" | "before_opt_in" | "too_old" | "future_date" | "verification_code" | "low_priority_sender" | "ignored_keyword" | "learned_quiet" | "promotion" | "not_important" };
+  | { alert: false; reason: "self_notification" | "disabled" | "before_opt_in" | "too_old" | "future_date" | "verification_code" | "low_priority_sender" | "ignored_keyword" | "learned_quiet" | "promotion" | "not_important" };
 
 export function importantMailDecision(mail: AlertMail, prefs: MailPreferences, settings: ImportantMailAlertSettings, now = Date.now()): AlertDecision {
   if (!settings.enabled || !settings.since) return { alert: false, reason: "disabled" };
@@ -77,6 +82,7 @@ export function importantMailDecision(mail: AlertMail, prefs: MailPreferences, s
   if (CODE_SUBJECT.test(subject)) return { alert: false, reason: "verification_code" };
   const from = (mail.email_from || "").toLowerCase();
   const domain = senderDomain(from);
+  if (isSelfSender(domain)) return { alert: false, reason: "self_notification" };
   const matches = (values: string[]) => values.some(v => { const x = v.toLowerCase(); return x === domain || x === from || (x.includes("@") && from.includes(x)); });
   if (matches(prefs.lowPrioritySenders)) return { alert: false, reason: "low_priority_sender" };
   if (prefs.ignoredKeywords.some(word => subject.includes(word.toLowerCase()))) return { alert: false, reason: "ignored_keyword" };
@@ -90,7 +96,7 @@ export function importantMailDecision(mail: AlertMail, prefs: MailPreferences, s
   if (PROMO_CATEGORIES.has(category) || triage.bucket === "promotions" || triage.bucket === "low") return { alert: false, reason: "promotion" };
   // A coarse "task"/"meeting" category alone (often marketing copy) is not enough; the
   // subject itself must carry a security/action/urgency signal.
-  if (triage.bucket === "action" && triage.subjectSignal) return { alert: true, reason: triage.security ? "security" : "action" };
+  if (triage.bucket === "action" && triage.subjectSignal && STRONG_SUBJECT.test(subject)) return { alert: true, reason: triage.security ? "security" : "action" };
   return { alert: false, reason: "not_important" };
 }
 

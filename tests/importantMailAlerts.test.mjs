@@ -42,6 +42,14 @@ test('verification codes (fresh or old) and marketing labelled as tasks do not a
   assert.equal(importantMailDecision(mail('Your order shipped'), noPrefs, on, NOW).alert, false);
 });
 
+test("Tabro's own briefings and bare 'today' digests never alert", () => {
+  assert.equal(importantMailDecision(mail('מה נשאר להיום · 90 משימות', { email_from: 'Tabro <noreply@tabro.org>' }), noPrefs, on, NOW).reason, 'self_notification');
+  assert.equal(importantMailDecision(mail('Reminder', { email_from: 'x@notify.tabro.org' }), noPrefs, on, NOW).reason, 'self_notification');
+  assert.equal(importantMailDecision(mail('Your summary for today'), noPrefs, on, NOW).alert, false);
+  assert.equal(importantMailDecision(mail('מה קורה היום בעיר'), noPrefs, on, NOW).alert, false);
+  assert.equal(importantMailDecision(mail('דחוף: נא להשיב היום'), noPrefs, on, NOW).alert, true);
+});
+
 test('saved VIP, keywords, sender buckets and low-priority senders are respected', () => {
   const prefs = normalizeMailPreferences({
     vipSenders: ['client.co.il'], importantKeywords: ['ארנונה'], ignoredKeywords: ['webinar'],
