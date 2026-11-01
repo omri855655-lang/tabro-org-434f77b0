@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { PDFDocument } from "npm:pdf-lib@1.17.1";
+import { PDFDict, PDFDocument, PDFName } from "npm:pdf-lib@1.17.1";
 import { buildReport } from "./report.ts";
 import { buildBriefingPdf, sanitizePdfText, visualOrder } from "../_shared/briefingPdf.ts";
 import { DEFAULT_BRIEFING_EMAIL } from "../_shared/briefingSchedule.ts";
@@ -71,9 +71,9 @@ Deno.test("PDF is a real multi-page Hebrew document with an embedded font", asyn
   assert(pages >= 3, `expected pagination, got ${pages}`);
   const loaded = await PDFDocument.load(bytes);
   assertEquals(loaded.getPageCount(), pages);
-  const raw = new TextDecoder("latin1").decode(bytes);
-  assert(raw.includes("/FontFile2"), "font must be embedded");
-  assert(raw.includes("LiberationSans"), "Hebrew-capable font must be used");
+  const dicts = loaded.context.enumerateIndirectObjects().map(([, obj]) => obj).filter((obj): obj is PDFDict => obj instanceof PDFDict);
+  assert(dicts.some(d => d.has(PDFName.of("FontFile2"))), "font program must be embedded");
+  assert(dicts.some(d => String(d.get(PDFName.of("BaseFont")) || "").includes("LiberationSans")), "Hebrew-capable font must be used");
 });
 
 Deno.test("empty briefing still produces a non-blank one-page PDF", async () => {
@@ -85,7 +85,7 @@ Deno.test("empty briefing still produces a non-blank one-page PDF", async () => 
 
 Deno.test("bidi reordering keeps Hebrew right-to-left and numbers/latin readable", () => {
   assertEquals(visualOrder("שלום"), "םולש");
-  assertEquals(visualOrder("משימה ABC"), "ABC הממישמ");
+  assertEquals(visualOrder("משימה ABC"), "ABC המישמ");
   assertEquals(visualOrder("(המשך)"), "(ךשמה)");
   assertEquals(sanitizePdfText("שָׁלוֹם 🎉 test"), "שלום test");
 });
