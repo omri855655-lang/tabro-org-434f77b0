@@ -50,5 +50,7 @@ export function triageEmail(mail: { email_subject: string | null; email_from: st
   if (prefs?.ignoredKeywords?.some(word => word.trim() && subject.includes(word.toLowerCase()))) priority -= 1.25;
   if (matchesSender(prefs?.lowPrioritySenders)) priority -= 1.5;
   if (staleCode && !learned) priority = Math.min(priority, 1);
-  return { bucket, priority: Math.max(0.5, Math.min(6, priority)), reason, security, requiresAction: !staleCode && bucket === "action" };
+  // subjectSignal: the subject itself (not only a coarse category) asks for attention.
+  const subjectSignal = !staleCode && (security || action || (urgent && !subjectPromotion));
+  return { bucket, priority: Math.max(0.5, Math.min(6, priority)), reason, security, requiresAction: !staleCode && bucket === "action", subjectSignal };
 }
