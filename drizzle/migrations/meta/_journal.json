@@ -113,6 +113,13 @@
       "when": 1792571180859,
       "tag": "0015_learning_history_explicit_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793532496766,
+      "tag": "0016_daily_briefing_email_deliveries",
+      "breakpoints": true
     }
   ]
 }
