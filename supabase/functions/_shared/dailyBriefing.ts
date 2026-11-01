@@ -93,6 +93,7 @@ export function formatSender(from: string | null): string {
 }
 
 function taskSuggestion(task: BriefingTask, due: string | null, today: string): string {
+  if (task.task_type === "recurring") return "הצעה: סמן כבוצע במשימות הקבועות כשתסיים.";
   const who = task.responsible?.trim();
   if (due && due < today) return `הצעה: המועד ${formatIsraelDay(due)} עבר. עדכן מועד חדש או סמן כבוצע אם המשימה הושלמה.`;
   if (who) return `הצעה: בדוק עם ${who} מה חסר להשלמה וקבע את הצעד הבא.`;
@@ -134,7 +135,7 @@ export function makeDailyBriefing(tasks: BriefingTask[], events: BriefingEvent[]
     const late = due !== null && due < today;
     items.push({
       kind: "task",
-      label: task.urgent ? "משימה דחופה" : late || task.overdue ? "משימה באיחור" : "משימה להיום",
+      label: task.urgent ? "משימה דחופה" : late || task.overdue ? "משימה באיחור" : task.task_type === "recurring" ? "משימה קבועה להיום" : "משימה להיום",
       title: clip(task.description, 300) || "משימה ללא כותרת",
       when: due ? (late ? `באיחור מאז ${formatIsraelDay(due)}` : formatIsraelDay(due)) : "לא הוגדר מועד",
       who: task.responsible?.trim() || NO_CONTACT,
