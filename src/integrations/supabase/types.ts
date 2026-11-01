@@ -701,6 +701,7 @@ export type Database = {
           email_date: string | null
           email_from: string | null
           email_subject: string | null
+          external_message_id: string | null
           id: string
           is_processed: boolean | null
           suggested_action: Json | null
@@ -714,6 +715,7 @@ export type Database = {
           email_date?: string | null
           email_from?: string | null
           email_subject?: string | null
+          external_message_id?: string | null
           id?: string
           is_processed?: boolean | null
           suggested_action?: Json | null
@@ -727,6 +729,7 @@ export type Database = {
           email_date?: string | null
           email_from?: string | null
           email_subject?: string | null
+          external_message_id?: string | null
           id?: string
           is_processed?: boolean | null
           suggested_action?: Json | null
