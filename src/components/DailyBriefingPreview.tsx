@@ -10,6 +10,7 @@ import { israelDate, makeDailyBriefing, projectBriefingTasks, recurringBriefingT
 import { normalizeBriefingSettings, type BriefingEmailSettings, type BriefingSlot } from "../../supabase/functions/_shared/briefingSchedule.ts";
 import { printDocument } from "@/lib/printDocument";
 import { toast } from "sonner";
+import { briefingCoachRequest } from "@/lib/briefingCoach";
 import { Mail, Printer, Send } from "lucide-react";
 
 type Delivery = { id: string; local_date: string; slot: string; kind: string; status: string; retryable: boolean; last_error: string | null; pdf_pages: number | null; created_at: string };
@@ -47,6 +48,8 @@ export default function DailyBriefingPreview() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [coaching, setCoaching] = useState(false);
+  const [coach, setCoach] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -103,33 +106,52 @@ export default function DailyBriefingPreview() {
     }
   };
 
+   const currentReport = async (mode: BriefingMode) => {
+    if (!user) throw new Error("Login required");
+  const now = new Date();
+  const [tasks, events, mail, prefs, recurring, completions, projects] = await Promise.all([
+    supabase.from("tasks").select("id,description,status,status_notes,planned_end,urgent,overdue,archived,responsible,task_type,progress").eq("user_id", user.id).eq("archived", false).order("planned_end", { ascending: true }).limit(2000),
+    supabase.from("calendar_events").select("id,title,start_time,end_time,location,all_day,description").eq("user_id", user.id).gte("end_time", new Date(Date.now() - 86400000).toISOString()).lte("start_time", new Date(Date.now() + 86400000).toISOString()).order("start_time").limit(500),
+    supabase.from("email_analyses").select("email_subject,email_from,email_date,category").eq("user_id", user.id).gte("email_date", new Date(Date.now() - 7 * 86400000).toISOString()).order("email_date", { ascending: false }).limit(1000),
+    supabase.from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle(),
+    supabase.from("recurring_tasks").select("id,title,description,frequency,day_of_week,day_of_month,reminder_time").eq("user_id", user.id).limit(1000),
+    supabase.from("recurring_task_completions").select("recurring_task_id").eq("user_id", user.id).eq("completed_date", israelDate(now)).limit(1000),
+    supabase.from("project_tasks").select("id,title,status,due_date,urgent,completed,assigned_email,instructions,notes").eq("user_id", user.id).limit(2000),
+  ]);
+  for (const result of [tasks, events, mail, prefs, recurring, completions, projects]) if (result.error) throw result.error;
+  const stored = prefs.data?.notification_settings as Record<string, unknown> | null;
+  const combinedTasks = [
+    ...(tasks.data || []).map(task => ({ ...task, notes: task.status_notes })),
+    ...recurringBriefingTasks(recurring.data || [], (completions.data || []).map(row => row.recurring_task_id), now),
+    ...projectBriefingTasks(projects.data || []),
+  ];
+  const report = makeDailyBriefing(combinedTasks, events.data || [], mail.data || [], mode, now, stored?.emailTriage as Parameters<typeof makeDailyBriefing>[5]);
+    return report;
+  };
   const preview = async (mode: BriefingMode) => {
     if (!user || busy) return;
     setBusy(true);
     try {
-      const now = new Date();
-      const [tasks, events, mail, prefs, recurring, completions, projects] = await Promise.all([
-        supabase.from("tasks").select("id,description,status,status_notes,planned_end,urgent,overdue,archived,responsible,task_type,progress").eq("user_id", user.id).eq("archived", false).order("planned_end", { ascending: true }).limit(2000),
-        supabase.from("calendar_events").select("id,title,start_time,end_time,location,all_day,description").eq("user_id", user.id).gte("end_time", new Date(Date.now() - 86400000).toISOString()).lte("start_time", new Date(Date.now() + 86400000).toISOString()).order("start_time").limit(500),
-        supabase.from("email_analyses").select("email_subject,email_from,email_date,category").eq("user_id", user.id).gte("email_date", new Date(Date.now() - 7 * 86400000).toISOString()).order("email_date", { ascending: false }).limit(1000),
-        supabase.from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle(),
-        supabase.from("recurring_tasks").select("id,title,description,frequency,day_of_week,day_of_month,reminder_time").eq("user_id", user.id).limit(1000),
-        supabase.from("recurring_task_completions").select("recurring_task_id").eq("user_id", user.id).eq("completed_date", israelDate(now)).limit(1000),
-        supabase.from("project_tasks").select("id,title,status,due_date,urgent,completed,assigned_email,instructions,notes").eq("user_id", user.id).limit(2000),
-      ]);
-      for (const result of [tasks, events, mail, prefs, recurring, completions, projects]) if (result.error) throw result.error;
-      const stored = prefs.data?.notification_settings as Record<string, unknown> | null;
-      const combinedTasks = [
-        ...(tasks.data || []).map(task => ({ ...task, notes: task.status_notes })),
-        ...recurringBriefingTasks(recurring.data || [], (completions.data || []).map(row => row.recurring_task_id), now),
-        ...projectBriefingTasks(projects.data || []),
-      ];
-      const report = makeDailyBriefing(combinedTasks, events.data || [], mail.data || [], mode, now, stored?.emailTriage as Parameters<typeof makeDailyBriefing>[5]);
+      const report = await currentReport(mode);
       printDocument(report.title, ["סוג", "מה לעשות", "מועד", "אחראי / שולח / מיקום", "פרטים / הצעה לצעד הבא"], report.rows,
         `${report.date} · שעון ישראל\n${report.summary}\n${report.recommendation}\nכולל משימות אישיות, עבודה, פרויקטים ומשימות קבועות להיום. ההמלצות הן הצעות בלבד. מיילים מסווגים לפי נושא ושולח בלבד, ללא אימות תוכנם.`, { lang: "he", dir: "rtl", emptyMessage: "אין משימות מתאימות או אירועים בטווח. אפשר לבדוק את כלל המשימות בלוח." });
     } catch {
       toast.error("לא הצלחנו לטעון את כל חלקי הסיכום. לא הופק דוח חלקי מטעה; נסה שוב.");
     } finally { setBusy(false); }
+  };
+
+  const requestCoach = async () => {
+    if (!user || coaching) return;
+    if (!window.confirm("הייעוץ ישלח עד 20 פריטי סיכום (כותרות, מועדים, אנשי קשר והערות) לספק ה־AI המחובר דרך Lovable. הפעולה עשויה לצרוך שימוש AI. לא יישלחו גופי מיילים או קבצים, ולא ישונו משימות. להמשיך?")) return;
+    setCoaching(true); setCoach(null);
+    try {
+      const report = await currentReport("morning");
+      if (!report.items.length) { toast.info("אין כרגע פריטים לניתוח בסיכום."); return; }
+      const { data, error } = await supabase.functions.invoke("task-ai-helper", { body: briefingCoachRequest(report) });
+      if (error || typeof data?.suggestion !== "string" || !data.suggestion.trim()) throw new Error("Coach unavailable");
+      setCoach(data.suggestion.slice(0, 20000));
+    } catch { toast.error("הייעוץ לא זמין כרגע. הסיכום הרגיל נשאר זמין ולא שונו משימות."); }
+    finally { setCoaching(false); }
   };
 
   return <Card className="card-surface">
@@ -139,7 +161,14 @@ export default function DailyBriefingPreview() {
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" disabled={busy || !user} onClick={() => void preview("morning")} className="gap-2"><Printer className="h-4 w-4" />סיכום בוקר · הדפסה / PDF</Button>
         <Button variant="outline" disabled={busy || !user} onClick={() => void preview("urgent")}>דחופים להמשך היום · הדפסה / PDF</Button>
+        <Button variant="outline" disabled={coaching || !user} onClick={() => void requestCoach()}>{coaching ? "מכין ייעוץ…" : "ייעוץ AI לתכנון וללמידה"}</Button>
       </div>
+      <p className="text-xs text-muted-foreground">הסיכומים האוטומטיים אינם מפעילים AI בתשלום. הייעוץ הנוסף מופעל רק בלחיצה ולאחר אישור שיתוף הנתונים; הוא טיוטה לבדיקה ולא משנה את הלוחות.</p>
+      {coach && <section aria-label="ייעוץ AI לבדיקה" className="space-y-2 rounded-xl border p-3">
+        <h3 className="font-medium">הצעות AI לבדיקה ולאישור שלך</h3>
+        <p className="whitespace-pre-wrap text-sm leading-7">{coach}</p>
+        <Button size="sm" variant="outline" onClick={() => printDocument("Tabro · ייעוץ לתכנון וללמידה", ["טיוטת ייעוץ AI"], [[coach]], "הצעות בלבד. בדוק עובדות ואנשי קשר לפני פעולה.", { lang: "he" })}>הדפסה / שמירה כ־PDF</Button>
+      </section>}
 
       {user && settings && <div className="space-y-3 rounded-md border border-border p-3">
         <div className="flex items-center justify-between gap-3">

@@ -4,6 +4,7 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import type { RoomAtmosphere, RoomGraphics } from '@/lib/focusRoomJourney';
 import { resolveRoomDaylight, type RoomDaylight, type RoomWeather } from '@/lib/focusAtmosphere';
 import { sceneryTravel, type SceneryPreset } from '@/lib/focusScenerySettings';
+import { buildAirportAircraft } from './focusAirportAircraft';
 
 /** Parked gate aircraft placement (the taxiing model scaled down) and its forward door, which the jet bridge meets. */
 export const GATE = { x: -22, z: -10, scale: .8 };
@@ -120,10 +121,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
   if (airport) {
     box(0x59636b, [0, .01, -23], [180, .04, 16]);
     for (let x = -80; x < 80; x += 9) box(0xf4e7b3, [x, .06, -23], [4, .02, .2]);
-    mesh(sphere, 0xe9ece6, [0, 3, 0], [8, 1.1, 1.1], transit);
-    const wing = box(0xb4bdc0, [0, 2.7, 0], [3.8, .2, 14], transit); wing.rotation.y = .24;
-    const tail = box(0x385e67, [6, 4.4, 0], [2, 3, .25], transit); tail.rotation.z = -.25;
-    for (let x = -5; x < 5; x += .6) box(0x334f61, [x, 3.4, 1], [.23, .24, .04], transit);
+    buildAirportAircraft(transit, resources);
     transit.position.set(-12, 0, -24);
   } else if (urban) {
     box(0x496779, [0, .6, 0], [3.2, 1, 1.4], transit); box(0x748d99, [0, 1.3, 0], [1.7, .7, 1.25], transit); transit.position.z = streetZ;
@@ -149,10 +147,6 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     // A second aircraft climbs beyond the runway while the near aircraft taxis.
     departure = transit.clone(true); departure.name = 'departing-aircraft'; scene.add(departure);
     transit.name = 'taxiing-aircraft';
-    for (const plane of [transit, departure]) {
-      for (const z of [-2.5, 2.5]) mesh(sphere, 0x536671, [-1, 2.1, z], [1.2, .45, .45], plane);
-      for (const x of [-4, 2]) mesh(sphere, 0x283439, [x, 1.4, .7], [.35, .35, .25], plane);
-    }
     // Parked at the gate inside the window panorama; the jet bridge runs from the terminal facade to the forward door.
     const parked = transit.clone(true); parked.name = 'parked-gate-aircraft'; parked.position.set(GATE.x, 0, GATE.z); parked.scale.setScalar(GATE.scale); scene.add(parked);
     box(0xa7b0af, [-42, .02, -7], [56, .04, 18]);

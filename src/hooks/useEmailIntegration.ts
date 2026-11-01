@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "sonner";
+import { uniqueEmailMessages } from "@/lib/emailMessageIdentity";
 
 export interface EmailConnection {
   id: string;
@@ -15,6 +16,7 @@ export interface EmailConnection {
 
 export interface EmailAnalysis {
   id: string;
+  external_message_id?: string | null;
   connection_id: string;
   email_subject: string | null;
   email_from: string | null;
@@ -80,17 +82,7 @@ export function useEmailIntegration() {
         .order("email_date", { ascending: false })
         .limit(1000);
       if (error) throw error;
-      const unique = new Map<string, EmailAnalysis>();
-      ((data as EmailAnalysis[]) || []).forEach((analysis) => {
-        const key = [
-          analysis.connection_id,
-          analysis.email_subject || "",
-          analysis.email_from || "",
-          analysis.email_date && !Number.isNaN(new Date(analysis.email_date).getTime()) ? new Date(analysis.email_date).toISOString() : "",
-        ].join("|");
-        if (!unique.has(key)) unique.set(key, analysis);
-      });
-      setAnalyses([...unique.values()]);
+      setAnalyses(uniqueEmailMessages((data as EmailAnalysis[]) || []));
     } catch (e) {
       console.error("Error fetching email analyses:", e);
     }

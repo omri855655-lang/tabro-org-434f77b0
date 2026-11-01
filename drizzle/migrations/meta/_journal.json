@@ -127,6 +127,13 @@
       "when": 1793532851510,
       "tag": "0017_notifications_scheduler_token",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793534821455,
+      "tag": "0018_email_sync_message_identity",
+      "breakpoints": true
     }
   ]
 }

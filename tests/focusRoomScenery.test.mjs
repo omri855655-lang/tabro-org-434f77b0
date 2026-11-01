@@ -7,11 +7,12 @@ import ts from 'typescript';
 import * as THREE from 'three';
 import * as atmosphere from '../src/lib/focusAtmosphere.ts';
 import * as scenerySettings from '../src/lib/focusScenerySettings.ts';
+import * as airportAircraft from '../src/components/zoneflow/focusAirportAircraft.ts';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 const require = createRequire(import.meta.url), exports = {};
 const source=fs.readFileSync(new URL('../src/components/zoneflow/focusRoomScenery.ts',import.meta.url),'utf8');
-vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>name==='@/lib/focusAtmosphere'?atmosphere:name==='@/lib/focusScenerySettings'?scenerySettings:require(name)});
+vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>name==='@/lib/focusAtmosphere'?atmosphere:name==='@/lib/focusScenerySettings'?scenerySettings:name==='./focusAirportAircraft'?airportAircraft:require(name)});
 
 test('city views have distinct heights and moving traffic, and terminal keeps aircraft instead of city traffic', () => {
   for (const preset of scenerySettings.SCENERY_PRESETS.slice(1)) {

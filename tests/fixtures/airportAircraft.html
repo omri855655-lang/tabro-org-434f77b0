@@ -1,0 +1,16 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tabro Aircraft QA</title><style>body{margin:0;background:#dbe5e9;color:#1e3f4d;font-family:sans-serif}h1{position:absolute;top:12px;right:24px;font-size:20px}p{position:absolute;bottom:12px;right:24px}canvas{display:block;width:100vw;height:100vh}</style></head><body><h1>מטוס הטרמינל · תצוגת בדיקה מקומית</h1><p>גרירה לסיבוב · האווטרים ויכולות החדר אינם משתנים</p><script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { buildAirportAircraft } from '/src/components/zoneflow/focusAirportAircraft.ts';
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xdbe5e9);
+const env=new RoomEnvironment();const pmrem=new THREE.PMREMGenerator(renderer);const target=pmrem.fromScene(env);scene.environment=target.texture;
+const camera=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,.1,200);camera.position.set(-19,11,20);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,3,0);controls.update();
+scene.add(new THREE.HemisphereLight(0xf3f9ff,0x64757b,2));const sun=new THREE.DirectionalLight(0xffebcc,3);sun.position.set(-10,20,15);scene.add(sun);
+const parent=new THREE.Group();scene.add(parent);buildAirportAircraft(parent,new Set());
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xa9b6bc,roughness:.9}));ground.rotation.x=-Math.PI/2;ground.position.y=.04;scene.add(ground);
+const draw=()=>renderer.render(scene,camera);controls.addEventListener('change',draw);draw();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);draw();});
+</script></body></html>

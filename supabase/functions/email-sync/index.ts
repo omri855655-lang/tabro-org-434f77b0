@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { gmailMessageDate, saveSyncedEmail } from "../_shared/emailSyncStorage.ts";
 
 const corsH = {
   "Access-Control-Allow-Origin": "*",
@@ -75,7 +76,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Connection not found" }), { status: 404, headers: corsH });
     }
 
+    if (conn.provider !== "gmail") return new Response(JSON.stringify({ error: "Provider not supported" }), { status: 422, headers: corsH });
+    if (!conn.refresh_token) return new Response(JSON.stringify({ error: "Reconnect Gmail", needs_reconnect: true }), { status: 401, headers: corsH });
     let emailsProcessed = 0;
+    let emailsFailed = 0;
 
     // Gmail OAuth flow
     if (conn.provider === "gmail" && conn.refresh_token) {
@@ -106,8 +110,7 @@ Deno.serve(async (req) => {
         });
         
         if (!listRes.ok) {
-          const errBody = await listRes.text();
-          console.error("Gmail API error:", listRes.status, errBody);
+          console.error("Gmail list failed:", listRes.status);
           if (listRes.status === 401) {
             return new Response(JSON.stringify({ 
               error: "Gmail access expired. Please reconnect.",
@@ -125,7 +128,7 @@ Deno.serve(async (req) => {
               const msgRes = await fetch(`${GMAIL_API}/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
                 headers: { Authorization: `Bearer ${accessToken}` },
               });
-              if (!msgRes.ok) continue;
+              if (!msgRes.ok) throw new Error(`Gmail message rejected (${msgRes.status})`);
               const msgData = await msgRes.json();
 
               const headers = msgData.payload?.headers || [];
@@ -135,13 +138,13 @@ Deno.serve(async (req) => {
 
               const category = await classifyEmail(subject, from, msgData.labelIds || []);
 
-              await serviceClient.from("email_analyses").upsert({
+              await saveSyncedEmail(serviceClient, {
                 user_id: user.id,
                 connection_id: connectionId,
                 external_message_id: msg.id,
                 email_subject: subject,
                 email_from: from,
-                email_date: date ? new Date(date).toISOString() : new Date().toISOString(),
+                email_date: gmailMessageDate(msgData.internalDate, date),
                 category,
                 is_processed: true,
                 suggested_action: category === "payment"
@@ -149,21 +152,24 @@ Deno.serve(async (req) => {
                   : category === "task"
                   ? { type: "create_task", description: subject }
                   : null,
-              } as any, { onConflict: "connection_id,external_message_id" });
+              });
 
               emailsProcessed++;
             } catch (msgErr) {
-              console.error("Error processing message:", msgErr);
+              emailsFailed++;
+              console.error("Email was not persisted:", msgErr instanceof Error ? msgErr.message : "unknown error");
             }
           }
         }
       }
     }
 
-    // Update last_sync
-    await serviceClient.from("email_connections")
+    if (emailsFailed > 0) return new Response(JSON.stringify({ success: false, error: "Some messages could not be saved", emails_processed: emailsProcessed, emails_failed: emailsFailed }), { status: 502, headers: { ...corsH, "Content-Type": "application/json" } });
+    // A successful checkpoint must never hide failed writes.
+    const { error: checkpointError } = await serviceClient.from("email_connections")
       .update({ last_sync: new Date().toISOString() })
       .eq("id", connectionId);
+    if (checkpointError) throw new Error("Sync checkpoint failed");
 
     return new Response(JSON.stringify({
       success: true,
