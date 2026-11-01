@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
+import { hasSchedulerToken } from "../_shared/schedulerAuth.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY_1") || Deno.env.get("RESEND_API_KEY");
 
@@ -18,6 +19,15 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Legacy generic summary for all users. Superseded by the opt-in daily-briefing-email
+    // function; it can only be triggered by a server-side scheduler token, never publicly.
+    if (!(await hasSchedulerToken(req, supabase, "notifications"))) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     // Get today and tomorrow's dates
     const today = new Date();
