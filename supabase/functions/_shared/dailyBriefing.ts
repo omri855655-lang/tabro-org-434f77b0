@@ -76,6 +76,22 @@ export function formatIsraelDay(day: string): string {
   return match ? `${match[3]}.${match[2]}.${match[1]}` : day;
 }
 
+// Plain words instead of dash/comma separators keep mixed Hebrew and numbers in the
+// correct reading order in both the PDF and plain-text email clients.
+export function israelTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+}
+
+export function formatSender(from: string | null): string {
+  const raw = clip(from, 160);
+  if (!raw) return "שולח לא ידוע";
+  const match = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(raw);
+  if (!match) return raw;
+  const name = match[1].trim();
+  return name && name.toLowerCase() !== match[2].trim().toLowerCase() ? `${name} · ${match[2].trim()}` : match[2].trim();
+}
+
 function taskSuggestion(task: BriefingTask, due: string | null, today: string): string {
   const who = task.responsible?.trim();
   if (due && due < today) return `הצעה: המועד ${formatIsraelDay(due)} עבר. עדכן מועד חדש או סמן כבוצע אם המשימה הושלמה.`;
@@ -132,7 +148,7 @@ export function makeDailyBriefing(tasks: BriefingTask[], events: BriefingEvent[]
       kind: "event",
       label: "לו״ז",
       title: clip(event.title, 300) || "אירוע ללא כותרת",
-      when: event.all_day ? "כל היום" : `${new Date(event.start_time).toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false })}–${new Date(event.end_time).toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false })}`,
+      when: event.all_day ? "כל היום" : `${israelTime(event.start_time)} עד ${israelTime(event.end_time)}`,
       who: event.location?.trim() || "לא הוגדר מיקום",
       details: clip(event.description, 300),
       suggestion: includeSuggestions ? (event.location?.trim() ? "הצעה: הכן מראש את החומרים והקצה זמן הגעה." : "הצעה: הכן מראש את החומרים לאירוע.") : "",
@@ -144,8 +160,8 @@ export function makeDailyBriefing(tasks: BriefingTask[], events: BriefingEvent[]
       kind: "mail",
       label: "מייל שעשוי לדרוש טיפול",
       title: clip(email.email_subject, 200) || "ללא נושא",
-      when: email.email_date ? new Date(email.email_date).toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "",
-      who: clip(email.email_from, 120) || "שולח לא ידוע",
+      when: email.email_date ? `${formatIsraelDay(israelDate(new Date(email.email_date)))} בשעה ${israelTime(email.email_date)}` : "",
+      who: formatSender(email.email_from),
       details: "",
       // Always shown: classification is metadata-only and never proves authenticity.
       suggestion: email.security ? "בדוק באתר הרשמי; אל תמסור סיסמאות או קודי אימות בתגובה." : "בדוק את ההודעה המקורית לפני פעולה; הסיווג מבוסס על נושא ושולח בלבד.",
