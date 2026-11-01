@@ -263,7 +263,7 @@ serve(async (req: Request): Promise<Response> => {
         status: "sent",
         metadata: { fullName, userEmail: user.email, username, lang, recipients: ADMIN_EMAILS },
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Admin notification error:", e);
       await supabase.from("email_send_log").insert({
         message_id: adminMessageId,

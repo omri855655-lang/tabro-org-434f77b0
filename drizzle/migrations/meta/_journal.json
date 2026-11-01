@@ -113,6 +113,20 @@
       "when": 1792571180859,
       "tag": "0015_learning_history_explicit_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793532496766,
+      "tag": "0016_daily_briefing_email_deliveries",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793532851510,
+      "tag": "0017_notifications_scheduler_token",
+      "breakpoints": true
     }
   ]
 }

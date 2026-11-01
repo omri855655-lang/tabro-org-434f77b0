@@ -521,6 +521,69 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_briefing_deliveries: {
+        Row: {
+          accepted_at: string | null
+          attempts: number
+          created_at: string
+          id: string
+          idempotency_key: string
+          item_counts: Json
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          local_date: string
+          pdf_pages: number | null
+          provider_message_id: string | null
+          provider_status: number | null
+          retryable: boolean
+          slot: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          attempts?: number
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          item_counts?: Json
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          local_date: string
+          pdf_pages?: number | null
+          provider_message_id?: string | null
+          provider_status?: number | null
+          retryable?: boolean
+          slot: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          attempts?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          item_counts?: Json
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          local_date?: string
+          pdf_pages?: number | null
+          provider_message_id?: string | null
+          provider_status?: number | null
+          retryable?: boolean
+          slot?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_stopwatch: {
         Row: {
           accumulated_seconds: number
@@ -2872,6 +2935,20 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
+      claim_daily_briefing: {
+        Args: {
+          p_lease_seconds?: number
+          p_local_date: string
+          p_max_attempts?: number
+          p_slot: string
+          p_user_id: string
+        }
+        Returns: {
+          attempt: number
+          delivery_id: string
+          idem_key: string
+        }[]
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -3016,6 +3093,10 @@ export type Database = {
         Returns: undefined
       }
       verify_pin: { Args: { input_pin: string }; Returns: boolean }
+      verify_scheduler_token: {
+        Args: { p_name: string; p_token: string }
+        Returns: boolean
+      }
       zoneflow_focus_room_directory: {
         Args: never
         Returns: {

@@ -37,7 +37,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 
 // Configuration
 const SITE_NAME = "excel-life-sync"
-const SENDER_DOMAIN = "tabro.org"
+const SENDER_DOMAIN = "notify.tabro.org"
 const ROOT_DOMAIN = "tabro.org"
 const FROM_DOMAIN = "tabro.org" // Domain shown in From address (may be root or sender subdomain)
 
