@@ -665,8 +665,8 @@ const AdminDashboard = () => {
               </p>
               <p className="mt-1 text-muted-foreground">
                 {isHe
-                  ? "הפניות מטופס האתר והשליחה היוצאת מוצגות כאן יחד. מייל חיצוני רגיל ל-info@tabro.org עדיין דורש חיבור inbox נכנס מלא, והוא לא זהה לפניות האתר."
-                  : "Website contact submissions and outgoing messages are shown here together. Regular external email sent to info@tabro.org still requires a full inbound inbox pipeline and is not the same as website contact submissions."}
+                  ? "פניות מהאתר, מיילים נכנסים ל-info@tabro.org ושליחה יוצאת מופיעים בתיבה הפעילה. מיילים חיצוניים נקלטים דרך Resend; כתובת השולח בטופס האתר היא כתובת לחזרה ולא זהות מאומתת. הופעת הודעה ביומן השליחה אינה אישור שהגיעה לתיבת הנמען."
+                  : "Website submissions, inbound mail to info@tabro.org and outgoing mail share the active mailbox. External mail arrives through Resend. Contact form sender addresses are not verified identities. A send log entry does not confirm inbox delivery."}
               </p>
             </div>
             {/* Inbox / Outbox tabs */}

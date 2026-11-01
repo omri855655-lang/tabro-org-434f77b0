@@ -25,7 +25,7 @@ export function printDocument(title: string, columns: string[], rows: unknown[][
   report.innerHTML = `<style>
     @page{size:A4 landscape;margin:14mm}
     [data-tabro-report]{position:fixed;inset:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;overflow:auto;border:0;padding:24px;background:white;color:#172b40;font-family:Arial,sans-serif;pointer-events:auto}
-    [data-tabro-report] *{box-sizing:border-box}
+    [data-tabro-report],[data-tabro-report] *{box-sizing:border-box}
     [data-tabro-report] .report-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px;margin-bottom:22px;background:#e9f3f6;border-radius:12px}
     [data-tabro-report] .report-toolbar p{flex:1;min-width:180px;margin:0;font-size:13px}
     [data-tabro-report] button{padding:10px 16px;border:1px solid #157e96;border-radius:8px;background:white;color:#172b40;cursor:pointer;font:inherit}

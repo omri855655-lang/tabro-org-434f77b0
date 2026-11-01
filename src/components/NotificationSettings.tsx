@@ -287,9 +287,14 @@ const NotificationSettings = () => {
 
     try {
       setSaving(true);
+      // Preserve sibling preferences (e.g. learned email categories) when saving notifications.
+      const { data: current, error: readError } = await supabase
+        .from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle();
+      if (readError) throw readError;
+      const existing = (current?.notification_settings as Record<string, unknown> | null) || {};
       const { error } = await supabase
         .from("user_preferences")
-        .upsert({ user_id: user.id, notification_settings: normalized as any }, { onConflict: "user_id" });
+        .upsert({ user_id: user.id, notification_settings: { ...existing, ...normalized } as any }, { onConflict: "user_id" });
       if (error) throw error;
 
       localStorage.setItem("notification-prefs", JSON.stringify(normalized));

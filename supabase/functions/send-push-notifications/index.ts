@@ -66,7 +66,7 @@ async function sendEmail(
     method: "POST",
     headers,
     body: JSON.stringify({
-      from: "Tabro <noreply@notify.tabro.org>",
+      from: "Tabro <noreply@tabro.org>",
       to: [email],
       subject,
       html,

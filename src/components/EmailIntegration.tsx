@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
+import { triageEmail } from "../../supabase/functions/_shared/emailTriage";
+import DailyBriefingPreview from "@/components/DailyBriefingPreview";
 
 type SmartBucket = "action" | "finance" | "shopping" | "updates" | "personal" | "promotions" | "low";
 
@@ -49,95 +51,6 @@ const extractSenderDomain = (from?: string | null) => {
 };
 
 const normalizeToken = (value: string) => value.trim().toLowerCase();
-
-const includesAny = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
-
-const getSmartBucket = (
-  analysis: { category: string; email_subject: string | null; email_from: string | null },
-  prefs?: EmailPriorityPrefs,
-): SmartBucket => {
-  const subject = (analysis.email_subject || "").toLowerCase();
-  const sender = (analysis.email_from || "").toLowerCase();
-  const senderDomain = extractSenderDomain(analysis.email_from);
-  const haystack = `${subject} ${sender} ${senderDomain}`;
-  const learnedBucket = prefs?.senderBuckets?.[senderDomain] || prefs?.senderBuckets?.[sender];
-
-  if (learnedBucket && learnedBucket in SMART_BUCKET_META) return learnedBucket;
-  if (prefs?.vipSenders.includes(senderDomain) || prefs?.vipSenders.includes(sender)) return "personal";
-  if (prefs?.lowPrioritySenders.includes(senderDomain) || prefs?.lowPrioritySenders.includes(sender)) return "promotions";
-
-  if (
-    analysis.category === "newsletter" ||
-    analysis.category === "social" ||
-    includesAny(haystack, ["unsubscribe", "promotion", "promotions", "special offer", "limited time", "sale", "discount", "coupon", "marketing", "mailchimp", "newsletter", "מבצע", "הנחה", "קופון", "הטבה", "פרסומת", "שיווק", "הסר מרשימת", "הסרה מרשימת"])
-  ) {
-    return "promotions";
-  }
-
-  if (
-    analysis.category === "task" ||
-    includesAny(haystack, ["action required", "follow up", "reply needed", "meeting", "deadline", "urgent", "asap", "דחוף", "פגישה", "לטיפול", "משימה"])
-  ) {
-    return "action";
-  }
-
-  if (
-    analysis.category === "payment" ||
-    analysis.category === "bill" ||
-    includesAny(haystack, ["invoice", "payment", "receipt", "charge", "billing", "due", "statement", "חשבון", "חשבונית", "תשלום", "חיוב", "קבלה"])
-  ) {
-    return "finance";
-  }
-
-  if (
-    analysis.category === "shopping" ||
-    includesAny(haystack, ["order", "shipping", "delivery", "amazon", "purchase", "shop", "tracking", "משלוח", "הזמנה", "קניה", "קנייה"])
-  ) {
-    return "shopping";
-  }
-
-  if (
-    includesAny(haystack, ["update", "status", "summary", "digest", "notification", "report", "alert", "system", "עדכון", "התראה", "סיכום"])
-  ) {
-    return "updates";
-  }
-
-  return "personal";
-};
-
-const getSmartPriority = (
-  analysis: { email_subject: string | null; email_from: string | null; category: string },
-  smartBucket: SmartBucket,
-  prefs?: EmailPriorityPrefs
-) => {
-  const haystack = `${analysis.email_subject || ""} ${analysis.email_from || ""}`.toLowerCase();
-  const hasUrgency = includesAny(haystack, ["urgent", "asap", "today", "deadline", "דחוף", "היום", "בהקדם"]);
-  const hasDue = includesAny(haystack, ["invoice", "payment", "bill", "due", "receipt", "תשלום", "חשבונית", "חיוב"]);
-  const senderDomain = extractSenderDomain(analysis.email_from);
-
-  let basePriority = 1;
-
-  if (smartBucket === "action") basePriority = hasUrgency ? 5 : 4;
-  else if (smartBucket === "finance") basePriority = hasDue ? 4 : 3;
-  else if (smartBucket === "shopping") basePriority = 2.5;
-  else if (smartBucket === "updates") basePriority = 2;
-  else if (smartBucket === "personal") basePriority = 2.2;
-  else if (smartBucket === "promotions") basePriority = 0.5;
-
-  if (!prefs) return basePriority;
-
-  if (prefs.importantCategories.includes(analysis.category)) basePriority += 0.75;
-  if (prefs.vipSenders.includes(senderDomain) || prefs.vipSenders.includes((analysis.email_from || "").toLowerCase())) {
-    basePriority += 2.25;
-  }
-  if (prefs.lowPrioritySenders.includes(senderDomain) || prefs.lowPrioritySenders.includes((analysis.email_from || "").toLowerCase())) {
-    basePriority -= 1.5;
-  }
-  if (prefs.importantKeywords.some((keyword) => haystack.includes(keyword))) basePriority += 1.5;
-  if (prefs.ignoredKeywords.some((keyword) => haystack.includes(keyword))) basePriority -= 1.25;
-
-  return Math.max(0.5, Math.min(6, basePriority));
-};
 
 const getSmartHeadline = (bucket: SmartBucket, isHe: boolean) => {
   const labels: Record<SmartBucket, string> = isHe
@@ -305,9 +218,10 @@ const EmailIntegration = () => {
 
   const smartInbox = useMemo(() => {
     const enriched = baseRecentEmails.map((analysis) => {
-      const smartBucket = getSmartBucket(analysis, emailPriorityPrefs);
+      const triage = triageEmail(analysis, emailPriorityPrefs);
+      const smartBucket = triage.bucket;
       const senderDomain = extractSenderDomain(analysis.email_from);
-      const smartPriority = getSmartPriority(analysis, smartBucket, emailPriorityPrefs);
+      const smartPriority = triage.priority;
       const importantForUser =
         emailPriorityPrefs.vipSenders.includes(senderDomain) ||
         emailPriorityPrefs.vipSenders.includes((analysis.email_from || "").toLowerCase()) ||
@@ -524,6 +438,10 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
 
   return (
     <div className="space-y-4 p-4">
+      <DailyBriefingPreview />
+      <p className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+        {isHe ? "הפילוח מציע סדר עדיפויות לפי נושא ושולח וההעדפות שלך, לא קובע שמייל בטוח או אמיתי. לפני תשלום, מסירת קוד או פתיחת קישור רגיש, בדוק ישירות מול הגוף הרשמי. אין מחיקה או העברה אוטומטית של הודעות." : "Triage suggests priorities from subject, sender and your preferences. It does not verify authenticity or safety. Check sensitive requests with the official organization. Messages are never automatically deleted or moved."}
+      </p>
       {/* AI Chat Toggle */}
       <div className="flex justify-end">
         <Button size="sm" variant={showAiChat ? "default" : "outline"} onClick={() => setShowAiChat(!showAiChat)} className="gap-1">

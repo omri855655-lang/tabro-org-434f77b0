@@ -11,7 +11,7 @@ async function sendEmailUnified(
   to: string[],
   subject: string,
   html: string,
-  from: string = 'Tabro <noreply@notify.tabro.org>',
+  from: string = 'Tabro <noreply@tabro.org>',
 ) {
   const lovableKey = Deno.env.get('LOVABLE_API_KEY');
   const resendKey = Deno.env.get('RESEND_API_KEY_1') || Deno.env.get('RESEND_API_KEY');
@@ -213,7 +213,7 @@ serve(async (req) => {
                 </a>
               </div>
             `,
-            'Tabro <noreply@notify.tabro.org>',
+            'Tabro <noreply@tabro.org>',
           );
         results.push({ email: targetEmail, notified: sent });
       } catch (emailErr) {

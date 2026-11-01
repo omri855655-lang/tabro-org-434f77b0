@@ -13,7 +13,7 @@ async function sendEmailUnified(
   to: string[],
   subject: string,
   html: string,
-  from: string = 'Tabro <noreply@notify.tabro.org>',
+  from: string = 'Tabro <noreply@tabro.org>',
   replyTo?: string,
 ) {
   const lovableKey = Deno.env.get('LOVABLE_API_KEY');

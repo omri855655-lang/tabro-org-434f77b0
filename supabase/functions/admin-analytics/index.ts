@@ -14,6 +14,7 @@ type MailLogRow = {
   created_at: string
   metadata?: Record<string, unknown> | null
 }
+const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!))
 
 function inferMailboxType(row: MailLogRow): 'inbox' | 'outbox' {
   const mailboxType = typeof row.metadata?.mailbox_type === 'string' ? row.metadata.mailbox_type : null
@@ -88,9 +89,9 @@ Deno.serve(async (req) => {
         })
       }
 
-      const html = `<div style="font-family:Arial,sans-serif;max-width:600px;">${String(plainBody).replace(/\n/g, '<br/>')}</div>`
+      const html = `<div dir="auto" style="font-family:Arial,sans-serif;max-width:600px;">${escapeHtml(plainBody).replace(/\n/g, '<br/>')}</div>`
       const emailPayload = {
-        from: 'Tabro <noreply@tabro.org>',
+        from: 'Tabro <info@tabro.org>',
         to: [to],
         subject,
         html,

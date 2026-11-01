@@ -78,6 +78,8 @@ const ContactForm = () => {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="bug">🐛 {isHe ? "דיווח על באג" : "Bug report"}</SelectItem>
+                <SelectItem value="complaint">{isHe ? "תלונה / בעיית שירות" : "Complaint / service issue"}</SelectItem>
+                <SelectItem value="privacy">{isHe ? "פרטיות / דיווח אבטחה" : "Privacy / security report"}</SelectItem>
                 <SelectItem value="feature">💡 {isHe ? "בקשת פיצ'ר" : "Feature request"}</SelectItem>
                 <SelectItem value="advice">📝 {isHe ? "עצה / הצעה" : "Advice / suggestion"}</SelectItem>
                 <SelectItem value="other">📩 {isHe ? "אחר" : "Other"}</SelectItem>

@@ -12,6 +12,7 @@ const corsHeaders = {
 }
 
 const ADMIN_EMAILS = ['omri855655@gmail.com', 'tabro855@gmail.com', 'info@tabro.org']
+const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!))
 
 async function sendPush(
   subscription: { endpoint: string; p256dh: string; auth: string },
@@ -51,7 +52,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const { subject, message, category, userEmail } = await req.json()
+    const input = await req.json()
+    const subject = typeof input.subject === 'string' ? input.subject.trim().slice(0, 300) : ''
+    const message = typeof input.message === 'string' ? input.message.trim().slice(0, 10000) : ''
+    const category = typeof input.category === 'string' ? input.category.slice(0, 40) : 'other'
+    // A public contact form cannot prove the identity of the claimed sender.
+    const userEmail = typeof input.userEmail === 'string' ? input.userEmail.trim().slice(0, 254) : 'Anonymous'
     const messageId = crypto.randomUUID()
 
     if (!message?.trim()) {
@@ -59,6 +65,8 @@ Deno.serve(async (req) => {
     }
 
     const categoryLabels: Record<string, string> = {
+      complaint: 'תלונה / בעיית שירות',
+      privacy: 'פרטיות / דיווח אבטחה',
       bug: '🐛 דיווח על באג',
       feature: '💡 בקשת פיצ\'ר',
       advice: '📝 עצה / הצעה',
@@ -69,18 +77,18 @@ Deno.serve(async (req) => {
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px;">
         <h2>פנייה חדשה מהמערכת</h2>
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">סוג:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${categoryLabels[category] || category}</td></tr>
-          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">מאת:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${userEmail}</td></tr>
-          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">נושא:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${subject || 'ללא נושא'}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">סוג:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(categoryLabels[category] || category)}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">כתובת לחזרה (לא מאומתת):</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(userEmail)}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">נושא:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(subject || 'ללא נושא')}</td></tr>
         </table>
         <div style="margin-top: 16px; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-          <p style="white-space: pre-wrap;">${message}</p>
+          <p style="white-space: pre-wrap;">${escapeHtml(message)}</p>
         </div>
       </div>
     `
 
     const emailSubject = `[פנייה] ${categoryLabels[category] || ''} - ${subject || 'ללא נושא'}`
-    const replyTo = userEmail !== 'אנונימי' && userEmail !== 'Anonymous' ? userEmail : undefined
+    const replyTo = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(userEmail) ? userEmail : undefined
     const fromAddress = 'Tabro <noreply@tabro.org>'
     const messagePreview = String(message || '').replace(/\s+/g, ' ').trim().slice(0, 240)
 
@@ -138,6 +146,7 @@ Deno.serve(async (req) => {
         followUpSuggested: category === 'bug' ? 'מומלץ לחזור עם עדכון סטטוס' : 'מומלץ לבדוק אם נדרש follow-up',
         mailbox_type: 'inbox',
         message_source: 'contact_form',
+        sender_verified: false,
       },
     })
 

@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const FROM_ADDRESS = 'Tabro <noreply@notify.tabro.org>'
+const FROM_ADDRESS = 'Tabro <noreply@tabro.org>'
 
 // Format date in Israel timezone consistently
 const formatDateIL = (dateStr: string, style: 'long' | 'short' = 'long') => {
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       .single()
 
     const inviterName = profile?.display_name || profile?.username || user.email?.split('@')[0] || 'משתמש'
-    const inviterEmail = user.email || 'noreply@notify.tabro.org'
+    const inviterEmail = user.email || 'noreply@tabro.org'
 
     // Resolve invitee user IDs from email
     const invitations = []

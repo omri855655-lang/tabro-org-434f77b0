@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Daily Briefing QA</title></head><body><button id="preview">בדיקת סיכום יומי להדפסה</button><script type="module">
+import { makeDailyBriefing } from '/src/lib/dailyBriefing.ts';
+import { printDocument } from '/src/lib/printDocument.ts';
+document.querySelector('#preview').addEventListener('click', () => {
+  const report = makeDailyBriefing([{ id:'demo', description:'להכין את המסמכים לפגישה', status:'בטיפול', planned_end:'2026-11-01', urgent:true, overdue:false, archived:false, responsible:'דוגמה בלבד', task_type:'personal' }], [{ id:'event', title:'פגישת תכנון לדוגמה', start_time:'2026-11-01T13:00:00Z', end_time:'2026-11-01T14:00:00Z', all_day:false, location:'משרד לדוגמה' }], [], 'morning', new Date('2026-11-01T06:00:00Z'));
+  printDocument(report.title, ['סוג', 'מה לעשות', 'מועד', 'אחראי / מיקום', 'הצעה לצעד הבא'], report.rows, `${report.date}\n${report.summary}\n${report.recommendation}`, { lang:'he' });
+});
+</script></body></html>
