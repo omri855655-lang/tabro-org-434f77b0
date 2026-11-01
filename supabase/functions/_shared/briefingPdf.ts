@@ -144,14 +144,14 @@ export async function buildBriefingPdf(input: BriefingPdfInput): Promise<{ bytes
     // Keep at least the title and meta line of a card together.
     ensure(44);
     const top = y + 12;
+    const cardPage = page;
     paragraph(`${item.label}: ${item.title}`, bold, 11.5, item.urgent ? WARN : INK, 8);
     const metaLabel = item.kind === "event" ? "מיקום" : item.kind === "mail" ? "שולח" : "אחראי / איש קשר";
     paragraph(`מועד: ${item.when || "—"} · ${metaLabel}: ${item.who || "—"}`, regular, 10, MUTED, 8);
     if (item.details) paragraph(item.details, regular, 10, INK, 8);
     if (item.suggestion) paragraph(item.suggestion, regular, 10, ACCENT, 8);
-    // Accent bar beside the card on the right edge (only within the current page).
-    const barTop = Math.min(top, PAGE.height - PAGE.margin + 10);
-    if (barTop > y + 6) page.drawRectangle({ x: right - 2, y: y + 6, width: 2, height: barTop - y - 6, color: item.urgent ? WARN : RULE });
+    // Accent bar beside the card on the right edge when the card fits on one page.
+    if (page === cardPage && top > y + 6) page.drawRectangle({ x: right - 2, y: y + 6, width: 2, height: top - y - 6, color: item.urgent ? WARN : RULE });
     y -= 10;
   }
 
