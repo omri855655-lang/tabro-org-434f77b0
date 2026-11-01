@@ -59,6 +59,16 @@ export function israelClock(now: Date): { date: string; minutes: number } {
   return { date: `${get("year")}-${get("month")}-${get("day")}`, minutes: Number(get("hour")) * 60 + Number(get("minute")) };
 }
 
+// UTC instant of 00:00 in Israel on the given local date (handles +02:00 / +03:00).
+export function israelDayStartUtc(date: string): Date {
+  for (const offset of ["+02:00", "+03:00"]) {
+    const candidate = new Date(`${date}T00:00:00${offset}`);
+    const clock = israelClock(candidate);
+    if (clock.date === date && clock.minutes === 0) return candidate;
+  }
+  return new Date(`${date}T00:00:00+02:00`);
+}
+
 export function dueBriefingSlot(now: Date): { slot: BriefingSlot; date: string } | null {
   const clock = israelClock(now);
   for (const slot of Object.keys(BRIEFING_SLOTS) as BriefingSlot[]) {
@@ -83,7 +93,7 @@ export function isWithinQuietHours(minutes: number, start: unknown, end: unknown
   return from < to ? minutes >= from && minutes < to : minutes >= from || minutes < to;
 }
 
-export type BriefingSkipReason = "not_opted_in" | "slot_disabled" | "email_disabled" | "quiet_hours" | "daily_limit" | "suppressed" | "no_verified_email";
+export type BriefingSkipReason = "not_opted_in" | "slot_disabled" | "email_disabled" | "quiet_hours" | "daily_limit" | "suppressed" | "no_verified_email" | "nothing_remaining";
 
 // Decide from saved preferences alone whether this user should get this slot.
 export function briefingSkipReason(notificationSettings: unknown, slot: BriefingSlot): BriefingSkipReason | null {
