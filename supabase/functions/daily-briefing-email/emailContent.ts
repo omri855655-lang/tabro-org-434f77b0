@@ -62,7 +62,7 @@ ${blocks.join("\n")}
 <hr style="border:none;border-top:1px solid #e3e4ec;margin:24px 0 12px">
 <p style="font-size:12px;color:#5f6376">${disclaimer}</p>
 <p style="font-size:12px">${footerLinks.join(" · ")}</p>
-<p style="font-size:11px;color:#8a8ea0">נשלח אליך כי הפעלת את התדריך היומי במייל ב־Tabro. לשאלות אפשר להשיב למייל הזה.</p>
+<p style="font-size:11px;color:#8a8ea0">${opts.test ? "נשלח לבקשתך כבדיקה מתוך Tabro." : "נשלח אליך כי הפעלת את התדריך היומי במייל ב־Tabro."} לשאלות אפשר להשיב למייל הזה.</p>
 </div></body></html>`;
   text.push("", disclaimer, `פתיחת Tabro: ${SITE_URL}/personal`);
   if (opts.unsubscribeUrl) text.push(`הסרה מרשימת התפוצה: ${opts.unsubscribeUrl}`);
