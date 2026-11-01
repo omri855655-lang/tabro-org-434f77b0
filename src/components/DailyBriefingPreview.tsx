@@ -12,7 +12,7 @@ import { printDocument } from "@/lib/printDocument";
 import { toast } from "sonner";
 import { Mail, Printer, Send } from "lucide-react";
 
-type Delivery = { id: string; local_date: string; slot: string; kind: string; status: string; last_error: string | null; pdf_pages: number | null; created_at: string };
+type Delivery = { id: string; local_date: string; slot: string; kind: string; status: string; retryable: boolean; last_error: string | null; pdf_pages: number | null; created_at: string };
 
 const STATUS_LABEL: Record<string, string> = {
   accepted: "נמסר לשירות המייל",
@@ -52,7 +52,7 @@ export default function DailyBriefingPreview() {
     if (!user) return;
     const [prefs, history] = await Promise.all([
       supabase.from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle(),
-      supabase.from("daily_briefing_deliveries").select("id,local_date,slot,kind,status,last_error,pdf_pages,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+      supabase.from("daily_briefing_deliveries").select("id,local_date,slot,kind,status,retryable,last_error,pdf_pages,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
     ]);
     const raw = prefs.data?.notification_settings as Record<string, unknown> | null;
     setSettings(normalizeBriefingSettings(raw?.dailyBriefingEmail));
@@ -162,7 +162,7 @@ export default function DailyBriefingPreview() {
           {deliveries.map(item => <li key={item.id} className={item.status === "failed" ? "text-destructive" : "text-muted-foreground"}>
             {item.local_date} · {item.slot === "morning" ? "08:00" : "16:00"}{item.kind === "test" ? " · בדיקה" : ""} · {STATUS_LABEL[item.status] || item.status}
             {item.status === "skipped" && item.last_error ? ` (${SKIP_LABEL[item.last_error] || item.last_error})` : ""}
-            {item.status === "failed" ? " · ננסה שוב אוטומטית בתוך שעת השליחה אם אפשר" : ""}
+            {item.status === "failed" ? (item.retryable && item.kind !== "test" ? " · ננסה שוב אוטומטית בתוך שעת השליחה" : " · לא יישלח שוב אוטומטית") : ""}
             {item.pdf_pages ? ` · PDF ${item.pdf_pages} עמ׳` : ""}
           </li>)}
         </ul>}
