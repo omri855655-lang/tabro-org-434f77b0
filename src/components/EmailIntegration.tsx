@@ -185,6 +185,7 @@ const EmailIntegration = () => {
     if (!autoSyncEnabled || loading || syncing) return;
     const now = Date.now();
     for (const conn of connections) {
+      if (conn.provider !== "gmail") continue;
       const lastSyncTs = conn.last_sync ? new Date(conn.last_sync).getTime() : 0;
       const staleEnough = !lastSyncTs || now - lastSyncTs > 10 * 60 * 1000;
       if (!staleEnough) continue;
@@ -439,6 +440,12 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
   return (
     <div className="space-y-4 p-4">
       <DailyBriefingPreview />
+      {analyses.length > 0 && (() => {
+        const latest = Math.max(...analyses.map(mail => new Date(mail.email_date || "").getTime()).filter(Number.isFinite));
+        return Number.isFinite(latest) && Date.now() - latest > 7 * 86400000 ? <p role="status" className="rounded-xl border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+          {isHe ? `ההודעה החדשה ביותר בנתונים השמורים היא מ־${new Date(latest).toLocaleDateString("he-IL")}. זמן בדיקת הסנכרון אינו אישור שהתקבל דואר חדש. הסיכום עשוי לא לכלול מיילים עדכניים; בדוק גם בתיבה המקורית.` : `The newest stored message is from ${new Date(latest).toLocaleDateString("en-GB")}. A recent sync check does not prove fresh mail was imported. Your summary may miss recent messages; check your original inbox too.`}
+        </p> : null;
+      })()}
       <p className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
         {isHe ? "הפילוח מציע סדר עדיפויות לפי נושא ושולח וההעדפות שלך, לא קובע שמייל בטוח או אמיתי. לפני תשלום, מסירת קוד או פתיחת קישור רגיש, בדוק ישירות מול הגוף הרשמי. אין מחיקה או העברה אוטומטית של הודעות." : "Triage suggests priorities from subject, sender and your preferences. It does not verify authenticity or safety. Check sensitive requests with the official organization. Messages are never automatically deleted or moved."}
       </p>
@@ -506,12 +513,13 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
                     <p className="text-sm font-medium truncate">{conn.email_address}</p>
                     <p className="text-xs text-muted-foreground">
                       {conn.provider.toUpperCase()} · {conn.last_sync
-                        ? `${t("lastSync" as any)}: ${format(new Date(conn.last_sync), "dd/MM HH:mm")}`
+                        ? `${isHe ? "בדיקת סנכרון אחרונה" : "Last sync check"}: ${format(new Date(conn.last_sync), "dd/MM HH:mm")}`
                         : t("neverSynced" as any)
                       }
                     </p>
+                    {conn.provider !== "gmail" && <p className="text-xs text-muted-foreground">{isHe ? "חיבור ידני שמור; ייבוא הודעות אוטומטי עדיין אינו נתמך במסלול זה." : "Saved manual connection; automatic message import is not supported for this provider yet."}</p>}
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => handleSync(conn.id)} disabled={syncing === conn.id} className="gap-1">
+                  <Button variant="outline" size="sm" onClick={() => handleSync(conn.id)} disabled={syncing === conn.id || conn.provider !== "gmail"} className="gap-1">
                     <RefreshCw className={`h-3 w-3 ${syncing === conn.id ? "animate-spin" : ""}`} />
                     {t("sync" as any)}
                   </Button>

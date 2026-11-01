@@ -169,6 +169,11 @@ export function useEmailIntegration() {
 
   const syncEmails = useCallback(async (connectionId: string) => {
     try {
+      const connection = connections.find(item => item.id === connectionId);
+      if (!connection || connection.provider !== "gmail") {
+        toast.error(isHe ? "סנכרון ישיר נתמך כרגע בחיבור Gmail בלבד; החיבור הידני נשמר אך אינו מוריד הודעות." : "Direct sync currently supports Gmail only. Manual connections are retained but do not import messages.");
+        return false;
+      }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error(t("loginRequired" as any)); return; }
       
@@ -179,16 +184,16 @@ export function useEmailIntegration() {
       if (error) throw error;
       await Promise.all([fetchAnalyses(), fetchConnections()]);
       const processed = Number(data?.emails_processed || 0);
-      toast.success(isHe
-        ? `סנכרון המיילים הושלם · ${processed} מיילים עודכנו`
-        : `Email sync completed · ${processed} emails updated`);
+      toast.success(processed > 0
+        ? (isHe ? `${processed} הודעות עודכנו בנתונים השמורים` : `${processed} stored messages updated`)
+        : (isHe ? "הבדיקה הסתיימה ללא הודעות מיובאות חדשות; בדוק את תאריך ההודעה העדכנית ביותר." : "The check returned no newly imported messages; verify the newest stored message date."));
       return true;
     } catch (e: any) {
       console.error("Email sync failed:", e);
       toast.error(isHe ? "שגיאה בסנכרון מיילים" : "Error syncing emails");
       return false;
     }
-  }, [fetchAnalyses, fetchConnections, isHe, t]);
+  }, [connections, fetchAnalyses, fetchConnections, isHe, t]);
 
   const saveEmailPriorityPrefs = useCallback(async (nextPrefs: EmailPriorityPrefs) => {
     if (!user) return false;
