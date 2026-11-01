@@ -34,7 +34,7 @@ export function makeDailyBriefing(tasks: BriefingTask[], events: BriefingEvent[]
     const end = new Date(event.end_time);
     return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end > start && israelDate(start) <= today && israelDate(new Date(end.getTime() - 1)) >= today && (mode === "morning" || end > now);
   }).sort((a, b) => a.start_time.localeCompare(b.start_time));
-  const importantMail = emails.map(email => ({ ...email, ...triageEmail({ ...email, category: email.category || "personal" }, prefs) }))
+  const importantMail = emails.map(email => ({ ...email, ...triageEmail({ ...email, category: email.category || "personal" }, prefs, now.getTime()) }))
     .filter(email => {
       const received = new Date(email.email_date || "");
       return !Number.isNaN(received.getTime()) && received <= now && now.getTime() - received.getTime() <= 7 * 86400000 && email.priority >= 4;

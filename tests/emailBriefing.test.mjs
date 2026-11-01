@@ -20,6 +20,21 @@ test('user categories override heuristics and partial preference records are sup
   assert.ok(triageEmail(mail('Hello'), { vipSenders: ['example.com'] }).priority > 4);
   assert.equal(triageEmail(mail('Hello'), {}).reason, 'unclassified');
 });
+test('clear marketing beats legacy task/payment labels, but real action and manual labels win', () => {
+  assert.equal(triageEmail(mail('E★X★T★R★A 50% Off Clearance', 'task')).bucket, 'promotions');
+  assert.equal(triageEmail(mail('מקדימים קניות לחג | פרסומת', 'payment')).bucket, 'promotions');
+  assert.equal(triageEmail(mail('Urgent 50% OFF sale', 'task')).bucket, 'promotions');
+  assert.equal(triageEmail(mail('Action required: invoice overdue', 'newsletter')).bucket, 'action');
+  assert.equal(triageEmail(mail('50% OFF', 'task'), { senderBuckets: { 'example.com': 'action' } }).bucket, 'action');
+});
+test('old verification codes are not current action items; recent security messages remain prominent', () => {
+  const now = Date.parse('2026-11-01T08:00:00Z');
+  const old = triageEmail({ ...mail('Your verification code'), email_date:'2026-08-30T08:00:00Z' }, undefined, now);
+  assert.equal(old.bucket, 'updates');
+  assert.equal(old.requiresAction, false);
+  assert.ok(old.priority < 4);
+  assert.equal(triageEmail({ ...mail('Your verification code'), email_date:'2026-11-01T07:55:00Z' }, undefined, now).bucket, 'action');
+});
 
 const now = new Date('2026-11-01T14:00:00Z');
 test('includes due recurring tasks once and omits completed or not due occurrences', () => {
