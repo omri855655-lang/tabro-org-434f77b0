@@ -6,6 +6,9 @@ import {
   type PushMessage,
   type VapidKeys,
 } from "https://esm.sh/@block65/webcrypto-web-push@1";
+import { hasSchedulerToken } from "../_shared/schedulerAuth.ts";
+import { plannerEmailAllowed, type PlannerEmailKind } from "../_shared/notificationPrefs.ts";
+import { israelClock, israelDayStartUtc } from "../_shared/briefingSchedule.ts";
 
 // Use connector key first, fallback to legacy key
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY_1") || Deno.env.get("RESEND_API_KEY");
@@ -189,6 +192,14 @@ serve(async (req: Request): Promise<Response> => {
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Scheduler-only endpoint: it reads every user's events and sends mail/push.
+    if (!(await hasSchedulerToken(req, supabase, "notifications"))) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const vapid: VapidKeys = {
       subject: "mailto:push@lovable.app",
       publicKey: vapidPublicKey,
@@ -248,6 +259,28 @@ serve(async (req: Request): Promise<Response> => {
     let totalSent = 0;
     let emailsSent = 0;
 
+    // Saved notification preferences decide whether planner emails may be sent.
+    const { data: prefRows } = await supabase
+      .from("user_preferences")
+      .select("user_id, notification_settings")
+      .in("user_id", allUserIds.length ? allUserIds : ["00000000-0000-0000-0000-000000000000"]);
+    const prefsByUser = new Map((prefRows || []).map((row: any) => [row.user_id, row.notification_settings]));
+    const israelMinutes = israelClock(now).minutes;
+    const dayStartIso = israelDayStartUtc(israelClock(now).date).toISOString();
+    const emailCountCache = new Map<string, number>();
+    const mayEmail = async (userId: string, email: string | null, kind: PlannerEmailKind, minutesBefore?: number) => {
+      if (!email) return false;
+      if (!emailCountCache.has(userId)) {
+        const { count } = await supabase.from("sent_notifications").select("id", { count: "exact", head: true })
+          .eq("user_id", userId).eq("channel", "email").gte("created_at", dayStartIso);
+        emailCountCache.set(userId, count || 0);
+      }
+      if (!plannerEmailAllowed(prefsByUser.get(userId), kind, israelMinutes, minutesBefore, emailCountCache.get(userId) || 0)) return false;
+      const { data: suppressed } = await supabase.from("suppressed_emails").select("id").eq("email", email.toLowerCase()).limit(1);
+      return !suppressed?.length;
+    };
+    const countEmail = (userId: string) => emailCountCache.set(userId, (emailCountCache.get(userId) || 0) + 1);
+
     for (const userId of allUserIds) {
       // Get user email
       let userEmail: string | null = null;
@@ -291,13 +324,14 @@ serve(async (req: Request): Promise<Response> => {
               }
             }
 
-            // Send email
-            if (userEmail) {
+            // Send email (only when the user's planner settings allow this reminder by email)
+            if (await mayEmail(userId, userEmail, "reminder", minutesBefore)) {
               const html = buildEventEmailHtml(event, minutesBefore, actionUrl);
               const subject = `⏰ בעוד ${win.label}: ${event.title}`;
-              const sent = await sendEmail(userEmail, subject, html);
+              const sent = await sendEmail(userEmail!, subject, html);
               if (sent) {
                 emailsSent++;
+                countEmail(userId);
                 await markSent(supabase, userId, event.id, win.name, "email");
                 console.log(`Email sent (${win.name}): ${event.title} to ${userEmail}`);
               }
@@ -443,8 +477,8 @@ serve(async (req: Request): Promise<Response> => {
           }
         }
 
-        // Send completion email for ALL events
-        if (userEmail) {
+        // Completion email only when the user chose email for completion check-ins
+        if (await mayEmail(userId, userEmail, "completion")) {
           let html: string;
           if (actionBaseUrl) {
             html = buildCompletionEmailHtml(event, actionBaseUrl);
@@ -462,9 +496,10 @@ serve(async (req: Request): Promise<Response> => {
               </div>`;
           }
           const subject = `🏁 סיימת את "${event.title}"? עדכן אותנו`;
-          const sent = await sendEmail(userEmail, subject, html);
+          const sent = await sendEmail(userEmail!, subject, html);
           if (sent) {
             emailsSent++;
+            countEmail(userId);
             await markSent(supabase, userId, event.id, "event_completion", "email", event.source_id);
             console.log(`Completion email sent: ${event.title} to ${userEmail}`);
           }
