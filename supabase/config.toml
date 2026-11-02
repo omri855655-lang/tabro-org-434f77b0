@@ -55,3 +55,7 @@ project_id = "qfcuyrdxaambvppduslo"
     verify_jwt = false
   [functions.good-news]
     verify_jwt = false
+  [functions.calendar-feed]
+    verify_jwt = false
+  [functions.calendar-feed-manage]
+    verify_jwt = false
