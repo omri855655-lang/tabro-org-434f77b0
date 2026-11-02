@@ -24,7 +24,7 @@ type Action = "status" | "create" | "regenerate" | "update" | "revoke";
 const NO_FIELDS: FeedFieldOptions = { include_description: false, include_location: false, include_meeting_url: false };
 
 /** Private, revocable Apple Calendar subscription plus the one-time ICS fallback. */
-export default function AppleCalendarGuide({ onExport }: { onExport: () => void }) {
+export default function AppleCalendarGuide({ onExport }: { onExport?: () => void }) {
   const { lang, dir } = useLanguage();
   const c = appleCalendarCopy[lang];
   const [open, setOpen] = useState(false);
@@ -168,12 +168,12 @@ export default function AppleCalendarGuide({ onExport }: { onExport: () => void 
         <ol className="list-decimal space-y-2 ps-5 text-sm leading-relaxed">{c.setupSteps.map(step => <li key={step}>{step}</li>)}</ol>
       </section>
 
-      <section className="space-y-2 rounded-lg border p-3">
+      {onExport && <section className="space-y-2 rounded-lg border p-3">
         <h3 className="font-semibold">{c.fallbackTitle}</h3>
         <p className="text-sm text-muted-foreground">{c.scope}</p>
         <p className="rounded-lg bg-muted/50 p-3 text-sm leading-relaxed">{c.warning}</p>
         <Button variant="outline" onClick={onExport} className="min-h-11 gap-2"><Download className="h-4 w-4" />{c.download}</Button>
-      </section>
+      </section>}
 
       <p className="text-xs leading-relaxed text-muted-foreground">{c.note}</p>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">

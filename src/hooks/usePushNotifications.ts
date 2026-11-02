@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { ensurePushWorker } from "@/lib/registerPushWorker";
+import { readPushEnvironment, withPushTimeout } from "@/lib/pushEnvironment";
 
 const VAPID_PUBLIC_KEY = "BDA-BXp_JflLBc2rOgpr5AYyPtiqLKvzeJsoRoahBYItep2e_pU5la9Y38fcPF7M2MMuMDEQom2VjHbcAKZFU8I";
 
@@ -18,8 +19,8 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 async function getOrRegisterSW(): Promise<ServiceWorkerRegistration> {
-  const reg = await ensurePushWorker();
-  await navigator.serviceWorker.ready;
+  const reg = await withPushTimeout(ensurePushWorker());
+  await withPushTimeout(navigator.serviceWorker.ready);
   return reg;
 }
 
@@ -28,6 +29,7 @@ export function usePushNotifications() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +64,13 @@ export function usePushNotifications() {
   }, [user?.id]);
 
   const subscribe = useCallback(async () => {
-    if (!user || !isSupported) return false;
+    setSetupError(null);
+    const fail = (message: string) => { setSetupError(message); toast.error(message); return false; };
+    if (!user) return fail("יש להתחבר לחשבון Tabro לפני חיבור ההתראות.");
+    const environment = readPushEnvironment();
+    if (environment.reason === "home-screen") return fail("באייפון יש לפתוח את Tabro מהסמל במסך הבית, לא מתוך Safari או דפדפן אחר. לאחר הפתיחה לחץ שוב על חיבור התראות.");
+    if (environment.reason === "insecure") return fail("התראות דורשות חיבור מאובטח HTTPS.");
+    if (environment.reason === "unsupported") return fail("ההתראות אינן זמינות בחלון הזה. באייפון פתח מהסמל במסך הבית; אם כבר פתחת כך, עדכן את iOS ונסה לרענן את האפליקציה.");
     setLoading(true);
     try {
       if (!window.isSecureContext) {
@@ -70,10 +78,11 @@ export function usePushNotifications() {
         return false;
       }
 
-      const permission = await Notification.requestPermission();
+      if (Notification.permission === "denied") return fail("הרשאת ההתראות חסומה. באייפון פתח הגדרות → התראות → Tabro ואפשר התראות, ואז חזור לחיבור המכשיר.");
+      // Keep the permission request in the direct button gesture, before any network or worker await.
+      const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
       if (permission !== "granted") {
-        toast.error("יש לאשר התראות בדפדפן");
-        return false;
+        return fail("לא ניתנה הרשאת התראות. לחץ שוב על חיבור התראות ואשר את הבקשה של המכשיר.");
       }
 
       let registration: ServiceWorkerRegistration;
@@ -81,8 +90,7 @@ export function usePushNotifications() {
         registration = await getOrRegisterSW();
       } catch (swErr: any) {
         console.error("SW registration error:", swErr);
-        toast.error("שגיאה ברישום Service Worker - נסה לפרסם ולבדוק מהאפליקציה המותקנת");
-        return false;
+        return fail("שירות ההתראות במכשיר לא סיים להיטען. רענן את האפליקציה ממסך הבית ונסה שוב.");
       }
 
       // Wait for SW to be active
@@ -134,6 +142,7 @@ export function usePushNotifications() {
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
         });
       } catch (pushErr: any) {
+        setSetupError("המכשיר לא הצליח להירשם לשירות ההתראות. פתח את האפליקציה ממסך הבית, בדוק הרשאות וחיבור לאינטרנט ונסה שוב.");
         console.error("PushManager.subscribe error:", pushErr);
         const isBrave = !!(navigator as any).brave;
         const message = String(pushErr?.message || "");
@@ -178,12 +187,11 @@ export function usePushNotifications() {
       return true;
     } catch (e: any) {
       console.error("Push subscription error:", e);
-      toast.error(`שגיאה בהפעלת התראות: ${e.message || "נסה שוב"}`);
-      return false;
+      return fail("חיבור המכשיר להתראות לא הושלם. בדוק חיבור לאינטרנט ונסה שוב; לא שונו העדפות השליחה שלך.");
     } finally {
       setLoading(false);
     }
-  }, [user, isSupported]);
+  }, [user]);
 
   const unsubscribe = useCallback(async () => {
     if (!user) return;
@@ -225,5 +233,5 @@ export function usePushNotifications() {
     }
   };
 
-  return { isSubscribed, isSupported, loading, subscribe, unsubscribe, testLocalNotification };
+  return { isSubscribed, isSupported, loading, setupError, subscribe, unsubscribe, testLocalNotification };
 }

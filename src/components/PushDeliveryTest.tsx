@@ -94,6 +94,11 @@ export default function PushDeliveryTest({ push }: { push: Push }) {
     setBusy(true);
     setTest(null);
     try {
+      // A new installation must ask permission in this tap, not after async deletion.
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+        if (!await push.subscribe()) setTest({ error: "registration_failed" });
+        return;
+      }
       const reg = await navigator.serviceWorker.getRegistration("/");
       const sub = await reg?.pushManager?.getSubscription();
       if (sub) {

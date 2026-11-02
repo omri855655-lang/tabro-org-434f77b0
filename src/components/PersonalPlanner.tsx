@@ -3044,6 +3044,7 @@ const PersonalPlanner = () => {
               סוכן תכנון
             </Button>
 
+            <AppleCalendarGuide onExport={exportToICS} />
             {isMobile && <Button variant="ghost" size="sm" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? mobileWorkspaceCopy[lang].hideTools : mobileWorkspaceCopy[lang].tools}</Button>}
             <div className={`flex max-w-full flex-wrap items-center gap-2 ${isMobile && !mobileToolsOpen ? 'hidden' : ''}`}>
 
@@ -3066,7 +3067,6 @@ const PersonalPlanner = () => {
               <CalendarRange className="h-3.5 w-3.5" />
               ICS
             </Button>
-            <AppleCalendarGuide onExport={exportToICS} />
 
             <Button variant="outline" size="sm" className="gap-1 h-8" onClick={() => printDocument("תוכנית העבודה והפגישות שלי", ["תאריך", "שעות", "אירוע", "קטגוריה", "מיקום / פגישה", "פרטים"], Array.from(eventsByDay.entries()).sort(([a], [b]) => a.localeCompare(b)).flatMap(([day, entries]) => entries.map(event => [day, event.allDay ? "כל היום" : `${format(new Date(event.startTime), "HH:mm")}–${format(new Date(event.endTime), "HH:mm")}`, event.title, event.category, [event.location, event.meetingUrl].filter(Boolean).join("\n"), event.description])), "יומן מסודר להדפסה או לשמירה כ-PDF")}>
               <Printer className="h-3.5 w-3.5" />

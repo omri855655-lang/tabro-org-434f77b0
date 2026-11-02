@@ -9,12 +9,10 @@ import {
 } from "@/components/ui/tooltip";
 
 const PushNotificationToggle = () => {
-  const { isSubscribed, isSupported, loading, subscribe, unsubscribe } = usePushNotifications();
+  const { isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
   const { lang } = useLanguage();
   const labels = { he: ['הפעל התראות push', 'כבה התראות push'], en: ['Enable push notifications', 'Disable push notifications'], es: ['Activar notificaciones push', 'Desactivar notificaciones push'], ar: ['تفعيل الإشعارات الفورية', 'إيقاف الإشعارات الفورية'], ru: ['Включить push-уведомления', 'Отключить push-уведомления'], zh: ['开启推送通知', '关闭推送通知'] }[lang];
   const label = labels[isSubscribed ? 1 : 0];
-
-  if (!isSupported) return null;
 
   return (
     <Tooltip>

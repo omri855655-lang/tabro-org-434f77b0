@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 import TelegramSettings from "@/components/TelegramSettings";
 import NotificationSettings from "@/components/NotificationSettings";
+import DeviceConnectionSettings from "@/components/DeviceConnectionSettings";
 import RecycleBin from "@/components/RecycleBin";
 
 class SettingsSectionBoundary extends Component<{ title: string; children: ReactNode }, { hasError: boolean }> {
@@ -355,6 +356,7 @@ const SettingsPanel = () => {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6" dir={dir}>
       <SettingsSectionBoundary title={isEnglish ? "Settings" : "הגדרות"}>
+      <DeviceConnectionSettings />
       {/* Profile Name Card */}
       <Card>
         <CardHeader>
