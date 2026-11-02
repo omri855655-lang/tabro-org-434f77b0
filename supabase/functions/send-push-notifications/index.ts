@@ -1,549 +1,374 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
-import {
-  buildPushPayload,
-  type PushSubscription as WebPushSubscription,
-  type PushMessage,
-  type VapidKeys,
-} from "https://esm.sh/@block65/webcrypto-web-push@1";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { hasSchedulerToken } from "../_shared/schedulerAuth.ts";
-import { plannerEmailAllowed, type PlannerEmailKind } from "../_shared/notificationPrefs.ts";
-import { israelClock, israelDayStartUtc } from "../_shared/briefingSchedule.ts";
+import { israelClock, israelDayStartUtc, isRetryableProviderStatus } from "../_shared/briefingSchedule.ts";
+import { summarizePushResults } from "../_shared/pushDiagnostics.ts";
+import { deliverToSubscriptions, vapidFromEnv, type StoredSubscription } from "../_shared/webPush.ts";
+import {
+  COMPLETION_WINDOW_MS, DEADLINE_WINDOW, MORNING_WINDOW, PLANNER_KINDS, PLANNER_LEASE_SECONDS, PLANNER_MAX_ATTEMPTS,
+  REMINDER_LOOKAHEAD_MS, dueCompletion, dueReminder, escapeHtml, inWindow, legacyReminderType, nextLocalDate,
+  plannerChannelAllowed, pushFinish, reminderOffsets, remainingLabel,
+  type PlannerChannel, type PlannerKind,
+} from "../_shared/plannerReminders.ts";
 
-// Use connector key first, fallback to legacy key
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY_1") || Deno.env.get("RESEND_API_KEY");
+// Scheduler-only (cron, every minute) planner notifications: event reminders at the
+// user's saved offsets, completion check-ins, morning summary and next-day deadlines.
+// Each user/item/channel is claimed in notification_deliveries before any provider call,
+// so overlapping or retried ticks never duplicate and failed channels retry on their own.
+// Responses and logs contain only allowlisted counts — no titles, emails or endpoints.
 
+const VERSION = "planner-2026-11-02";
+const FROM = "Tabro <noreply@tabro.org>";
+const REPLY_TO = "info@tabro.org";
+const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend/emails";
+const DIRECT_URL = "https://api.resend.com/emails";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-scheduler-token",
 };
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
-async function sendPush(
-  subscription: { endpoint: string; p256dh: string; auth: string },
-  data: object,
-  vapid: VapidKeys,
-) {
-  const sub: WebPushSubscription = {
-    endpoint: subscription.endpoint,
-    expirationTime: null,
-    keys: { p256dh: subscription.p256dh, auth: subscription.auth },
-  };
-  const message: PushMessage = {
-    data: JSON.stringify(data),
-    options: { ttl: 86400 },
-  };
-  const payload = await buildPushPayload(message, sub, vapid);
-  const res = await fetch(subscription.endpoint, {
-    method: payload.method || "POST",
-    headers: payload.headers,
-    body: payload.body,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Push failed (${res.status}): ${text}`);
-  }
-  return true;
+// deno-lint-ignore no-explicit-any
+type Admin = any;
+// deno-lint-ignore no-explicit-any
+type Row = Record<string, any>;
+
+interface Candidate {
+  userId: string;
+  kind: PlannerKind;
+  itemKey: string;
+  event?: Row;
+  offset?: number;
+  remainingMinutes?: number;
+  legacyType: string;
 }
 
-async function sendEmail(
-  email: string,
-  subject: string,
-  html: string,
-) {
-  if (!RESEND_API_KEY) {
-    console.error("No RESEND_API_KEY configured");
-    return false;
-  }
-  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
-  const apiUrl = lovableKey
-    ? 'https://connector-gateway.lovable.dev/resend/emails'
-    : 'https://api.resend.com/emails';
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (lovableKey) {
-    headers['Authorization'] = `Bearer ${lovableKey}`;
-    headers['X-Connection-Api-Key'] = RESEND_API_KEY!;
-  } else {
-    headers['Authorization'] = `Bearer ${RESEND_API_KEY}`;
-  }
-  const res = await fetch(apiUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      from: "Tabro <noreply@tabro.org>",
-      to: [email],
-      subject,
-      html,
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`Email failed: ${text}`);
-    return false;
-  }
-  return true;
-}
+const report = () => ({
+  ok: true, version: VERSION, candidates: 0, claimed: 0, alreadyHandled: 0, blockedByPreferences: 0,
+  pushAccepted: 0, pushNoDevice: 0, pushFailed: 0, emailAccepted: 0, emailSkipped: 0, emailFailed: 0,
+  // legacy fields kept for existing dashboards
+  pushSent: 0, emailsSent: 0,
+});
 
-async function wasAlreadySent(
-  supabase: any,
-  userId: string,
-  eventId: string,
-  notificationType: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from("sent_notifications")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("event_id", eventId)
-    .eq("notification_type", notificationType)
-    .limit(1);
-  return (data?.length || 0) > 0;
-}
+const israelTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false });
 
-async function markSent(
-  supabase: any,
-  userId: string,
-  eventId: string,
-  notificationType: string,
-  channel: string,
-  taskId?: string | null,
-) {
-  await supabase.from("sent_notifications").insert({
-    user_id: userId,
-    event_id: eventId,
-    notification_type: notificationType,
-    channel,
-    task_id: taskId || null,
-  });
-}
+Deno.serve(async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
-// Format time in Israel timezone with proper DST handling
-function toIsraelTimeStr(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false });
-}
-
-function buildEventEmailHtml(
-  event: { title: string; start_time: string; category: string; description?: string },
-  minutesBefore: number,
-  actionUrl?: string,
-) {
-  const timeStr = toIsraelTimeStr(event.start_time);
-  const label = minutesBefore === 60 ? "שעה" : minutesBefore === 1 ? "דקה" : `${minutesBefore} דקות`;
-
-  return `
-    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-      <div style="background: #eff6ff; border-right: 4px solid #3b82f6; padding: 16px; border-radius: 8px;">
-        <h2 style="color: #2563eb; margin: 0 0 8px;">⏰ בעוד ${label}: ${event.title}</h2>
-        <p style="margin: 4px 0;">🕐 מתחיל ב-<strong>${timeStr}</strong></p>
-        <p style="margin: 4px 0;">📂 ${event.category}</p>
-        ${event.description ? `<p style="margin: 4px 0; color: #666;">${event.description}</p>` : ""}
-      </div>
-      ${actionUrl ? `
-      <div style="margin-top: 16px; text-align: center;">
-        <a href="${actionUrl}" style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-          ✅ סיימתי את המשימה
-        </a>
-      </div>` : ""}
-      <p style="color: #999; font-size: 11px; margin-top: 12px;">תזכורת אוטומטית ממתכנן הלו״ז שלך</p>
-    </div>`;
-}
-
-function buildCompletionEmailHtml(
-  event: { title: string; end_time: string; category: string },
-  baseUrl: string,
-) {
-  const timeStr = toIsraelTimeStr(event.end_time);
-  const completeUrl = `${baseUrl}&status=בוצע`;
-  const inProgressUrl = `${baseUrl}&status=בטיפול`;
-  const notStartedUrl = `${baseUrl}&status=לא התחיל`;
-
-  return `
-    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-      <div style="background: #f0fdf4; border-right: 4px solid #22c55e; padding: 16px; border-radius: 8px;">
-        <h2 style="color: #16a34a; margin: 0 0 8px;">🏁 הזמן של "${event.title}" הסתיים</h2>
-        <p style="margin: 4px 0;">🕐 היה אמור להסתיים ב-<strong>${timeStr}</strong></p>
-        <p style="margin: 4px 0;">📂 ${event.category}</p>
-        <p style="margin: 8px 0; font-weight: bold;">מה הסטטוס של המשימה?</p>
-      </div>
-      <div style="margin-top: 16px; text-align: center;">
-        <a href="${completeUrl}" style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 6px;">
-          ✅ סיימתי
-        </a>
-        <a href="${inProgressUrl}" style="display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 6px;">
-          🔄 בטיפול
-        </a>
-        <a href="${notStartedUrl}" style="display: inline-block; background: #ef4444; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 6px;">
-          ⏸️ לא התחלתי
-        </a>
-      </div>
-      <p style="color: #999; font-size: 11px; margin-top: 12px;">עדכון אוטומטי ממתכנן הלו״ז שלך</p>
-    </div>`;
-}
-
-serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Scheduler-only endpoint: it reads every user's events and sends mail/push.
+  if (!(await hasSchedulerToken(req, admin, "notifications"))) return json({ error: "Unauthorized" }, 401);
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY")!;
-    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Scheduler-only endpoint: it reads every user's events and sends mail/push.
-    if (!(await hasSchedulerToken(req, supabase, "notifications"))) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-
-    const vapid: VapidKeys = {
-      subject: "mailto:push@lovable.app",
-      publicKey: vapidPublicKey,
-      privateKey: vapidPrivateKey,
-    };
-
-    const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-    const tomorrowDate = new Date(now);
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowStr = tomorrowDate.toISOString().split("T")[0];
-    const hour = parseInt(now.toLocaleString("en-US", { timeZone: "Asia/Jerusalem", hour: "numeric", hour12: false })); // Israel timezone with DST
-
-    console.log(`Push check: ${todayStr}, hour=${hour}, now=${now.toISOString()}`);
-
-    // Reminder windows: 1min, 10min, 60min
-    const windows = [
-      { name: "event_1min", minMs: 0, maxMs: 2 * 60 * 1000, label: "דקה" },
-      { name: "event_10min", minMs: 7 * 60 * 1000, maxMs: 13 * 60 * 1000, label: "10 דקות" },
-      { name: "event_1hour", minMs: 55 * 60 * 1000, maxMs: 65 * 60 * 1000, label: "שעה" },
-    ];
-
-    // Get all users with events in the next ~65 minutes
-    const maxFuture = new Date(now.getTime() + 66 * 60 * 1000);
-    const minFuture = new Date(now.getTime() - 1 * 60 * 1000); // include events starting now for 1min window
-
-    const { data: upcomingEvents } = await supabase
-      .from("calendar_events")
-      .select("*")
-      .gte("start_time", minFuture.toISOString())
-      .lte("start_time", maxFuture.toISOString());
-
-    // Get events that ended recently (0-10 min ago) for completion check
-    const recentlyEndedMax = new Date(now.getTime());
-    const recentlyEndedMin = new Date(now.getTime() - 10 * 60 * 1000);
-    const { data: endedEvents } = await supabase
-      .from("calendar_events")
-      .select("*")
-      .gte("end_time", recentlyEndedMin.toISOString())
-      .lte("end_time", recentlyEndedMax.toISOString());
-
-    // Get all push subscriptions
-    const { data: subscriptions } = await supabase
-      .from("push_subscriptions")
-      .select("*");
-
-    // Get all unique user IDs from events
-    const eventUserIds = [...new Set([
-      ...(upcomingEvents || []).map((e: any) => e.user_id),
-      ...(endedEvents || []).map((e: any) => e.user_id),
-    ])];
-    
-    // Also include users with push subs for morning/deadline notifications
-    const subUserIds = [...new Set((subscriptions || []).map((s: any) => s.user_id))];
-    const allUserIds = [...new Set([...eventUserIds, ...subUserIds])];
-
-    let totalSent = 0;
-    let emailsSent = 0;
-
-    // Saved notification preferences decide whether planner emails may be sent.
-    const { data: prefRows } = await supabase
-      .from("user_preferences")
-      .select("user_id, notification_settings")
-      .in("user_id", allUserIds.length ? allUserIds : ["00000000-0000-0000-0000-000000000000"]);
-    const prefsByUser = new Map((prefRows || []).map((row: any) => [row.user_id, row.notification_settings]));
-    const israelMinutes = israelClock(now).minutes;
-    const dayStartIso = israelDayStartUtc(israelClock(now).date).toISOString();
-    const emailCountCache = new Map<string, number>();
-    const mayEmail = async (userId: string, email: string | null, kind: PlannerEmailKind, minutesBefore?: number) => {
-      if (!email) return false;
-      if (!emailCountCache.has(userId)) {
-        const { count } = await supabase.from("sent_notifications").select("id", { count: "exact", head: true })
-          .eq("user_id", userId).eq("channel", "email").gte("created_at", dayStartIso);
-        emailCountCache.set(userId, count || 0);
-      }
-      if (!plannerEmailAllowed(prefsByUser.get(userId), kind, israelMinutes, minutesBefore, emailCountCache.get(userId) || 0)) return false;
-      const { data: suppressed } = await supabase.from("suppressed_emails").select("id").eq("email", email.toLowerCase()).limit(1);
-      return !suppressed?.length;
-    };
-    const countEmail = (userId: string) => emailCountCache.set(userId, (emailCountCache.get(userId) || 0) + 1);
-
-    for (const userId of allUserIds) {
-      // Get user email
-      let userEmail: string | null = null;
-      try {
-        const { data: userData } = await supabase.auth.admin.getUserById(userId);
-        userEmail = userData?.user?.email || null;
-      } catch (_e) { /* ignore */ }
-
-      const userSubs = (subscriptions || []).filter((s: any) => s.user_id === userId);
-      const userEvents = (upcomingEvents || []).filter((e: any) => e.user_id === userId);
-
-      // ===== Event reminders at 5min, 15min, 1hour =====
-      for (const event of userEvents) {
-        const eventStart = new Date(event.start_time).getTime();
-        const diffMs = eventStart - now.getTime();
-
-        for (const win of windows) {
-          if (diffMs >= win.minMs && diffMs <= win.maxMs) {
-            // Check if already sent
-            const alreadySent = await wasAlreadySent(supabase, userId, event.id, win.name);
-            if (alreadySent) continue;
-
-            const minutesBefore = win.name === "event_1hour" ? 60 : win.name === "event_10min" ? 10 : 1;
-            const startTimeStr = toIsraelTimeStr(event.start_time);
-
-            // Create action token for "mark as done" if event has source task
-            let actionUrl: string | undefined;
-            if (event.source_id && event.source_type) {
-              const isRecurringEvent = event.source_type === "recurring_task";
-              const tableName = isRecurringEvent || event.source_type === "personal_task" || event.source_type === "work_task" ? true : false;
-              if (tableName) {
-                const { data: token } = await supabase.from("action_tokens").insert({
-                  user_id: userId,
-                  task_id: event.source_id,
-                  action: "complete",
-                  source_type: isRecurringEvent ? "recurring_task" : "task",
-                }).select("id").single();
-                if (token) {
-                  actionUrl = `${supabaseUrl}/functions/v1/handle-task-action?token=${token.id}`;
-                }
-              }
-            }
-
-            // Send email (only when the user's planner settings allow this reminder by email)
-            if (await mayEmail(userId, userEmail, "reminder", minutesBefore)) {
-              const html = buildEventEmailHtml(event, minutesBefore, actionUrl);
-              const subject = `⏰ בעוד ${win.label}: ${event.title}`;
-              const sent = await sendEmail(userEmail!, subject, html);
-              if (sent) {
-                emailsSent++;
-                countEmail(userId);
-                await markSent(supabase, userId, event.id, win.name, "email");
-                console.log(`Email sent (${win.name}): ${event.title} to ${userEmail}`);
-              }
-            }
-
-            // Send push
-            for (const sub of userSubs) {
-              try {
-                await sendPush(
-                  { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-                  {
-                    title: `⏰ בעוד ${win.label}: ${event.title}`,
-                    body: `מתחיל ב-${startTimeStr} | ${event.category}`,
-                    tag: `${win.name}-${event.id}`,
-                    url: "/personal",
-                    icon: "/app-icon.png",
-                  },
-                  vapid,
-                );
-                totalSent++;
-                await markSent(supabase, userId, event.id, win.name, "push");
-              } catch (e: any) {
-                console.error(`Push failed:`, e.message);
-                if (e.message?.includes("410") || e.message?.includes("404")) {
-                  await supabase.from("push_subscriptions").delete().eq("id", sub.id);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // ===== Morning summary (7-8 AM Israel) =====
-      if (hour >= 7 && hour < 8) {
-        const { data: tasks } = await supabase
-          .from("tasks")
-          .select("*")
-          .eq("user_id", userId)
-          .neq("status", "בוצע");
-
-        const dueToday = (tasks || []).filter((t: any) => t.planned_end === todayStr);
-        const overdue = (tasks || []).filter((t: any) => t.planned_end && t.planned_end < todayStr);
-        const urgent = (tasks || []).filter((t: any) => t.urgent);
-
-        const parts: string[] = [];
-        if (urgent.length) parts.push(`🔥 ${urgent.length} דחופות`);
-        if (overdue.length) parts.push(`⚠️ ${overdue.length} בחריגה`);
-        if (dueToday.length) parts.push(`📅 ${dueToday.length} להיום`);
-
-        if (parts.length > 0) {
-          for (const sub of userSubs) {
-            try {
-              await sendPush(
-                { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-                { title: "☀️ סיכום בוקר", body: parts.join(" | "), tag: "morning-summary", url: "/personal", icon: "/app-icon.png" },
-                vapid,
-              );
-              totalSent++;
-            } catch (e: any) {
-              console.error(`Push failed:`, e.message);
-              if (e.message?.includes("410") || e.message?.includes("404")) {
-                await supabase.from("push_subscriptions").delete().eq("id", sub.id);
-              }
-            }
-          }
-        }
-      }
-
-      // ===== Deadline reminders (noon) =====
-      if (hour >= 12 && hour < 13) {
-        const { data: tomorrowTasks } = await supabase
-          .from("tasks")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("planned_end", tomorrowStr)
-          .neq("status", "בוצע");
-
-        if (tomorrowTasks?.length) {
-          for (const sub of userSubs) {
-            try {
-              await sendPush(
-                { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-                {
-                  title: `📆 ${tomorrowTasks.length} משימות מגיעות מחר`,
-                  body: tomorrowTasks.slice(0, 3).map((t: any) => t.description).join(", "),
-                  tag: "deadline-reminder",
-                  url: "/personal",
-                  icon: "/app-icon.png",
-                },
-                vapid,
-              );
-              totalSent++;
-            } catch (e: any) {
-              console.error(`Push failed:`, e.message);
-              if (e.message?.includes("410") || e.message?.includes("404")) {
-                await supabase.from("push_subscriptions").delete().eq("id", sub.id);
-              }
-            }
-          }
-        }
-      }
-
-      // ===== Post-event completion check (event just ended) =====
-      const userEndedEvents = (endedEvents || []).filter((e: any) => e.user_id === userId);
-      for (const event of userEndedEvents) {
-        const isTask = event.source_type === "personal_task" || event.source_type === "work_task";
-        const isRecurring = event.source_type === "recurring_task";
-        const isCustom = !event.source_id || event.source_type === "custom";
-
-        const alreadySent = await wasAlreadySent(supabase, userId, event.id, "event_completion");
-        if (alreadySent) continue;
-
-        // Check if linked task/recurring is already completed (skip if so)
-        if (isTask && event.source_id) {
-          const { data: taskData } = await supabase
-            .from("tasks")
-            .select("id, status")
-            .eq("id", event.source_id)
-            .single();
-          if (!taskData || taskData.status === "בוצע") continue;
-        } else if (isRecurring && event.source_id) {
-          const todayCheck = now.toISOString().split("T")[0];
-          const { data: alreadyDone } = await supabase
-            .from("recurring_task_completions")
-            .select("id")
-            .eq("recurring_task_id", event.source_id)
-            .eq("completed_date", todayCheck)
-            .limit(1);
-          if (alreadyDone && alreadyDone.length > 0) continue;
-        }
-
-        // Create action token if linked to a task
-        let actionBaseUrl: string | undefined;
-        if (event.source_id && (isTask || isRecurring)) {
-          const { data: token } = await supabase.from("action_tokens").insert({
-            user_id: userId,
-            task_id: event.source_id,
-            action: "complete",
-            source_type: isRecurring ? "recurring_task" : "task",
-          }).select("id").single();
-          if (token) {
-            actionBaseUrl = `${supabaseUrl}/functions/v1/handle-task-action?token=${token.id}`;
-          }
-        }
-
-        // Completion email only when the user chose email for completion check-ins
-        if (await mayEmail(userId, userEmail, "completion")) {
-          let html: string;
-          if (actionBaseUrl) {
-            html = buildCompletionEmailHtml(event, actionBaseUrl);
-          } else {
-            // Simple completion email for custom events (no action buttons)
-            const timeStr = toIsraelTimeStr(event.end_time);
-            html = `
-              <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-                <div style="background: #f0fdf4; border-right: 4px solid #22c55e; padding: 16px; border-radius: 8px;">
-                  <h2 style="color: #16a34a; margin: 0 0 8px;">🏁 הזמן של "${event.title}" הסתיים</h2>
-                  <p style="margin: 4px 0;">🕐 היה אמור להסתיים ב-<strong>${timeStr}</strong></p>
-                  <p style="margin: 4px 0;">📂 ${event.category}</p>
-                </div>
-                <p style="color: #999; font-size: 11px; margin-top: 12px;">עדכון אוטומטי ממתכנן הלו״ז שלך</p>
-              </div>`;
-          }
-          const subject = `🏁 סיימת את "${event.title}"? עדכן אותנו`;
-          const sent = await sendEmail(userEmail!, subject, html);
-          if (sent) {
-            emailsSent++;
-            countEmail(userId);
-            await markSent(supabase, userId, event.id, "event_completion", "email", event.source_id);
-            console.log(`Completion email sent: ${event.title} to ${userEmail}`);
-          }
-        }
-
-        // Also send push for ALL events
-        for (const sub of userSubs) {
-          try {
-            await sendPush(
-              { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-              {
-                title: `🏁 סיימת: ${event.title}?`,
-                body: `הזמן של האירוע הסתיים`,
-                tag: `completion-${event.id}`,
-                url: "/personal",
-                icon: "/app-icon.png",
-              },
-              vapid,
-            );
-            totalSent++;
-            await markSent(supabase, userId, event.id, "event_completion", "push", event.source_id);
-          } catch (e: any) {
-            console.error(`Push failed:`, e.message);
-            if (e.message?.includes("410") || e.message?.includes("404")) {
-              await supabase.from("push_subscriptions").delete().eq("id", sub.id);
-            }
-          }
-        }
-      }
-    }
-
-    // Cleanup old sent_notifications (older than 7 days)
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    await supabase.from("sent_notifications").delete().lt("created_at", sevenDaysAgo.toISOString());
-
-    return new Response(
-      JSON.stringify({ message: `Push: ${totalSent}, Email: ${emailsSent}`, pushSent: totalSent, emailsSent }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
-    );
-  } catch (error: any) {
-    console.error("Push notification error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } },
-    );
+    return json(await runTick(admin, supabaseUrl, new Date()));
+  } catch (err) {
+    console.error("planner notifications failed:", err instanceof Error ? err.message.slice(0, 200) : "unknown");
+    return json({ ok: false, version: VERSION, error: "internal_error" }, 500);
   }
 });
+
+async function runTick(admin: Admin, supabaseUrl: string, now: Date) {
+  const out = report();
+  const nowMs = now.getTime();
+  const clock = israelClock(now);
+  const dayStart = israelDayStartUtc(clock.date).toISOString();
+  const candidates: Candidate[] = [];
+
+  const cols = "id, user_id, title, category, description, start_time, end_time, all_day, source_type, source_id";
+  const [{ data: upcoming, error: upErr }, { data: ended, error: endErr }] = await Promise.all([
+    admin.from("calendar_events").select(cols).gt("start_time", now.toISOString())
+      .lte("start_time", new Date(nowMs + REMINDER_LOOKAHEAD_MS).toISOString()).limit(2000),
+    admin.from("calendar_events").select(cols).gte("end_time", new Date(nowMs - COMPLETION_WINDOW_MS).toISOString())
+      .lte("end_time", now.toISOString()).limit(2000),
+  ]);
+  if (upErr || endErr) throw new Error("event_query_failed");
+
+  const userIds = new Set<string>([...(upcoming || []), ...(ended || [])].map((e: Row) => e.user_id));
+  const morning = inWindow(clock.minutes, MORNING_WINDOW);
+  const deadline = inWindow(clock.minutes, DEADLINE_WINDOW);
+  if (morning || deadline) {
+    const { data: subOwners } = await admin.from("push_subscriptions").select("user_id").limit(5000);
+    for (const s of subOwners || []) userIds.add(s.user_id);
+  }
+  if (!userIds.size) return out;
+
+  const ids = [...userIds];
+  const { data: prefRows } = await admin.from("user_preferences").select("user_id, notification_settings").in("user_id", ids);
+  const prefs = new Map<string, unknown>((prefRows || []).map((r: Row) => [r.user_id, r.notification_settings]));
+
+  for (const event of upcoming || []) {
+    const due = dueReminder(event as never, nowMs, reminderOffsets(prefs.get(event.user_id)));
+    if (due) candidates.push({ userId: event.user_id, kind: "planner_reminder", itemKey: due.itemKey, event, offset: due.offset, remainingMinutes: due.remainingMinutes, legacyType: legacyReminderType(due.offset) });
+  }
+  for (const event of ended || []) {
+    const due = dueCompletion(event as never, nowMs);
+    if (due) candidates.push({ userId: event.user_id, kind: "planner_completion", itemKey: due.itemKey, event, legacyType: "event_completion" });
+  }
+  if (morning || deadline) {
+    const kind: PlannerKind = morning ? "planner_morning" : "planner_deadline";
+    for (const userId of ids) candidates.push({ userId, kind, itemKey: clock.date, legacyType: morning ? "morning_summary" : "deadline_reminder" });
+  }
+  out.candidates = candidates.length;
+  if (!candidates.length) return out;
+
+  // Skip identities already finished on a channel without touching the ledger.
+  const { data: done } = await admin.from("notification_deliveries").select("user_id, kind, item_key, channel, status, retryable, attempts")
+    .in("user_id", [...new Set(candidates.map(c => c.userId))]).in("kind", PLANNER_KINDS)
+    .in("item_key", [...new Set(candidates.map(c => c.itemKey))]);
+  const finished = new Set((done || [])
+    .filter((d: Row) => d.status === "accepted" || d.status === "skipped" || (d.status === "failed" && (!d.retryable || d.attempts >= PLANNER_MAX_ATTEMPTS)))
+    .map((d: Row) => `${d.user_id}|${d.kind}|${d.item_key}|${d.channel}`));
+
+  const { data: subs } = await admin.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, created_at")
+    .in("user_id", [...new Set(candidates.map(c => c.userId))]);
+  const subsByUser = new Map<string, StoredSubscription[]>();
+  for (const s of subs || []) subsByUser.set(s.user_id, [...(subsByUser.get(s.user_id) || []), s]);
+
+  const ctx = new TickContext(admin, supabaseUrl, dayStart, clock.date);
+  const vapid = vapidFromEnv();
+
+  for (const c of candidates) {
+    for (const channel of ["push", "email"] as PlannerChannel[]) {
+      if (finished.has(`${c.userId}|${c.kind}|${c.itemKey}|${channel}`)) { out.alreadyHandled++; continue; }
+      const acceptedToday = await ctx.acceptedToday(c.userId, channel);
+      if (!plannerChannelAllowed(prefs.get(c.userId), c.kind, channel, { israelMinutes: clock.minutes, acceptedToday })) { out.blockedByPreferences++; continue; }
+      if (channel === "push" && !(subsByUser.get(c.userId) || []).length) { out.pushNoDevice++; continue; }
+      if (channel === "email" && !(await ctx.email(c.userId))) { out.emailSkipped++; continue; }
+
+      const content = await buildContent(ctx, c, now);
+      if (!content) { out.alreadyHandled++; continue; } // nothing to say (e.g. task already done)
+
+      const { data: claim, error } = await admin.rpc("claim_notification_delivery", {
+        p_user_id: c.userId, p_kind: c.kind, p_item_key: c.itemKey, p_channel: channel,
+        p_batch_id: crypto.randomUUID(), p_lease_seconds: PLANNER_LEASE_SECONDS, p_max_attempts: PLANNER_MAX_ATTEMPTS,
+      });
+      const row = Array.isArray(claim) ? claim[0] : null;
+      if (error || !row?.delivery_id) { out.alreadyHandled++; continue; }
+      out.claimed++;
+      const finish = (patch: Row) => admin.from("notification_deliveries").update({ lease_until: null, ...patch })
+        .eq("id", row.delivery_id).eq("user_id", c.userId);
+
+      if (channel === "push") {
+        if (!vapid) { await finish({ status: "failed", retryable: true, last_error: "vapid_missing" }); out.pushFailed++; continue; }
+        const results = await deliverToSubscriptions(admin, subsByUser.get(c.userId)!, content.push, vapid, content.ttl);
+        const s = summarizePushResults(results);
+        const first = results.find(r => r.outcome !== "accepted");
+        const outcome = pushFinish(s);
+        await finish({
+          ...outcome, devices_found: s.devicesFound, provider_accepted: s.providerAccepted, provider_expired: s.expired,
+          provider_rejected: s.rejected, provider_status: first?.status ?? results[0]?.status ?? null,
+          last_error: first ? `${first.outcome}:${first.reason || first.status}` : null,
+          accepted_at: outcome.status === "accepted" ? new Date().toISOString() : null,
+        });
+        if (outcome.status === "accepted") { out.pushAccepted++; out.pushSent++; await ctx.accepted(c, "push"); }
+        else out.pushFailed++;
+      } else {
+        const result = await sendEmail(ctx, c.userId, content.subject, content.html, `tabro-planner/${row.delivery_id}`);
+        if (result.ok) {
+          await finish({ status: "accepted", retryable: false, provider_status: result.status, provider_message_id: result.id, accepted_at: new Date().toISOString(), last_error: null });
+          out.emailAccepted++; out.emailsSent++; await ctx.accepted(c, "email");
+        } else {
+          await finish({ status: "failed", retryable: isRetryableProviderStatus(result.status), provider_status: result.status, last_error: result.error });
+          out.emailFailed++;
+        }
+      }
+    }
+  }
+
+  // Hourly housekeeping (03:00 Israel): compatibility records and old planner ledger rows.
+  if (clock.minutes === 180) {
+    await admin.from("sent_notifications").delete().lt("created_at", new Date(nowMs - 7 * 86_400_000).toISOString());
+    await admin.from("notification_deliveries").delete().in("kind", PLANNER_KINDS).lt("created_at", new Date(nowMs - 30 * 86_400_000).toISOString());
+  }
+  if (out.claimed) console.log(`planner tick: claimed=${out.claimed} push=${out.pushAccepted}/${out.pushFailed} email=${out.emailAccepted}/${out.emailFailed}`);
+  return out;
+}
+
+class TickContext {
+  private counts = new Map<string, number>();
+  private emails = new Map<string, string | null>();
+  private tokens = new Map<string, string | null>();
+  constructor(public admin: Admin, public supabaseUrl: string, public dayStart: string, public localDate: string) {}
+
+  async acceptedToday(userId: string, channel: PlannerChannel): Promise<number> {
+    const key = `${userId}|${channel}`;
+    if (!this.counts.has(key)) {
+      const { count } = await this.admin.from("notification_deliveries").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).eq("channel", channel).eq("status", "accepted").in("kind", PLANNER_KINDS).gte("accepted_at", this.dayStart);
+      this.counts.set(key, count || 0);
+    }
+    return this.counts.get(key)!;
+  }
+
+  async accepted(c: Candidate, channel: PlannerChannel) {
+    const key = `${c.userId}|${channel}`;
+    this.counts.set(key, (this.counts.get(key) || 0) + 1);
+    // Compatibility record for the in-app bell (not used for deduplication).
+    await this.admin.from("sent_notifications").insert({
+      user_id: c.userId, event_id: c.event?.id ?? null, notification_type: c.legacyType, channel,
+      task_id: c.kind === "planner_completion" ? c.event?.source_id ?? null : null,
+    });
+  }
+
+  // Verified account email that is not on the suppression list, or null.
+  async email(userId: string): Promise<string | null> {
+    if (!this.emails.has(userId)) {
+      let email: string | null = null;
+      try {
+        const { data } = await this.admin.auth.admin.getUserById(userId);
+        email = data?.user?.email_confirmed_at ? data.user.email : null;
+      } catch { email = null; }
+      if (email) {
+        const { data: suppressed } = await this.admin.from("suppressed_emails").select("id").eq("email", email.toLowerCase()).limit(1);
+        if (suppressed?.length) email = null;
+      }
+      this.emails.set(userId, email);
+    }
+    return this.emails.get(userId)!;
+  }
+
+  // One "mark done" action link per linked task per tick.
+  async actionUrl(event: Row): Promise<string | null> {
+    const linked = event.source_id && ["recurring_task", "personal_task", "work_task"].includes(event.source_type);
+    if (!linked) return null;
+    if (!this.tokens.has(event.id)) {
+      const { data } = await this.admin.from("action_tokens").insert({
+        user_id: event.user_id, task_id: event.source_id, action: "complete",
+        source_type: event.source_type === "recurring_task" ? "recurring_task" : "task",
+      }).select("id").single();
+      this.tokens.set(event.id, data ? `${this.supabaseUrl}/functions/v1/handle-task-action?token=${data.id}` : null);
+    }
+    return this.tokens.get(event.id)!;
+  }
+}
+
+interface Content { push: Record<string, unknown>; ttl: number; subject: string; html: string }
+const contentCache = new WeakMap<Candidate, Content | null>();
+
+async function buildContent(ctx: TickContext, c: Candidate, now: Date): Promise<Content | null> {
+  if (contentCache.has(c)) return contentCache.get(c)!;
+  let content: Content | null = null;
+  if (c.kind === "planner_reminder") content = await reminderContent(ctx, c, now);
+  else if (c.kind === "planner_completion") content = await completionContent(ctx, c);
+  else content = await taskSummaryContent(ctx, c);
+  contentCache.set(c, content);
+  return content;
+}
+
+async function reminderContent(ctx: TickContext, c: Candidate, now: Date): Promise<Content> {
+  const e = c.event!;
+  // Wording reflects the real remaining time at send moment, not the configured offset.
+  const remaining = Math.max(1, Math.round((Date.parse(e.start_time) - now.getTime()) / 60_000));
+  const label = remainingLabel(remaining || c.remainingMinutes || 1);
+  const time = israelTime(e.start_time);
+  const action = await ctx.actionUrl(e);
+  const html = `
+    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+      <div style="background: #eff6ff; border-right: 4px solid #3b82f6; padding: 16px; border-radius: 8px;">
+        <h2 style="color: #2563eb; margin: 0 0 8px;">⏰ בעוד ${label}: ${escapeHtml(e.title)}</h2>
+        <p style="margin: 4px 0;">🕐 מתחיל ב-<strong>${time}</strong></p>
+        ${e.category ? `<p style="margin: 4px 0;">📂 ${escapeHtml(e.category)}</p>` : ""}
+        ${e.description ? `<p style="margin: 4px 0; color: #666;">${escapeHtml(e.description)}</p>` : ""}
+      </div>
+      ${action ? `<div style="margin-top: 16px; text-align: center;"><a href="${escapeHtml(action)}" style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">✅ סיימתי את המשימה</a></div>` : ""}
+      <p style="color: #999; font-size: 11px; margin-top: 12px;">תזכורת אוטומטית ממתכנן הלו״ז שלך · <a href="https://tabro.org/personal" style="color:#999;">הגדרות התראות</a></p>
+    </div>`;
+  return {
+    push: { title: `⏰ בעוד ${label}: ${e.title}`, body: `מתחיל ב-${time}${e.category ? ` | ${e.category}` : ""}`, tag: `reminder-${e.id}`, url: "/personal", icon: "/app-icon.png" },
+    ttl: Math.max(60, Math.round((Date.parse(e.start_time) - now.getTime()) / 1000)),
+    subject: `⏰ בעוד ${label}: ${e.title}`,
+    html,
+  };
+}
+
+async function completionContent(ctx: TickContext, c: Candidate): Promise<Content | null> {
+  const e = c.event!;
+  if (e.source_id && (e.source_type === "personal_task" || e.source_type === "work_task")) {
+    const { data } = await ctx.admin.from("tasks").select("status").eq("id", e.source_id).eq("user_id", e.user_id).maybeSingle();
+    if (!data || data.status === "בוצע") return null;
+  } else if (e.source_id && e.source_type === "recurring_task") {
+    const { data } = await ctx.admin.from("recurring_task_completions").select("id").eq("recurring_task_id", e.source_id)
+      .eq("completed_date", israelClock(new Date(e.end_time)).date).limit(1);
+    if (data?.length) return null;
+  }
+  const action = await ctx.actionUrl(e);
+  const time = israelTime(e.end_time);
+  const buttons = action ? `
+      <div style="margin-top: 16px; text-align: center;">
+        ${[["בוצע", "✅ סיימתי", "#22c55e"], ["בטיפול", "🔄 בטיפול", "#f59e0b"], ["לא התחיל", "⏸️ לא התחלתי", "#ef4444"]].map(([status, text, color]) =>
+          `<a href="${escapeHtml(`${action}&status=${encodeURIComponent(status)}`)}" style="display: inline-block; background: ${color}; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 6px;">${text}</a>`).join("")}
+      </div>` : "";
+  const html = `
+    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+      <div style="background: #f0fdf4; border-right: 4px solid #22c55e; padding: 16px; border-radius: 8px;">
+        <h2 style="color: #16a34a; margin: 0 0 8px;">🏁 הזמן של "${escapeHtml(e.title)}" הסתיים</h2>
+        <p style="margin: 4px 0;">🕐 היה אמור להסתיים ב-<strong>${time}</strong></p>
+        ${e.category ? `<p style="margin: 4px 0;">📂 ${escapeHtml(e.category)}</p>` : ""}
+        ${action ? `<p style="margin: 8px 0; font-weight: bold;">מה הסטטוס של המשימה?</p>` : ""}
+      </div>${buttons}
+      <p style="color: #999; font-size: 11px; margin-top: 12px;">עדכון אוטומטי ממתכנן הלו״ז שלך</p>
+    </div>`;
+  return {
+    push: { title: `🏁 סיימת: ${e.title}?`, body: "הזמן של האירוע הסתיים", tag: `completion-${e.id}`, url: "/personal", icon: "/app-icon.png" },
+    ttl: 3600,
+    subject: `🏁 סיימת את "${e.title}"? עדכן אותנו`,
+    html,
+  };
+}
+
+// Morning summary / next-day deadlines (push only), using Israel local dates.
+async function taskSummaryContent(ctx: TickContext, c: Candidate): Promise<Content | null> {
+  const today = ctx.localDate;
+  const { data: tasks } = await ctx.admin.from("tasks").select("description, planned_end, urgent, archived")
+    .eq("user_id", c.userId).neq("status", "בוצע").limit(1000);
+  const open = (tasks || []).filter((t: Row) => t.archived !== true);
+  if (c.kind === "planner_morning") {
+    const urgent = open.filter((t: Row) => t.urgent).length;
+    const overdue = open.filter((t: Row) => t.planned_end && t.planned_end < today).length;
+    const dueToday = open.filter((t: Row) => t.planned_end === today).length;
+    const parts = [urgent && `🔥 ${urgent} דחופות`, overdue && `⚠️ ${overdue} בחריגה`, dueToday && `📅 ${dueToday} להיום`].filter(Boolean);
+    if (!parts.length) return null;
+    return { push: { title: "☀️ סיכום בוקר", body: parts.join(" | "), tag: "morning-summary", url: "/personal", icon: "/app-icon.png" }, ttl: 3600, subject: "", html: "" };
+  }
+  const tomorrow = nextLocalDate(today);
+  const dueTomorrow = open.filter((t: Row) => t.planned_end === tomorrow);
+  if (!dueTomorrow.length) return null;
+  return {
+    push: { title: `📆 ${dueTomorrow.length} משימות מגיעות מחר`, body: dueTomorrow.slice(0, 3).map((t: Row) => t.description).filter(Boolean).join(", "), tag: "deadline-reminder", url: "/personal", icon: "/app-icon.png" },
+    ttl: 3600, subject: "", html: "",
+  };
+}
+
+type EmailResult = { ok: true; id: string; status: number } | { ok: false; status: number; error: string };
+
+async function sendEmail(ctx: TickContext, userId: string, subject: string, html: string, idempotencyKey: string): Promise<EmailResult> {
+  const to = await ctx.email(userId);
+  const resendKey = Deno.env.get("RESEND_API_KEY_1") || Deno.env.get("RESEND_API_KEY");
+  if (!to || !subject) return { ok: false, status: 400, error: "no_recipient" };
+  if (!resendKey) return { ok: false, status: 500, error: "email_provider_not_configured" };
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  const headers: Record<string, string> = { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey };
+  if (lovableKey) { headers.Authorization = `Bearer ${lovableKey}`; headers["X-Connection-Api-Key"] = resendKey; }
+  else headers.Authorization = `Bearer ${resendKey}`;
+  let res: Response;
+  try {
+    res = await fetch(lovableKey ? GATEWAY_URL : DIRECT_URL, {
+      method: "POST", headers, signal: AbortSignal.timeout(20_000),
+      body: JSON.stringify({ from: FROM, reply_to: REPLY_TO, to: [to], subject, html }),
+    });
+  } catch {
+    return { ok: false, status: 0, error: "network_error" };
+  }
+  const text = await res.text().catch(() => "");
+  if (!res.ok) return { ok: false, status: res.status, error: `provider_${res.status}` };
+  try {
+    const id = JSON.parse(text)?.id;
+    if (typeof id === "string" && id) {
+      await ctx.admin.from("email_send_log").insert({ message_id: id, template_name: "planner_notification", recipient_email: to, status: "sent" });
+      return { ok: true, id, status: res.status };
+    }
+  } catch { /* malformed provider response */ }
+  return { ok: false, status: 502, error: "provider_response_without_id" };
+}
