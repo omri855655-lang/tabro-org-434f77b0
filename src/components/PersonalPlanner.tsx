@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, addWeeks, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval } from "date-fns";
 import { he } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import AppleCalendarGuide from "@/components/AppleCalendarGuide";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -3065,6 +3066,7 @@ const PersonalPlanner = () => {
               <CalendarRange className="h-3.5 w-3.5" />
               ICS
             </Button>
+            <AppleCalendarGuide onExport={exportToICS} />
 
             <Button variant="outline" size="sm" className="gap-1 h-8" onClick={() => printDocument("תוכנית העבודה והפגישות שלי", ["תאריך", "שעות", "אירוע", "קטגוריה", "מיקום / פגישה", "פרטים"], Array.from(eventsByDay.entries()).sort(([a], [b]) => a.localeCompare(b)).flatMap(([day, entries]) => entries.map(event => [day, event.allDay ? "כל היום" : `${format(new Date(event.startTime), "HH:mm")}–${format(new Date(event.endTime), "HH:mm")}`, event.title, event.category, [event.location, event.meetingUrl].filter(Boolean).join("\n"), event.description])), "יומן מסודר להדפסה או לשמירה כ-PDF")}>
               <Printer className="h-3.5 w-3.5" />

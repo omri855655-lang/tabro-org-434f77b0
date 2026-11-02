@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Tabro">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#281244"/><stop offset="1" stop-color="#6940A7"/></linearGradient>
+    <linearGradient id="hull" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFF19A"/><stop offset=".5" stop-color="#FFDA42"/><stop offset="1" stop-color="#F4AC1D"/></linearGradient>
+    <linearGradient id="fire" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFF9DC"/><stop offset="1" stop-color="#FBB62F"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <circle cx="356" cy="116" r="189" fill="#AB80DE" opacity=".08"/>
+  <path d="M108 326c7-39 29-68 65-85" fill="none" stroke="#D8B9F4" stroke-width="5" stroke-linecap="round" opacity=".35"/>
+  <path d="m133 141 4 11 11 4-11 4-4 11-4-11-11-4 11-4Z" fill="#FFE67A"/>
+  <circle cx="367" cy="285" r="5" fill="#FFE67A"/>
+  <g transform="rotate(28 256 210)">
+    <path d="M207 203c-29 10-42 41-38 76l47-25Zm98 0c29 10 42 41 38 76l-47-25Z" fill="#F7B72D"/>
+    <path d="M256 66c-40 32-62 77-59 127l8 59q51 25 102 0l8-59c3-50-19-95-59-127Z" fill="url(#hull)"/>
+    <path d="M256 66c-19 15-34 34-44 53h88c-10-19-25-38-44-53Z" fill="#FFE985"/>
+    <circle cx="256" cy="171" r="32" fill="#FFF4C1"/>
+    <circle cx="256" cy="171" r="23" fill="#39215C"/>
+    <path d="M245 157a17 17 0 0 1 17-3" fill="none" stroke="#AE84D5" stroke-width="5" stroke-linecap="round"/>
+    <path d="m225 263 62 0-8 16h-46Z" fill="#EAA11B"/>
+    <path d="M237 285q-13 29 19 65 32-36 19-65Z" fill="url(#fire)"/>
+    <path d="M249 287q-6 16 7 35 13-19 7-35Z" fill="#FFFBE8"/>
+  </g>
+  <g fill="none" stroke="#FFF4CC" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" aria-label="tabro">
+    <path d="M137 381v40q0 15 16 15m-29-38h34"/>
+    <circle cx="192" cy="417" r="19"/><path d="M211 398v38"/>
+    <path d="M236 378v58"/><circle cx="255" cy="417" r="19"/>
+    <path d="M293 436v-38m0 15q2-17 20-15"/>
+    <circle cx="346" cy="417" r="19"/>
+  </g>
+</svg>

@@ -56,6 +56,7 @@ export default function MobileWorkspaceLayout({ tabs, groups = [], activeTab, on
     <Sheet open={open} onOpenChange={value => { setOpen(value); if (!value) setSearch(''); }}>
       <header className="mobile-workspace-header flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2">
         <SheetTrigger asChild><Button variant="ghost" size="icon" aria-label={c.menu} className="shrink-0"><Menu className="h-5 w-5" /></Button></SheetTrigger>
+        <img src="/icons/tabro-v3-192.png" alt="Tabro" className="h-9 w-9 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1"><span className="block text-[10px] font-bold tracking-widest text-primary">TABRO</span><h1 className="truncate text-base font-semibold">{current?.label || c.all}</h1></div>
         {notification}
       </header>

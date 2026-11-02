@@ -18,7 +18,7 @@ test('PWA uses a relative origin identity, standalone mode and correctly sized o
   }
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.ok(html.includes('rel="manifest"'));
-  assert.ok(html.includes('sizes="180x180" href="/icons/tabro-v2-180.png"'));
+  assert.ok(html.includes('sizes="180x180" href="/icons/tabro-v3-180.png"'));
 });
 function worker() {
   const listeners = {}, shown = [], opened = [];
@@ -30,7 +30,7 @@ test('push worker always shows a local-branded notification and does not collaps
   const {listeners,shown} = worker(); let promise;
   listeners.push({data:{json:()=>({body:'Hello',icon:'https://untrusted.test/tracker'})},waitUntil:p=>promise=p}); await promise;
   assert.equal(shown[0].title,'Tabro');
-  assert.equal(shown[0].options.icon,'/icons/tabro-v2-192.png');
+  assert.equal(shown[0].options.icon,'/icons/tabro-v3-192.png');
   assert.equal(shown[0].options.tag,undefined);
   assert.ok(!listeners.fetch, 'private pages are not cached');
 });
