@@ -148,6 +148,13 @@
       "when": 1793612154916,
       "tag": "0020_planner_notification_delivery_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793613655206,
+      "tag": "0021_calendar_feed_subscriptions",
+      "breakpoints": true
     }
   ]
 }
