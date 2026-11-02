@@ -17,6 +17,8 @@ import {
 // Responses and logs contain only allowlisted counts — no titles, emails or endpoints.
 
 const VERSION = "planner-2026-11-02";
+// Records written by the pre-ledger sender (before this instant) still count as sent.
+const LEDGER_START = "2026-11-02T10:30:00Z";
 const FROM = "Tabro <noreply@tabro.org>";
 const REPLY_TO = "info@tabro.org";
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend/emails";
@@ -125,7 +127,7 @@ async function runTick(admin: Admin, supabaseUrl: string, now: Date) {
   const eventIds = [...new Set(candidates.filter(c => c.event).map(c => c.event!.id))];
   if (eventIds.length) {
     const { data: legacy } = await admin.from("sent_notifications").select("user_id, event_id, notification_type, channel")
-      .in("event_id", eventIds).gte("created_at", new Date(nowMs - 70 * 60_000).toISOString());
+      .in("event_id", eventIds).gte("created_at", new Date(nowMs - 70 * 60_000).toISOString()).lt("created_at", LEDGER_START);
     for (const l of legacy || []) {
       for (const c of candidates) {
         if (c.event?.id === l.event_id && c.userId === l.user_id && c.legacyType === l.notification_type) finished.add(`${c.userId}|${c.kind}|${c.itemKey}|${l.channel}`);
