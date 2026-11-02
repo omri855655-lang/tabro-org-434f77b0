@@ -75,7 +75,7 @@ test('no stale backfill: missed larger offsets are dropped, not stacked', () => 
 test('never remind after the event started or for all-day events', () => {
   assert.equal(dueReminder(ev('2026-11-02T12:00:00Z'), Date.parse('2026-11-02T12:00:10Z'), [1, 5]), null);
   assert.equal(dueReminder(ev('2026-11-02T12:00:00Z', { all_day: true }), Date.parse('2026-11-02T11:59:30Z'), [1]), null);
-  assert.equal(dueReminder(ev('not-a-date'), Date.now(), [1]), null);
+  assert.equal(dueReminder({ id: 'e1', user_id: 'u1', start_time: 'not-a-date' }, Date.now(), [1]), null);
 });
 
 test('missing reminder minutes use defaults, an explicit empty list means none', () => {
