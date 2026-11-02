@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -6,21 +6,26 @@ import { useLanguage } from "@/hooks/useLanguage";
 const InstallApp = () => {
   const { lang, dir } = useLanguage();
   const isHebrew = lang === "he";
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> } | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
 
-  // Check if app is already installed
-  if (typeof window !== "undefined") {
-    window.addEventListener("beforeinstallprompt", (e) => {
+  useEffect(() => {
+    const beforeInstall = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
-    });
+      setDeferredPrompt(e as Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> });
+    };
 
-    window.addEventListener("appinstalled", () => {
+    const installed = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
-    });
-  }
+    };
+    window.addEventListener("beforeinstallprompt", beforeInstall);
+    window.addEventListener("appinstalled", installed);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", beforeInstall);
+      window.removeEventListener("appinstalled", installed);
+    };
+  }, []);
 
   const handleInstall = async () => {
     if (deferredPrompt) {
@@ -42,7 +47,7 @@ const InstallApp = () => {
       <div className="max-w-md w-full bg-card rounded-2xl shadow-xl p-8 text-center">
         <div className="mb-6">
           <img
-            src="/pwa-192x192.png"
+            src="/icons/tabro-v2-192.png"
             alt="App Icon"
             className="w-24 h-24 mx-auto rounded-2xl shadow-lg"
           />
@@ -88,10 +93,11 @@ const InstallApp = () => {
           <h3 className="font-semibold text-foreground mb-3">{isHebrew ? "✨ מה תקבל:" : "✨ What you get:"}</h3>
           <ul className={`text-sm text-muted-foreground space-y-2 ${dir === "rtl" ? "text-right" : "text-left"}`}>
             <li>{isHebrew ? "✓ גישה מהירה מהמסך הראשי" : "✓ Quick access from your home screen"}</li>
-            <li>{isHebrew ? "✓ עובד גם ללא אינטרנט" : "✓ Works offline too"}</li>
+            <li>{isHebrew ? "✓ הנתונים מסתנכרנים כשיש חיבור לאינטרנט" : "✓ Your data syncs when connected to the internet"}</li>
             <li>{isHebrew ? "✓ חוויה כמו אפליקציה אמיתית" : "✓ Feels like a real app"}</li>
-            <li>{isHebrew ? "✓ התראות על משימות קרובות" : "✓ Reminders for upcoming tasks"}</li>
+            <li>{isHebrew ? "✓ התראות לאחר אישור וחיבור המכשיר" : "✓ Notifications after permission and device registration"}</li>
           </ul>
+          <p className="mt-4 text-xs text-muted-foreground">{isHebrew ? "אם האייקון הישן לא מתעדכן באייפון, פתח את האתר בספארי, רענן והוסף שוב למסך הבית. אין צורך למחוק קודם את האפליקציה הישנה. לאחר הפתיחה מהאייקון החדש, בדוק וחבר את ההתראות במכשיר." : "If the old iPhone icon does not update, open and refresh the site in Safari, then add it to the Home Screen again. Keep the old app until the new one works, and reconnect notifications in the new installation."}</p>
         </div>
       </div>
     </div>

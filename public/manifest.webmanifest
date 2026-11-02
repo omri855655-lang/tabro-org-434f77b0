@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "Tabro",
+  "short_name": "Tabro",
+  "description": "Your tasks, focus and everyday life in one place",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/personal",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B2530",
+  "theme_color": "#183F4A",
+  "icons": [
+    { "src": "/icons/tabro-v2-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/tabro-v2-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/tabro-maskable-v2-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

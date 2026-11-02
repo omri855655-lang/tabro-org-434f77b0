@@ -55,7 +55,7 @@ export function startSilentAudio() {
       title: "ZoneFlow — מוזיקת רקע",
       artist: "Tabro",
       artwork: [
-        { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },
+        { src: "/icons/tabro-v2-192.png", sizes: "192x192", type: "image/png" },
         { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png" },
       ],
     });

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Textarea } from "@/components/ui/textarea";
+import { canLoadAdminData } from "@/lib/adminAccessState";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Stats {
@@ -85,6 +86,8 @@ const AdminDashboard = () => {
   const [passUnlocked, setPassUnlocked] = useState(() => sessionStorage.getItem(ADMIN_PASS_KEY) === "1");
   const [passInput, setPassInput] = useState(() => sessionStorage.getItem(ADMIN_PASS_VALUE_KEY) || "");
   const [passError, setPassError] = useState(false);
+  const [passSubmitting, setPassSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [landingContent, setLandingContent] = useState<Record<string, { he: string; en: string }>>({});
   const [landingEditing, setLandingEditing] = useState<Record<string, { he: string; en: string }>>({});
   const [savingLanding, setSavingLanding] = useState(false);
@@ -221,6 +224,8 @@ const AdminDashboard = () => {
   const fetchStats = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setLoadError(null);
+    try {
 
     const [{ data: appData, ok: appOk, error: appError }, { data: mailboxData, ok: mailOk }] = await Promise.all([
       callAppAdminAnalytics({ action: "stats" }),
@@ -231,6 +236,7 @@ const AdminDashboard = () => {
       if (appData?.error === "Forbidden") {
         setIsAdmin(false);
       } else {
+        setLoadError(isHe ? "לא ניתן לטעון כרגע את נתוני האדמין. אפשר לנסות שוב בלי לשנות סיסמה." : "Admin data could not be loaded. Retry without changing your password.");
         toast.error(appError || t("error" as any));
       }
       setLoading(false);
@@ -240,10 +246,13 @@ const AdminDashboard = () => {
     if (!mailOk || mailboxData?.error) {
       if (mailboxData?.error === "Unauthorized") {
         setPassUnlocked(false);
+        setPassInput("");
+        setPassError(false);
         sessionStorage.removeItem(ADMIN_PASS_KEY);
         sessionStorage.removeItem(ADMIN_PASS_VALUE_KEY);
-        toast.error(isHe ? "סיסמת האדמין התיישנה או שונתה. יש להזין אותה מחדש." : "Admin password expired or changed. Please enter it again.");
+        toast.error(isHe ? "הגישה לתיבת האדמין פגה או לא אומתה. אפשר להזין שוב את הסיסמה." : "Admin mailbox access expired or could not be verified. Please sign in again.");
       } else {
+        setLoadError(isHe ? "תיבת האדמין אינה זמינה כרגע. אפשר לנסות שוב." : "Admin mailbox is temporarily unavailable. Please retry.");
         toast.error(isHe ? "נתוני הדואר באדמין לא נטענו כרגע." : "Admin mailbox data failed to load.");
       }
       setLoading(false);
@@ -305,14 +314,18 @@ const AdminDashboard = () => {
       setLandingContent(map);
       setLandingEditing(editMap);
     }
-    setLoading(false);
+    } catch {
+      setLoadError(isHe ? "אירעה שגיאת תקשורת. אפשר לנסות שוב בלי להזין סיסמה חדשה." : "A connection error occurred. Retry without entering a new password.");
+    } finally { setLoading(false); }
   }, [user, callAdminAnalytics, callAppAdminAnalytics, isHe, t]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate("/auth"); return; }
+    // Draft password edits must never trigger mailbox requests or unmount the form.
+    if (!canLoadAdminData(authLoading, Boolean(user), passUnlocked)) { setLoading(false); return; }
     fetchStats();
-  }, [user, authLoading, navigate, fetchStats]);
+  }, [user, authLoading, passUnlocked, navigate, fetchStats]);
 
   useEffect(() => {
     if (!passUnlocked || !user) return;
@@ -347,12 +360,19 @@ const AdminDashboard = () => {
   };
 
   const handlePassSubmit = async () => {
+    if (passSubmitting || !passInput.trim()) return;
+    setPassSubmitting(true);
     try {
-      const { data } = await callAdminAnalytics({ action: "verify_password", password: passInput }, false);
+      const { data, ok } = await callAdminAnalytics({ action: "verify_password", password: passInput }, false);
+      if (!ok || data?.error) {
+        toast.error(isHe ? "לא ניתן לאמת גישה כרגע. נסה שוב מאוחר יותר; הסיסמה לא שונתה." : "Access verification is unavailable. Retry later; your password has not been changed.");
+        return;
+      }
       if (data?.ok) {
         sessionStorage.setItem(ADMIN_PASS_KEY, "1");
         sessionStorage.setItem(ADMIN_PASS_VALUE_KEY, passInput);
         setPassUnlocked(true);
+        setLoading(true);
         setPassError(false);
         return;
       }
@@ -361,7 +381,7 @@ const AdminDashboard = () => {
     } catch {
       setPassError(true);
       toast.error(isHe ? "שגיאה בבדיקת סיסמת האדמין" : "Error verifying admin password");
-    }
+    } finally { setPassSubmitting(false); }
   };
 
   if (authLoading || loading) {
@@ -381,6 +401,9 @@ const AdminDashboard = () => {
             <h2 className="text-lg font-bold">{copy.adminAccess}</h2>
             <Input
               type="password"
+              autoComplete="current-password"
+              aria-label={copy.enterPassword}
+              disabled={passSubmitting}
               placeholder={copy.enterPassword}
               value={passInput}
               onChange={(e) => { setPassInput(e.target.value); setPassError(false); }}
@@ -388,11 +411,21 @@ const AdminDashboard = () => {
               dir="ltr"
             />
             {passError && <p className="text-sm text-destructive">{copy.wrongPassword}</p>}
-            <Button onClick={handlePassSubmit} className="w-full">{copy.unlock}</Button>
+            <Button onClick={handlePassSubmit} disabled={passSubmitting || !passInput.trim()} className="w-full">{passSubmitting ? (isHe ? "בודק גישה…" : "Checking access…") : copy.unlock}</Button>
           </CardContent>
         </Card>
       </div>
     );
+  }
+
+  if (loadError) {
+    return <div className="min-h-screen flex items-center justify-center bg-background p-4" dir={dir}>
+      <Card className="max-w-md w-full"><CardContent className="space-y-4 p-8 text-center">
+        <p role="alert">{loadError}</p>
+        <Button onClick={() => void fetchStats()}>{isHe ? "נסה שוב" : "Retry"}</Button>
+        <Button variant="outline" onClick={() => navigate("/personal")}>{copy.backToPersonal}</Button>
+      </CardContent></Card>
+    </div>;
   }
 
   if (!isAdmin) {
@@ -906,7 +939,7 @@ const AdminDashboard = () => {
                       const displayMsg = errMsg.includes("Sandbox") || errMsg.includes("not verified")
                         ? (isHe ? "שגיאה: הדומיין עדיין לא אומת לשליחה חיצונית." : "Error: sender domain is not yet verified for external delivery.")
                         : errMsg === "Unauthorized"
-                          ? (isHe ? "סיסמת האדמין התיישנה או שונתה. יש להזין אותה מחדש." : "Admin password expired or changed. Please enter it again.")
+                          ? (isHe ? "הגישה לתיבת האדמין פגה או לא אומתה. אפשר להזין שוב את הסיסמה." : "Admin mailbox access expired or could not be verified. Please sign in again.")
                           : errMsg;
                       setComposeStatus({ type: "error", message: displayMsg });
                       toast.error(displayMsg, { duration: 8000 });

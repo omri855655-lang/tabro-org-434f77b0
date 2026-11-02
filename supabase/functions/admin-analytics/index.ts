@@ -40,6 +40,9 @@ Deno.serve(async (req) => {
     const hasAdminPassword = !!correctPass && (body.admin_password === correctPass || adminPasswordHeader === correctPass)
 
     if (action === 'verify_password') {
+      if (!correctPass) return new Response(JSON.stringify({ ok: false, error: 'Admin verification temporarily unavailable' }), {
+        status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
       const ok = !!correctPass && body.password === correctPass
       return new Response(JSON.stringify({ ok }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
