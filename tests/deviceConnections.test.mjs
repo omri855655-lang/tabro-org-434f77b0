@@ -26,6 +26,7 @@ test('permission is requested directly from the button before asynchronous worke
   assert.ok(subscribe.indexOf('Notification.requestPermission()') < subscribe.indexOf('await getOrRegisterSW()'));
   assert.ok(subscribe.includes('Notification.permission === "denied"'));
   assert.ok(subscribe.includes('readPushEnvironment()'));
+  assert.ok(read('src/hooks/usePushNotifications.ts').includes('withPushTimeout(navigator.serviceWorker.getRegistration'));
   assert.ok(!read('src/components/PushNotificationToggle.tsx').includes('if (!isSupported) return null'));
   const repair = read('src/components/PushDeliveryTest.tsx').split('const reRegister = async')[1];
   assert.ok(repair.indexOf('await push.subscribe()') < repair.indexOf('await navigator.serviceWorker.getRegistration'));

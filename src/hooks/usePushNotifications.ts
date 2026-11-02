@@ -39,12 +39,12 @@ export function usePushNotifications() {
       setIsSubscribed(false);
       if (!supported || !user) { setLoading(false); return; }
       try {
-        const registration = await navigator.serviceWorker.getRegistration("/");
-        const subscription = await registration?.pushManager.getSubscription();
+        const registration = await withPushTimeout(navigator.serviceWorker.getRegistration("/"));
+        const subscription = registration ? await withPushTimeout(registration.pushManager.getSubscription()) : null;
         if (!subscription) return;
         // Browser permission alone does not mean this account can receive pushes.
-        const { data, error } = await supabase.from("push_subscriptions").select("id")
-          .eq("user_id", user.id).eq("endpoint", subscription.endpoint).maybeSingle();
+        const { data, error } = await withPushTimeout(supabase.from("push_subscriptions").select("id")
+          .eq("user_id", user.id).eq("endpoint", subscription.endpoint).maybeSingle());
         if (error) throw error;
         if (!cancelled) setIsSubscribed(Boolean(data) && Notification.permission === "granted");
       } catch {
