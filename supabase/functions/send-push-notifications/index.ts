@@ -121,6 +121,18 @@ async function runTick(admin: Admin, supabaseUrl: string, now: Date) {
     .filter((d: Row) => deliveryFinished(d as never))
     .map((d: Row) => `${d.user_id}|${d.kind}|${d.item_key}|${d.channel}`));
 
+  // Transition guard: honour very recent legacy records (written before the ledger existed).
+  const eventIds = [...new Set(candidates.filter(c => c.event).map(c => c.event!.id))];
+  if (eventIds.length) {
+    const { data: legacy } = await admin.from("sent_notifications").select("user_id, event_id, notification_type, channel")
+      .in("event_id", eventIds).gte("created_at", new Date(nowMs - 70 * 60_000).toISOString());
+    for (const l of legacy || []) {
+      for (const c of candidates) {
+        if (c.event?.id === l.event_id && c.userId === l.user_id && c.legacyType === l.notification_type) finished.add(`${c.userId}|${c.kind}|${c.itemKey}|${l.channel}`);
+      }
+    }
+  }
+
   const { data: subs } = await admin.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, created_at")
     .in("user_id", [...new Set(candidates.map(c => c.userId))]);
   const subsByUser = new Map<string, StoredSubscription[]>();
