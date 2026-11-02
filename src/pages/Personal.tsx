@@ -567,7 +567,7 @@ const Personal = () => {
 
   const headerLeft = (
     <>
-      <img src="/icons/tabro-v3-192.png" alt="Tabro" className="h-10 w-10 shrink-0 rounded-xl" />
+      <img src="/icons/tabro-v4-192.png" alt="Tabro" className="h-10 w-10 shrink-0 rounded-xl" />
       <h1 className="sr-only sm:not-sr-only sm:text-xl sm:font-bold sm:text-foreground">{t("personalArea")}</h1>
     </>
   );

@@ -18,7 +18,7 @@ test('PWA uses a relative origin identity, standalone mode and correctly sized o
   }
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.ok(html.includes('rel="manifest"'));
-  assert.ok(html.includes('sizes="180x180" href="/icons/tabro-v3-180.png"'));
+  assert.ok(html.includes('sizes="180x180" href="/icons/tabro-v4-180.png"'));
 });
 function worker() {
   const listeners = {}, shown = [], opened = [];
@@ -30,7 +30,7 @@ test('push worker always shows a local-branded notification and does not collaps
   const {listeners,shown} = worker(); let promise;
   listeners.push({data:{json:()=>({body:'Hello',icon:'https://untrusted.test/tracker'})},waitUntil:p=>promise=p}); await promise;
   assert.equal(shown[0].title,'Tabro');
-  assert.equal(shown[0].options.icon,'/icons/tabro-v3-192.png');
+  assert.equal(shown[0].options.icon,'/icons/tabro-v4-192.png');
   assert.equal(shown[0].options.tag,undefined);
   assert.ok(!listeners.fetch, 'private pages are not cached');
 });
@@ -41,4 +41,23 @@ test('notification clicks never send the user to an external or malformed target
   }
   assert.equal(opened[0],'https://tabro.org/personal');
   assert.equal(opened[1],'https://tabro.org/personal?section=email');
+});
+
+test('approved pencil identity is used across app, media and legacy image URLs', () => {
+  const paths = ['src/pages/Auth.tsx', 'src/pages/Landing.tsx', 'src/pages/Personal.tsx', 'src/pages/InstallApp.tsx', 'src/pages/Unsubscribe.tsx', 'src/components/layouts/MobileWorkspaceLayout.tsx', 'src/components/layouts/SidebarLayout.tsx', 'src/hooks/usePushNotifications.ts', 'src/components/zoneflow/ZoneFlowMusicPlayer.tsx', 'src/components/zoneflow/useZoneFlowAudioEngine.ts', 'src/components/zoneflow/zoneflowIosSilentAudio.ts'];
+  for (const path of paths) {
+    const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+    assert.ok(source.includes('/icons/tabro-v4-192.png'), path);
+    assert.ok(!source.includes('/icons/tabro-v3-'), path);
+  }
+  const approved = fs.readFileSync(new URL('icons/tabro-pencil-v4.png', root));
+  assert.equal(approved[25], 6, 'approved logo retains an alpha channel');
+  const transparent = fs.readFileSync(new URL('tabro-logo.png', root));
+  assert.equal(transparent[25], 6, 'legacy logo is truly RGBA, not a baked checkerboard');
+  for (const [file, size] of [['app-icon.png',192],['pwa-192x192.png',192],['pwa-512x512.png',512],['favicon.png',32]]) {
+    const png = fs.readFileSync(new URL(file, root));
+    assert.equal(png.readUInt32BE(16),size,file);
+    assert.equal(png.readUInt32BE(20),size,file);
+    assert.equal(png[25],2,file);
+  }
 });

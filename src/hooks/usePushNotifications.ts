@@ -217,7 +217,7 @@ export function usePushNotifications() {
       const registration = await getOrRegisterSW();
       await registration.showNotification("Tabro: בדיקת התראות במכשיר", {
         body: "זו בדיקה מקומית בלבד, לא בדיקת שליחה מהשרת.",
-        tag: "tabro-local-test", icon: "/icons/tabro-v3-192.png", data: { url: "/personal" },
+        tag: "tabro-local-test", icon: "/icons/tabro-v4-192.png", data: { url: "/personal" },
       });
       toast.info("בקשת תצוגה נשלחה למכשיר. אם לא הופיעה, בדוק מצב ריכוז והרשאות התראות.");
     } catch {

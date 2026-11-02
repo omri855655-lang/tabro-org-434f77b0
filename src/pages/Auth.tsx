@@ -233,7 +233,7 @@ const Auth = () => {
     >
       <Card className="w-full max-w-md shadow-2xl border-0 bg-card/95 backdrop-blur">
         <CardHeader className="text-center space-y-4">
-          <img src="/icons/tabro-v3-192.png" alt="Tabro" className="mx-auto h-20 w-20 rounded-2xl shadow-lg" />
+          <img src="/icons/tabro-v4-192.png" alt="Tabro" className="mx-auto h-20 w-20 rounded-2xl shadow-lg" />
           <CardTitle className="text-2xl font-bold">
             {mode === "login" ? copy.login : copy.signup}
           </CardTitle>

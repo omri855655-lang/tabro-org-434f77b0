@@ -130,7 +130,7 @@ const Landing = () => {
       <header className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "bg-card/90 backdrop-blur-xl shadow-sm border-b border-border/50" : "bg-transparent"}`}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src="/icons/tabro-v3-192.png" alt="" className="h-9 w-9 rounded-xl" />
+            <img src="/icons/tabro-v4-192.png" alt="" className="h-9 w-9 rounded-xl" />
             <span className="text-xl font-extrabold tracking-tight text-foreground">Tabro</span>
           </div>
           <div className="flex items-center gap-2">

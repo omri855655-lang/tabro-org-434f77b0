@@ -47,7 +47,7 @@ const InstallApp = () => {
       <div className="max-w-md w-full bg-card rounded-2xl shadow-xl p-8 text-center">
         <div className="mb-6">
           <img
-            src="/icons/tabro-v3-192.png"
+            src="/icons/tabro-v4-192.png"
             alt="App Icon"
             className="w-24 h-24 mx-auto rounded-2xl shadow-lg"
           />

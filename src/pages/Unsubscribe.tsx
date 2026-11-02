@@ -70,7 +70,7 @@ const Unsubscribe = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4" dir={dir}>
       <div className="max-w-md w-full text-center space-y-6">
-        <img src="/icons/tabro-v3-192.png" alt="Tabro" className="h-20 w-20 rounded-2xl mx-auto" />
+        <img src="/icons/tabro-v4-192.png" alt="Tabro" className="h-20 w-20 rounded-2xl mx-auto" />
         
         {status === "loading" && (
           <p className="text-muted-foreground animate-pulse">{copy.loading}</p>

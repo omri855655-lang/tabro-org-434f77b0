@@ -98,7 +98,7 @@ const SidebarLayout = ({ tabs, groupedTabs = [], groupingMode = "flat", activeTa
         )}
       >
         <div className={cn("flex items-center h-14 border-b border-border px-2", collapsed ? "justify-center" : "justify-between px-3")}>
-          {!collapsed && <span className="flex items-center gap-2 text-sm font-bold text-foreground truncate"><img src="/icons/tabro-v3-192.png" alt="" className="h-8 w-8 rounded-lg" />Tabro</span>}
+          {!collapsed && <span className="flex items-center gap-2 text-sm font-bold text-foreground truncate"><img src="/icons/tabro-v4-192.png" alt="" className="h-8 w-8 rounded-lg" />Tabro</span>}
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setCollapsed(!collapsed)}>
             {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </Button>

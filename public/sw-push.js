@@ -2,8 +2,8 @@
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 
-const TABRO_ICON = '/icons/tabro-v3-192.png';
-const TABRO_BADGE = '/icons/tabro-badge-v3-96.png';
+const TABRO_ICON = '/icons/tabro-v4-192.png';
+const TABRO_BADGE = '/icons/tabro-badge-v4-96.png';
 
 self.addEventListener('push', (event) => {
   let data = { title: 'Tabro', body: 'יש לך עדכון חדש' };
