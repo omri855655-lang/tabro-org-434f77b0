@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { ensurePushWorker } from "@/lib/registerPushWorker";
 
 const VAPID_PUBLIC_KEY = "BDA-BXp_JflLBc2rOgpr5AYyPtiqLKvzeJsoRoahBYItep2e_pU5la9Y38fcPF7M2MMuMDEQom2VjHbcAKZFU8I";
 
@@ -17,16 +18,7 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 async function getOrRegisterSW(): Promise<ServiceWorkerRegistration> {
-  // Check for existing registration first
-  const existing = await navigator.serviceWorker.getRegistration("/");
-  if (existing) {
-    await navigator.serviceWorker.ready;
-    return existing;
-  }
-
-  // Register our push SW as fallback
-  const reg = await navigator.serviceWorker.register("/sw-push.js", { scope: "/" });
-  await reg.update();
+  const reg = await ensurePushWorker();
   await navigator.serviceWorker.ready;
   return reg;
 }

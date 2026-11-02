@@ -20,6 +20,7 @@ const ERRORS: Record<string, string> = {
   vapid_pair_invalid: "מפתחות ההתראות בשרת אינם תואמים זה לזה, ולכן שירותי ה-Push ידחו שליחה.",
   daily_test_limit: "הגעת למגבלה של 5 בדיקות שרת ביום.",
   one_test_per_minute: "אפשר להריץ בדיקת שרת אחת בדקה. נסה שוב בעוד רגע.",
+  registration_failed: "לא הצלחנו לרשום מחדש את המכשיר. רענן את האפליקציה ונסה שוב.",
 };
 
 const toB64Url = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -91,6 +92,7 @@ export default function PushDeliveryTest({ push }: { push: Push }) {
   const reRegister = async () => {
     if (!user) return;
     setBusy(true);
+    setTest(null);
     try {
       const reg = await navigator.serviceWorker.getRegistration("/");
       const sub = await reg?.pushManager?.getSubscription();
@@ -98,7 +100,9 @@ export default function PushDeliveryTest({ push }: { push: Push }) {
         await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint).eq("user_id", user.id);
         await sub.unsubscribe();
       }
-      await push.subscribe();
+      if (!await push.subscribe()) setTest({ error: "registration_failed" });
+    } catch {
+      setTest({ error: "registration_failed" });
     } finally {
       setBusy(false);
       void refresh();
