@@ -132,13 +132,13 @@ async function runTick(admin: Admin, supabaseUrl: string, now: Date) {
   for (const c of candidates) {
     for (const channel of ["push", "email"] as PlannerChannel[]) {
       if (finished.has(`${c.userId}|${c.kind}|${c.itemKey}|${channel}`)) { out.alreadyHandled++; continue; }
-      const acceptedToday = await ctx.acceptedToday(c.userId, channel);
-      if (!plannerChannelAllowed(prefs.get(c.userId), c.kind, channel, { israelMinutes: clock.minutes, acceptedToday })) { out.blockedByPreferences++; continue; }
+      const settings = prefs.get(c.userId) as Row | undefined;
+      const limited = typeof settings?.dailyLimit === "number" && settings.dailyLimit > 0;
+      const acceptedToday = limited ? await ctx.acceptedToday(c.userId, channel) : 0;
+      if (!plannerChannelAllowed(settings, c.kind, channel, { israelMinutes: clock.minutes, acceptedToday })) { out.blockedByPreferences++; continue; }
+      // No device / no verified email: nothing is claimed, so a device added later still gets it.
       if (channel === "push" && !(subsByUser.get(c.userId) || []).length) { out.pushNoDevice++; continue; }
       if (channel === "email" && !(await ctx.email(c.userId))) { out.emailSkipped++; continue; }
-
-      const content = await buildContent(ctx, c, now);
-      if (!content) { out.alreadyHandled++; continue; } // nothing to say (e.g. task already done)
 
       const { data: claim, error } = await admin.rpc("claim_notification_delivery", {
         p_user_id: c.userId, p_kind: c.kind, p_item_key: c.itemKey, p_channel: channel,
@@ -149,6 +149,9 @@ async function runTick(admin: Admin, supabaseUrl: string, now: Date) {
       out.claimed++;
       const finish = (patch: Row) => admin.from("notification_deliveries").update({ lease_until: null, ...patch })
         .eq("id", row.delivery_id).eq("user_id", c.userId);
+
+      const content = await buildContent(ctx, c, now);
+      if (!content) { await finish({ status: "skipped", retryable: false, last_error: "nothing_to_send" }); out.alreadyHandled++; continue; }
 
       if (channel === "push") {
         if (!vapid) { await finish({ status: "failed", retryable: true, last_error: "vapid_missing" }); out.pushFailed++; continue; }
@@ -258,10 +261,10 @@ async function buildContent(ctx: TickContext, c: Candidate, now: Date): Promise<
 }
 
 async function reminderContent(ctx: TickContext, c: Candidate, now: Date): Promise<Content> {
-  const e = c.event!;
+  const e = { ...c.event!, title: c.event!.title || "אירוע" };
   // Wording reflects the real remaining time at send moment, not the configured offset.
   const remaining = Math.max(1, Math.round((Date.parse(e.start_time) - now.getTime()) / 60_000));
-  const label = remainingLabel(remaining || c.remainingMinutes || 1);
+  const label = remainingLabel(remaining);
   const time = israelTime(e.start_time);
   const action = await ctx.actionUrl(e);
   const html = `
@@ -284,7 +287,7 @@ async function reminderContent(ctx: TickContext, c: Candidate, now: Date): Promi
 }
 
 async function completionContent(ctx: TickContext, c: Candidate): Promise<Content | null> {
-  const e = c.event!;
+  const e = { ...c.event!, title: c.event!.title || "אירוע" };
   if (e.source_id && (e.source_type === "personal_task" || e.source_type === "work_task")) {
     const { data } = await ctx.admin.from("tasks").select("status").eq("id", e.source_id).eq("user_id", e.user_id).maybeSingle();
     if (!data || data.status === "בוצע") return null;
