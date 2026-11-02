@@ -1,52 +1,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { gmailMessageDate, saveSyncedEmail } from "../_shared/emailSyncStorage.ts";
+import { syncGmailConnection } from "../_shared/gmailSync.ts";
 
 const corsH = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
-
-// Unified categories - singular, matching frontend exactly
-async function classifyEmail(subject: string, from: string, labels: string[] = []): Promise<string> {
-  const lower = `${subject} ${from}`.toLowerCase();
-  if (labels.includes("CATEGORY_PROMOTIONS") || /unsubscribe|special offer|limited time|sale|discount|coupon|marketing|mailchimp|newsletter|מבצע|הנחה|קופון|הטבה|פרסומת|שיווק/.test(lower)) return "newsletter";
-  if (labels.includes("CATEGORY_SOCIAL")) return "social";
-  if (/invoice|receipt|payment|חשבונית|תשלום|קבלה|paypal|stripe/.test(lower)) return "payment";
-  if (/task|todo|action|משימה|לביצוע|reminder|jira|asana/.test(lower)) return "task";
-  if (/meeting|calendar|invitation|zoom|teams|פגישה|זימון/.test(lower)) return "meeting";
-  if (/order|shipping|delivery|הזמנה|משלוח|amazon|aliexpress/.test(lower)) return "shopping";
-  if (/bill|utility|חשבון|חשמל|מים|ארנונה/.test(lower)) return "bill";
-  return "personal";
-}
-
-async function refreshGmailToken(refreshToken: string): Promise<string | null> {
-  const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  if (!clientId || !clientSecret || !refreshToken) return null;
-
-  const res = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  const data = await res.json();
-  return data.access_token || null;
-}
+const jsonH = { ...corsH, "Content-Type": "application/json" };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsH });
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
+    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: jsonH });
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -55,10 +21,11 @@ Deno.serve(async (req) => {
     );
 
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsH });
+    if (authErr || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: jsonH });
 
-    const { connectionId } = await req.json();
-    if (!connectionId) return new Response(JSON.stringify({ error: "connectionId required" }), { status: 400, headers: corsH });
+    const body = await req.json().catch(() => ({}));
+    const connectionId = typeof body?.connectionId === "string" ? body.connectionId : "";
+    if (!/^[0-9a-f-]{36}$/i.test(connectionId)) return new Response(JSON.stringify({ error: "connectionId required" }), { status: 400, headers: jsonH });
 
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -67,118 +34,44 @@ Deno.serve(async (req) => {
 
     const { data: conn, error: connErr } = await serviceClient
       .from("email_connections")
-      .select("*")
+      .select("id, user_id, provider, access_token, refresh_token, settings")
       .eq("id", connectionId)
       .eq("user_id", user.id)
       .single();
 
     if (connErr || !conn) {
-      return new Response(JSON.stringify({ error: "Connection not found" }), { status: 404, headers: corsH });
+      return new Response(JSON.stringify({ error: "Connection not found" }), { status: 404, headers: jsonH });
     }
 
-    if (conn.provider !== "gmail") return new Response(JSON.stringify({ error: "Provider not supported" }), { status: 422, headers: corsH });
-    if (!conn.refresh_token) return new Response(JSON.stringify({ error: "Reconnect Gmail", needs_reconnect: true }), { status: 401, headers: corsH });
-    let emailsProcessed = 0;
-    let emailsFailed = 0;
+    if (conn.provider !== "gmail") return new Response(JSON.stringify({ error: "Provider not supported" }), { status: 422, headers: jsonH });
+    if (!conn.refresh_token) return new Response(JSON.stringify({ error: "Reconnect Gmail", needs_reconnect: true }), { status: 401, headers: jsonH });
 
-    // Gmail OAuth flow
-    if (conn.provider === "gmail" && conn.refresh_token) {
-      let accessToken = conn.access_token;
-      const settings = (conn.settings as any) || {};
+    const result = await syncGmailConnection(serviceClient, conn, { query: "newer_than:90d -in:spam -in:trash", maxResults: 100, onlyNew: false }, {
+      clientId: Deno.env.get("GOOGLE_CLIENT_ID"),
+      clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
+    });
 
-      // Refresh token if expired
-      if (!accessToken || (settings.token_expiry && Date.now() > settings.token_expiry)) {
-        accessToken = await refreshGmailToken(conn.refresh_token);
-        if (accessToken) {
-          await serviceClient.from("email_connections").update({
-            access_token: accessToken,
-            settings: { ...settings, token_expiry: Date.now() + 3500000 },
-          }).eq("id", connectionId);
-        } else {
-          return new Response(JSON.stringify({ 
-            error: "Failed to refresh Gmail token. Please reconnect your Gmail account.",
-            needs_reconnect: true 
-          }), { status: 401, headers: { ...corsH, "Content-Type": "application/json" } });
-        }
-      }
-
-      if (accessToken) {
-        // Fetch recent messages
-        const query = encodeURIComponent("newer_than:90d -in:spam -in:trash");
-        const listRes = await fetch(`${GMAIL_API}/messages?maxResults=100&q=${query}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        
-        if (!listRes.ok) {
-          console.error("Gmail list failed:", listRes.status);
-          if (listRes.status === 401) {
-            return new Response(JSON.stringify({ 
-              error: "Gmail access expired. Please reconnect.",
-              needs_reconnect: true 
-            }), { status: 401, headers: { ...corsH, "Content-Type": "application/json" } });
-          }
-          throw new Error(`Gmail API error: ${listRes.status}`);
-        }
-        
-        const listData = await listRes.json();
-
-        if (listData.messages && Array.isArray(listData.messages)) {
-          for (const msg of listData.messages.slice(0, 100)) {
-            try {
-              const msgRes = await fetch(`${GMAIL_API}/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-              });
-              if (!msgRes.ok) throw new Error(`Gmail message rejected (${msgRes.status})`);
-              const msgData = await msgRes.json();
-
-              const headers = msgData.payload?.headers || [];
-              const subject = headers.find((h: any) => h.name === "Subject")?.value || "";
-              const from = headers.find((h: any) => h.name === "From")?.value || "";
-              const date = headers.find((h: any) => h.name === "Date")?.value || "";
-
-              const category = await classifyEmail(subject, from, msgData.labelIds || []);
-
-              await saveSyncedEmail(serviceClient, {
-                user_id: user.id,
-                connection_id: connectionId,
-                external_message_id: msg.id,
-                email_subject: subject,
-                email_from: from,
-                email_date: gmailMessageDate(msgData.internalDate, date),
-                category,
-                is_processed: true,
-                suggested_action: category === "payment"
-                  ? { type: "add_expense", description: subject }
-                  : category === "task"
-                  ? { type: "create_task", description: subject }
-                  : null,
-              });
-
-              emailsProcessed++;
-            } catch (msgErr) {
-              emailsFailed++;
-              console.error("Email was not persisted:", msgErr instanceof Error ? msgErr.message : "unknown error");
-            }
-          }
-        }
-      }
+    if (result.error === "reconnect") {
+      return new Response(JSON.stringify({ error: "Gmail access expired. Please reconnect your Gmail account.", needs_reconnect: true, emails_processed: result.processed }), { status: 401, headers: jsonH });
+    }
+    if (result.error) {
+      console.error("email-sync failed:", result.error);
+      return new Response(JSON.stringify({ success: false, error: `Gmail sync failed (${result.error})`, emails_processed: result.processed, emails_failed: result.failed }), { status: 502, headers: jsonH });
+    }
+    if (result.failed > 0) {
+      return new Response(JSON.stringify({ success: false, error: "Some messages could not be saved", emails_processed: result.processed, emails_failed: result.failed }), { status: 502, headers: jsonH });
     }
 
-    if (emailsFailed > 0) return new Response(JSON.stringify({ success: false, error: "Some messages could not be saved", emails_processed: emailsProcessed, emails_failed: emailsFailed }), { status: 502, headers: { ...corsH, "Content-Type": "application/json" } });
     // A successful checkpoint must never hide failed writes.
     const { error: checkpointError } = await serviceClient.from("email_connections")
       .update({ last_sync: new Date().toISOString() })
-      .eq("id", connectionId);
+      .eq("id", connectionId)
+      .eq("user_id", user.id);
     if (checkpointError) throw new Error("Sync checkpoint failed");
 
-    return new Response(JSON.stringify({
-      success: true,
-      emails_processed: emailsProcessed,
-    }), {
-      headers: { ...corsH, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ success: true, emails_processed: result.processed }), { headers: jsonH });
   } catch (e) {
-    console.error("email-sync error:", e);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsH });
+    console.error("email-sync error:", e instanceof Error ? e.message : "unknown error");
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Sync failed" }), { status: 500, headers: jsonH });
   }
 });

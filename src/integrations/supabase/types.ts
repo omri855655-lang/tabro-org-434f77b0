@@ -701,6 +701,7 @@ export type Database = {
           email_date: string | null
           email_from: string | null
           email_subject: string | null
+          external_message_id: string | null
           id: string
           is_processed: boolean | null
           suggested_action: Json | null
@@ -714,6 +715,7 @@ export type Database = {
           email_date?: string | null
           email_from?: string | null
           email_subject?: string | null
+          external_message_id?: string | null
           id?: string
           is_processed?: boolean | null
           suggested_action?: Json | null
@@ -727,6 +729,7 @@ export type Database = {
           email_date?: string | null
           email_from?: string | null
           email_subject?: string | null
+          external_message_id?: string | null
           id?: string
           is_processed?: boolean | null
           suggested_action?: Json | null
@@ -1268,6 +1271,75 @@ export type Database = {
           pinned?: boolean | null
           title?: string
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_deliveries: {
+        Row: {
+          accepted_at: string | null
+          attempts: number
+          batch_id: string | null
+          channel: string
+          created_at: string
+          devices_found: number | null
+          id: string
+          item_key: string
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          provider_accepted: number | null
+          provider_expired: number | null
+          provider_message_id: string | null
+          provider_rejected: number | null
+          provider_status: number | null
+          retryable: boolean
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          attempts?: number
+          batch_id?: string | null
+          channel: string
+          created_at?: string
+          devices_found?: number | null
+          id?: string
+          item_key: string
+          kind: string
+          last_error?: string | null
+          lease_until?: string | null
+          provider_accepted?: number | null
+          provider_expired?: number | null
+          provider_message_id?: string | null
+          provider_rejected?: number | null
+          provider_status?: number | null
+          retryable?: boolean
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          attempts?: number
+          batch_id?: string | null
+          channel?: string
+          created_at?: string
+          devices_found?: number | null
+          id?: string
+          item_key?: string
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          provider_accepted?: number | null
+          provider_expired?: number | null
+          provider_message_id?: string | null
+          provider_rejected?: number | null
+          provider_status?: number | null
+          retryable?: boolean
+          status?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -2947,6 +3019,21 @@ export type Database = {
           attempt: number
           delivery_id: string
           idem_key: string
+        }[]
+      }
+      claim_notification_delivery: {
+        Args: {
+          p_batch_id: string
+          p_channel: string
+          p_item_key: string
+          p_kind: string
+          p_lease_seconds?: number
+          p_max_attempts?: number
+          p_user_id: string
+        }
+        Returns: {
+          attempt: number
+          delivery_id: string
         }[]
       }
       delete_email: {

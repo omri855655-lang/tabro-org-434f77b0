@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import PushDeliveryTest from "@/components/PushDeliveryTest";
+import ImportantMailAlertSettings from "@/components/ImportantMailAlertSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -375,6 +377,7 @@ const NotificationSettings = () => {
 
   return (
     <div className="space-y-4">
+      <ImportantMailAlertSettings />
       {CHANNEL_META.map(({ key, label, icon: Icon, desc }) => (
         <Card key={key}>
           <CardHeader className="py-3">
@@ -404,6 +407,7 @@ const NotificationSettings = () => {
                     <Button variant="outline" size="sm" className="min-h-11" disabled={push.loading || !push.isSubscribed} onClick={() => void push.testLocalNotification()}>בדיקת תצוגה במכשיר</Button>
                   </div>
                   <p>בדיקת התצוגה היא מקומית בלבד; היא אינה מאשרת שהשרת שלח Push או מייל.</p>
+                  <PushDeliveryTest push={push} />
                 </div>
               )}
 
