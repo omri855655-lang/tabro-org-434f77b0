@@ -1,30 +1,178 @@
-import { CalendarDays, Download, Smartphone } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { CalendarDays, Copy, Download, Link2, RefreshCw, ShieldCheck, Smartphone, Unlink } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useLanguage } from "@/hooks/useLanguage";
+import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_URL } from "@/integrations/supabase/config";
+import { buildFeedUrls, FEED_DAYS_AHEAD, FEED_DAYS_BACK, FEED_MAX_EVENTS, type FeedFieldOptions } from "../../supabase/functions/_shared/calendarFeed.ts";
+import { appleCalendarCopy, fillCopy } from "@/components/appleCalendarCopy";
 
-const copy = {
-  he: { button: "יומן באייפון", title: "הלוז שלך גם ביומן Apple", intro: "אפשר להציג אירועי Tabro דרך היומן והווידג׳ט של האייפון, בנוסף להתראות הקיימות.", scope: "הקובץ כולל רק את האירועים בטווח ובסינון שמוצגים כרגע במתכנן.", steps: ["ייצא את האירועים לקובץ ICS.", "ייבא את הקובץ ליומן תואם, למשל ביומן Apple ב־Mac שמסונכרן ל־iCloud. אפשרות הייבוא הישיר באייפון תלויה באפליקציה שפותחת את הקובץ.", "באייפון: לחיצה ארוכה על מסך הנעילה ← התאמה אישית ← הוספת ווידג׳טים ← לוח שנה. ודא שהיומן שאליו ייבאת מוצג בו."], warning: "זהו עותק חד־פעמי, לא סנכרון אוטומטי. שינויים ב־Tabro לא יעדכנו את הקובץ שכבר ייבאת; ייבוא חוזר עלול ליצור כפילויות ביומן.", note: "ההתראות של Tabro ממשיכות לפעול. Apple קובעת את מראה הווידג׳ט ומועדי העדכון שלו; האתר אינו יכול להוסיף אותו עבורך.", download: "הורדת קובץ ליומן", help: "הוראות Apple לווידג׳טים" },
-  en: { button: "iPhone calendar", title: "Your schedule in Apple Calendar", intro: "View Tabro events through your iPhone calendar and widget, alongside existing notifications.", scope: "Only events in the planner's current date range and filters are exported.", steps: ["Export your events as an ICS file.", "Import it into a compatible calendar, such as Apple Calendar on a Mac synced with iCloud. Direct iPhone import depends on the app opening the file.", "On iPhone: hold the Lock Screen → Customize → Add Widgets → Calendar. Make sure your imported calendar is included."], warning: "This is a one-time copy, not automatic sync. Later Tabro changes will not update your imported file; importing again may create calendar duplicates.", note: "Tabro notifications keep working. Apple controls widget layout and refresh timing; the website cannot install the widget for you.", download: "Download calendar file", help: "Apple widget instructions" },
-  es: { button: "Calendario de iPhone", title: "Tu agenda en Calendario de Apple", intro: "Consulta eventos de Tabro en el calendario y widget del iPhone, además de las notificaciones.", scope: "Se exportan solo los eventos del período y los filtros actuales.", steps: ["Exporta los eventos como archivo ICS.", "Impórtalo en un calendario compatible, como Calendario de Apple en un Mac sincronizado con iCloud. La importación directa en iPhone depende de la app.", "En iPhone: mantén pulsada la pantalla bloqueada → Personalizar → Añadir widgets → Calendario. Incluye el calendario importado."], warning: "Es una copia única, no una sincronización automática. Los cambios posteriores en Tabro no se reflejan; otra importación puede crear duplicados.", note: "Las notificaciones de Tabro siguen funcionando. Apple controla el diseño y la actualización del widget; el sitio no puede instalarlo por ti.", download: "Descargar archivo de calendario", help: "Instrucciones de Apple" },
-  zh: { button: "iPhone 日历", title: "在 Apple 日历中查看日程", intro: "通过 iPhone 日历和小组件查看 Tabro 活动，同时保留现有通知。", scope: "仅导出当前日期范围和筛选条件中的活动。", steps: ["将活动导出为 ICS 文件。", "导入兼容的日历，例如与 iCloud 同步的 Mac 上的 Apple 日历。iPhone 直接导入功能取决于打开文件的应用。", "在 iPhone 上长按锁定屏幕 → 自定 → 添加小组件 → 日历。确保包含已导入的日历。"], warning: "这是一次性副本，并非自动同步。Tabro 的后续更改不会更新已导入的文件；再次导入可能产生重复活动。", note: "Tabro 通知仍然有效。Apple 决定小组件的外观和更新时间；网站无法代你安装小组件。", download: "下载日历文件", help: "Apple 小组件说明" },
-  ar: { button: "تقويم iPhone", title: "جدولك في تقويم Apple", intro: "اعرض أحداث Tabro في تقويم iPhone وأدواته، إلى جانب الإشعارات الحالية.", scope: "يتم تصدير أحداث النطاق الزمني وعوامل التصفية الحالية فقط.", steps: ["صدّر الأحداث كملف ICS.", "استورده في تقويم متوافق، مثل تقويم Apple على Mac المتزامن مع iCloud. يعتمد الاستيراد المباشر على iPhone على التطبيق الذي يفتح الملف.", "على iPhone: اضغط مطولاً على شاشة القفل ← تخصيص ← إضافة أدوات ← التقويم. تأكد من تضمين التقويم المستورد."], warning: "هذه نسخة لمرة واحدة وليست مزامنة تلقائية. لن تنعكس تغييرات Tabro اللاحقة؛ وقد يؤدي الاستيراد مجدداً إلى التكرار.", note: "تستمر إشعارات Tabro. تتحكم Apple بمظهر الأداة وتوقيت تحديثها؛ ولا يستطيع الموقع تثبيتها نيابة عنك.", download: "تنزيل ملف التقويم", help: "تعليمات Apple للأدوات" },
-  ru: { button: "Календарь iPhone", title: "Расписание в Календаре Apple", intro: "Просматривайте события Tabro в календаре и виджете iPhone вместе с текущими уведомлениями.", scope: "Экспортируются только события текущего диапазона дат с учётом фильтров.", steps: ["Экспортируйте события в файл ICS.", "Импортируйте его в совместимый календарь, например Календарь Apple на Mac с синхронизацией iCloud. Прямой импорт на iPhone зависит от приложения.", "На iPhone: удерживайте экран блокировки → Настроить → Добавить виджеты → Календарь. Включите импортированный календарь."], warning: "Это разовая копия, а не автоматическая синхронизация. Изменения в Tabro не обновят импорт; повторный импорт может создать дубликаты.", note: "Уведомления Tabro продолжают работать. Apple управляет видом и обновлением виджета; сайт не может установить его за вас.", download: "Скачать файл календаря", help: "Инструкция Apple по виджетам" },
-};
+interface FeedStatus {
+  enabled: boolean;
+  options?: FeedFieldOptions;
+  createdAt?: string;
+  lastFetchedAt?: string | null;
+  lastEventCount?: number | null;
+  lastSkippedCount?: number | null;
+  lastTruncated?: boolean | null;
+}
+type Action = "status" | "create" | "regenerate" | "update" | "revoke";
+const NO_FIELDS: FeedFieldOptions = { include_description: false, include_location: false, include_meeting_url: false };
 
+/** Private, revocable Apple Calendar subscription plus the one-time ICS fallback. */
 export default function AppleCalendarGuide({ onExport }: { onExport: () => void }) {
   const { lang, dir } = useLanguage();
-  const c = copy[lang];
-  return <Dialog>
+  const c = appleCalendarCopy[lang];
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<FeedStatus | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [fields, setFields] = useState<FeedFieldOptions>(NO_FIELDS);
+  // The raw link exists only in memory while this dialog is open; never persisted or logged.
+  const [token, setToken] = useState<string | null>(null);
+
+  const call = useCallback(async (action: Action, extra: Record<string, unknown> = {}) => {
+    const { data, error } = await supabase.functions.invoke("calendar-feed-manage", { body: { action, ...extra } });
+    if (error || !data || typeof data !== "object" || "error" in data) throw new Error("calendar-feed-manage");
+    return data as FeedStatus & { token?: string };
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoadFailed(false);
+    try {
+      const data = await call("status");
+      setStatus(data);
+      setFields(data.options ?? NO_FIELDS);
+    } catch { setLoadFailed(true); }
+  }, [call]);
+
+  useEffect(() => { if (open) void load(); }, [open, load]);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) { setToken(null); setConsent(false); setStatus(null); }
+  };
+
+  const run = async (action: Action, extra: Record<string, unknown> = {}, success?: string) => {
+    setBusy(true);
+    try {
+      const data = await call(action, extra);
+      setStatus(data);
+      setFields(data.options ?? NO_FIELDS);
+      setToken(data.token ?? null);
+      if (action === "revoke") setConsent(false);
+      if (success) toast.success(success);
+    } catch {
+      toast.error(c.actionError);
+    } finally { setBusy(false); }
+  };
+
+  const urls = token ? buildFeedUrls(SUPABASE_URL, token) : null;
+  const copyLink = async () => {
+    if (!urls) return;
+    try { await navigator.clipboard.writeText(urls.https); toast.success(c.copied); } catch { toast.error(c.copyFailed); }
+  };
+  const formatDate = (iso?: string | null) => iso ? new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jerusalem" }).format(new Date(iso)) : "";
+  const optionsChanged = !!status?.options && (Object.keys(NO_FIELDS) as (keyof FeedFieldOptions)[]).some(key => status.options![key] !== fields[key]);
+
+  const fieldToggles = <div className="space-y-2">
+    <p className="text-sm">{c.alwaysIncluded}</p>
+    {([["include_description", c.optDescription], ["include_location", c.optLocation], ["include_meeting_url", c.optMeeting]] as const).map(([key, label]) =>
+      <label key={key} className="flex min-h-11 items-center gap-3 text-sm">
+        <Checkbox checked={fields[key]} onCheckedChange={value => setFields(prev => ({ ...prev, [key]: value === true }))} disabled={busy} />
+        {label}
+      </label>)}
+    <p className="text-xs text-muted-foreground">{c.optHint}</p>
+  </div>;
+
+  return <Dialog open={open} onOpenChange={handleOpenChange}>
     <DialogTrigger asChild><Button variant="outline" size="sm" className="min-h-11 gap-1"><Smartphone className="h-4 w-4" />{c.button}</Button></DialogTrigger>
     <DialogContent dir={dir} className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
       <DialogHeader><DialogTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />{c.title}</DialogTitle><DialogDescription>{c.intro}</DialogDescription></DialogHeader>
-      <p className="text-sm text-muted-foreground">{c.scope}</p>
-      <ol className="list-decimal space-y-3 ps-5 text-sm leading-relaxed">{c.steps.map(step => <li key={step}>{step}</li>)}</ol>
-      <p className="rounded-lg border bg-muted/50 p-3 text-sm leading-relaxed">{c.warning}</p>
-      <Button onClick={onExport} className="min-h-11 gap-2"><Download className="h-4 w-4" />{c.download}</Button>
+
+      <section className="space-y-3 rounded-lg border p-3">
+        <h3 className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" />{c.subTitle}</h3>
+        <p className="text-sm leading-relaxed">{c.subIntro}</p>
+        <p className="text-sm text-muted-foreground">{fillCopy(c.feedScope, { back: FEED_DAYS_BACK, ahead: FEED_DAYS_AHEAD, max: FEED_MAX_EVENTS })}</p>
+        <ul className="list-disc space-y-1 ps-5 text-sm leading-relaxed">{c.privacy.map(line => <li key={line}>{line}</li>)}</ul>
+
+        {loadFailed && <div className="flex flex-wrap items-center gap-2 text-sm text-destructive">{c.loadError}<Button variant="outline" size="sm" onClick={() => void load()}>{c.retry}</Button></div>}
+        {!loadFailed && !status && <p className="text-sm text-muted-foreground">{c.working}</p>}
+
+        {status && !status.enabled && <div className="space-y-3">
+          {fieldToggles}
+          <label className="flex items-start gap-3 rounded-md bg-muted/50 p-3 text-sm">
+            <Checkbox className="mt-0.5" checked={consent} onCheckedChange={value => setConsent(value === true)} disabled={busy} />
+            {c.consent}
+          </label>
+          <Button className="min-h-11 w-full gap-2" disabled={!consent || busy} onClick={() => void run("create", { consent: true, options: fields })}>
+            <Link2 className="h-4 w-4" />{busy ? c.working : c.create}
+          </Button>
+        </div>}
+
+        {status?.enabled && <div className="space-y-3">
+          {urls ? <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+            <p className="text-sm font-medium">{c.linkReady}</p>
+            <input readOnly dir="ltr" value={urls.https} onFocus={event => event.currentTarget.select()} aria-label={c.copy} className="w-full rounded-md border bg-background px-2 py-2 font-mono text-xs" />
+            <div className="flex flex-wrap gap-2">
+              <Button asChild className="min-h-11 gap-2"><a href={urls.webcal} rel="noreferrer"><CalendarDays className="h-4 w-4" />{c.subscribe}</a></Button>
+              <Button variant="outline" className="min-h-11 gap-2" onClick={() => void copyLink()}><Copy className="h-4 w-4" />{c.copy}</Button>
+            </div>
+          </div> : <p className="text-sm">{c.activeNoLink}</p>}
+
+          <div className="space-y-1 text-sm text-muted-foreground">
+            {status.createdAt && <p>{fillCopy(c.createdAt, { date: formatDate(status.createdAt) })}</p>}
+            <p>{status.lastFetchedAt ? fillCopy(c.lastFetch, { date: formatDate(status.lastFetchedAt) }) : c.never}</p>
+            {status.lastFetchedAt && status.lastEventCount != null && <p>{fillCopy(c.lastCount, { count: status.lastEventCount })}</p>}
+            {!!status.lastSkippedCount && <p>{fillCopy(c.skipped, { count: status.lastSkippedCount })}</p>}
+            {status.lastTruncated && <p className="text-destructive">{c.truncated}</p>}
+            <p className="text-xs">{c.statusNote}</p>
+          </div>
+
+          {fieldToggles}
+          {optionsChanged && <Button variant="secondary" className="min-h-11" disabled={busy} onClick={() => void run("update", { options: fields }, c.optionsSaved)}>{c.saveOptions}</Button>}
+
+          <div className="flex flex-wrap gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild><Button variant="outline" className="min-h-11 gap-2" disabled={busy}><RefreshCw className="h-4 w-4" />{c.regenerate}</Button></AlertDialogTrigger>
+              <AlertDialogContent dir={dir}>
+                <AlertDialogHeader><AlertDialogTitle>{c.regenerateTitle}</AlertDialogTitle><AlertDialogDescription>{c.regenerateBody}</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogFooter><AlertDialogCancel>{c.cancel}</AlertDialogCancel><AlertDialogAction onClick={() => void run("regenerate", { consent: true, confirm: true, options: fields })}>{c.regenerateConfirm}</AlertDialogAction></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild><Button variant="outline" className="min-h-11 gap-2 text-destructive" disabled={busy}><Unlink className="h-4 w-4" />{c.revoke}</Button></AlertDialogTrigger>
+              <AlertDialogContent dir={dir}>
+                <AlertDialogHeader><AlertDialogTitle>{c.revokeTitle}</AlertDialogTitle><AlertDialogDescription>{c.revokeBody}</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogFooter><AlertDialogCancel>{c.cancel}</AlertDialogCancel><AlertDialogAction onClick={() => void run("revoke", { confirm: true })}>{c.revokeConfirm}</AlertDialogAction></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>}
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="font-semibold">{c.setupTitle}</h3>
+        <ol className="list-decimal space-y-2 ps-5 text-sm leading-relaxed">{c.setupSteps.map(step => <li key={step}>{step}</li>)}</ol>
+      </section>
+
+      <section className="space-y-2 rounded-lg border p-3">
+        <h3 className="font-semibold">{c.fallbackTitle}</h3>
+        <p className="text-sm text-muted-foreground">{c.scope}</p>
+        <p className="rounded-lg bg-muted/50 p-3 text-sm leading-relaxed">{c.warning}</p>
+        <Button variant="outline" onClick={onExport} className="min-h-11 gap-2"><Download className="h-4 w-4" />{c.download}</Button>
+      </section>
+
       <p className="text-xs leading-relaxed text-muted-foreground">{c.note}</p>
-      <a href="https://support.apple.com/118610" target="_blank" rel="noreferrer" className="text-sm text-primary underline">{c.help}</a>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <a href="https://support.apple.com/en-us/102301" target="_blank" rel="noreferrer" className="text-primary underline">{c.subscribeHelp}</a>
+        <a href="https://support.apple.com/en-us/118610" target="_blank" rel="noreferrer" className="text-primary underline">{c.help}</a>
+      </div>
     </DialogContent>
   </Dialog>;
 }
