@@ -32,6 +32,8 @@ test('the subscription is opt-in: consent unchecked and every extra field off by
 test('the raw link stays in memory only and is never persisted or logged', () => {
   for (const banned of ['localStorage', 'sessionStorage', 'console.', 'window.open', 'location.href']) assert.ok(!panel.includes(banned), banned);
   assert.match(panel, /if \(!next\) \{ setToken\(null\)/);
+  assert.ok(panel.includes('dialogGeneration.current++'));
+  assert.ok(panel.includes('if (generation !== dialogGeneration.current) return;'));
   assert.ok(!panel.includes('user_id'));
 });
 

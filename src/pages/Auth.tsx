@@ -14,7 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { BookOpen, Tv, Lock } from "lucide-react";
 import { useSiteAppearance } from "@/hooks/useSiteAppearance";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -234,11 +233,7 @@ const Auth = () => {
     >
       <Card className="w-full max-w-md shadow-2xl border-0 bg-card/95 backdrop-blur">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto flex items-center justify-center gap-2 text-primary">
-            <BookOpen className="h-8 w-8" />
-            <Tv className="h-8 w-8" />
-            <Lock className="h-8 w-8" />
-          </div>
+          <img src="/icons/tabro-v3-192.png" alt="Tabro" className="mx-auto h-20 w-20 rounded-2xl shadow-lg" />
           <CardTitle className="text-2xl font-bold">
             {mode === "login" ? copy.login : copy.signup}
           </CardTitle>

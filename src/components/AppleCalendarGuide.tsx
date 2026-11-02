@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarDays, Copy, Download, Link2, RefreshCw, ShieldCheck, Smartphone, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export default function AppleCalendarGuide({ onExport }: { onExport: () => void 
   const [fields, setFields] = useState<FeedFieldOptions>(NO_FIELDS);
   // The raw link exists only in memory while this dialog is open; never persisted or logged.
   const [token, setToken] = useState<string | null>(null);
+  const dialogGeneration = useRef(0);
 
   const call = useCallback(async (action: Action, extra: Record<string, unknown> = {}) => {
     const { data, error } = await supabase.functions.invoke("calendar-feed-manage", { body: { action, ...extra } });
@@ -43,32 +44,38 @@ export default function AppleCalendarGuide({ onExport }: { onExport: () => void 
   }, []);
 
   const load = useCallback(async () => {
+    const generation = dialogGeneration.current;
     setLoadFailed(false);
     try {
       const data = await call("status");
+      if (generation !== dialogGeneration.current) return;
       setStatus(data);
       setFields(data.options ?? NO_FIELDS);
-    } catch { setLoadFailed(true); }
+    } catch { if (generation === dialogGeneration.current) setLoadFailed(true); }
   }, [call]);
 
   useEffect(() => { if (open) void load(); }, [open, load]);
 
   const handleOpenChange = (next: boolean) => {
+    dialogGeneration.current++;
     setOpen(next);
     if (!next) { setToken(null); setConsent(false); setStatus(null); }
   };
 
   const run = async (action: Action, extra: Record<string, unknown> = {}, success?: string) => {
+    const generation = dialogGeneration.current;
     setBusy(true);
     try {
       const data = await call(action, extra);
+      // A late response must not restore a private link after closing the dialog.
+      if (generation !== dialogGeneration.current) return;
       setStatus(data);
       setFields(data.options ?? NO_FIELDS);
       setToken(data.token ?? null);
       if (action === "revoke") setConsent(false);
       if (success) toast.success(success);
     } catch {
-      toast.error(c.actionError);
+      if (generation === dialogGeneration.current) toast.error(c.actionError);
     } finally { setBusy(false); }
   };
 
