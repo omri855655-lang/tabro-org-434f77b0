@@ -261,7 +261,7 @@ async function buildContent(ctx: TickContext, c: Candidate, now: Date): Promise<
 }
 
 async function reminderContent(ctx: TickContext, c: Candidate, now: Date): Promise<Content> {
-  const e = { ...c.event!, title: c.event!.title || "אירוע" };
+  const e: Row = { ...c.event!, title: c.event!.title || "אירוע" };
   // Wording reflects the real remaining time at send moment, not the configured offset.
   const remaining = Math.max(1, Math.round((Date.parse(e.start_time) - now.getTime()) / 60_000));
   const label = remainingLabel(remaining);
@@ -287,7 +287,7 @@ async function reminderContent(ctx: TickContext, c: Candidate, now: Date): Promi
 }
 
 async function completionContent(ctx: TickContext, c: Candidate): Promise<Content | null> {
-  const e = { ...c.event!, title: c.event!.title || "אירוע" };
+  const e: Row = { ...c.event!, title: c.event!.title || "אירוע" };
   if (e.source_id && (e.source_type === "personal_task" || e.source_type === "work_task")) {
     const { data } = await ctx.admin.from("tasks").select("status").eq("id", e.source_id).eq("user_id", e.user_id).maybeSingle();
     if (!data || data.status === "בוצע") return null;
