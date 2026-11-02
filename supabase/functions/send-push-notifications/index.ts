@@ -5,7 +5,7 @@ import { summarizePushResults } from "../_shared/pushDiagnostics.ts";
 import { deliverToSubscriptions, vapidFromEnv, type StoredSubscription } from "../_shared/webPush.ts";
 import {
   COMPLETION_WINDOW_MS, DEADLINE_WINDOW, MORNING_WINDOW, PLANNER_KINDS, PLANNER_LEASE_SECONDS, PLANNER_MAX_ATTEMPTS,
-  REMINDER_LOOKAHEAD_MS, dueCompletion, dueReminder, escapeHtml, inWindow, legacyReminderType, nextLocalDate,
+  REMINDER_LOOKAHEAD_MS, deliveryFinished, dueCompletion, dueReminder, escapeHtml, inWindow, legacyReminderType, nextLocalDate,
   plannerChannelAllowed, pushFinish, reminderOffsets, remainingLabel,
   type PlannerChannel, type PlannerKind,
 } from "../_shared/plannerReminders.ts";
@@ -118,7 +118,7 @@ async function runTick(admin: Admin, supabaseUrl: string, now: Date) {
     .in("user_id", [...new Set(candidates.map(c => c.userId))]).in("kind", PLANNER_KINDS)
     .in("item_key", [...new Set(candidates.map(c => c.itemKey))]);
   const finished = new Set((done || [])
-    .filter((d: Row) => d.status === "accepted" || d.status === "skipped" || (d.status === "failed" && (!d.retryable || d.attempts >= PLANNER_MAX_ATTEMPTS)))
+    .filter((d: Row) => deliveryFinished(d as never))
     .map((d: Row) => `${d.user_id}|${d.kind}|${d.item_key}|${d.channel}`));
 
   const { data: subs } = await admin.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, created_at")

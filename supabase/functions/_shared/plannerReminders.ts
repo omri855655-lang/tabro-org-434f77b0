@@ -159,6 +159,13 @@ export function pushFinish(s: PushSummary): DeliveryFinish {
   return { status: s.devicesFound > 0 && s.expired === s.devicesFound ? "skipped" : "failed", retryable: false };
 }
 
+// A ledger row is final for its own channel only; a failed push never blocks email or vice versa.
+export function deliveryFinished(row: { status: string; retryable: boolean | null; attempts: number | null }, maxAttempts = PLANNER_MAX_ATTEMPTS): boolean {
+  if (row.status === "accepted" || row.status === "skipped") return true;
+  if (row.status === "failed") return !row.retryable || (row.attempts ?? 0) >= maxAttempts;
+  return false; // "sending": the claim function decides (lease)
+}
+
 export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
