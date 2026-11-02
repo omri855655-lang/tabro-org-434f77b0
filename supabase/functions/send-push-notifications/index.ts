@@ -18,7 +18,7 @@ import {
 
 const VERSION = "planner-2026-11-02";
 // Records written by the pre-ledger sender (before this instant) still count as sent.
-const LEDGER_START = "2026-11-02T10:30:00Z";
+const LEDGER_START = "2026-11-02T09:50:00Z";
 const FROM = "Tabro <noreply@tabro.org>";
 const REPLY_TO = "info@tabro.org";
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend/emails";
