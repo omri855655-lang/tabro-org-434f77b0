@@ -40,7 +40,7 @@ const InstallApp = () => {
 
   const isStandalone = typeof window !== "undefined" && 
     (window.matchMedia("(display-mode: standalone)").matches || 
-     (window.navigator as any).standalone === true);
+     (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4" dir={dir}>
