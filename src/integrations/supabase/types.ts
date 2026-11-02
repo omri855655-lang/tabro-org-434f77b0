@@ -271,6 +271,54 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_feed_subscriptions: {
+        Row: {
+          created_at: string
+          id: string
+          include_description: boolean
+          include_location: boolean
+          include_meeting_url: boolean
+          last_event_count: number | null
+          last_fetched_at: string | null
+          last_skipped_count: number | null
+          last_truncated: boolean | null
+          revoked_at: string | null
+          token_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          include_description?: boolean
+          include_location?: boolean
+          include_meeting_url?: boolean
+          last_event_count?: number | null
+          last_fetched_at?: string | null
+          last_skipped_count?: number | null
+          last_truncated?: boolean | null
+          revoked_at?: string | null
+          token_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          include_description?: boolean
+          include_location?: boolean
+          include_meeting_url?: boolean
+          last_event_count?: number | null
+          last_fetched_at?: string | null
+          last_skipped_count?: number | null
+          last_truncated?: boolean | null
+          revoked_at?: string | null
+          token_hash?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       checked_items: {
         Row: {
           checked_at: string
