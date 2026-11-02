@@ -60,7 +60,7 @@ Deno.test("feed window and truncation are explicit", () => {
   assertEquals(w.from.toISOString(), "2026-10-26T10:00:00.000Z"); assertEquals(w.to.toISOString(), "2027-05-01T10:00:00.000Z");
   const many = Array.from({ length: FEED_MAX_EVENTS + 1 }, (_, i) => row({ id: `e${i}` }));
   const f = buildFeedBody(many, off, now);
-  assertEquals([f.exported, f.truncated], [FEED_MAX_EVENTS, true]); assertMatch(f.text, /limit reached/);
+  assertEquals([f.exported, f.truncated], [FEED_MAX_EVENTS, true]); assertMatch(f.text.replace(/\r\n /g, ""), /limit reached/);
 });
 
 Deno.test("feed URLs are https + webcal on the backend only", () => {
