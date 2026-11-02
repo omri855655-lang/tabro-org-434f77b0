@@ -50,8 +50,11 @@ interface Notification {
 }
 
 const typeLabels: Record<string, string> = {
+  event_1min: "⏰ תזכורת דקה",
   event_5min: "⏰ תזכורת 5 דק׳",
+  event_10min: "⏰ תזכורת 10 דק׳",
   event_15min: "⏰ תזכורת 15 דק׳",
+  event_30min: "⏰ תזכורת 30 דק׳",
   event_1hour: "⏰ תזכורת שעה",
   event_completion: "🏁 בדיקת סיום",
   morning_summary: "☀️ סיכום בוקר",
