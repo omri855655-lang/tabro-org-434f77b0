@@ -10,16 +10,27 @@ export function LearningTopicDraw({ category, subtopic, lang }: {
   const [done, setDone] = useState(() => typeof window === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
     if (done) return;
-    const interval = window.setInterval(() => setFrame(value => value + 1), 120);
-    const finish = window.setTimeout(() => setDone(true), 960);
-    return () => { window.clearInterval(interval); window.clearTimeout(finish); };
+    // Slow down towards the already selected result; animation never redraws it.
+    const delays = Array.from({ length: 24 }, (_, index) => 55 + index * index * 0.8);
+    let elapsed = 0;
+    const timers = delays.map((delay, index) => {
+      elapsed += delay;
+      return window.setTimeout(() => setFrame(index + 1), elapsed);
+    });
+    timers.push(window.setTimeout(() => setDone(true), elapsed + 240));
+    return () => timers.forEach(window.clearTimeout);
   }, [done]);
   const categories = Object.keys(LEARNING_PATHS);
-  const preview = categories[frame % categories.length];
-  const label = learningLabels(lang, done ? category : preview, done ? subtopic : LEARNING_PATHS[preview][0]);
-  return <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-center text-amber-950">
+  const topics = categories.flatMap(key => LEARNING_PATHS[key].map(topic => ({ category: key, subtopic: topic })));
+  const preview = topics[(frame * 17) % topics.length];
+  const label = learningLabels(lang, done ? category : preview.category, done ? subtopic : preview.subtopic);
+  return <div aria-busy={!done} className="mb-4 overflow-hidden rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-5 text-center text-amber-950">
     <Sparkles aria-hidden="true" className="mx-auto mb-2 h-5 w-5" />
     <p className="text-xs" role="status">{learningDrawCopy[lang][done ? 1 : 0]}{done ? `: ${label.category} · ${label.subtopic}` : ''}</p>
-    <p aria-hidden="true" className="mt-2 text-lg font-semibold">{label.category} · {label.subtopic}</p>
+    <div aria-hidden="true" className="relative mt-3 rounded-xl border-y border-amber-200 bg-white/80 py-3">
+      {!done && <p className="truncate text-xs opacity-40">{learningLabels(lang, topics[(frame * 17 + 1) % topics.length].category, topics[(frame * 17 + 1) % topics.length].subtopic).subtopic}</p>}
+      <p className="py-2 text-xl font-semibold">{label.category} · {label.subtopic}</p>
+      {!done && <p className="truncate text-xs opacity-40">{learningLabels(lang, topics[(frame * 17 + 2) % topics.length].category, topics[(frame * 17 + 2) % topics.length].subtopic).subtopic}</p>}
+    </div>
   </div>;
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { translationComplements } from '@/lib/translationComplements';
 import { parseAppLanguage, type AppLanguage } from '@/lib/appLanguage';
+import { routineCopy } from '@/lib/routineCopy';
 
 type Language = AppLanguage;
 
@@ -595,7 +596,7 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType>({
   lang: "he",
   setLang: () => {},
-  t: (key) => translations.he[key],
+  t: (key) => key === 'dailyRoutine' ? routineCopy.he.title : translations.he[key],
   dir: "rtl",
 });
 
@@ -631,6 +632,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = (key: TranslationKey): string => {
+    if (key === 'dailyRoutine') return routineCopy[lang].title;
     // Keep non-Hebrew interfaces readable while a newly added key is waiting
     // for a native translation instead of leaking Hebrew into the screen.
     return translations[lang]?.[key] || translationComplements[lang]?.[key] || translations.en[key] || translations.he[key] || key;

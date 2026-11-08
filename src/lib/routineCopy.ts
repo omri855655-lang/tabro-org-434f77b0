@@ -1,0 +1,63 @@
+export const routineCopy = {
+  he: { title:'משימות קבועות', selected:'ימים קבועים בשבוע', choose:'באילו ימים? אפשר לבחור יום אחד או יותר', required:'יש לבחור לפחות יום אחד בשבוע', sunFri:'ראשון–שישי', sunThu:'ראשון–חמישי', every:'כל יום', holidays:'בחירת ימי שבוע אינה מסננת חגים. אפשר לדלג על תאריך מסוים בלי למחוק את המשימה.' },
+  en: { title:'Recurring tasks', selected:'Selected weekdays', choose:'Which days? Choose one or more', required:'Choose at least one weekday', sunFri:'Sunday–Friday', sunThu:'Sunday–Thursday', every:'Every day', holidays:'Weekday selection does not exclude holidays. Skip an individual date without deleting the task.' },
+  es: { title:'Tareas recurrentes', selected:'Días fijos de la semana', choose:'¿Qué días? Elige uno o más', required:'Elige al menos un día', sunFri:'Domingo–viernes', sunThu:'Domingo–jueves', every:'Todos los días', holidays:'La selección semanal no excluye festivos. Omite una fecha sin eliminar la tarea.' },
+  zh: { title:'固定任务', selected:'每周指定日期', choose:'选择一天或多天', required:'请至少选择一天', sunFri:'周日至周五', sunThu:'周日至周四', every:'每天', holidays:'按星期选择不会排除节假日。可跳过单个日期而不删除任务。' },
+  ar: { title:'مهام متكررة', selected:'أيام أسبوعية محددة', choose:'أي أيام؟ اختر يومًا أو أكثر', required:'اختر يومًا واحدًا على الأقل', sunFri:'الأحد–الجمعة', sunThu:'الأحد–الخميس', every:'كل يوم', holidays:'اختيار أيام الأسبوع لا يستثني الأعياد. يمكنك تخطي تاريخ محدد دون حذف المهمة.' },
+  ru: { title:'Повторяющиеся задачи', selected:'Выбранные дни недели', choose:'Какие дни? Выберите один или несколько', required:'Выберите хотя бы один день', sunFri:'Воскресенье–пятница', sunThu:'Воскресенье–четверг', every:'Каждый день', holidays:'Выбор дней недели не исключает праздники. Можно пропустить отдельную дату, не удаляя задачу.' },
+};
+
+// Keep legacy screen text together so every control follows the selected language.
+const phrases = [
+  ['נא להזין שם משימה','Enter a task name','Introduce un nombre','请输入任务名称','أدخل اسم المهمة','Введите название задачи'],
+  ['טוען לוז יומי...','Loading recurring tasks…','Cargando tareas…','正在加载固定任务…','جارٍ تحميل المهام…','Загрузка задач…'],
+  ['משימות להיום','Tasks for today','Tareas de hoy','今日任务','مهام اليوم','Задачи на сегодня'],
+  ['הוסף משימה קבועה','Add recurring task','Añadir tarea recurrente','添加固定任务','إضافة مهمة متكررة','Добавить повторяющуюся задачу'],
+  ['להיום','Today','Hoy','今天','اليوم','Сегодня'],
+  ['כל המשימות','All tasks','Todas las tareas','所有任务','كل المهام','Все задачи'],
+  ['מעקב','Tracking','Seguimiento','跟踪','المتابعة','Отслеживание'],
+  ['אין משימות קבועות להיום','No recurring tasks today','No hay tareas recurrentes hoy','今天没有固定任务','لا توجد مهام متكررة اليوم','Сегодня нет повторяющихся задач'],
+  ['הוסף משימה ראשונה','Add your first task','Añadir primera tarea','添加第一个任务','أضف مهمتك الأولى','Добавить первую задачу'],
+  ['דלג רק להיום','Skip today only','Omitir solo hoy','仅跳过今天','تخطي اليوم فقط','Пропустить только сегодня'],
+  ['משימה','Task','Tarea','任务','المهمة','Задача'],
+  ['תדירות','Frequency','Frecuencia','频率','التكرار','Частота'],
+  ['יום','Day','Día','日期','اليوم','День'],
+  ['תזכורת','Reminder','Recordatorio','提醒','تذكير','Напоминание'],
+  ['אין משימות קבועות עדיין','No recurring tasks yet','Aún no hay tareas recurrentes','尚无固定任务','لا توجد مهام متكررة بعد','Повторяющихся задач пока нет'],
+  ['גמיש','Flexible','Flexible','灵活','مرن','Гибко'],
+  ['בחודש','of the month','del mes','号（每月）','من الشهر','числа месяца'],
+  ['רצף נוכחי:','Current streak:','Racha actual:','当前连续数：','التتابع الحالي:','Текущая серия:'],
+  ['שיא:','Best:','Mejor:','最佳：','الأفضل:','Рекорд:'],
+  ['מתוך','of','de','/','من','из'],
+  ['ב-30 יום אחרונים','in the past 30 days','en los últimos 30 días','最近30天','خلال آخر 30 يومًا','за последние 30 дней'],
+  ['אין משימות למעקב','No tasks to track','No hay tareas que seguir','没有可跟踪的任务','لا توجد مهام للمتابعة','Нет задач для отслеживания'],
+  ['היסטוריית 7 ימים אחרונים','Past 7 days','Últimos 7 días','最近7天','آخر 7 أيام','Последние 7 дней'],
+  ['יצירת משימה קבועה חדשה ללוז היומי עם תדירות, שעה ותיאור.','Create a recurring task with frequency, time and description.','Crea una tarea con frecuencia, hora y descripción.','创建包含频率、时间和描述的固定任务。','أنشئ مهمة متكررة مع التكرار والوقت والوصف.','Создайте повторяющуюся задачу с частотой, временем и описанием.'],
+  ['שם המשימה','Task name','Nombre de tarea','任务名称','اسم المهمة','Название задачи'],
+  ['לדוגמה: תפילין, מדיטציה, אימון...','For example: prayer, meditation, exercise…','Por ejemplo: oración, meditación, ejercicio…','例如：祈祷、冥想、锻炼…','مثلاً: صلاة، تأمل، رياضة…','Например: молитва, медитация, тренировка…'],
+  ['תיאור (אופציונלי)','Description (optional)','Descripción (opcional)','描述（可选）','الوصف (اختياري)','Описание (необязательно)'],
+  ['פרטים נוספים...','More details…','Más detalles…','更多详情…','تفاصيل إضافية…','Подробнее…'],
+  ['יומי - כל יום','Daily — every day','Diario: cada día','每天','يوميًا — كل يوم','Ежедневно'],
+  ['שבועי - פעם בשבוע','Weekly — once a week','Semanal: una vez por semana','每周一次','أسبوعيًا — مرة أسبوعيًا','Раз в неделю'],
+  ['חודשי - פעם בחודש','Monthly — once a month','Mensual: una vez al mes','每月一次','شهريًا — مرة شهريًا','Раз в месяц'],
+  ['שנתי - פעם בשנה','Yearly — once a year','Anual: una vez al año','每年一次','سنويًا — مرة سنويًا','Раз в год'],
+  ['באיזה יום?','Which day?','¿Qué día?','哪一天？','أي يوم؟','В какой день?'],
+  ['גמיש - בכל יום עד שמושלם','Flexible — any day until completed','Flexible: cualquier día hasta completarla','灵活：完成前任意一天','مرن — أي يوم حتى الإكمال','Гибко: в любой день до выполнения'],
+  ['באיזה יום בחודש?','Which day of the month?','¿Qué día del mes?','每月几号？','أي يوم من الشهر؟','Какого числа месяца?'],
+  ['גמיש או תאריך קבוע?','Flexible or fixed date?','¿Flexible o fecha fija?','灵活还是固定日期？','مرن أم تاريخ محدد؟','Гибкая или фиксированная дата?'],
+  ['תאריך קבוע','Fixed date','Fecha fija','固定日期','تاريخ محدد','Фиксированная дата'],
+  ['באיזה חודש?','Which month?','¿Qué mes?','哪个月？','أي شهر؟','В каком месяце?'],
+  ['שעת תזכורת (אופציונלי)','Reminder time (optional)','Hora de recordatorio (opcional)','提醒时间（可选）','وقت التذكير (اختياري)','Время напоминания (необязательно)'],
+  ['אם תוגדר שעה, המשימה תופיע במתכנן הלוז ותישלח תזכורת','A set time adds the task to the planner. Delivery depends on your notification settings.','Una hora añade la tarea al planificador. El envío depende de tus ajustes de notificaciones.','设置时间后任务会显示在计划器中。提醒取决于通知设置。','تحديد وقت يضيف المهمة للمخطط. الإرسال يعتمد على إعدادات التنبيهات.','Указанное время добавляет задачу в планировщик. Доставка зависит от настроек уведомлений.'],
+  ['ביטול','Cancel','Cancelar','取消','إلغاء','Отмена'],
+  ['הוסף משימה','Add task','Añadir tarea','添加任务','إضافة مهمة','Добавить задачу'],
+  ['יומי','Daily','Diario','每天','يومي','Ежедневно'],
+  ['שבועי','Weekly','Semanal','每周','أسبوعي','Еженедельно'],
+  ['חודשי','Monthly','Mensual','每月','شهري','Ежемесячно'],
+  ['שנתי','Yearly','Anual','每年','سنوي','Ежегодно'],
+] as const;
+
+export function routineText(lang: keyof typeof routineCopy, source: string): string {
+  const row = phrases.find(item => item[0] === source);
+  return row?.[(['he','en','es','zh','ar','ru'] as const).indexOf(lang)] || source;
+}

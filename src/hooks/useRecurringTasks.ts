@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { habitDate } from "@/lib/habitJourney";
 
 export interface RecurringTask {
   id: string;
@@ -125,7 +126,7 @@ export function useRecurringTasks() {
       const { data: completionsData, error: completionsError } = await supabase
         .from("recurring_task_completions")
         .select("*")
-        .gte("completed_date", thirtyDaysAgo.toISOString().split("T")[0]);
+        .gte("completed_date", habitDate(thirtyDaysAgo));
 
       if (completionsError) throw completionsError;
 
@@ -136,7 +137,7 @@ export function useRecurringTasks() {
         const skipsResponse = await supabase
           .from("recurring_task_skips")
           .select("*")
-          .gte("skipped_date", thirtyDaysAgo.toISOString().split("T")[0]);
+          .gte("skipped_date", habitDate(thirtyDaysAgo));
 
         skipsData = skipsResponse.data as DbSkip[] | null;
         skipsError = skipsResponse.error;
@@ -421,7 +422,7 @@ export function useRecurringTasks() {
   );
 
   const isTaskDueOnDate = useCallback((task: RecurringTask, date: Date): boolean => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = habitDate(date);
     if (isTaskSkippedOnDate(task.id, dateStr)) return false;
     const dayOfWeek = date.getDay();
     const dayOfMonth = date.getDate();
@@ -469,7 +470,7 @@ export function useRecurringTasks() {
       if (task.frequency === "weekly" && task.dayOfWeek === null) {
         const weekStart = new Date(currentDate);
         weekStart.setDate(currentDate.getDate() - currentDate.getDay());
-        const weekStartStr = weekStart.toISOString().split("T")[0];
+        const weekStartStr = habitDate(weekStart);
         return completions.some(
           (c) => c.recurringTaskId === taskId && c.completedDate >= weekStartStr && c.completedDate <= date
         );
@@ -477,7 +478,7 @@ export function useRecurringTasks() {
 
       if (task.frequency === "monthly" && task.dayOfMonth === null) {
         const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-        const monthStartStr = monthStart.toISOString().split("T")[0];
+        const monthStartStr = habitDate(monthStart);
         return completions.some(
           (c) => c.recurringTaskId === taskId && c.completedDate >= monthStartStr && c.completedDate <= date
         );
@@ -485,7 +486,7 @@ export function useRecurringTasks() {
 
       if (task.frequency === "yearly" && task.dayOfMonth === null && task.dayOfWeek === null) {
         const yearStart = new Date(currentDate.getFullYear(), 0, 1);
-        const yearStartStr = yearStart.toISOString().split("T")[0];
+        const yearStartStr = habitDate(yearStart);
         return completions.some(
           (c) => c.recurringTaskId === taskId && c.completedDate >= yearStartStr && c.completedDate <= date
         );
@@ -498,7 +499,7 @@ export function useRecurringTasks() {
 
   const isTaskCompletedToday = useCallback(
     (taskId: string): boolean => {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = habitDate();
       return isTaskCompletedOnDate(taskId, todayStr);
     },
     [isTaskCompletedOnDate]
@@ -512,7 +513,7 @@ export function useRecurringTasks() {
       for (let i = 0; i < days; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split("T")[0];
+        const dateStr = habitDate(date);
 
         history.push({
           date: dateStr,
@@ -547,7 +548,7 @@ export function useRecurringTasks() {
       for (let i = 0; i < days; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split("T")[0];
+        const dateStr = habitDate(date);
         const dayOfWeek = date.getDay();
         const dayOfMonth = date.getDate();
 
@@ -603,21 +604,21 @@ export function useRecurringTasks() {
           if (!wasCompleted && task.frequency === "weekly" && task.dayOfWeek === null) {
             const wkEnd = new Date(date);
             wkEnd.setDate(date.getDate() + 6);
-            const wkEndStr = wkEnd.toISOString().split("T")[0];
+            const wkEndStr = habitDate(wkEnd);
             flexCompleted = completions.some(
               (c) => c.recurringTaskId === task.id && c.completedDate >= dateStr && c.completedDate <= wkEndStr
             );
           }
           if (!wasCompleted && task.frequency === "monthly" && task.dayOfMonth === null) {
             const mEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-            const mEndStr = mEnd.toISOString().split("T")[0];
+            const mEndStr = habitDate(mEnd);
             flexCompleted = completions.some(
               (c) => c.recurringTaskId === task.id && c.completedDate >= dateStr && c.completedDate <= mEndStr
             );
           }
           if (!wasCompleted && task.frequency === "yearly" && task.dayOfMonth === null && task.dayOfWeek === null) {
             const yEnd = new Date(date.getFullYear(), 11, 31);
-            const yEndStr = yEnd.toISOString().split("T")[0];
+            const yEndStr = habitDate(yEnd);
             flexCompleted = completions.some(
               (c) => c.recurringTaskId === task.id && c.completedDate >= dateStr && c.completedDate <= yEndStr
             );
