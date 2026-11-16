@@ -239,7 +239,7 @@ export function useRecurringTasks() {
 
   const updateTask = useCallback(
     async (taskId: string, updates: Partial<Omit<RecurringTask, "id" | "createdAt">>) => {
-      if (!user) return;
+      if (!user) return false;
 
       const dbUpdates: Record<string, any> = {};
       if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -253,14 +253,24 @@ export function useRecurringTasks() {
         let { error } = await supabase
           .from("recurring_tasks")
           .update(dbUpdates)
-          .eq("id", taskId);
+          .eq("id", taskId)
+          .eq("user_id", user.id)
+          .select("id")
+          .single();
 
-        if (error && updates.reminderTime !== undefined && isMissingSchemaPiece(error, "reminder_time")) {
+        if (error && updates.reminderTime != null && isMissingSchemaPiece(error, "reminder_time")) {
+          toast.error("לא ניתן לשמור את שעת התזכורת לפני עדכון מסד הנתונים");
+          return false;
+        }
+        if (error && updates.reminderTime === null && isMissingSchemaPiece(error, "reminder_time")) {
           const { reminder_time: _ignoredReminderTime, ...fallbackUpdates } = dbUpdates;
           const retry = await supabase
             .from("recurring_tasks")
             .update(fallbackUpdates)
-            .eq("id", taskId);
+            .eq("id", taskId)
+            .eq("user_id", user.id)
+            .select("id")
+            .single();
           error = retry.error;
           if (!retry.error) {
             toast.warning("שעת התזכורת לא נשמרה עדיין כי עדכון הדאטה חסר");
@@ -272,9 +282,11 @@ export function useRecurringTasks() {
         setTasks((prev) =>
           prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task))
         );
+        return true;
       } catch (error: any) {
         console.error("Error updating recurring task:", error);
         toast.error("שגיאה בעדכון משימה");
+        return false;
       }
     },
     [user]

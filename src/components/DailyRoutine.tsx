@@ -69,7 +69,7 @@ const MONTHS = [
 ];
 
 const DailyRoutine = () => {
-  const { lang, dir } = useLanguage();
+  const { lang, dir, t } = useLanguage();
   const copy = routineCopy[lang];
   const rt = (source: string) => routineText(lang, source);
   const weekdays = DAYS_OF_WEEK.map(day => ({ ...day, label: new Intl.DateTimeFormat(lang, { weekday: 'long' }).format(new Date(2026, 10, 1 + day.value)) }));
@@ -78,6 +78,7 @@ const DailyRoutine = () => {
     tasks,
     loading,
     addTask,
+    updateTask,
     deleteTask,
     toggleCompletion,
     toggleSkipForDate,
@@ -89,6 +90,7 @@ const DailyRoutine = () => {
 
   const [activeTab, setActiveTab] = useState<"today" | "all" | "history">("today");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const saveLock = useRef(false);
   const [newTask, setNewTask] = useState({
@@ -102,6 +104,17 @@ const DailyRoutine = () => {
   });
 
   const todayDate = habitDate();
+  const openTaskEditor = (task?: RecurringTask) => {
+    setEditingTaskId(task?.id ?? null);
+    setNewTask({
+      title: task?.title ?? "", description: task?.description ?? "",
+      frequency: task?.frequency ?? "daily",
+      dayOfWeek: task?.dayOfWeek ?? -1, dayOfMonth: task?.dayOfMonth ?? -1,
+      yearMonth: task?.frequency === "yearly" ? task.dayOfWeek ?? 0 : 0,
+      reminderTime: task?.reminderTime?.slice(0, 5) ?? "",
+    });
+    setAddDialogOpen(true);
+  };
   const todayTasks = tasks.filter(isTaskDueToday);
 
   const handleAddTask = async () => {
@@ -118,7 +131,8 @@ const DailyRoutine = () => {
     saveLock.current = true;
     setSaving(true);
     let createdTask: RecurringTask | null = null;
-    try { createdTask = await addTask({
+    try {
+      const input = {
       title: newTask.title,
       description: newTask.description || undefined,
       frequency: newTask.frequency,
@@ -135,7 +149,18 @@ const DailyRoutine = () => {
         ? (newTask.dayOfMonth === -1 ? undefined : newTask.dayOfMonth)
         : undefined,
       reminderTime: newTask.reminderTime || undefined,
-    }); } finally { saveLock.current = false; setSaving(false); }
+      };
+      if (editingTaskId) {
+        const updated = await updateTask(editingTaskId, {
+          ...input, description: input.description ?? null,
+          dayOfWeek: input.dayOfWeek ?? null, dayOfMonth: input.dayOfMonth ?? null,
+          reminderTime: input.reminderTime ?? null,
+        });
+        if (updated) setAddDialogOpen(false);
+        return;
+      }
+      createdTask = await addTask(input);
+    } finally { saveLock.current = false; setSaving(false); }
 
     if (!createdTask) {
       return;
@@ -176,7 +201,7 @@ const DailyRoutine = () => {
         <span className="text-sm text-muted-foreground">
           ({todayTasks.length} {rt("משימות להיום")})
         </span>
-        <Button onClick={() => setAddDialogOpen(true)} className="mr-auto">
+        <Button onClick={() => openTaskEditor()} className="mr-auto">
           <Plus className="h-4 w-4 ml-1" />
           {rt("הוסף משימה קבועה")}
         </Button>
@@ -205,7 +230,7 @@ const DailyRoutine = () => {
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <CalendarCheck className="h-12 w-12 mb-4 opacity-50" />
               <p className="text-lg">{rt("אין משימות קבועות להיום")}</p>
-              <Button variant="outline" className="mt-4" onClick={() => setAddDialogOpen(true)}>
+              <Button variant="outline" className="mt-4" onClick={() => openTaskEditor()}>
                 <Plus className="h-4 w-4 ml-1" />
                 {rt("הוסף משימה ראשונה")}
               </Button>
@@ -229,7 +254,7 @@ const DailyRoutine = () => {
                       onCheckedChange={() => toggleCompletion(task.id, todayDate)}
                       className="h-5 w-5"
                     />
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p
                         className={cn(
                           "font-medium",
@@ -241,6 +266,7 @@ const DailyRoutine = () => {
                       {task.description && (
                         <p className="text-sm text-muted-foreground">{task.description}</p>
                       )}
+                      <Button variant="ghost" size="sm" className="min-h-11" onClick={() => openTaskEditor(task)}>{t("edit")}</Button>
                     </div>
                     <span
                       className={cn(
@@ -307,7 +333,7 @@ const DailyRoutine = () => {
                     <TableRow key={task.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{task.title}</p>
+                          <button type="button" className="font-medium text-start hover:underline min-h-11" onClick={() => openTaskEditor(task)}>{task.title}</button>
                           {task.description && (
                             <p className="text-sm text-muted-foreground">{task.description}</p>
                           )}
@@ -356,6 +382,7 @@ const DailyRoutine = () => {
                         )}
                       </TableCell>
                       <TableCell>
+                        <Button variant="outline" size="sm" onClick={() => openTaskEditor(task)}>{t("edit")}</Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -527,12 +554,12 @@ const DailyRoutine = () => {
       </Tabs>
 
       {/* Add Task Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      <Dialog open={addDialogOpen} onOpenChange={(open) => { if (!saveLock.current) setAddDialogOpen(open); }}>
         <DialogContent dir={dir} className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-primary" />
-              {rt("הוסף משימה קבועה")}
+              {editingTaskId ? t("edit") : rt("הוסף משימה קבועה")}
             </DialogTitle>
             <DialogDescription className="sr-only">
               {rt("יצירת משימה קבועה חדשה ללוז היומי עם תדירות, שעה ותיאור.")}
@@ -735,10 +762,10 @@ const DailyRoutine = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+            <Button disabled={saving} variant="outline" onClick={() => setAddDialogOpen(false)}>
               {rt("ביטול")}
             </Button>
-            <Button disabled={saving} onClick={handleAddTask}>{saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}{rt("הוסף משימה")}</Button>
+            <Button disabled={saving} onClick={handleAddTask}>{saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}{editingTaskId ? t("save") : rt("הוסף משימה")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
