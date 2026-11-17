@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode, useState, useEffect, useRef } from "react";
+import BoardIconPicker from "@/components/BoardIconPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -106,6 +107,7 @@ const SettingsPanel = () => {
   const [newBoardStatuses, setNewBoardStatuses] = useState(() => (lang === "en" ? "To Do,In Progress,Done" : "לביצוע,בתהליך,הושלם"));
   const [newBoardDashboard, setNewBoardDashboard] = useState(false);
   const [boardTemplate, setBoardTemplate] = useState("custom");
+  const [newBoardIcon, setNewBoardIcon] = useState("LayoutGrid");
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -330,7 +332,8 @@ const SettingsPanel = () => {
     const statuses = newBoardStatuses.split(",").map(s => s.trim()).filter(Boolean);
     if (statuses.length === 0) { toast.error(t("enterStatus" as any)); return; }
     try {
-      await addBoard(newBoardName.trim(), statuses, newBoardDashboard);
+      await addBoard(newBoardName.trim(), statuses, newBoardDashboard, newBoardIcon);
+      setNewBoardIcon("LayoutGrid");
       setShowAddBoard(false);
       setNewBoardName("");
       setNewBoardStatuses(getDefaultBoardStatuses("custom"));
@@ -682,6 +685,9 @@ const SettingsPanel = () => {
               {boards.map((board) => (
                 <div key={board.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                   <div className="flex items-center gap-2 flex-1">
+                    <BoardIconPicker value={board.icon} label={isEnglish ? "Dashboard icon" : "אייקון הדשבורד"} onChange={async icon => {
+                      try { await updateBoard(board.id, { icon }); } catch { toast.error(isEnglish ? "Could not save icon" : "לא ניתן לשמור את האייקון"); }
+                    }} />
                     <Input
                       defaultValue={board.name}
                       className="h-8 text-sm font-medium max-w-[200px]"
@@ -743,6 +749,7 @@ const SettingsPanel = () => {
               </div>
               <div className="space-y-2">
                 <Label>{t("dashboardName" as any)}</Label>
+                <BoardIconPicker value={newBoardIcon} onChange={setNewBoardIcon} label={isEnglish ? "Dashboard icon" : "אייקון הדשבורד"} />
                 <Input placeholder={t("dashboardNamePlaceholder" as any)} value={newBoardName} onChange={(e) => setNewBoardName(e.target.value)} />
               </div>
               <div className="space-y-2">

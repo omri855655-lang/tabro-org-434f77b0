@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
+import { BoardIcon, getBoardIcon } from "@/components/BoardIconPicker";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -400,7 +401,7 @@ const Personal = () => {
         const boardId = tabId.replace("board-", "");
         const board = customBoards.find(b => b.id === boardId);
         if (!board) continue;
-        items.push({ id: tabId, icon: LayoutGrid, label: board.name });
+        items.push({ id: tabId, icon: getBoardIcon(board.icon), label: board.name });
       }
     }
     return items;
@@ -839,7 +840,7 @@ const Personal = () => {
                         }}
                         onDragEnd={() => setDraggedTab(null)}
                       >
-                        <LayoutGrid className="h-4 w-4" />
+                        <BoardIcon name={board.icon} className="h-4 w-4" />
                         {board.name}
                       </TabsTrigger>
                     );

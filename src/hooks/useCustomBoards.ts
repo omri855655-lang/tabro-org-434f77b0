@@ -53,18 +53,25 @@ export function useCustomBoards() {
   }, [user]);
 
   useEffect(() => { fetchBoards(); }, [fetchBoards]);
+  useEffect(() => {
+    const refresh = () => { void fetchBoards(); };
+    window.addEventListener('tabro-boards-changed', refresh);
+    return () => window.removeEventListener('tabro-boards-changed', refresh);
+  }, [fetchBoards]);
 
-  const addBoard = async (name: string, statuses: string[], showInDashboard: boolean) => {
+  const addBoard = async (name: string, statuses: string[], showInDashboard: boolean, icon = "LayoutGrid") => {
     if (!user) return;
     const { error } = await supabase.from("custom_boards").insert({
       user_id: user.id,
       name,
+      icon,
       statuses: JSON.stringify(statuses),
       show_in_dashboard: showInDashboard,
       sort_order: boards.length,
     });
     if (error) throw error;
     await fetchBoards();
+    window.dispatchEvent(new Event('tabro-boards-changed'));
   };
 
   const deleteBoard = async (id: string) => {
@@ -74,11 +81,13 @@ export function useCustomBoards() {
   };
 
   const updateBoard = async (id: string, updates: Partial<CustomBoard>) => {
+    if (!user) throw new Error('Sign in required');
     const toUpdate: any = { ...updates };
     if (updates.statuses) toUpdate.statuses = JSON.stringify(updates.statuses);
-    const { error } = await supabase.from("custom_boards").update(toUpdate).eq("id", id);
+    const { error } = await supabase.from("custom_boards").update(toUpdate).eq("id", id).eq("user_id", user.id).select('id').single();
     if (error) throw error;
     await fetchBoards();
+    window.dispatchEvent(new Event('tabro-boards-changed'));
   };
 
   const reorderBoards = async (orderedBoardIds: string[]) => {

@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { parseShoppingPrice, shoppingPriceLabel, shoppingTotal } from "@/lib/shoppingPrice";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +27,7 @@ interface ShoppingItem {
   category: string | null;
   quantity: string | null;
   price: number | null;
+  price_max?: number | null;
   status: string;
   notes: string | null;
   sheet_name: string;
@@ -167,6 +170,32 @@ const ShoppingDashboard = () => {
   const [newQuantity, setNewQuantity] = useState("");
   const [newQuantityUnit, setNewQuantityUnit] = useState("יח'");
   const [newPrice, setNewPrice] = useState("");
+  const [newPriceMax, setNewPriceMax] = useState("");
+  const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
+  const [editDraft, setEditDraft] = useState({ title: '', category: '', quantity: '', notes: '', price: '', priceMax: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const openEdit = (item: ShoppingItem) => {
+    setEditDraft({ title: item.title, category: item.category ?? '', quantity: item.quantity ?? '', notes: item.notes ?? '', price: item.price?.toString() ?? '', priceMax: item.price_max?.toString() ?? '' });
+    setEditingItem(item);
+  };
+  const saveEdit = async () => {
+    if (!editingItem || !user || savingEdit || !editDraft.title.trim()) return;
+    let prices;
+    try { prices = parseShoppingPrice(editDraft.price, editDraft.priceMax); }
+    catch { toast.error(lang === 'he' ? 'יש להזין מחיר תקין וטווח מהנמוך לגבוה' : 'Enter a valid price range, lowest first'); return; }
+    setSavingEdit(true);
+    try {
+      const { data, error } = await supabase.from('shopping_items').update({ ...prices,
+        title: editDraft.title.trim(), category: editDraft.category.trim() || null,
+        quantity: editDraft.quantity.trim() || null, notes: editDraft.notes.trim() || null,
+      }).eq('id', editingItem.id).select('*').single();
+      if (error) throw error;
+      setItems(prev => prev.map(item => item.id === data.id ? data as ShoppingItem : item));
+      setArchivedItems(prev => prev.map(item => item.id === data.id ? data as ShoppingItem : item));
+      setEditingItem(null);
+    } catch { toast.error(lang === 'he' ? 'השמירה נכשלה, השינויים נשארו בטופס' : 'Save failed. Your changes remain in the form.'); }
+    finally { setSavingEdit(false); }
+  };
   const [activeTab, setActiveTab] = useState("shopping");
   const [aiChat, setAiChat] = useState("");
   const aiChatHistory = useDashboardChatHistory("shopping");
@@ -323,18 +352,21 @@ const ShoppingDashboard = () => {
 
   const addItem = async (isDream: boolean, sheetName = "ראשי") => {
     if (!user || !newTitle.trim()) return;
+    let prices;
+    try { prices = parseShoppingPrice(newPrice, newPriceMax); }
+    catch { toast.error(lang === 'he' ? 'יש להזין מחיר תקין וטווח מהנמוך לגבוה' : 'Enter a valid price range, lowest first'); return; }
     const qtyStr = newQuantity.trim() ? `${newQuantity.trim()} ${newQuantityUnit}` : null;
     const { error } = await supabase.from("shopping_items").insert({
       user_id: user.id,
       title: newTitle.trim(),
       category: newCategory.trim() || null,
       quantity: qtyStr,
-      price: newPrice ? parseFloat(newPrice) : null,
+      ...prices,
       is_dream: isDream,
       sheet_name: sheetName,
     });
     if (error) { toast.error(copy.error); return; }
-    setNewTitle(""); setNewCategory(""); setNewQuantity(""); setNewPrice("");
+    setNewTitle(""); setNewCategory(""); setNewQuantity(""); setNewPrice(""); setNewPriceMax("");
     toast.success(isDream ? copy.addedDream : sheetName === "סופר" ? copy.addedSuper : copy.addedShopping);
     fetchItems();
   };
@@ -452,6 +484,7 @@ const ShoppingDashboard = () => {
       category: item.category,
       quantity: item.quantity,
       price: item.price,
+      price_max: item.price_max ?? null,
       notes: item.notes,
       sheet_name: item.sheet_name,
       priority: item.priority,
@@ -479,7 +512,7 @@ const ShoppingDashboard = () => {
       const dreamItems = items.filter(i => i.is_dream);
       const shoppingItems = items.filter(i => !i.is_dream && i.sheet_name !== "סופר");
       const superItems = items.filter(i => i.sheet_name === "סופר");
-      const context = `רשימת קניות: ${shoppingItems.map(i => `${i.title} (${i.status})`).join(", ")}. רשימת סופר: ${superItems.map(i => `${i.title} (${i.status}${i.category ? ", " + i.category : ""})`).join(", ")}. רשימת חלומות: ${dreamItems.map(i => `${i.title} (מחיר: ${i.price || "לא ידוע"})`).join(", ")}.`;
+      const context = `רשימת קניות: ${shoppingItems.map(i => `${i.title} (${i.status})`).join(", ")}. רשימת סופר: ${superItems.map(i => `${i.title} (${i.status}${i.category ? ", " + i.category : ""})`).join(", ")}. רשימת חלומות: ${dreamItems.map(i => `${i.title} (מחיר מתוכנן: ${shoppingPriceLabel(i)})`).join(", ")}.`;
       const { data, error } = await supabase.functions.invoke("task-ai-helper", {
         body: {
           taskDescription: chatInput,
@@ -499,9 +532,9 @@ const ShoppingDashboard = () => {
   const shoppingItems = items.filter(i => !i.is_dream && i.sheet_name !== "סופר");
   const supermarketItems = items.filter(i => !i.is_dream && i.sheet_name === "סופר");
   const dreamItems = items.filter(i => i.is_dream);
-  const totalPrice = shoppingItems.filter(i => i.price).reduce((sum, i) => sum + (i.price || 0), 0);
-  const superTotal = supermarketItems.filter(i => i.price).reduce((sum, i) => sum + (i.price || 0), 0);
-  const dreamTotal = dreamItems.filter(i => i.price).reduce((sum, i) => sum + (i.price || 0), 0);
+  const totalPrice = shoppingTotal(shoppingItems);
+  const superTotal = shoppingTotal(supermarketItems);
+  const dreamTotal = shoppingTotal(dreamItems);
 
   const availableSheets = [...new Set(items.map(i => i.sheet_name))];
 
@@ -618,7 +651,8 @@ const ShoppingDashboard = () => {
                     {item.quantity || "כמות"}
                   </Badge>
                 )}
-                {item.price && <span className="text-xs text-muted-foreground">₪{item.price}</span>}
+                <span className="text-xs text-muted-foreground" dir="ltr">{shoppingPriceLabel(item)}</span>
+                <Button variant="outline" size="sm" className="min-h-11" onClick={() => openEdit(item)}>{lang === 'he' ? 'עריכה' : 'Edit'}</Button>
                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => archiveItem(item.id)}><Archive className="h-3 w-3" /></Button>
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
               </div>
@@ -668,13 +702,20 @@ const ShoppingDashboard = () => {
 
   return (
     <div className="p-4 space-y-4 max-w-4xl mx-auto" dir={dir}>
+      <Dialog open={!!editingItem} onOpenChange={open => { if (!open && !savingEdit) setEditingItem(null); }}>
+        <DialogContent dir={dir} className="max-h-[90dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{lang === 'he' ? 'עריכת פריט' : 'Edit item'}</DialogTitle><DialogDescription>{lang === 'he' ? 'מחיר לתכנון בלבד, ללא שינוי בהוצאות. למחיר קבוע השאירו את הגבול העליון ריק.' : 'Planning price only; expenses are unchanged. Leave maximum blank for an exact price.'}</DialogDescription></DialogHeader>
+          {Object.entries(lang === 'he' ? { title: 'שם הפריט', category: 'קטגוריה', quantity: 'כמות', notes: 'הערות', price: 'מחיר / מחיר מינימלי', priceMax: 'מחיר מקסימלי (אופציונלי)' } : { title: 'Item', category: 'Category', quantity: 'Quantity', notes: 'Notes', price: 'Price / minimum', priceMax: 'Maximum price (optional)' }).map(([key, label]) => <label key={key} className="space-y-1 text-sm">{label}<Input disabled={savingEdit} type={key.startsWith('price') ? 'number' : 'text'} min={key.startsWith('price') ? 0 : undefined} step={key.startsWith('price') ? '0.01' : undefined} value={editDraft[key as keyof typeof editDraft]} onChange={e => setEditDraft(prev => ({ ...prev, [key]: e.target.value }))} /></label>)}
+          <DialogFooter><Button variant="outline" disabled={savingEdit} onClick={() => setEditingItem(null)}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Button><Button disabled={savingEdit || !editDraft.title.trim()} onClick={saveEdit}>{lang === 'he' ? 'שמירה' : 'Save'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <ShoppingCart className="h-6 w-6 text-primary" />
         <h2 className="text-2xl font-bold flex-1">{copy.title}</h2>
         <DashboardDisplayToolbar viewMode={viewMode} themeKey={themeKey} onViewModeChange={setViewMode} onThemeChange={setTheme} />
-        <Button variant="outline" size="sm" onClick={() => { const list = (activeTab === 'supermarket' ? supermarketItems : activeTab === 'dreams' ? dreamItems : shoppingItems).filter(item => item.status !== 'נקנה').sort((a, b) => (a.category || '').localeCompare(b.category || '')); printDocument(copy.title, ['פריט', 'קטגוריה', 'כמות', 'מחיר', 'הערות'], list.map(item => [item.title, item.category, item.quantity, item.price === null ? '' : `₪${item.price}`, item.notes]), 'פריטים שעדיין צריך לקנות · מסודרים לפי קטגוריה'); }}>PDF / הדפסה</Button>
+        <Button variant="outline" size="sm" onClick={() => { const list = (activeTab === 'supermarket' ? supermarketItems : activeTab === 'dreams' ? dreamItems : shoppingItems).filter(item => item.status !== 'נקנה').sort((a, b) => (a.category || '').localeCompare(b.category || '')); printDocument(copy.title, ['פריט', 'קטגוריה', 'כמות', 'מחיר', 'הערות'], list.map(item => [item.title, item.category, item.quantity, shoppingPriceLabel(item), item.notes]), 'פריטים שעדיין צריך לקנות · מסודרים לפי קטגוריה'); }}>PDF / הדפסה</Button>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
-          items.map(i => ({ title: i.title, category: i.category || '', quantity: i.quantity || '', price: i.price, status: i.status, notes: i.notes || '' })),
+          items.map(i => ({ title: i.title, category: i.category || '', quantity: i.quantity || '', price: shoppingPriceLabel(i), status: i.status, notes: i.notes || '' })),
           [{ key: 'title', label: 'פריט' }, { key: 'category', label: 'קטגוריה' }, { key: 'quantity', label: 'כמות' }, { key: 'price', label: 'מחיר' }, { key: 'status', label: 'סטטוס' }, { key: 'notes', label: 'הערות' }],
           'קניות'
         )}>
@@ -685,6 +726,11 @@ const ShoppingDashboard = () => {
         </Button>
       </div>
 
+      {['shopping', 'supermarket', 'dreams'].includes(activeTab) && <label className="flex flex-wrap items-center gap-2 text-sm">
+        {lang === 'he' ? 'טווח מחיר לפריט חדש: גבול עליון (אופציונלי)' : 'New item price range: maximum (optional)'}
+        <Input className="w-32" type="number" min="0" step="0.01" value={newPriceMax} onChange={e => setNewPriceMax(e.target.value)} />
+        <span className="text-xs text-muted-foreground">{lang === 'he' ? 'המחיר בטופס יהיה הגבול התחתון. השאירו ריק למחיר קבוע.' : 'The form price is the minimum. Leave blank for an exact price.'}</span>
+      </label>}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full flex-wrap h-auto">
           <TabsTrigger value="shopping" className="flex-1 gap-1"><ShoppingCart className="h-3.5 w-3.5" />{copy.shopping} ({shoppingItems.length})</TabsTrigger>
@@ -719,8 +765,8 @@ const ShoppingDashboard = () => {
             </CardContent>
           </Card>
 
-          {totalPrice > 0 && (
-            <div className={`text-sm text-muted-foreground ${isRtl ? "text-left" : "text-right"}`}>{copy.estimatedTotal}: ₪{totalPrice.toFixed(0)}</div>
+          {shoppingItems.some(i => i.price !== null) && (
+            <div className={`text-sm text-muted-foreground ${isRtl ? "text-left" : "text-right"}`}>{copy.estimatedTotal}: <bdi>{totalPrice}</bdi></div>
           )}
 
           {renderItemList(shoppingItems, copy.emptyShopping)}
@@ -827,7 +873,7 @@ const ShoppingDashboard = () => {
           </Card>
 
           <div className="flex items-center justify-between flex-wrap gap-2">
-            {superTotal > 0 && <div className="text-sm text-muted-foreground">{copy.superTotal}: ₪{superTotal.toFixed(0)}</div>}
+            {supermarketItems.some(i => i.price !== null) && <div className="text-sm text-muted-foreground">{copy.superTotal}: <bdi>{superTotal}</bdi></div>}
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="gap-1" onClick={() => archiveAllItems("סופר")}>
                 <Archive className="h-3 w-3" />שלח הכל להיסטוריה
@@ -854,8 +900,8 @@ const ShoppingDashboard = () => {
             </CardContent>
           </Card>
 
-          {dreamTotal > 0 && (
-            <div className="text-sm text-muted-foreground">{copy.dreamsTotal}: ₪{dreamTotal.toLocaleString()}</div>
+          {dreamItems.some(i => i.price !== null) && (
+            <div className="text-sm text-muted-foreground">{copy.dreamsTotal}: <bdi>{dreamTotal}</bdi></div>
           )}
 
           <div className="space-y-2">
@@ -867,7 +913,8 @@ const ShoppingDashboard = () => {
                     <p className="font-medium text-sm">{item.title}</p>
                     {item.category && <span className="text-xs text-muted-foreground">{item.category}</span>}
                   </div>
-                  {item.price && <span className="font-bold text-sm">₪{item.price.toLocaleString()}</span>}
+                  <span className="font-bold text-sm" dir="ltr">{shoppingPriceLabel(item)}</span>
+                  <Button variant="outline" size="sm" className="min-h-11" onClick={() => openEdit(item)}>{lang === 'he' ? 'עריכה' : 'Edit'}</Button>
                   <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3" /></Button>
                 </CardContent>
               </Card>
