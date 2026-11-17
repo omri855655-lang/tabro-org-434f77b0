@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { dashboardRefresh } from "@/lib/dashboardRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -138,21 +140,13 @@ export function useTasks(
 ) {
   const { user } = useAuth();
   const { reportActivity } = useActivityEvents();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const requestSequence = useRef(0);
-  const fetchTasks = useCallback(async (showLoading = false) => {
-    const requestId = ++requestSequence.current;
-    if (!user) {
-      setTasks([]);
-      setLoading(false);
-      return;
-    }
-
-    if (showLoading) setLoading(true);
-
-    try {
+  const client = useQueryClient();
+  const userId = user?.id;
+  const queryKey = useMemo(() => ["task-rows", userId, taskType, ownerId ?? null, sheetName ?? null], [userId, taskType, ownerId, sheetName]);
+  const { data: tasks = [], isLoading: loading, refetch, error: loadError } = useQuery({
+    ...dashboardRefresh, queryKey, enabled: Boolean(userId),
+    queryFn: async ({ signal }) => {
+      if (!userId) return [];
       let query = supabase
         .from("tasks")
         .select("*")
@@ -166,10 +160,10 @@ export function useTasks(
       if (ownerId) {
         query = query.eq("user_id", ownerId);
       } else if (taskType === "personal") {
-        query = query.eq("user_id", user.id);
+        query = query.eq("user_id", userId);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.abortSignal(signal);
       if (error) throw error;
 
       const today = new Date();
@@ -189,19 +183,19 @@ export function useTasks(
         return task;
       });
 
-      if (requestId === requestSequence.current) setTasks(mappedTasks);
-    } catch (error: any) {
-      console.error("Error fetching tasks:", error);
-      toast.error("שגיאה בטעינת משימות");
-    } finally {
-      if (requestId === requestSequence.current) setLoading(false);
-    }
-  }, [user, taskType, sheetName, ownerId]);
-
+      return mappedTasks;
+    },
+  });
+  const fetchTasks = useCallback(() => refetch(), [refetch]);
+  const setTasks = useCallback((update: (rows: Task[]) => Task[]) => {
+    client.setQueryData<Task[]>(queryKey, previous => update(previous ?? []));
+    const current = client.getQueryCache().find({queryKey, exact: true});
+    void client.invalidateQueries({ queryKey: ["task-rows", userId, taskType], predicate: q => q !== current });
+    void client.invalidateQueries({ queryKey: ['task-summary', userId] });
+  }, [client, queryKey, userId, taskType]);
   useEffect(() => {
-    void fetchTasks(true);
-    return () => { requestSequence.current += 1; };
-  }, [fetchTasks]);
+    if (loadError) toast.error("שגיאה בטעינת משימות");
+  }, [loadError]);
 
   useEffect(() => {
     if (!user) return;
@@ -256,7 +250,7 @@ export function useTasks(
         if (error) throw error;
 
         const newTask = mapDbTaskToTask(data as unknown as DbTask);
-        setTasks((prev) => [...prev, newTask]);
+        setTasks((prev) => [...prev.filter(row => row.id !== newTask.id), newTask]);
 
         void reportActivity({
           eventType: "task_created",
@@ -275,7 +269,7 @@ export function useTasks(
         return null;
       }
     },
-    [user, taskType, sheetName, ownerId, reportActivity]
+    [user, taskType, sheetName, ownerId, reportActivity, setTasks]
   );
 
   const updateTask = useCallback(
@@ -375,7 +369,7 @@ export function useTasks(
         toast.error("שגיאה בעדכון משימה");
       }
     },
-    [user, tasks, ownerId, sheetName, taskType, reportActivity]
+    [user, tasks, ownerId, sheetName, taskType, reportActivity, setTasks]
   );
 
   const deleteTask = useCallback(
@@ -399,7 +393,7 @@ export function useTasks(
         toast.error("שגיאה במחיקת משימה");
       }
     },
-    [user, ownerId]
+    [user, ownerId, setTasks]
   );
 
   return {

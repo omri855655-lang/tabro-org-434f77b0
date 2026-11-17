@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardRefresh } from '@/lib/dashboardRefresh';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
@@ -94,11 +96,10 @@ const Dashboard = () => {
   const isHe = dir === "rtl";
   const { boards: customBoards } = useCustomBoards();
   const [customBoardStats, setCustomBoardStats] = useState<Record<string, { total: number; byStatus: Record<string, number> }>>({});
-  const [stats, setStats] = useState<Stats>({
+  const emptyStats: Stats = {
     totalBooks: 0, booksToRead: 0, booksReading: 0, booksRead: 0,
     totalShows: 0, showsToWatch: 0, showsWatching: 0, showsWatched: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { sections, toggleVisibility, setViewMode, moveSection, resetToDefault } = useDashboardConfig();
 
@@ -121,13 +122,13 @@ const Dashboard = () => {
     })).then(entries => setCustomBoardStats(Object.fromEntries(entries)));
   }, [user, customBoards]);
 
-  useEffect(() => { if (user) fetchStats(); }, [user]);
-
-  const fetchStats = async () => {
-    const { data: books } = await supabase.from('books').select('status');
-    const { data: shows } = await supabase.from('shows').select('status');
-    if (books && shows) {
-      setStats({
+  const { data: stats = emptyStats, isLoading: loading } = useQuery({
+    ...dashboardRefresh, queryKey: ['dashboard-library-stats', user?.id], enabled: Boolean(user),
+    queryFn: async () => {
+      const [bookResult, showResult] = await Promise.all([supabase.from('books').select('status'), supabase.from('shows').select('status')]);
+      if (bookResult.error || showResult.error) throw bookResult.error || showResult.error;
+      const books = bookResult.data, shows = showResult.data;
+      return {
         totalBooks: books.length,
         booksToRead: books.filter(b => b.status === 'לקרוא').length,
         booksReading: books.filter(b => b.status === 'בקריאה').length,
@@ -136,10 +137,9 @@ const Dashboard = () => {
         showsToWatch: shows.filter(s => s.status === 'לצפות').length,
         showsWatching: shows.filter(s => s.status === 'בצפייה').length,
         showsWatched: shows.filter(s => s.status === 'נצפה').length,
-      });
-    }
-    setLoading(false);
-  };
+      };
+    },
+  });
 
   const booksChartData = [
     { name: t("toRead" as any), value: stats.booksToRead, color: COLORS[0] },

@@ -1454,7 +1454,7 @@ ${context}
     </Card>
     <p className="text-sm text-muted-foreground">{isRtl ? "אפשר להמשיך לשאר המסכים בתפריט. הניסיון החוזר כאן טוען נתונים בלבד ואינו שולח שוב פרטי כניסה לחברת האשראי." : "Other screens remain available from the menu. Retrying here only reads saved data; it does not submit another card login."}</p>
     {financeRecoveryPanel && <WorkspacePanelBoundary resetKey={`finance-recovery:${financeRecoveryPanel}`}>
-      {financeRecoveryPanel === "connections" ? <CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={() => setFinanceRecoveryPanel("import")} /> : <div className="grid gap-4 md:grid-cols-2"><CreditCardConnect /><CreditCardImport onImported={fetchFinanceData} /></div>}
+      {financeRecoveryPanel === "connections" ? <CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={(id) => { openCsvFallback(id); setFinanceRecoveryPanel("import"); }} /> : <div className="grid gap-4 md:grid-cols-2"><CreditCardConnect /><CreditCardImport requestedProvider={requestedCsvProvider} onImported={fetchFinanceData} /></div>}
     </WorkspacePanelBoundary>}
     </div>
   );
@@ -2085,7 +2085,7 @@ ${context}
               <p className="mb-3 text-xs leading-5 text-muted-foreground">{isRtl ? "באמריקן אקספרס אפשר לייבא CSV או Excel, או לפתוח ניסיון חיבור באזור החיבורים למטה. ייבוא נוסף לאותו כרטיס בודק כפילויות ושומר סיווגים שכבר אישרת." : "For American Express, import CSV or Excel, or open a connection trial in the connections section below. Reimporting to the same card checks duplicates and keeps reviewed categories."}</p>
               <div className="flex flex-wrap gap-2">
             <Button onClick={() => openCsvFallback("amex")} className="gap-2">
-              {isRtl ? "אמריקן אקספרס · ייבוא CSV זמני" : "American Express · temporary CSV import"}
+              {isRtl ? "אמריקן אקספרס · ייבוא דוח Excel או CSV" : "American Express · import Excel or CSV statement"}
             </Button>
             <Button variant="outline" onClick={() => openCsvFallback()}>
               {isRtl ? "סנכרון הכרטיס לא עובד? ייבוא CSV / Excel" : "Card sync not working? Import CSV / Excel"}

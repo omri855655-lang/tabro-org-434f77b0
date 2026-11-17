@@ -42,9 +42,13 @@ test('city views have distinct heights and moving traffic, and terminal keeps ai
     assert.ok(parked);assert.ok(Math.abs(bridge.min.z-door.z)<.2,`bridge ends ${bridge.min.z} vs door ${door.z}`);
     assert.ok(bridge.min.x<=door.x&&bridge.max.x>=door.x&&bridge.min.y<door.y&&bridge.max.y>door.y);
     camera.updateMatrixWorld();const ndc=parked.position.clone().setY(door.y).project(camera);assert.ok(Math.abs(ndc.x)<.9&&Math.abs(ndc.y)<1,`gate at ndc ${ndc.x}`);
+    const train=scene.getObjectByName('apron-baggage-train'), trainX=train.position.x;
+    assert.equal(plane.position.z,-57); assert.equal(plane.position.y,0);
     const start=taxi.position.x;
     for(let i=0;i<250;i++)terminal.update(.1,'day','clear',true);
     assert.ok(taxi.position.x<start);assert.ok(plane.position.y>0);
+    assert.ok(train.position.x>trainX);const stopped=train.position.x;
+    terminal.update(.1,'night','clear',false);assert.equal(train.position.x,stopped);
     terminal.dispose();
   }
 });

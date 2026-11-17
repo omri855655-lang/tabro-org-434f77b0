@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { dashboardRefresh } from '@/lib/dashboardRefresh';
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Download, Check, Clock, AlertCircle, Loader2, Sparkles, ArrowUpDown, Flame, MoveRight, Archive, ArchiveRestore, Brain, Users, Palette, LayoutGrid, List as ListIcon, AlignJustify, CreditCard, Grid3X3, Eye, Minimize2, Maximize2, Copy, ListChecks } from "lucide-react";
 import { BOARD_THEMES, type BoardTheme } from "@/hooks/useCustomBoards";
@@ -413,8 +415,8 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const { viewMode: dashViewMode, themeKey: dashTheme, setViewMode: setDashViewMode, setTheme: setDashTheme } = useDashboardDisplay(`tasks-${taskType}`, 'list');
   const currentYear = String(new Date().getFullYear());
   const MAIN_SHEET_NAME = "ראשי";
-  const [availableSheets, setAvailableSheets] = useState<string[]>([]);
-  const [sheetsLoading, setSheetsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const sheetsKey = ['task-sheets', user?.id, taskType, currentYear];
   // null means "all sheets", a string means specific sheet
   const [selectedSheet, setSelectedSheet] = useState<string | null>(fixedSheetName !== undefined ? fixedSheetName : null);
   const effectiveSheet = fixedSheetName !== undefined ? fixedSheetName : selectedSheet;
@@ -638,19 +640,16 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
     return a.localeCompare(b, "he");
   }, []);
 
-  // Fetch available sheets from the task_sheets table (persisted)
-  const fetchAvailableSheets = useCallback(async () => {
-    if (!user || !showYearSelector) {
-      setSheetsLoading(false);
-      return;
-    }
-
-    try {
+  const sheetsQuery = useQuery({
+    ...dashboardRefresh,
+    queryKey: sheetsKey,
+    enabled: Boolean(user && showYearSelector),
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from("task_sheets")
         .select("sheet_name")
         .eq("task_type", taskType)
-        .eq("user_id", user.id);
+        .eq("user_id", user!.id).abortSignal(signal);
 
       if (error) throw error;
 
@@ -664,18 +663,10 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
         sheetNames.push(currentYear);
       }
 
-      setAvailableSheets(sheetNames.sort(compareSheetNames));
-    } catch (error) {
-      console.error("Error fetching sheets:", error);
-      setAvailableSheets([MAIN_SHEET_NAME, currentYear]);
-    } finally {
-      setSheetsLoading(false);
-    }
-  }, [user, showYearSelector, taskType, currentYear, compareSheetNames]);
-
-  useEffect(() => {
-    fetchAvailableSheets();
-  }, [fetchAvailableSheets]);
+      return sheetNames.sort(compareSheetNames);
+    },
+  });
+  const availableSheets = sheetsQuery.data ?? (sheetsQuery.isError ? [MAIN_SHEET_NAME, currentYear] : []);
 
   const handleAddSheet = async (sheetName: string) => {
     if (availableSheets.includes(sheetName)) {
@@ -702,7 +693,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       if (error) throw error;
 
       // Update local state
-      setAvailableSheets((prev) => [...new Set([...prev, sheetName])].sort(compareSheetNames));
+      queryClient.setQueryData<string[]>(sheetsKey, prev => [...new Set([...(prev ?? availableSheets), sheetName])].sort(compareSheetNames));
       setSelectedSheet(sheetName);
       toast.success(`גליון "${sheetName}" נוצר בהצלחה`);
     } catch (error: any) {
@@ -732,7 +723,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
       if (sheetError) throw sheetError;
 
       // Remove sheet from local state
-      setAvailableSheets(prev => prev.filter(s => s !== sheetName));
+      queryClient.setQueryData<string[]>(sheetsKey, prev => (prev ?? availableSheets).filter(s => s !== sheetName));
       
       // If currently viewing this sheet, switch to "all"
       if (selectedSheet === sheetName) {

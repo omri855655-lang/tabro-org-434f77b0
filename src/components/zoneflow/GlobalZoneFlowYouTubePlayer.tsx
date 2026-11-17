@@ -15,10 +15,7 @@ interface GlobalZoneFlowYouTubePlayerProps {
 
 export function GlobalZoneFlowYouTubePlayer({ activeTab }: GlobalZoneFlowYouTubePlayerProps) {
   const [playerState, setPlayerState] = useState(getZoneFlowYoutubePlayerState());
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("zoneflow-floating-yt-collapsed") === "1";
-  });
+  const [collapsed, setCollapsed] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
@@ -49,8 +46,8 @@ export function GlobalZoneFlowYouTubePlayer({ activeTab }: GlobalZoneFlowYouTube
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    localStorage.setItem("zoneflow-floating-yt-collapsed", collapsed ? "1" : "0");
-  }, [collapsed]);
+    if (playerState.viewerOpen) setCollapsed(false);
+  }, [playerState.viewerOpen, playerState.videoId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -93,15 +90,9 @@ export function GlobalZoneFlowYouTubePlayer({ activeTab }: GlobalZoneFlowYouTube
 
   if (!playerState.videoId) return null;
 
-  const viewerMode = playerState.viewerOpen
-    ? activeTab === "zoneflow"
-      ? anchorRect && anchorRect.top < window.innerHeight - 120 && anchorRect.bottom > 120
-        ? "inline"
-        : "hidden"
-      : activeTab !== "zoneflow"
-        ? "mini"
-        : "hidden"
-    : "hidden";
+  const viewerMode = !playerState.viewerOpen ? "hidden"
+    : activeTab === "zoneflow" && anchorRect && anchorRect.width > 0 && anchorRect.top >= 0 && anchorRect.bottom <= window.innerHeight
+      ? "inline" : "mini";
 
   const containerClassName =
     viewerMode === "inline"
@@ -167,6 +158,7 @@ export function GlobalZoneFlowYouTubePlayer({ activeTab }: GlobalZoneFlowYouTube
 
       <iframe
         key={playerState.videoId}
+        tabIndex={viewerMode === "hidden" ? -1 : 0}
         src={iframeSrc}
         title={playerState.title || "YouTube Player"}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

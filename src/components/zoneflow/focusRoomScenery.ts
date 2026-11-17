@@ -142,7 +142,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       for (const x of [-.12, .12]) box(0x424853, [x, .35, 0], [.14, .7, .16], person);
     }
   }
-  let departure: THREE.Group | undefined;
+  let departure: THREE.Group | undefined, baggageTrain: THREE.Group | undefined;
   if (airport) {
     // A second aircraft climbs beyond the runway while the near aircraft taxis.
     departure = transit.clone(true); departure.name = 'departing-aircraft'; scene.add(departure);
@@ -164,7 +164,27 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       box(0xc4d1ac, [x, .15, -31], [.2, .2, .2]); box(0xc4d1ac, [x, .15, -15], [.2, .2, .2]);
     }
     box(0xa5b2b6, [36, 6, -65], [9, 12, 9]); box(0x426372, [36, 13, -65], [13, 3, 12]);
-    for (let i = 0; i < 5; i++) box(0xaeb8b9, [-48 + i * 18, 3, -76], [15, 6, 12]);
+    box(0x59636b, [36, 14.8, -65], [14, .55, 13]);
+    box(0xa5b2b6, [36, 17, -65], [.22, 4.2, .22]);
+    for (let i = -7; i <= 7; i++) mesh(sphere, 0x778d91, [i * 26, -5, -119 - Math.cos(i) * 7], [33, 12 + 4 * Math.sin(i * 2), 12]);
+    for (let i = 0; i < 5; i++) {
+      const x = -48 + i * 18;
+      box(0xaeb8b9, [x, 3, -76], [15, 6, 12]);
+      box(0x59636b, [x, 2, -69.95], [11, 4, .12]);
+      box(0xa5b2b6, [x, 6.12, -76], [15.8, .35, 12.6]);
+      for (const dx of [-3, 0, 3]) box(0xaeb8b9, [x + dx, 2, -69.85], [.12, 4, .08]);
+    }
+    for (let x = -135; x <= 135; x += 9) for (const z of [-62, -52]) box(0xf4e7b3, [x, .13, z], [.38, .19, .24]);
+    material(0xf4e7b3).emissive.setHex(0x59471d);
+    baggageTrain = new THREE.Group(); baggageTrain.name = 'apron-baggage-train'; scene.add(baggageTrain);
+    box(0xd5c48c, [0, .48, 0], [1.8, .56, 1], baggageTrain);
+    box(0x526e7b, [.48, 1, 0], [.72, .65, .86], baggageTrain);
+    for (const x of [-2.3, -4.5]) {
+      box(0x59636b, [x, .35, 0], [1.9, .24, 1.15], baggageTrain);
+      box(0xaeb8b9, [x, .85, 0], [1.6, .8, 1], baggageTrain);
+      box(0x59636b, [x + 1.1, .32, 0], [.5, .12, .12], baggageTrain);
+    }
+    for (const x of [-5, -4, -2.8, -1.8, -.6, .6]) for (const z of [-.5, .5]) mesh(sphere, 0x59636b, [x, .23, z], [.23, .23, .13], baggageTrain);
   }
   // Soft billboard cumulus: lit spheres read as floating discs through the windows.
   const cloudPixels = new Uint8Array(128 * 64 * 4);
@@ -269,10 +289,12 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       cloudMaterial.color.set(night ? 0x56627c : wet ? 0xaab4bb : sunset ? 0xffcfae : 0xffffff); cloudMaterial.opacity = night ? .5 : wet ? .95 : .9;
       if (airport) {
         transit.position.x = -sceneryTravel(motionClock, 1.8, 60);
+        baggageTrain?.position.set(sceneryTravel(motionClock, 1.3, 31), 0, -12.5);
         if (departure) {
           const progress = ((motionClock + 12) % 80) / 80;
-          departure.position.set(160 - progress * 320, Math.max(0, progress - .38) * 40, -48);
-          departure.rotation.z = progress > .38 ? -.08 : 0;
+          const climb = Math.max(0, progress - .38);
+          departure.position.set(160 - progress * 320, climb * Math.min(1, climb / .065) * 40, -57);
+          departure.rotation.z = -.09 * Math.min(1, climb / .04);
         }
       }
       traffic.forEach((car, i) => { const direction = i % 2 ? -1 : 1; car.position.set(direction * sceneryTravel(motionClock, 4 + i % 3, i * 23), 0, streetZ + (i % 2 ? -2 : 2)); });

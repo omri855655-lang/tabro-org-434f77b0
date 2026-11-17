@@ -269,6 +269,10 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
             <AlertDescription>{lang === "he" ? "המידע הקודם נשמר. רענון המצב אינו מנסה להתחבר שוב לחברת האשראי." : "Previous data is preserved. Refreshing status does not submit another institution login."}<Button variant="outline" size="sm" className="ms-2 mt-2" disabled={loading} onClick={() => void load()}>{lang === "he" ? "רענן מצב" : "Refresh status"}</Button></AlertDescription>
           </Alert>
         )}
+        {(serviceUnavailable || companyId === "amex") && <div className="flex flex-wrap items-center gap-3 rounded-xl border p-3 text-sm">
+          <a className="font-medium underline" href="https://he.americanexpress.co.il/products-services-lobby/credit-charges" target="_blank" rel="noopener noreferrer">{lang === "he" ? "פירוט חיובים באתר Amex" : "Statements on the Amex website"}</a>
+          {onCsvFallback && <Button type="button" size="sm" onClick={() => onCsvFallback("amex")}>{lang === "he" ? "ייבוא דוח Amex ללא סיסמה" : "Import an Amex statement without a password"}</Button>}
+        </div>}
         {!serviceUnavailable && (
           <div className="space-y-4 rounded-2xl border bg-muted/15 p-4">
             <div className="space-y-1.5">
@@ -333,7 +337,7 @@ export function CloudFinanceConnector({ onChanged, onCsvFallback }: {
               {busy === "connect" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
               {labels.connect}
             </Button>}
-            {CARD_COMPANIES.has(companyId) && onCsvFallback && (
+            {companyId !== "amex" && CARD_COMPANIES.has(companyId) && onCsvFallback && (
               <Button type="button" variant="outline" onClick={() => onCsvFallback(companyId)} className="ms-2 gap-2">
                 <FileSpreadsheet className="h-4 w-4" />
                 {lang === "he" ? "הסנכרון לא עובד? ייבוא CSV / Excel" : "Sync not working? Import CSV / Excel"}

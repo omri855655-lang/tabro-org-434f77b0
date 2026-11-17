@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { dashboardRefresh } from "@/lib/dashboardRefresh";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,54 +42,29 @@ export default function TasksDashboards() {
   const { user } = useAuth();
   const { tasks: recurringTasks, loading: recurringLoading, isTaskDueToday, isTaskCompletedToday } = useRecurringTasks();
 
-  const [loading, setLoading] = useState(true);
-  const [personalRows, setPersonalRows] = useState<TaskRow[]>([]);
-  const [workRows, setWorkRows] = useState<TaskRow[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      setLoading(true);
-      try {
+  const { data, isLoading: loading, isError } = useQuery({
+    ...dashboardRefresh, queryKey: ['task-summary', user?.id], enabled: Boolean(user),
+    queryFn: async () => {
+        if (!user) throw new Error('Sign in required');
         const [personalRes, workRes] = await Promise.all([
-          user
-            ? supabase
+          supabase
                 .from("tasks")
                 .select("status, overdue, urgent, archived")
                 .eq("task_type", "personal")
-                .eq("user_id", user.id)
-            : Promise.resolve({ data: [], error: null } as any),
+                .eq("user_id", user.id),
           supabase
             .from("tasks")
             .select("status, overdue, urgent, archived")
             .eq("task_type", "work"),
         ]);
 
-        if (cancelled) return;
-
         if (personalRes.error) throw personalRes.error;
         if (workRes.error) throw workRes.error;
 
-        setPersonalRows((personalRes.data as TaskRow[]) ?? []);
-        setWorkRows((workRes.data as TaskRow[]) ?? []);
-      } catch (e) {
-        console.error("Failed to load task dashboards", e);
-        setPersonalRows([]);
-        setWorkRows([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  const personalStats = useMemo(() => computeTaskStats(personalRows), [personalRows]);
-  const workStats = useMemo(() => computeTaskStats(workRows), [workRows]);
+        return { personal: computeTaskStats(personalRes.data ?? []), work: computeTaskStats(workRes.data ?? []) };
+    },
+  });
+  const personalStats = data?.personal, workStats = data?.work;
 
   const routineStats = useMemo(() => {
     const dueToday = recurringTasks.filter(isTaskDueToday);
@@ -100,7 +77,6 @@ export default function TasksDashboards() {
     };
   }, [recurringTasks, isTaskDueToday, isTaskCompletedToday]);
 
-  const isAnyLoading = loading || recurringLoading;
   const copy = isHebrew ? {
     personalTasks: "משימות אישיות",
     routine: "לוז יומי (משימות קבועות)",
@@ -142,10 +118,10 @@ export default function TasksDashboards() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {isAnyLoading ? (
+            {loading ? (
               <div className="text-sm text-muted-foreground">{copy.loading}</div>
-            ) : !user ? (
-              <div className="text-sm text-muted-foreground">{copy.signInNeeded}</div>
+            ) : !personalStats ? (
+              <div className="text-sm text-muted-foreground">{isError ? (isHebrew ? 'לא ניתן לטעון את הסיכום' : 'Summary unavailable') : copy.signInNeeded}</div>
             ) : (
               <>
                 <Stat label={copy.totalActive} value={personalStats.total} />
@@ -165,7 +141,7 @@ export default function TasksDashboards() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {isAnyLoading ? (
+            {recurringLoading ? (
               <div className="text-sm text-muted-foreground">{copy.loading}</div>
             ) : !user ? (
               <div className="text-sm text-muted-foreground">{copy.signInNeeded}</div>
@@ -188,9 +164,9 @@ export default function TasksDashboards() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {isAnyLoading ? (
+            {loading ? (
               <div className="text-sm text-muted-foreground">{copy.loading}</div>
-            ) : (
+            ) : !workStats ? <div className="text-sm text-muted-foreground">{isError ? (isHebrew ? 'לא ניתן לטעון את הסיכום' : 'Summary unavailable') : copy.signInNeeded}</div> : (
               <>
                 <Stat label={copy.totalActive} value={workStats.total} />
                 <Stat label={copy.done} value={workStats.completed} valueClassName="text-sm font-semibold text-primary" />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -153,6 +153,17 @@ const ZoneFlowDashboard = () => {
   const focusDeckRef = useRef<HTMLDivElement | null>(null);
 
   // Stopwatch now handled by useDailyStopwatch hook
+
+  const viewerButton = (video: { id: string; title: string }) => {
+    const showing = youtubePlayerState.videoId === video.id && youtubePlayerState.viewerOpen;
+    const label = showing ? 'הסתר את הווידאו והמשך להאזין' : 'פתח תיבת צפייה';
+    const Icon = showing ? EyeOff : Eye;
+    return <button type="button" aria-label={`${label}: ${video.title}`} aria-pressed={showing} title={label}
+      className="grid h-11 w-11 place-items-center rounded-full text-cyan-300 transition-colors hover:bg-white/10 hover:text-cyan-200"
+      onClick={event => { event.stopPropagation(); handleYouTubeToggle(video.id, video.title, 'inline'); }}>
+      <Icon className="h-4 w-4" />
+    </button>;
+  };
 
   // AI Chat
   const [showAiChat, setShowAiChat] = useState(false);
@@ -348,6 +359,10 @@ const ZoneFlowDashboard = () => {
   };
 
   const handleYouTubeToggle = (videoId: string, title = "YouTube", displayMode: "hidden" | "inline" = "hidden") => {
+    if (displayMode === "inline" && youtubePlayerState.videoId === videoId) {
+      setZoneFlowYoutubePlayerState({ ...youtubePlayerState, displayMode, viewerOpen: !youtubePlayerState.viewerOpen });
+      return;
+    }
     // Keep iOS media session alive before opening YouTube iframe
     unlockAudioContext();
     startSilentAudio();
@@ -362,7 +377,7 @@ const ZoneFlowDashboard = () => {
       videoId: nextVideoId,
       title: nextVideoId ? title : "",
       displayMode: nextVideoId ? displayMode : "hidden",
-      viewerOpen: Boolean(nextVideoId),
+      viewerOpen: Boolean(nextVideoId) && displayMode === "inline",
     });
   };
 
@@ -514,16 +529,6 @@ const ZoneFlowDashboard = () => {
   const activeMeditationVideo = meditationVideos.find((video) => video.id === activeYouTube) || null;
   const shouldShowSharedYoutubeViewer = Boolean(activeYouTube) && !activeMeditationVideo;
   const activeYoutubeLabel = youtubePlayerState.title || "YouTube";
-  const activeMeditationIframeSrc = useMemo(() => {
-    if (!activeMeditationVideo || !isInlineMeditationVideo) return "";
-    const params = new URLSearchParams({
-      autoplay: "1",
-      playsinline: "1",
-      enablejsapi: "1",
-      rel: "0",
-    });
-    return `https://www.youtube.com/embed/${activeMeditationVideo.id}?${params.toString()}`;
-  }, [activeMeditationVideo, isInlineMeditationVideo]);
 
   // Find upcoming task (next one that hasn't passed)
   const now = new Date();
@@ -1162,14 +1167,7 @@ const ZoneFlowDashboard = () => {
                     </button>
                   </div>
                   <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-                    <iframe
-                      key={activeMeditationVideo.id}
-                      src={activeMeditationIframeSrc}
-                      title={activeMeditationVideo.title}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      className="aspect-video w-full border-0"
-                    />
+                    <div id="zoneflow-youtube-viewer-anchor" className="aspect-video w-full" />
                   </div>
                 </div>
               )}
@@ -1444,13 +1442,7 @@ const ZoneFlowDashboard = () => {
                                 <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                               </div>
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleYouTubeToggle(v.id, v.title, "inline"); }}
-                                  className="text-cyan-300 hover:text-cyan-200 transition-colors"
-                                  title="צפה בתוך האתר"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                </button>
+                                {viewerButton(v)}
                                 {isCustom ? (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); removeCustomYtVideo(activeYtCat, v.id); }}
@@ -1558,13 +1550,7 @@ const ZoneFlowDashboard = () => {
                         <p className="text-xs text-[#e8e8ed]/40 truncate">{video.desc}</p>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => handleYouTubeToggle(video.id, video.title, "inline")}
-                          className="text-cyan-300 hover:text-cyan-200 transition-colors"
-                          title="צפה בתוך האתר"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
+                        {viewerButton(video)}
                         <button
                           onClick={() => restoreHiddenVideo(video.id)}
                           className="text-emerald-300 hover:text-emerald-200 transition-colors"
@@ -1688,9 +1674,7 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); handleYouTubeToggle(v.id, v.title, "inline"); }} className="text-cyan-300 hover:text-cyan-200 transition-colors" title="צפה בתוך האתר">
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
+                            {viewerButton(v)}
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("study-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1765,9 +1749,7 @@ const ZoneFlowDashboard = () => {
                             <p className="text-xs text-[#e8e8ed]/40 truncate">{v.desc}</p>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); handleYouTubeToggle(v.id, v.title, "inline"); }} className="text-cyan-300 hover:text-cyan-200 transition-colors" title="צפה בתוך האתר">
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
+                            {viewerButton(v)}
                             {isCustom ? (
                               <button onClick={(e) => { e.stopPropagation(); removeCustomYtVideo("read-with-me", v.id); }} className="text-red-400/50 hover:text-red-400 transition-colors" title={t("removeVideo" as any)}>
                                 <Trash2 className="h-3.5 w-3.5" />
