@@ -51,6 +51,7 @@ function financeHarness() {
     withFinanceReadTimeout,
     setFinanceUnavailable: (value) => { state.unavailable = value; },
     setPayments: () => {},
+    setSyncIssues: value => { state.syncIssues = [...value]; },
     setCsvCardSources: () => {},
     setTransactions: (value) => { state.transactions = value; },
     setFinancialAccounts: (value) => { state.accounts = value; },
@@ -69,7 +70,7 @@ function financeHarness() {
     invokeFinanceBackend: async (action) => {
       assert.equal(action, "list");
       if (fail) throw new Error("Service unavailable");
-      return { transactions: [{ id: "tx" }], accounts: [{ id: "account", current_balance: 125 }] };
+      return { transactions: [{ id: "tx" }], accounts: [{ id: "account", current_balance: 125 }], connections: [{status:"error",provider_name:"MAX"},{status:"error",provider_name:"MAX"},{status:"active",provider_name:"Bank"}] };
     },
   };
   return {
@@ -97,6 +98,7 @@ test("retry after recovery loads cloud data and clears the error", async () => {
   assert.equal(state.loading, false);
   assert.equal(state.accounts[0].current_balance, 125);
   assert.equal(state.transactions[0].id, "cloud:tx");
+  assert.deepEqual(state.syncIssues, ["MAX"]);
 });
 
 test("read deadlines reject stalled requests without waiting forever", async () => {

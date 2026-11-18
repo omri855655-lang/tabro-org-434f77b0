@@ -46,6 +46,7 @@ test("card overview shows real next debit, unknown months, estimates and reversi
   const props = { cards:[card], hiddenKeys:[], onVisibility(){}, onBillingDay(){}, saving:false, isRtl:true };
   const html = renderToStaticMarkup(React.createElement(CardOverview, props));
   assert.match(html,/123\.45/);
+  assert.match(html, /<details[^>]*><summary[^>]*>פירוט הכרטיסים \(1\)<\/summary>/);
   assert.match(html,/אומדן לפי יום פירעון/);
   assert.match(html,/ללא אומדן/);
   assert.match(html,/הסר מהתצוגה/);

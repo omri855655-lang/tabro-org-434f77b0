@@ -20,7 +20,9 @@ export default function CardCashflowOverview({ cards, hiddenKeys, onVisibility, 
   return <section className="space-y-3 rounded-3xl border bg-background p-4 sm:p-5" aria-label={isRtl ? "חיובי האשראי הקרובים" : "Upcoming card charges"} dir={isRtl ? "rtl" : "ltr"}>
     <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" aria-hidden="true" /><h3 className="font-semibold">{isRtl ? "האשראי שלך · מה צפוי לרדת" : "Your cards · upcoming debits"}</h3></div>
     <p className="text-xs leading-5 text-muted-foreground">{isRtl ? "לפי תאריכי החיוב בתנועות שסונכרנו או בפירוט שייבאת. כשאין תאריך, בחירת יום פירעון תיצור אומדן בלבד. חודשים ללא נתון אינם אפס." : "Based on dates in synced transactions or imported statements. Selecting a billing day estimates undated charges. Missing months do not mean zero."}</p>
-    <div className="grid gap-3 lg:grid-cols-2">
+    {visible.length > 0 && <details className="rounded-xl border p-3">
+    <summary className="cursor-pointer text-sm font-medium">{isRtl ? `פירוט הכרטיסים (${visible.length})` : `Card details (${visible.length})`}</summary>
+    <div className="mt-3 grid gap-3 lg:grid-cols-2">
       {visible.map(card => {
         const next = card.charges[0];
         return <article key={card.key} className="space-y-3 rounded-2xl border bg-muted/15 p-4">
@@ -43,7 +45,7 @@ export default function CardCashflowOverview({ cards, hiddenKeys, onVisibility, 
           </div></details>
         </article>;
       })}
-    </div>
+    </div></details>}
     {!visible.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין כרטיסים להצגה. אפשר להוסיף מקור בבנק ואשראי או להחזיר כרטיס שהוסתר." : "No visible cards. Add a source in Bank & cards or restore a hidden card."}</p>}
     {hidden.length > 0 && <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm">{isRtl ? `כרטיסים שהוסרו מהתצוגה (${hidden.length})` : `Hidden cards (${hidden.length})`}</summary><p className="my-2 text-xs text-muted-foreground">{isRtl ? "ההיסטוריה נשמרת וחיובים ידועים ממשיכים להיכלל בתחזית. הסרה זו אינה מנתקת סנכרון." : "History and known forecast charges remain. Hiding does not disconnect sync."}</p>{hidden.map(card => <div key={card.key} className="flex items-center justify-between gap-2 py-2 text-sm"><span>{label(card)}</span><button type="button" disabled={saving} onClick={() => onVisibility(card.key, false)} className="flex items-center gap-1 rounded-lg border px-2 py-1"><RotateCcw className="h-3 w-3" />{isRtl ? "החזר" : "Restore"}</button></div>)}</details>}
   </section>;

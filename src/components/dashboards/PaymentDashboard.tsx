@@ -293,6 +293,7 @@ const PaymentDashboard = () => {
   const [requestedCsvProvider, setRequestedCsvProvider] = useState("");
   const [loading, setLoading] = useState(true);
   const [financeUnavailable, setFinanceUnavailable] = useState(false);
+  const [syncIssues, setSyncIssues] = useState<string[]>([]);
   const [refreshingFinance, setRefreshingFinance] = useState(false);
   const [financeRecoveryPanel, setFinanceRecoveryPanel] = useState<"connections" | "import" | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -486,7 +487,7 @@ const PaymentDashboard = () => {
           .from("credit_card_connections")
           .select("id,provider,display_name,card_last_digits")
           .eq("user_id", user.id),
-        invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[] }>("list"),
+        invokeFinanceBackend<{ transactions?: FinancialTransaction[]; accounts?: FinancialAccount[]; connections: { status: string; provider_name: string }[] }>("list"),
       ]));
 
       let transactionsResult = await withFinanceReadTimeout(supabase
@@ -566,6 +567,7 @@ const PaymentDashboard = () => {
       }));
       setFinancialAccounts([...cloudAccounts, ...legacyAccounts, ...importedCardAccounts].filter(account => account.account_type?.toUpperCase() !== "GIFT_CARD"));
       setFinanceUnavailable(false);
+      setSyncIssues([...new Set(cloudFinanceResult.connections.filter(c => c.status === "error").map(c => c.provider_name))]);
     } catch (error) {
       console.warn("Finance data could not be loaded", error);
       setFinanceUnavailable(true);
@@ -1490,6 +1492,12 @@ ${context}
         </Button>
         }>
       <TabsContent value="overview" className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-background p-4">
+          <div><h3 className="font-semibold">{isRtl ? "סנכרון בנק ואשראי" : "Bank and card sync"}</h3>
+            {syncIssues.length > 0 && <p className="text-sm text-muted-foreground">{isRtl ? "נדרש טיפול: " : "Needs attention: "}{syncIssues.join(", ")}. {isRtl ? "ההיסטוריה נשמרה; ייתכן שחסרות תנועות חדשות." : "History is preserved; recent transactions may be missing."}</p>}
+          </div>
+          <Button variant="outline" onClick={() => setActiveTab("credit-cards")}>{isRtl ? "מצב החיבורים והסנכרון" : "View connections and sync"}</Button>
+        </div>
         <GiftCardWallet key={user?.id} userId={user?.id} />
         <FinancePeriodBrief entries={dashboardEntries} isRtl={isRtl} refreshKey={`${budgetPeriod}:${budgetTarget}`} onBudget={period => { setBudgetPeriod(period); setViewMonth(financeCalendarDate(new Date())!.slice(0, 7)); setActiveTab("budget"); }} />
         <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} cardSection={<CardCashflowOverview cards={cardCashflows} hiddenKeys={hiddenCardKeys} onVisibility={(key, hidden) => void setCardVisibility(key, hidden)} onBillingDay={(key, day) => void saveCardBillingDay(key, day)} saving={savingCardPreferences} isRtl={isRtl} />} />
@@ -2040,6 +2048,7 @@ ${context}
         </TabsContent>
 
         <TabsContent value="credit-cards" className="space-y-4">
+          <WorkspacePanelBoundary resetKey="finance-cloud"><CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} /></WorkspacePanelBoundary>
           {forecastCardAccounts.length > 0 && (
             <details className="group rounded-2xl border bg-background">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">{isRtl ? "מועדי פירעון לכרטיסים" : "Card billing dates"}<ChevronDown className="h-4 w-4 shrink-0 group-open:rotate-180" aria-hidden="true" /></summary>
@@ -2082,7 +2091,7 @@ ${context}
           <div id="credit-card-csv-fallback" className="space-y-4 scroll-mt-6">
             <div className="rounded-2xl border bg-muted/20 p-4">
               <h3 className="mb-1 font-semibold">{isRtl ? "ייבוא פירוט כרטיס" : "Import a card statement"}</h3>
-              <p className="mb-3 text-xs leading-5 text-muted-foreground">{isRtl ? "באמריקן אקספרס אפשר לייבא CSV או Excel, או לפתוח ניסיון חיבור באזור החיבורים למטה. ייבוא נוסף לאותו כרטיס בודק כפילויות ושומר סיווגים שכבר אישרת." : "For American Express, import CSV or Excel, or open a connection trial in the connections section below. Reimporting to the same card checks duplicates and keeps reviewed categories."}</p>
+              <p className="mb-3 text-xs leading-5 text-muted-foreground">{isRtl ? "באמריקן אקספרס אפשר לייבא CSV או Excel, או לפתוח ניסיון חיבור בראש לשונית בנק ואשראי. ייבוא נוסף לאותו כרטיס בודק כפילויות ושומר סיווגים שכבר אישרת." : "For American Express, import CSV or Excel, or open a connection trial at the top of Bank and cards. Reimporting to the same card checks duplicates and keeps reviewed categories."}</p>
               <div className="flex flex-wrap gap-2">
             <Button onClick={() => openCsvFallback("amex")} className="gap-2">
               {isRtl ? "אמריקן אקספרס · ייבוא דוח Excel או CSV" : "American Express · import Excel or CSV statement"}
@@ -2134,8 +2143,8 @@ ${context}
             )}
           </div>
           <details className="group rounded-2xl border bg-background">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><span><strong className="block text-sm">{isRtl ? "חיבורים פעילים וסנכרון בנקים ואשראי" : "Connected sources & bank/card sync"}</strong><span className="mt-1 block text-xs text-muted-foreground">{isRtl ? "מצב חיבורים, סנכרון ידני, הוספה וניתוק. החיבורים הקיימים לא משתנים." : "Connection status, manual sync, add and disconnect. Existing connections are unchanged."}</span></span><ChevronDown className="h-4 w-4 shrink-0 group-open:rotate-180" aria-hidden="true" /></summary>
-            <div className="space-y-4 border-t p-3 sm:p-4"><WorkspacePanelBoundary resetKey="finance-bank"><BankConnect onChanged={fetchFinanceData} /></WorkspacePanelBoundary><WorkspacePanelBoundary resetKey="finance-cloud"><CloudFinanceConnector onChanged={fetchFinanceData} onCsvFallback={openCsvFallback} /></WorkspacePanelBoundary></div>
+            <summary className="cursor-pointer p-4 text-sm font-semibold">{isRtl ? "אפשרויות חיבור בנק נוספות" : "Additional bank connection options"}</summary>
+            <div className="border-t p-3 sm:p-4"><WorkspacePanelBoundary resetKey="finance-bank"><BankConnect onChanged={fetchFinanceData} /></WorkspacePanelBoundary></div>
           </details>
         </TabsContent>
       </FinanceWorkspace>
