@@ -31,6 +31,7 @@ import { eventOverlapsRange } from "@/lib/plannerEvents";
 import { escapePrintText, printDocument } from "@/lib/printDocument";
 import { createCalendarExport } from "@/lib/calendarExport";
 import { useLanguage } from "@/hooks/useLanguage";
+import DailyBriefingPreview from "@/components/DailyBriefingPreview";
 import { useUltraDesign } from '@/hooks/useUltraDesign';
 import { plannerStartNow, plannerScrollTop, hasMatchingPlannerTask, plannerTaskDraft } from "@/lib/plannerDefaults";
 import { PlannerTaskOffer } from "@/components/PlannerTaskOffer";
@@ -203,6 +204,7 @@ const PersonalPlanner = () => {
   const [taskOffer, setTaskOffer] = useState<CalendarEvent | null>(null);
   const [selectedTaskForAi, setSelectedTaskForAi] = useState<{ title: string; description: string; category: string } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [newspaperOpen, setNewspaperOpen] = useState(false);
 
   const closeEventEditors = useCallback(() => {
     setShowQuickEventDialog(false);
@@ -3043,6 +3045,15 @@ const PersonalPlanner = () => {
               <Brain className="h-3.5 w-3.5" />
               סוכן תכנון
             </Button>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setNewspaperOpen(true)}>
+              {({ he: "העיתון היומי", ar: "الصحيفة اليومية", fr: "Journal quotidien" } as Record<string, string>)[lang] || "Daily paper"}
+            </Button>
+            <Dialog open={newspaperOpen} onOpenChange={setNewspaperOpen}>
+              <DialogContent className="max-h-[88dvh] max-w-3xl overflow-y-auto" dir={lang === "he" || lang === "ar" ? "rtl" : "ltr"}>
+                <DialogHeader><DialogTitle>{({ he: "העיתון היומי", ar: "الصحيفة اليومية", fr: "Journal quotidien" } as Record<string, string>)[lang] || "Daily paper"}</DialogTitle></DialogHeader>
+                {newspaperOpen && <DailyBriefingPreview newspaper initialDate={format(currentDate, "yyyy-MM-dd")} />}
+              </DialogContent>
+            </Dialog>
 
             <AppleCalendarGuide onExport={exportToICS} />
             {isMobile && <Button variant="ghost" size="sm" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? mobileWorkspaceCopy[lang].hideTools : mobileWorkspaceCopy[lang].tools}</Button>}

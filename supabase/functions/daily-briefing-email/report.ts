@@ -1,12 +1,13 @@
 import { israelDate, makeDailyBriefing, projectBriefingTasks, recurringBriefingTasks, type BriefingTask } from "../_shared/dailyBriefing.ts";
 import { BRIEFING_SLOTS, type BriefingEmailSettings, type BriefingSlot } from "../_shared/briefingSchedule.ts";
+import { normalizeEdition, type EditionLanguage } from "../_shared/newspaper.ts";
 
 // Loads only the given user's own rows (every query is scoped by user_id) and builds
 // the briefing. Any failed query throws so a partial report is never sent.
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
-export async function buildReport(admin: Admin, userId: string, slot: BriefingSlot, now: Date, settings: Record<string, any>, briefing: BriefingEmailSettings) {
+export async function buildReport(admin: Admin, userId: string, slot: BriefingSlot, now: Date, settings: Record<string, any>, briefing: BriefingEmailSettings, language?: EditionLanguage) {
   const today = israelDate(now);
   const mode = BRIEFING_SLOTS[slot].mode;
   const includeMail = briefing.includeMail && mode === "morning";
@@ -40,6 +41,8 @@ export async function buildReport(admin: Admin, userId: string, slot: BriefingSl
   ];
   return makeDailyBriefing(combined, events.data || [], mail.data || [], mode, now, settings.emailTriage, {
     includeTasks: briefing.includeTasks, includeEvents: briefing.includePlanner, includeMail, includeSuggestions: briefing.includeSuggestions,
+    includeDeliveries: normalizeEdition(settings.newspaperEdition).enabled,
+    language,
   });
 }
 

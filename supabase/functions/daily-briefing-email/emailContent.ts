@@ -1,11 +1,41 @@
 import type { BriefingItem, DailyBriefing } from "../_shared/dailyBriefing.ts";
 import { formatIsraelDay } from "../_shared/dailyBriefing.ts";
+import { buildNewspaper } from "../_shared/newspaper.ts";
 
 export const SITE_URL = "https://tabro.org";
 const HTML_ITEM_LIMIT = 25;
 
 export const escapeHtml = (value: unknown) =>
   String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
+
+export function buildNewspaperEmail(paper: ReturnType<typeof buildNewspaper>, opts: { test: boolean; pdfAttached: boolean; unsubscribeUrl: string | null }) {
+  const copy = {
+    he: ["פתיחת Tabro", "הסרה מרשימת התפוצה", "מצורף התדריך להדפסה", "בדיקה"],
+    ar: ["فتح Tabro", "إلغاء الاشتراك", "الموجز مرفق للطباعة", "اختبار"],
+    en: ["Open Tabro", "Unsubscribe", "Printable briefing attached", "Test"],
+    fr: ["Ouvrir Tabro", "Se désabonner", "Bulletin imprimable en pièce jointe", "Test"],
+  }[paper.language];
+  const e = escapeHtml;
+  const attachment = opts.pdfAttached ? copy[2] : "";
+  const open = `${SITE_URL}/personal`;
+  const sections = paper.sections.map(section => `<section style="border-top:2px solid #172b40;margin-top:20px;padding-top:6px">
+    <h2 style="font-size:15px;margin:0 0 10px">${e(section.heading)}</h2>
+    ${section.stories.map(story => `<article dir="auto" style="padding-bottom:12px"><strong>${story.link?.startsWith("https://") ? `<a href="${e(story.link)}">${e(story.title)}</a>` : e(story.title)}</strong><br>${e(story.body)}</article>`).join("")}</section>`).join("");
+  const html = `<!doctype html><html lang="${paper.language}" dir="${paper.dir}"><body style="background:#f5f6f7;color:#172b40;margin:0">
+  <main dir="${paper.dir}" style="background:white;max-width:660px;margin:auto;padding:20px;font:16px Georgia,serif">
+    <header style="text-align:center;border-bottom:4px double #172b40;padding-block:14px">
+      <strong>Tabro · ${e(paper.edition)}${opts.test ? ` · ${e(copy[3])}` : ""}</strong>
+      <h1 style="font-size:32px;margin:12px 0">${e(paper.title)}</h1><div>${e(paper.dateLabel)}</div>
+    </header>
+    ${sections || `<p>${e(paper.empty)}</p>`}
+    <footer style="border-top:1px solid #172b40;padding-top:12px">${e(attachment)} <a href="${open}">${e(copy[0])}</a>
+    ${opts.unsubscribeUrl ? ` · <a href="${e(opts.unsubscribeUrl)}">${e(copy[1])}</a>` : ""}</footer>
+  </main></body></html>`;
+  const text = [paper.title, paper.dateLabel, paper.edition, ...paper.sections.flatMap(section =>
+    ["", section.heading, ...section.stories.map(story => [story.title, story.body, story.link].filter(Boolean).join(" · "))]),
+    attachment, `${copy[0]}: ${open}`, opts.unsubscribeUrl ? `${copy[1]}: ${opts.unsubscribeUrl}` : ""].join("\n");
+  return { html, text, subject: `${opts.test ? `[${copy[3]}] ` : ""}${paper.title} · ${paper.dateLabel}` };
+}
 
 const SECTION: Record<BriefingItem["kind"], string> = { task: "משימות", event: "לו״ז היום", mail: "מיילים שעשויים לדרוש טיפול" };
 

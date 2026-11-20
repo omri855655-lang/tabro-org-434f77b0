@@ -8,12 +8,13 @@ const printCopy = {
   es: { print: "Imprimir / Guardar como PDF", close: "Cerrar", empty: "No hay elementos en este período", blocked: "El navegador bloqueó el informe. Permite ventanas emergentes en este sitio e inténtalo de nuevo.", hint: "Revisa el informe y elige Imprimir o Guardar como PDF en el diálogo de impresión." },
   zh: { print: "打印 / 另存为 PDF", close: "关闭", empty: "此范围内没有项目", blocked: "浏览器阻止了报告窗口。请允许此网站的弹出窗口后重试。", hint: "检查报告后，在打印对话框中选择打印或另存为 PDF。" },
   ar: { print: "طباعة / حفظ PDF", close: "إغلاق", empty: "لا توجد عناصر في هذه الفترة", blocked: "حظر المتصفح نافذة التقرير. اسمح بالنوافذ المنبثقة لهذا الموقع وحاول مجدداً.", hint: "راجع التقرير ثم اختر الطباعة أو الحفظ بصيغة PDF في نافذة الطباعة." },
+  fr: { print: "Imprimer / Enregistrer en PDF", close: "Fermer", empty: "Aucun élément pour cette période", blocked: "Le navigateur a bloqué le rapport.", hint: "Vérifiez le rapport avant de l’imprimer ou de l’enregistrer en PDF." },
   ru: { print: "Печать / Сохранить PDF", close: "Закрыть", empty: "В этом периоде нет записей", blocked: "Браузер заблокировал отчёт. Разрешите всплывающие окна для сайта и повторите попытку.", hint: "Проверьте отчёт и выберите печать или сохранение PDF в диалоге печати." },
 };
 
 // Print the top-level document, not a hidden iframe. The native dialog avoids
 // popup restrictions and isolates the report from app layouts and scroll areas.
-export function printDocument(title: string, columns: string[], rows: unknown[][], subtitle = "", options: { lang?: string; dir?: 'rtl' | 'ltr'; emptyMessage?: string } = {}) {
+export function printDocument(title: string, columns: string[], rows: unknown[][], subtitle = "", options: { lang?: string; dir?: 'rtl' | 'ltr'; emptyMessage?: string; newspaper?: { heading: string; stories: { title: string; body: string; link?: string }[] }[] } = {}) {
   const lang = Object.hasOwn(printCopy, options.lang || 'he') ? (options.lang || 'he') as keyof typeof printCopy : 'en';
   const copy = printCopy[lang];
   const report = document.createElement('dialog');
@@ -22,8 +23,19 @@ export function printDocument(title: string, columns: string[], rows: unknown[][
   report.lang = lang;
   report.dir = options.dir || (lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr');
   const text = escapePrintText;
+  const sections = options.newspaper?.map(section => `<section><h2>${text(section.heading)}</h2>${section.stories.map(story => {
+    const link = story.link?.startsWith("https://") ? `<a href="${text(story.link)}" target="_blank" rel="noopener noreferrer">${text(story.title)}</a>` : text(story.title);
+    return `<article><h3 dir="auto">${link}</h3><p dir="auto">${text(story.body)}</p></article>`;
+  }).join("")}</section>`).join("");
   report.innerHTML = `<style>
-    @page{size:A4 landscape;margin:14mm}
+    @page{size:A4 ${options.newspaper ? "portrait" : "landscape"};margin:14mm}
+    [data-tabro-report] .newspaper{columns:2 240px;column-gap:28px;column-rule:1px solid #adb5ba;max-width:880px;margin:0 auto}
+    [data-tabro-report] .newspaper h2{border-block:2px solid #172b40;break-after:avoid;padding:6px 0;font-size:16px;margin:0 0 8px}
+    [data-tabro-report] .newspaper article{break-inside:avoid;padding:4px 0 10px}
+    [data-tabro-report] .newspaper h3{font-family:Georgia,serif;margin:0;font-size:16px}
+    [data-tabro-report] .newspaper p{margin:4px 0;font-size:12px;overflow-wrap:anywhere}
+    [data-tabro-report]:has(.newspaper) header{text-align:center;border-bottom:4px double #172b40}
+    [data-tabro-report]:has(.newspaper) h1{font:700 clamp(28px,5vw,54px) Georgia,serif}
     [data-tabro-report]{position:fixed;inset:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;overflow:auto;border:0;padding:24px;background:white;color:#172b40;font-family:Arial,sans-serif;pointer-events:auto}
     [data-tabro-report],[data-tabro-report] *{box-sizing:border-box}
     [data-tabro-report] .report-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px;margin-bottom:22px;background:#e9f3f6;border-radius:12px}
@@ -43,6 +55,12 @@ export function printDocument(title: string, columns: string[], rows: unknown[][
     }
   </style><nav class="report-toolbar"><button type="button" id="tabro-print-report">${text(copy.print)}</button><p>${text(copy.hint)}</p><button type="button" id="tabro-close-report">${text(copy.close)}</button></nav><header><h1>${text(title)}</h1><p>${text(subtitle)}</p></header><table><thead><tr>${columns.map(c => `<th>${text(c)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.map(row => `<tr>${row.map(cell => `<td>${text(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">${text(options.emptyMessage || copy.empty)}</td></tr>`}</tbody></table><footer>Tabro · ${text(new Date().toLocaleDateString(lang))}</footer>`;
   const previousTitle = document.title;
+  if (options.newspaper) {
+    const newspaper = document.createElement("main");
+    newspaper.className = "newspaper";
+    newspaper.innerHTML = sections || `<p>${text(options.emptyMessage || copy.empty)}</p>`;
+    report.querySelector("table")?.replaceWith(newspaper);
+  }
   const previousFocus = document.activeElement;
   // A report can open above a Radix modal that disables body pointer events.
   // Keep its input inside the native top layer, not the underlying dismiss layer.

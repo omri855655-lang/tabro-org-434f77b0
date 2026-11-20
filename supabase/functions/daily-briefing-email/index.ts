@@ -8,7 +8,8 @@ import {
 } from "../_shared/briefingSchedule.ts";
 import { buildBriefingPdf } from "../_shared/briefingPdf.ts";
 import { hasSchedulerToken } from "../_shared/schedulerAuth.ts";
-import { briefingSubject, buildBriefingEmail } from "./emailContent.ts";
+import { briefingSubject, buildBriefingEmail, buildNewspaperEmail } from "./emailContent.ts";
+import { buildNewspaper, normalizeEdition, selectEditionArticles } from "../_shared/newspaper.ts";
 
 // Personal daily briefing emails (08:00 / 16:00 Asia/Jerusalem).
 // - Scheduler calls must carry the server-only scheduler token.
@@ -171,8 +172,14 @@ async function deliver(admin: Admin, supabaseUrl: string, input: DeliverInput): 
   }
 
   let report;
+  let edition = normalizeEdition(notificationSettings.newspaperEdition);
   try {
-    report = await buildReport(admin, userId, slot, now, notificationSettings, briefing);
+    if (edition.enabled) {
+      const { data, error } = await admin.from("user_preferences").select("site_preferences").eq("user_id", userId).maybeSingle();
+      if (error) throw error;
+      edition = normalizeEdition(notificationSettings.newspaperEdition, data?.site_preferences?.lang);
+    }
+    report = await buildReport(admin, userId, slot, now, notificationSettings, briefing, edition.enabled ? edition.language : undefined);
   } catch (err) {
     // Never send a partial, misleading briefing.
     await finish(admin, deliveryId, { status: "failed", retryable: true, last_error: `data load failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500) });
@@ -193,9 +200,21 @@ async function deliver(admin: Admin, supabaseUrl: string, input: DeliverInput): 
 
   const unsubscribeToken = await getUnsubscribeToken(admin, email);
   const unsubscribeUrl = unsubscribeToken ? `https://tabro.org/unsubscribe?token=${unsubscribeToken}` : null;
-  const content = buildBriefingEmail(report, { test, pdfAttached: Boolean(pdf), unsubscribeUrl });
+  let subject = briefingSubject(report, test);
+  const emailOptions = { test, pdfAttached: Boolean(pdf), unsubscribeUrl };
+  let content = buildBriefingEmail(report, emailOptions);
+  if (edition.enabled) {
+    const news = edition.news && slot === "morning"
+      ? await fetch(`${supabaseUrl}/functions/v1/good-news`, { signal: AbortSignal.timeout(8_000) })
+        .then(response => response.ok ? response.json() : null).catch(() => null)
+      : null;
+    const paper = buildNewspaper(report, edition, selectEditionArticles(news?.items, edition.topics));
+    const newspaper = buildNewspaperEmail(paper, emailOptions);
+    subject = newspaper.subject;
+    content = newspaper;
+  }
   const payload: Record<string, unknown> = {
-    from: FROM, reply_to: REPLY_TO, to: [email], subject: briefingSubject(report, test), html: content.html, text: content.text,
+    from: FROM, reply_to: REPLY_TO, to: [email], subject, html: content.html, text: content.text,
     tags: [{ name: "category", value: "daily_briefing" }, { name: "slot", value: slot }],
   };
   if (unsubscribeToken) {

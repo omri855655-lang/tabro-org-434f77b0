@@ -158,6 +158,7 @@ test("actual recurring callback opens review before any database write; approval
   let draft;
   const globals = {
     user: { id: "owner" }, payments: [], transactions: [], isRtl: true,
+    Date: class extends Date { constructor() { super(now.getTime()); } },
     financeEntryCurrency, financeCalendarDate, cleanMerchantName, format: () => "2026-11-10", nextMonthlyOccurrence: () => now,
     toast: { info() {}, success() {}, error() {} }, t: value => value,
     setRecurringReview: value => { draft = value; }, fetchFinanceData: async () => {},

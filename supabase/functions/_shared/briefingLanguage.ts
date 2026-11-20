@@ -1,0 +1,32 @@
+export const briefingLanguage = {
+  en: {
+    task: "Task", urgent: "Urgent task", late: "Overdue task", recurring: "Recurring task",
+    untitledTask: "Untitled task", noDate: "No due date", noContact: "No contact specified", since: "Overdue since",
+    schedule: "Schedule", untitledEvent: "Untitled event", allDay: "All day", noLocation: "No location specified",
+    email: "Email to review", noSubject: "No subject", noSender: "Unknown sender",
+    next: "Choose one concrete next step and decide who owns it.",
+    prepare: "Prepare any materials you need for the event.",
+    verify: "Open the original message and verify it before acting.",
+    secure: "Verify this on the official site and keep passwords and verification codes private.",
+  },
+  fr: {
+    task: "Tâche", urgent: "Tâche urgente", late: "Tâche en retard", recurring: "Tâche récurrente",
+    untitledTask: "Tâche sans titre", noDate: "Sans échéance", noContact: "Aucun contact indiqué", since: "En retard depuis le",
+    schedule: "Agenda", untitledEvent: "Événement sans titre", allDay: "Toute la journée", noLocation: "Aucun lieu indiqué",
+    email: "Courriel à examiner", noSubject: "Sans objet", noSender: "Expéditeur inconnu",
+    next: "Choisissez une prochaine étape concrète et désignez une personne responsable.",
+    prepare: "Préparez les documents dont vous aurez besoin pour cet événement.",
+    verify: "Ouvrez le message original et vérifiez-le avant d’agir.",
+    secure: "Vérifiez sur le site officiel et gardez vos mots de passe et codes confidentiels.",
+  },
+  ar: {
+    task: "مهمة", urgent: "مهمة عاجلة", late: "مهمة متأخرة", recurring: "مهمة متكررة",
+    untitledTask: "مهمة بلا عنوان", noDate: "لا يوجد موعد نهائي", noContact: "لم يُحدَّد شخص للتواصل", since: "متأخرة منذ",
+    schedule: "الجدول", untitledEvent: "حدث بلا عنوان", allDay: "طوال اليوم", noLocation: "لم يُحدَّد المكان",
+    email: "رسالة للمراجعة", noSubject: "بلا موضوع", noSender: "مرسل غير معروف",
+    next: "اختر خطوة عملية تالية وحدِّد المسؤول عنها.",
+    prepare: "جهّز المواد التي ستحتاج إليها لهذا الحدث.",
+    verify: "افتح الرسالة الأصلية وتحقّق منها قبل اتخاذ إجراء.",
+    secure: "تحقّق عبر الموقع الرسمي وحافظ على سرية كلمات المرور ورموز التحقق.",
+  },
+};

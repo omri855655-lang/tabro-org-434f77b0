@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { analyzeFinanceInsights, financeCalendarDate, financeEntryCurrency, type FinanceInsightEntry } from "@/lib/financeInsights";
 import { buildFinanceCoach, type RefundSelection } from "@/lib/financeCoach";
 import FinanceCoach from "./FinanceCoach";
+import { cardIssuer } from "@/lib/cardCashflow";
 
 export type { FinanceInsightEntry } from "@/lib/financeInsights";
 
@@ -16,19 +17,27 @@ interface FinanceInsightsProps {
   isRtl: boolean;
   selectedMonth?: string;
   onCreateRecurring?: (entry: FinanceInsightEntry, expectedDate: string) => void;
-  onCategorySelect?: (category: string, currency: string) => void;
-  onMerchantSelect?: (merchant: string, currency: string) => void;
+  onCategorySelect?: (category: string, currency: string, source?: string) => void;
+  onMerchantSelect?: (merchant: string, currency: string, source?: string) => void;
   confirmedRecurringSourceIds?: string[];
   onConfirmRefund?: (creditId: string, selection: RefundSelection) => Promise<void>;
 }
 
 const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onCategorySelect, onMerchantSelect, onConfirmRefund, confirmedRecurringSourceIds = [] }: FinanceInsightsProps) => {
   const [currency, setCurrency] = useState("ILS");
-  const currencies = [...new Set(entries.filter(entry => !entry.hidden).map(financeEntryCurrency))].sort();
+  const [source, setSource] = useState("all");
+  const [categorySort, setCategorySort] = useState("amount");
+  const scopedEntries = useMemo(() => source === "max"
+    ? entries.filter(entry => entry.source_channel === "credit_card" && cardIssuer(entry.payment_method) === "max")
+    : entries, [entries, source]);
+  const currencies = [...new Set(scopedEntries.filter(entry => !entry.hidden).map(financeEntryCurrency))].sort();
   const activeCurrency = currencies.includes(currency) ? currency : currencies[0] || "ILS";
   const month = selectedMonth || financeCalendarDate(new Date())!.slice(0, 7);
-  const analysis = useMemo(() => analyzeFinanceInsights(entries, month, activeCurrency), [entries, month, activeCurrency]);
-  const coach = useMemo(() => buildFinanceCoach(entries, month, activeCurrency), [entries, month, activeCurrency]);
+  const analysis = useMemo(() => analyzeFinanceInsights(scopedEntries, month, activeCurrency), [scopedEntries, month, activeCurrency]);
+  const coach = useMemo(() => buildFinanceCoach(scopedEntries, month, activeCurrency), [scopedEntries, month, activeCurrency]);
+  const categories = categorySort === "name"
+    ? [...analysis.topCategories].sort((a, b) => a.name.localeCompare(b.name, isRtl ? "he" : "en"))
+    : analysis.topCategories;
   const money = (value: number) => activeCurrency === "UNKNOWN"
     ? value.toLocaleString(isRtl ? "he-IL" : "en-US", { maximumFractionDigits: 2 })
     : new Intl.NumberFormat(isRtl ? "he-IL" : "en-US", { style: "currency", currency: activeCurrency, maximumFractionDigits: 2 }).format(value);
@@ -44,13 +53,21 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
   if (!entries.length) return null;
 
   return (
-    <section className="space-y-4 rounded-2xl border bg-gradient-to-br from-sky-50/60 via-background to-background p-4 sm:p-5 dark:from-sky-950/10" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="space-y-5 rounded-2xl border bg-background p-4 sm:p-6" dir={isRtl ? "rtl" : "ltr"}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-xs font-medium text-primary">{isRtl ? "התמונה הפיננסית שלך" : "Your financial picture"} · {periodLabel}</p>
           <h3 className="text-lg font-semibold">{isRtl ? "פילוח ותובנות, במקום אחד" : "Breakdowns and insights, together"}</h3>
           <p className="max-w-2xl text-xs leading-5 text-muted-foreground">{isRtl ? "מבוסס על תנועות ששולמו עד היום. כל מטבע מוצג בנפרד, ללא המרה משוערת." : "Based on paid transactions through today. Currencies are shown separately, without estimated conversion."}</p>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isRtl ? "מקור" : "Source"}
+          <select className="h-9 rounded-md border bg-background px-2" value={source} onChange={event => setSource(event.target.value)}>
+            <option value="all">{isRtl ? "כל המקורות" : "All sources"}</option>
+            <option value="max">MAX</option>
+          </select>
+        </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           {isRtl ? "מטבע לפילוח" : "Analysis currency"}
           <Select value={activeCurrency} onValueChange={setCurrency}>
@@ -58,7 +75,11 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
             <SelectContent>{currencies.map(value => <SelectItem key={value} value={value}>{value === "UNKNOWN" ? (isRtl ? "לא מזוהה" : "Unknown") : value}</SelectItem>)}</SelectContent>
           </Select>
         </label>
+        </div>
       </div>
+      {source === "max" && <p className="rounded-lg border p-3 text-sm text-muted-foreground">
+        {isRtl ? "הפילוח מבוסס על תנועות MAX שכבר נשמרו. מצב העדכון מופיע בלשונית בנק ואשראי." : "This view uses saved MAX transactions. Check Bank & cards for sync status."}
+      </p>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="border-emerald-200/70 bg-emerald-50/60 dark:bg-emerald-950/10"><CardContent className="p-4">
@@ -99,8 +120,15 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
         <TabsContent value="breakdown" className="mt-4 grid gap-4 lg:grid-cols-2 data-[state=inactive]:hidden">
           <Card><CardContent className="p-5">
             <h4 className="mb-4 flex items-center gap-2 font-semibold"><Tags className="h-4 w-4 text-primary" />{isRtl ? "קטגוריות לפני זיכויים" : "Categories before refunds"}</h4>
-            <div className="space-y-3">{analysis.topCategories.map(category => (
-              <button type="button" key={category.name} className="block w-full rounded-xl border border-border/60 p-3 text-start transition-colors hover:border-primary/50 hover:bg-muted/30" onClick={() => onCategorySelect?.(category.name, activeCurrency)}>
+            <label className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+              {isRtl ? "מיון" : "Sort"}
+              <select className="rounded-md border bg-background p-1.5" value={categorySort} onChange={event => setCategorySort(event.target.value)}>
+                <option value="amount">{isRtl ? "סכום" : "Amount"}</option>
+                <option value="name">{isRtl ? "שם קטגוריה" : "Category name"}</option>
+              </select>
+            </label>
+            <div className="space-y-3">{categories.map(category => (
+              <button type="button" key={category.name} className="block w-full rounded-xl border border-border/60 p-3 text-start transition-colors hover:border-primary/50 hover:bg-muted/30" onClick={() => onCategorySelect?.(category.name, activeCurrency, source)}>
                 <div className="mb-1 flex justify-between gap-3 text-sm"><strong>{category.name}</strong><strong>{money(category.total)}</strong></div>
                 <Progress value={analysis.currentSpend > 0 ? category.total / analysis.currentSpend * 100 : 0} className="h-2" />
                 <div className="mt-2 flex flex-wrap gap-1.5">{category.subcategories.map(([name, value]) => <span key={name} className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">{name} · {money(value)}</span>)}</div>
@@ -110,7 +138,7 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
           <Card><CardContent className="p-5">
             <h4 className="mb-4 flex items-center gap-2 font-semibold"><Store className="h-4 w-4 text-primary" />{isRtl ? "בתי עסק מובילים" : "Top merchants"}</h4>
             <div className="divide-y divide-border/60">{analysis.topMerchants.map(([name, value], index) => (
-              <button type="button" key={name} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-start text-sm hover:bg-muted/30" onClick={() => onMerchantSelect?.(name, activeCurrency)}>
+              <button type="button" key={name} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-start text-sm hover:bg-muted/30" onClick={() => onMerchantSelect?.(name, activeCurrency, source)}>
                 <span className="min-w-0 truncate"><span className="me-2 text-xs text-muted-foreground">{index + 1}</span>{name}</span><strong className="shrink-0">{money(value)}</strong>
               </button>
             ))}{!analysis.topMerchants.length && <p className="text-sm text-muted-foreground">{isRtl ? "אין בתי עסק להצגה בתקופה זו." : "No merchants for this period."}</p>}</div>
@@ -151,11 +179,11 @@ const FinanceInsights = ({ entries, isRtl, selectedMonth, onCreateRecurring, onC
           </CardContent></Card>
         </TabsContent>
         <TabsContent value="coach" className="mt-4">
-          <FinanceCoach key={`${month}:${activeCurrency}`} analysis={coach} isRtl={isRtl} onConfirmRefund={onConfirmRefund} onCategorySelect={onCategorySelect} />
+          <FinanceCoach key={`${month}:${activeCurrency}`} analysis={coach} isRtl={isRtl} onConfirmRefund={onConfirmRefund} onCategorySelect={(name, currency) => onCategorySelect?.(name, currency, source)} />
         </TabsContent>
       </Tabs>
 
-      {(analysis.uncategorized > 0 || analysis.invalidCount > 0) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/70 bg-amber-50/40 p-3 text-xs dark:bg-amber-950/10"><p>{isRtl ? `${analysis.uncategorized} תנועות בתקופה דורשות סיווג · ${analysis.invalidCount} רשומות עם סכום או תאריך לא תקין לא נכללו בחישוב.` : `${analysis.uncategorized} period transactions need a category · ${analysis.invalidCount} invalid amount/date records excluded from calculations.`}</p>{analysis.uncategorized > 0 && <Button size="sm" variant="outline" onClick={() => onCategorySelect?.("אחר", activeCurrency)}>{isRtl ? "פתח תנועות לבדיקה" : "Review transactions"}</Button>}</div>}
+      {(analysis.uncategorized > 0 || analysis.invalidCount > 0) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/70 bg-amber-50/40 p-3 text-xs dark:bg-amber-950/10"><p>{isRtl ? `${analysis.uncategorized} תנועות בתקופה דורשות סיווג · ${analysis.invalidCount} רשומות עם סכום או תאריך לא תקין לא נכללו בחישוב.` : `${analysis.uncategorized} period transactions need a category · ${analysis.invalidCount} invalid amount/date records excluded from calculations.`}</p>{analysis.uncategorized > 0 && <Button size="sm" variant="outline" onClick={() => onCategorySelect?.("אחר", activeCurrency, source)}>{isRtl ? "פתח תנועות לבדיקה" : "Review transactions"}</Button>}</div>}
     </section>
   );
 };

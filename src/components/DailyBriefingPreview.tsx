@@ -12,6 +12,8 @@ import { printDocument } from "@/lib/printDocument";
 import { toast } from "sonner";
 import { briefingCoachRequest } from "@/lib/briefingCoach";
 import { Mail, Printer, Send } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
+import { buildNewspaper, normalizeEdition, selectEditionArticles } from "../../supabase/functions/_shared/newspaper.ts";
 
 type Delivery = { id: string; local_date: string; slot: string; kind: string; status: string; retryable: boolean; last_error: string | null; pdf_pages: number | null; created_at: string };
 
@@ -41,8 +43,11 @@ const OPTIONS: { key: keyof BriefingEmailSettings; label: string }[] = [
   { key: "attachPdf", label: "לצרף PDF להדפסה" },
 ];
 
-export default function DailyBriefingPreview() {
+export default function DailyBriefingPreview({ newspaper = false, initialDate }: { newspaper?: boolean; initialDate?: string } = {}) {
   const { user } = useAuth();
+  const { lang } = useLanguage();
+  const [edition, setEdition] = useState(() => normalizeEdition(null, lang));
+  const [editionDate, setEditionDate] = useState(initialDate || israelDate(new Date()));
   const [busy, setBusy] = useState(false);
   const [settings, setSettings] = useState<BriefingEmailSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -58,9 +63,10 @@ export default function DailyBriefingPreview() {
       supabase.from("daily_briefing_deliveries").select("id,local_date,slot,kind,status,retryable,last_error,pdf_pages,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
     ]);
     const raw = prefs.data?.notification_settings as Record<string, unknown> | null;
+    if (!prefs.error) setEdition(normalizeEdition(raw?.newspaperEdition, lang));
     setSettings(normalizeBriefingSettings(raw?.dailyBriefingEmail));
     setDeliveries((history.data || []) as Delivery[]);
-  }, [user]);
+  }, [user, lang]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -106,13 +112,29 @@ export default function DailyBriefingPreview() {
     }
   };
 
-   const currentReport = async (mode: BriefingMode) => {
+  const saveEdition = async () => {
+    if (!user || saving) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle();
+      if (error) throw error;
+      const existing = (data?.notification_settings as Record<string, unknown> | null) || {};
+      const { error: writeError } = await supabase.from("user_preferences").upsert({
+        user_id: user.id, notification_settings: { ...existing, newspaperEdition: normalizeEdition(edition, lang) } as never,
+      }, { onConflict: "user_id" });
+      if (writeError) throw writeError;
+      toast.success("העדפות המהדורה נשמרו");
+    } catch { toast.error("לא הצלחנו לשמור את העדפות המהדורה"); }
+    finally { setSaving(false); }
+  };
+
+   const currentReport = async (mode: BriefingMode, date?: string) => {
     if (!user) throw new Error("Login required");
-  const now = new Date();
+  const now = date && date !== israelDate(new Date()) ? new Date(`${date}T12:00:00Z`) : new Date();
   const [tasks, events, mail, prefs, recurring, completions, projects] = await Promise.all([
     supabase.from("tasks").select("id,description,status,status_notes,planned_end,urgent,overdue,archived,responsible,task_type,progress").eq("user_id", user.id).eq("archived", false).order("planned_end", { ascending: true }).limit(2000),
-    supabase.from("calendar_events").select("id,title,start_time,end_time,location,all_day,description").eq("user_id", user.id).gte("end_time", new Date(Date.now() - 86400000).toISOString()).lte("start_time", new Date(Date.now() + 86400000).toISOString()).order("start_time").limit(500),
-    supabase.from("email_analyses").select("email_subject,email_from,email_date,category").eq("user_id", user.id).gte("email_date", new Date(Date.now() - 7 * 86400000).toISOString()).order("email_date", { ascending: false }).limit(1000),
+    supabase.from("calendar_events").select("id,title,start_time,end_time,location,all_day,description").eq("user_id", user.id).gte("end_time", new Date(now.getTime() - 86400000).toISOString()).lte("start_time", new Date(now.getTime() + 86400000).toISOString()).order("start_time").limit(500),
+    (!date || settings?.includeMail !== false) ? supabase.from("email_analyses").select("email_subject,email_from,email_date,category").eq("user_id", user.id).gte("email_date", new Date(now.getTime() - 7 * 86400000).toISOString()).lte("email_date", now.toISOString()).order("email_date", { ascending: false }).limit(1000) : { data: [], error: null },
     supabase.from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle(),
     supabase.from("recurring_tasks").select("id,title,description,frequency,day_of_week,day_of_month,reminder_time").eq("user_id", user.id).limit(1000),
     supabase.from("recurring_task_completions").select("recurring_task_id").eq("user_id", user.id).eq("completed_date", israelDate(now)).limit(1000),
@@ -125,7 +147,11 @@ export default function DailyBriefingPreview() {
     ...recurringBriefingTasks(recurring.data || [], (completions.data || []).map(row => row.recurring_task_id), now),
     ...projectBriefingTasks(projects.data || []),
   ];
-  const report = makeDailyBriefing(combinedTasks, events.data || [], mail.data || [], mode, now, stored?.emailTriage as Parameters<typeof makeDailyBriefing>[5]);
+  const options = normalizeBriefingSettings(stored?.dailyBriefingEmail);
+  const report = makeDailyBriefing(combinedTasks, events.data || [], mail.data || [], mode, now, stored?.emailTriage as Parameters<typeof makeDailyBriefing>[5], date ? {
+    includeTasks: options.includeTasks, includeEvents: options.includePlanner, includeMail: options.includeMail, includeDeliveries: true,
+    includeSuggestions: options.includeSuggestions, language: normalizeEdition(null, lang).language,
+  } : {});
     return report;
   };
   const preview = async (mode: BriefingMode) => {
@@ -154,9 +180,43 @@ export default function DailyBriefingPreview() {
     finally { setCoaching(false); }
   };
 
+  const openNewspaper = async () => {
+    if (!user || busy || !editionDate) return;
+    setBusy(true);
+    try {
+      const [report, news] = await Promise.all([
+        currentReport("morning", editionDate),
+        edition.news && editionDate === israelDate(new Date())
+          ? supabase.functions.invoke("good-news").catch(() => null) : null,
+      ]);
+      if (edition.news && editionDate === israelDate(new Date()) && (!news || news.error)) toast.info("מקורות החדשות אינם זמינים כרגע");
+      const paper = buildNewspaper(report, edition, selectEditionArticles(news?.data?.items, edition.topics));
+      printDocument(paper.title, [], [], `${paper.dateLabel} · ${paper.edition}`, {
+        lang: paper.language, dir: paper.dir, newspaper: paper.sections, emptyMessage: paper.empty,
+      });
+    } catch { toast.error("המהדורה לא נטענה. אפשר לנסות שוב."); }
+    finally { setBusy(false); }
+  };
+
   return <Card className="card-surface">
     <CardHeader><CardTitle className="text-base">הסיכום היומי שלך</CardTitle></CardHeader>
     <CardContent className="space-y-4">
+      {newspaper && <section className="space-y-3 rounded-xl border p-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm">תאריך המהדורה<input className="rounded-md border bg-background p-2" type="date" value={editionDate} onChange={event => setEditionDate(event.target.value)} /></label>
+          <label className="grid gap-1 text-sm">שם העיתון<input className="rounded-md border bg-background p-2" maxLength={100} value={edition.title} onChange={event => setEdition({ ...edition, title: event.target.value })} /></label>
+          <label className="grid gap-1 text-sm">מה לומדים?<input className="rounded-md border bg-background p-2" maxLength={300} value={edition.study} onChange={event => setEdition({ ...edition, study: event.target.value })} /></label>
+          <label className="grid gap-1 text-sm">הרגלים לסימון (מופרדים בפסיקים)<input className="rounded-md border bg-background p-2" maxLength={300} value={edition.habits} onChange={event => setEdition({ ...edition, habits: event.target.value })} /></label>
+          <label className="grid gap-1 text-sm">נושאי חדשות מועדפים (מופרדים בפסיקים)<input className="rounded-md border bg-background p-2" maxLength={180} value={edition.topics} onChange={event => setEdition({ ...edition, topics: event.target.value })} /></label>
+        </div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edition.practice} onChange={event => setEdition({ ...edition, practice: event.target.checked })} />מילה באנגלית ותרגול זיכרון</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edition.news} onChange={event => setEdition({ ...edition, news: event.target.checked })} />חדשות טובות במהדורה של היום</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edition.enabled} onChange={event => setEdition({ ...edition, enabled: event.target.checked })} />השתמש בעיצוב העיתון במיילי התדריך</label>
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={!user || busy || !editionDate} onClick={() => void openNewspaper()}><Printer className="me-2 h-4 w-4" />פתח מהדורה להדפסה / PDF</Button>
+          <Button variant="outline" disabled={!user || saving || !settings} onClick={() => void saveEdition()}>שמור העדפות מהדורה</Button>
+        </div>
+      </section>}
       <p className="text-sm text-muted-foreground">משימות שהגיע מועדן או שסומנו כדחופות, לו״ז ומיילים חשובים פוטנציאליים. הדוח מתרחב לעמודים נוספים לפי הצורך.</p>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" disabled={busy || !user} onClick={() => void preview("morning")} className="gap-2"><Printer className="h-4 w-4" />סיכום בוקר · הדפסה / PDF</Button>

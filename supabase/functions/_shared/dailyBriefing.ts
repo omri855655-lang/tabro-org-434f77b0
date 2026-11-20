@@ -1,4 +1,5 @@
 import { triageEmail, type MailPreferences } from "./emailTriage.ts";
+import { briefingLanguage } from "./briefingLanguage.ts";
 
 // Pure, deterministic briefing builder shared by the app preview and the scheduled
 // email function. No AI calls: suggestions are rule-based and only reuse data the
@@ -23,6 +24,7 @@ export type BriefingMail = { email_subject: string | null; email_from: string | 
 export type BriefingItemKind = "task" | "event" | "mail";
 export interface BriefingItem {
   kind: BriefingItemKind;
+  mailBucket?: ReturnType<typeof triageEmail>["bucket"];
   label: string;
   title: string;
   when: string;
@@ -32,9 +34,11 @@ export interface BriefingItem {
   urgent: boolean;
 }
 export interface BriefingOptions {
+  language?: "he" | keyof typeof briefingLanguage;
   includeTasks?: boolean;
   includeEvents?: boolean;
   includeMail?: boolean;
+  includeDeliveries?: boolean;
   includeSuggestions?: boolean;
 }
 export type RecurringSource = { id: string; title: string; description: string | null; frequency: string; day_of_week: number | null; day_of_month: number | null; reminder_time: string | null };
@@ -102,6 +106,12 @@ function taskSuggestion(task: BriefingTask, due: string | null, today: string): 
 }
 
 export function makeDailyBriefing(tasks: BriefingTask[], events: BriefingEvent[], emails: BriefingMail[], mode: BriefingMode, now = new Date(), prefs?: Partial<MailPreferences>, options: BriefingOptions = {}) {
+  const copy = options.language && options.language !== "he" ? briefingLanguage[options.language] : null;
+  const dateFormat = copy ? new Intl.DateTimeFormat(options.language, { dateStyle: "medium", timeZone: "UTC" }) : null;
+  const displayDate = (date: string) => {
+    const instant = new Date(`${date}T12:00:00Z`);
+    return dateFormat && Number.isFinite(instant.getTime()) ? dateFormat.format(instant) : formatIsraelDay(date);
+  };
   const includeTasks = options.includeTasks !== false;
   const includeEvents = options.includeEvents !== false;
   const includeMail = options.includeMail ?? mode === "morning";
@@ -126,7 +136,8 @@ export function makeDailyBriefing(tasks: BriefingTask[], events: BriefingEvent[]
   const importantMail = !includeMail ? [] : emails.map(email => ({ ...email, ...triageEmail({ ...email, category: email.category || "personal" }, prefs as MailPreferences | undefined, now.getTime()) }))
     .filter(email => {
       const received = new Date(email.email_date || "");
-      return !Number.isNaN(received.getTime()) && received <= now && now.getTime() - received.getTime() <= 7 * 86400000 && email.priority >= 4;
+      return !Number.isNaN(received.getTime()) && received <= now && now.getTime() - received.getTime() <= 7 * 86400000
+        && (email.priority >= 4 || (options.includeDeliveries && email.bucket === "shopping"));
     }).sort((a, b) => b.priority - a.priority).slice(0, 10);
 
   const items: BriefingItem[] = [];
@@ -135,37 +146,38 @@ export function makeDailyBriefing(tasks: BriefingTask[], events: BriefingEvent[]
     const late = due !== null && due < today;
     items.push({
       kind: "task",
-      label: task.urgent ? "משימה דחופה" : late || task.overdue ? "משימה באיחור" : task.task_type === "recurring" ? "משימה קבועה להיום" : "משימה להיום",
-      title: clip(task.description, 300) || "משימה ללא כותרת",
-      when: due ? (late ? `באיחור מאז ${formatIsraelDay(due)}` : formatIsraelDay(due)) : "לא הוגדר מועד",
-      who: task.responsible?.trim() || NO_CONTACT,
-      details: [clip(task.progress), task.notes ? `הערות שנשמרו: ${clip(task.notes, 300)}` : ""].filter(Boolean).join(" · "),
-      suggestion: includeSuggestions ? taskSuggestion(task, due, today) : "",
+      label: task.urgent ? copy?.urgent ?? "משימה דחופה" : late || task.overdue ? copy?.late ?? "משימה באיחור" : task.task_type === "recurring" ? copy?.recurring ?? "משימה קבועה להיום" : copy?.task ?? "משימה להיום",
+      title: clip(task.description, 300) || (copy?.untitledTask ?? "משימה ללא כותרת"),
+      when: due ? (late ? `${copy?.since ?? "באיחור מאז"} ${displayDate(due)}` : displayDate(due)) : (copy?.noDate ?? "לא הוגדר מועד"),
+      who: task.responsible?.trim() || (copy?.noContact ?? NO_CONTACT),
+      details: [clip(task.progress), task.notes ? (copy ? clip(task.notes, 300) : `הערות שנשמרו: ${clip(task.notes, 300)}`) : ""].filter(Boolean).join(" · "),
+      suggestion: includeSuggestions ? copy?.next ?? taskSuggestion(task, due, today) : "",
       urgent: Boolean(task.urgent) || late,
     });
   }
   for (const event of selectedEvents) {
     items.push({
       kind: "event",
-      label: "לו״ז",
-      title: clip(event.title, 300) || "אירוע ללא כותרת",
-      when: event.all_day ? "כל היום" : `${israelTime(event.start_time)} עד ${israelTime(event.end_time)}`,
-      who: event.location?.trim() || "לא הוגדר מיקום",
+      label: copy?.schedule ?? "לו״ז",
+      title: clip(event.title, 300) || (copy?.untitledEvent ?? "אירוע ללא כותרת"),
+      when: event.all_day ? copy?.allDay ?? "כל היום" : `${israelTime(event.start_time)} ${copy ? "–" : "עד"} ${israelTime(event.end_time)}`,
+      who: event.location?.trim() || (copy?.noLocation ?? "לא הוגדר מיקום"),
       details: clip(event.description, 300),
-      suggestion: includeSuggestions ? (event.location?.trim() ? "הצעה: הכן מראש את החומרים והקצה זמן הגעה." : "הצעה: הכן מראש את החומרים לאירוע.") : "",
+      suggestion: includeSuggestions ? copy?.prepare ?? (event.location?.trim() ? "הצעה: הכן מראש את החומרים והקצה זמן הגעה." : "הצעה: הכן מראש את החומרים לאירוע.") : "",
       urgent: false,
     });
   }
   for (const email of importantMail) {
     items.push({
       kind: "mail",
-      label: "מייל שעשוי לדרוש טיפול",
-      title: clip(email.email_subject, 200) || "ללא נושא",
-      when: email.email_date ? `${formatIsraelDay(israelDate(new Date(email.email_date)))} בשעה ${israelTime(email.email_date)}` : "",
-      who: formatSender(email.email_from),
+      mailBucket: email.bucket,
+      label: copy?.email ?? "מייל שעשוי לדרוש טיפול",
+      title: clip(email.email_subject, 200) || (copy?.noSubject ?? "ללא נושא"),
+      when: email.email_date ? `${displayDate(israelDate(new Date(email.email_date)))} ${copy ? "·" : "בשעה"} ${israelTime(email.email_date)}` : "",
+      who: !email.email_from?.trim() && copy ? copy.noSender : formatSender(email.email_from),
       details: "",
       // Always shown: classification is metadata-only and never proves authenticity.
-      suggestion: email.security ? "בדוק באתר הרשמי; אל תמסור סיסמאות או קודי אימות בתגובה." : "בדוק את ההודעה המקורית לפני פעולה; הסיווג מבוסס על נושא ושולח בלבד.",
+      suggestion: copy ? (email.security ? copy.secure : copy.verify) : email.security ? "בדוק באתר הרשמי; אל תמסור סיסמאות או קודי אימות בתגובה." : "בדוק את ההודעה המקורית לפני פעולה; הסיווג מבוסס על נושא ושולח בלבד.",
       urgent: email.priority >= 5,
     });
   }

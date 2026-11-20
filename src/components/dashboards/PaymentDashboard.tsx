@@ -890,7 +890,7 @@ const PaymentDashboard = () => {
           || !Number.isFinite(entry.amount) || entry.amount <= 0 || !actualDate || actualDate > today) return false;
       }
       if (!showHidden && entry.hidden) return false;
-      if (sourceFilter !== "all" && entry.source_channel !== sourceFilter) return false;
+      if (sourceFilter === "max" ? entry.source_channel !== "credit_card" || cardIssuerKey(entry.payment_method) !== "max" : sourceFilter !== "all" && entry.source_channel !== sourceFilter) return false;
       if (accountFilter !== "all" && accountName !== accountFilter) return false;
       if (categoryFilter !== "all" && entry.category !== categoryFilter && getFinanceCategoryGroup(entry.category) !== categoryFilter) return false;
       if (query && !`${entry.title} ${cleanMerchantName(entry.title)} ${entry.category || ""} ${entry.subcategory || ""} ${accountName}`.toLocaleLowerCase(lang === "he" ? "he" : "en").includes(query)) return false;
@@ -1519,7 +1519,7 @@ ${context}
               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setSourceFilter("all"); setAccountFilter("all"); setCategoryFilter("all"); setTransactionSearch(""); setShowHidden(false); setInsightCurrencyFilter(null); }}>{isRtl ? "נקה מסננים" : "Clear filters"}</Button>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <Select value={sourceFilter} onValueChange={setSourceFilter}><SelectTrigger className="h-9" aria-label={isRtl ? "סינון לפי מקור" : "Filter by source"}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל המקורות" : "All sources"}</SelectItem><SelectItem value="credit_card">{isRtl ? "כרטיסי אשראי" : "Credit cards"}</SelectItem><SelectItem value="bank">{isRtl ? "בנק והעברות" : "Bank and transfers"}</SelectItem><SelectItem value="manual">{isRtl ? "תכנון ידני" : "Manual plans"}</SelectItem></SelectContent></Select>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}><SelectTrigger className="h-9" aria-label={isRtl ? "סינון לפי מקור" : "Filter by source"}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל המקורות" : "All sources"}</SelectItem><SelectItem value="credit_card">{isRtl ? "כרטיסי אשראי" : "Credit cards"}</SelectItem><SelectItem value="max">MAX</SelectItem><SelectItem value="bank">{isRtl ? "בנק והעברות" : "Bank and transfers"}</SelectItem><SelectItem value="manual">{isRtl ? "תכנון ידני" : "Manual plans"}</SelectItem></SelectContent></Select>
               <Select value={accountFilter} onValueChange={setAccountFilter}><SelectTrigger className="h-9"><SelectValue placeholder={isRtl ? "כל החשבונות והכרטיסים" : "All accounts and cards"} /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל החשבונות והכרטיסים" : "All accounts and cards"}</SelectItem>{accountOptions.map((account) => <SelectItem key={account} value={account}>{account}</SelectItem>)}</SelectContent></Select>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="h-9"><SelectValue placeholder={isRtl ? "כל הקטגוריות" : "All categories"} /></SelectTrigger><SelectContent><SelectItem value="all">{isRtl ? "כל הקטגוריות" : "All categories"}</SelectItem>{categoryOptions.map((category) => <SelectItem key={category} value={category}>{getCategoryLabel(category)}</SelectItem>)}</SelectContent></Select>
               <div className="relative"><Search className="absolute start-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={transactionSearch} onChange={(event) => setTransactionSearch(event.target.value)} placeholder={isRtl ? "חיפוש ספק או עסקה" : "Search merchant"} className="h-9 ps-9" /></div>
@@ -1606,8 +1606,8 @@ ${context}
           selectedMonth={viewMonth}
           onConfirmRefund={confirmRefundClassification}
           confirmedRecurringSourceIds={payments.filter((payment) => payment.recurring && payment.recurrence_status === "active").flatMap((payment) => payment.recurrence_source_transaction_id ? [payment.recurrence_source_transaction_id] : [])}
-          onCategorySelect={(category, currency) => { setCategoryFilter(category); setTransactionSearch(""); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setActiveTab("transactions"); }}
-          onMerchantSelect={(merchant, currency) => { setCategoryFilter("all"); setTransactionSearch(merchant); setAccountFilter("all"); setSourceFilter("all"); setInsightCurrencyFilter(currency); setActiveTab("transactions"); }}
+          onCategorySelect={(category, currency, source) => { setCategoryFilter(category); setTransactionSearch(""); setAccountFilter("all"); setSourceFilter(source === "max" ? "max" : "all"); setInsightCurrencyFilter(currency); setActiveTab("transactions"); }}
+          onMerchantSelect={(merchant, currency, source) => { setCategoryFilter("all"); setTransactionSearch(merchant); setAccountFilter("all"); setSourceFilter(source === "max" ? "max" : "all"); setInsightCurrencyFilter(currency); setActiveTab("transactions"); }}
           onCreateRecurring={(entry, expectedDate) => {
             const fullEntry = dashboardEntries.find((candidate) => candidate.id === entry.id);
             if (fullEntry && fullEntry.source !== "payment_tracking") setRecurringReview({ entryId: fullEntry.id, amount: String(fullEntry.amount), dueDate: expectedDate });
