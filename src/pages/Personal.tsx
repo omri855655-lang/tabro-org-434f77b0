@@ -490,7 +490,7 @@ const Personal = () => {
       case "dashboard": return <Dashboard />;
       case "tasks": return <TaskSpreadsheetDb title={t('personalTasks')} taskType="personal" showYearSelector />;
       case "work": return <TaskSpreadsheetDb title={t('workTasks')} taskType="work" showYearSelector />;
-      case "books": return <BooksManager />;
+      case "books": return <BooksManager key={user?.id} />;
       case "shows": return <ShowsManager />;
       case "podcasts": return <PodcastsManager />;
       case "routine": return <DailyRoutine />;
@@ -533,6 +533,7 @@ const Personal = () => {
           if (!board) return null;
           return (
             <CustomBoardManager
+              key={board.id}
               boardId={board.id}
               boardName={board.name}
               statuses={board.statuses}

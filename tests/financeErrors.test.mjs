@@ -8,6 +8,12 @@ test('form load failures are not reported as incorrect passwords', () => {
   assert.doesNotMatch(result, /דחתה/);
   assert.match(financeErrorMessage('GENERIC: HOME POST: login area not detected', 'he'), /טרם נבדקה/);
 });
+test('pre-login failures with unsubmitted credentials explain that the password was not checked', () => {
+  const error = 'GENERIC: PRE-LOGIN: could not continue; credentials were not submitted';
+  assert.match(financeErrorMessage(error, 'he'), /טרם נבדקה/);
+  assert.match(financeErrorMessage(error, 'en'), /has not been checked/);
+  assert.notEqual(financeErrorMessage(error, 'en'), financeErrorMessage('INVALID_PASSWORD', 'en'));
+});
 test('all supported languages sanitize raw errors and distinguish a blocked institution', () => {
   for (const lang of ['he', 'en', 'es', 'zh', 'ar', 'ru']) {
     assert.ok(financeErrorMessage('WAF_BLOCKED', lang));

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { FinancePeriodBrief } from "./FinancePeriodBrief";
 import GiftCardWallet from "./GiftCardWallet";
+import WeeklySpendingChallenge from "./WeeklySpendingChallenge";
 import { summarizeBudgetMovements } from "@/lib/financeBudget";
 import { CloudFinanceConnector } from "@/components/dashboards/CloudFinanceConnector";
 import BankConnect from "@/components/dashboards/BankConnect";
@@ -1480,7 +1481,7 @@ ${context}
               toast.error(isRtl ? "לא הצלחנו לשמור. התנועה המקורית לא שונתה." : "Could not save. The original transaction was not changed.");
             } finally { setSavingRecurring(false); }
           }} />
-      <FinanceWorkspace isRtl={isRtl} activeTab={activeTab} onTabChange={setActiveTab} onImport={() => openCsvFallback("amex")}
+      <FinanceWorkspace isRtl={isRtl} activeTab={activeTab} onTabChange={setActiveTab} onImport={() => openCsvFallback()}
         monthControl={<Select value={viewMonth} onValueChange={setViewMonth}><SelectTrigger className="h-10 w-44 rounded-xl bg-background" aria-label={isRtl ? "חודש לסיכום ולפילוח" : "Summary & analysis month"}><SelectValue /></SelectTrigger><SelectContent>{monthOptions.map((month) => <SelectItem key={month} value={month}>{formatMonthLabel(month)}</SelectItem>)}</SelectContent></Select>}
         exportControl={
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => exportToExcel(
@@ -1498,8 +1499,7 @@ ${context}
           </div>
           <Button variant="outline" onClick={() => setActiveTab("credit-cards")}>{isRtl ? "מצב החיבורים והסנכרון" : "View connections and sync"}</Button>
         </div>
-        <GiftCardWallet key={user?.id} userId={user?.id} />
-        <FinancePeriodBrief entries={dashboardEntries} isRtl={isRtl} refreshKey={`${budgetPeriod}:${budgetTarget}`} onBudget={period => { setBudgetPeriod(period); setViewMonth(financeCalendarDate(new Date())!.slice(0, 7)); setActiveTab("budget"); }} />
+        {user && <WeeklySpendingChallenge key={user.id} userId={user.id} entries={dashboardEntries} isRtl={isRtl} incomplete={syncIssues.length > 0} />}
         <FinanceOverview entries={dashboardEntries.filter((entry) => !entry.hidden && financeEntryCurrency(entry) === "ILS")} accounts={financialAccounts} isRtl={isRtl} selectedMonth={viewMonth} cardSection={<CardCashflowOverview cards={cardCashflows} hiddenKeys={hiddenCardKeys} onVisibility={(key, hidden) => void setCardVisibility(key, hidden)} onBillingDay={(key, day) => void saveCardBillingDay(key, day)} saving={savingCardPreferences} isRtl={isRtl} />} />
         <div className="grid gap-3 sm:grid-cols-3">
           {[
@@ -1617,6 +1617,7 @@ ${context}
       </TabsContent>
 
       <TabsContent value="budget" className="space-y-4">
+        <FinancePeriodBrief entries={dashboardEntries} isRtl={isRtl} refreshKey={`${budgetPeriod}:${budgetTarget}`} onBudget={period => { setBudgetPeriod(period); setViewMonth(financeCalendarDate(new Date())!.slice(0, 7)); }} />
         {/* Budget Target */}
         <Card className="border-primary/20">
           <CardContent className="py-4">
@@ -2017,6 +2018,7 @@ ${context}
         </TabsContent>
 
         <TabsContent value="clubs" className="space-y-4">
+        <GiftCardWallet key={user?.id} userId={user?.id} />
           <Card className="overflow-hidden border-amber-200/70">
             <CardHeader className="bg-gradient-to-l from-amber-50 to-background">
               <CardTitle className="flex items-center gap-2 text-base"><Gift className="h-5 w-5 text-amber-600" />{isRtl ? "מועדונים, תווים ונקודות" : "Clubs, vouchers and points"}</CardTitle>

@@ -29,6 +29,18 @@ import { Label } from '@/components/ui/label';
 import { BookCompetitionPanel } from '@/components/BookCompetitionPanel';
 import { BookCompetitionPage } from '@/components/BookCompetitionPage';
 import { useLanguage } from '@/hooks/useLanguage';
+import { mergeCatalogBooks, searchGoogleBooks, searchOpenLibraryBooks, type CatalogBook } from "@/lib/bookCatalog";
+
+const coverFor = (book: CatalogBook) => book.coverUrl?.startsWith("https://")
+  ? book.coverUrl
+  : book.coverId ? `https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg?default=false` : "";
+
+function BookCover({ src }: { src?: string }) {
+  const [failed, setFailed] = useState(false);
+  return src?.startsWith("https://") && !failed
+    ? <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="aspect-[2/3] w-full rounded-md object-contain bg-muted" />
+    : <span aria-hidden="true" className="grid aspect-[2/3] place-items-center rounded-md border bg-muted text-muted-foreground">▤</span>;
+}
 
 interface Book {
   id: string;
@@ -108,6 +120,42 @@ const BooksManager = () => {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [bookDetail, setBookDetail] = useState<ParsedBookNotes>({ plainNotes: "", longSummary: "", chapterSummaries: [] });
   const [competitionOpen, setCompetitionOpen] = useState(false);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [suggestions, setSuggestions] = useState<CatalogBook[] | null>(null);
+  const [chosenCover, setChosenCover] = useState("");
+  const [coverBookId, setCoverBookId] = useState<string | null>(null);
+  const coverKey = user ? `tabro-book-covers:${user.id}` : null;
+  const [covers, setCovers] = useState<Record<string, string>>({});
+  const hebrew = lang === "he";
+
+  useEffect(() => {
+    try { setCovers(coverKey ? JSON.parse(localStorage.getItem(coverKey) || "{}") || {} : {}); }
+    catch { setCovers({}); }
+  }, [coverKey]);
+
+  const searchCatalog = async (title = newBook.title, bookId: string | null = null) => {
+    const query = title.trim();
+    if (query.length < 2 || catalogBusy) return;
+    setCoverBookId(bookId);
+    setSuggestions(null);
+    setCatalogBusy(true);
+    const language = /[\u0590-\u05ff]/u.test(query) ? "he" : "en";
+    try {
+      const results = await Promise.allSettled([searchGoogleBooks(query, language, 8), searchOpenLibraryBooks(query, language, 8)]);
+      if (results.every(result => result.status === "rejected")) {
+        toast.error(hebrew ? "חיפוש הספרים אינו זמין כרגע" : "Book search is unavailable");
+      }
+      setSuggestions(mergeCatalogBooks(...results.flatMap(result => result.status === "fulfilled" ? [result.value] : [])).slice(0, 8));
+    } finally { setCatalogBusy(false); }
+  };
+
+  const saveCover = (bookId: string, url: string) => {
+    if (!coverKey || !url) return;
+    const next = { ...covers, [bookId]: url };
+    setCovers(next);
+    try { localStorage.setItem(coverKey, JSON.stringify(next)); }
+    catch { toast.error(hebrew ? "לא הצלחנו לשמור את הכריכה במכשיר" : "The cover could not be stored on this device"); }
+  };
 
   useEffect(() => {
     if (user) {
@@ -141,19 +189,22 @@ const BooksManager = () => {
       return;
     }
 
-    const { error } = await supabase.from('books').insert({
+    const { data, error } = await supabase.from('books').insert({
       user_id: user.id,
       title: newBook.title.trim(),
       author: newBook.author.trim() || null,
       status: 'לקרוא',
-    });
+    }).select("id").single();
 
     if (error) {
       toast.error('שגיאה בהוספת הספר');
       console.error(error);
     } else {
+      if (data?.id) saveCover(data.id, chosenCover);
       toast.success('הספר נוסף בהצלחה');
       setNewBook({ title: '', author: '' });
+      setSuggestions(null);
+      setChosenCover("");
       fetchBooks();
     }
   };
@@ -398,8 +449,9 @@ const BooksManager = () => {
       <div className="flex gap-2 flex-wrap mb-4 flex-shrink-0">
         <Input
           placeholder={booksUi.bookTitle}
+          disabled={catalogBusy}
           value={newBook.title}
-          onChange={(e) => setNewBook({ ...newBook, title: e.target.value })}
+          onChange={(e) => { setNewBook({ ...newBook, title: e.target.value }); setChosenCover(""); setSuggestions(null); }}
           className={`flex-1 min-w-[200px] ${textAlign}`}
           dir={dir}
         />
@@ -414,7 +466,28 @@ const BooksManager = () => {
           <Plus className="h-4 w-4" />
           {t('addBook')}
         </Button>
+        <Button variant="outline" disabled={catalogBusy || newBook.title.trim().length < 2} onClick={() => void searchCatalog()}>
+          {catalogBusy ? (hebrew ? "מחפש…" : "Searching…") : (hebrew ? "חפש במאגר ספרים" : "Search book catalog")}
+        </Button>
       </div>
+      {suggestions && <div className="mb-4 grid max-h-52 grid-cols-2 gap-2 overflow-auto sm:grid-cols-4">
+        {!suggestions.length && <p className="col-span-full text-sm text-muted-foreground">{hebrew ? "אין התאמות. אפשר להוסיף את הספר ידנית." : "No matches. You can add the book manually."}</p>}
+        {suggestions.map(book => <button key={book.key} type="button" disabled={!!coverBookId && !coverFor(book)} className="flex items-center gap-2 rounded-lg border p-2 text-start hover:bg-muted disabled:opacity-50"
+          onClick={() => {
+            if (coverBookId) saveCover(coverBookId, coverFor(book));
+            else { setNewBook({ title: book.title, author: book.author }); setChosenCover(coverFor(book)); }
+            setSuggestions(null);
+            setCoverBookId(null);
+          }}>
+          <span className="w-9 shrink-0"><BookCover src={coverFor(book)} /></span>
+          <span className="min-w-0 text-sm"><strong className="line-clamp-2">{book.title}</strong><small className="block truncate text-muted-foreground">{book.author}</small></span>
+        </button>)}
+      </div>}
+      {chosenCover && <p className="mb-3 text-xs text-muted-foreground">{hebrew ? "הכריכה תישמר במכשיר עם הוספת הספר." : "The cover is saved on this device when you add the book."}</p>}
+      <Button variant={viewMode === "summary" ? "default" : "outline"} size="sm" className="mb-3 self-start" aria-pressed={viewMode === "summary"}
+        onClick={() => setViewMode(viewMode === "summary" ? "table" : "summary")}>
+        {hebrew ? "תצוגת כריכות" : "Cover view"}
+      </Button>
 
       {/* Search */}
       <div className="relative mb-4 flex-shrink-0">
@@ -431,7 +504,18 @@ const BooksManager = () => {
       {/* Content area - renders based on viewMode */}
       <div className="flex-1 min-h-0 border rounded-lg overflow-hidden">
         <div className="h-full overflow-auto">
-          {viewMode === 'list' ? (
+          {viewMode === "summary" ? <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4 lg:grid-cols-6">
+            {!filteredBooks.length && <p className="col-span-full text-sm text-muted-foreground">{searchTerm ? booksUi.noResults : booksUi.empty}</p>}
+            {filteredBooks.map(book => <div key={book.id} className="space-y-1">
+              <button type="button" className="block w-full space-y-2 text-start hover:text-primary focus-visible:ring-2 focus-visible:ring-ring" onClick={() => openBookDetail(book)}>
+                <BookCover key={covers[book.id]} src={covers[book.id]} />
+                <span className="block break-words text-sm font-semibold">{book.title}</span>
+              </button>
+              {!covers[book.id] && <button type="button" disabled={catalogBusy} className="text-xs text-muted-foreground underline" onClick={() => void searchCatalog(book.title, book.id)}>
+                {hebrew ? "מצא כריכה" : "Find cover"}
+              </button>}
+            </div>)}
+          </div> : viewMode === 'list' ? (
             <ListView
               items={filteredBooks.map(b => ({
                 id: b.id,

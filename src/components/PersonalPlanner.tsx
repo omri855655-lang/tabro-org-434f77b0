@@ -3051,13 +3051,13 @@ const PersonalPlanner = () => {
             <Dialog open={newspaperOpen} onOpenChange={setNewspaperOpen}>
               <DialogContent className="max-h-[88dvh] max-w-3xl overflow-y-auto" dir={lang === "he" || lang === "ar" ? "rtl" : "ltr"}>
                 <DialogHeader><DialogTitle>{({ he: "העיתון היומי", ar: "الصحيفة اليومية", fr: "Journal quotidien" } as Record<string, string>)[lang] || "Daily paper"}</DialogTitle></DialogHeader>
-                {newspaperOpen && <DailyBriefingPreview newspaper initialDate={format(currentDate, "yyyy-MM-dd")} />}
+                {newspaperOpen && <DailyBriefingPreview initialDate={format(currentDate, "yyyy-MM-dd")} />}
               </DialogContent>
             </Dialog>
 
             <AppleCalendarGuide onExport={exportToICS} />
-            {isMobile && <Button variant="ghost" size="sm" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? mobileWorkspaceCopy[lang].hideTools : mobileWorkspaceCopy[lang].tools}</Button>}
-            <div className={`flex max-w-full flex-wrap items-center gap-2 ${isMobile && !mobileToolsOpen ? 'hidden' : ''}`}>
+            <Button variant="ghost" size="sm" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(value => !value)}>{mobileToolsOpen ? mobileWorkspaceCopy[lang].hideTools : mobileWorkspaceCopy[lang].tools}</Button>
+            <div className={`flex max-w-full flex-wrap items-center gap-2 ${!mobileToolsOpen ? 'hidden' : ''}`}>
 
             <Button
               variant="outline"
@@ -3113,7 +3113,7 @@ const PersonalPlanner = () => {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">היום {todayEventsCount} אירועים</Badge>
             <Badge variant="outline">לא שובצו {visibleTasks.length}</Badge>
-            {(!isMobile || mobileToolsOpen) && QUICK_EVENT_PRESETS.map((preset) => (
+            {mobileToolsOpen && QUICK_EVENT_PRESETS.map((preset) => (
               <Button
                 key={preset.label}
                 type="button"

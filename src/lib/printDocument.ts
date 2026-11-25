@@ -30,11 +30,13 @@ export function printDocument(title: string, columns: string[], rows: unknown[][
   report.innerHTML = `<style>
     @page{size:A4 ${options.newspaper ? "portrait" : "landscape"};margin:14mm}
     [data-tabro-report] .newspaper{columns:2 240px;column-gap:28px;column-rule:1px solid #adb5ba;max-width:880px;margin:0 auto}
+    [data-tabro-report] .newspaper section{margin:0 0 16px}
     [data-tabro-report] .newspaper h2{border-block:2px solid #172b40;break-after:avoid;padding:6px 0;font-size:16px;margin:0 0 8px}
-    [data-tabro-report] .newspaper article{break-inside:avoid;padding:4px 0 10px}
+    [data-tabro-report] .newspaper article{break-inside:avoid;padding:5px 0 12px}
+    [data-tabro-report] .newspaper article+article{border-top:1px solid #d8dcdd}
     [data-tabro-report] .newspaper h3{font-family:Georgia,serif;margin:0;font-size:16px}
     [data-tabro-report] .newspaper p{margin:4px 0;font-size:12px;overflow-wrap:anywhere}
-    [data-tabro-report]:has(.newspaper) header{text-align:center;border-bottom:4px double #172b40}
+    [data-tabro-report]:has(.newspaper) header{max-width:880px;margin:0 auto 18px;padding:16px 0;text-align:center;border-block:4px double #172b40}
     [data-tabro-report]:has(.newspaper) h1{font:700 clamp(28px,5vw,54px) Georgia,serif}
     [data-tabro-report]{position:fixed;inset:0;margin:0;width:100vw;max-width:none;height:100dvh;max-height:none;overflow:auto;border:0;padding:24px;background:white;color:#172b40;font-family:Arial,sans-serif;pointer-events:auto}
     [data-tabro-report],[data-tabro-report] *{box-sizing:border-box}
@@ -52,6 +54,7 @@ export function printDocument(title: string, columns: string[], rows: unknown[][
       body:has([data-tabro-report]) > [data-tabro-report],body:has([data-tabro-report]) > [data-tabro-report] *{visibility:visible!important}
       body:has([data-tabro-report]) > [data-tabro-report]{display:block!important;position:static!important;inset:auto!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important}
       [data-tabro-report] .report-toolbar{display:none!important}[data-tabro-report]::backdrop{display:none}
+      [data-tabro-report] .newspaper{columns:2;column-gap:8mm}
     }
   </style><nav class="report-toolbar"><button type="button" id="tabro-print-report">${text(copy.print)}</button><p>${text(copy.hint)}</p><button type="button" id="tabro-close-report">${text(copy.close)}</button></nav><header><h1>${text(title)}</h1><p>${text(subtitle)}</p></header><table><thead><tr>${columns.map(c => `<th>${text(c)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.map(row => `<tr>${row.map(cell => `<td>${text(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">${text(options.emptyMessage || copy.empty)}</td></tr>`}</tbody></table><footer>Tabro · ${text(new Date().toLocaleDateString(lang))}</footer>`;
   const previousTitle = document.title;
