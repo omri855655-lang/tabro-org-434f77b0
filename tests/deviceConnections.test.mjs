@@ -40,6 +40,8 @@ test('device setup is first in settings and calendar connection is outside hidde
   assert.ok(panel.includes('disabled={push.loading}'));
   assert.ok(!panel.includes('requestPermission'));
   const planner = read('src/components/PersonalPlanner.tsx');
-  assert.ok(planner.indexOf('<AppleCalendarGuide onExport={exportToICS} />') < planner.indexOf('${isMobile && !mobileToolsOpen'));
+  const calendarGuide = planner.indexOf('<AppleCalendarGuide onExport={exportToICS} />');
+  const toolsPanel = planner.indexOf('${!mobileToolsOpen');
+  assert.ok(calendarGuide >= 0 && toolsPanel > calendarGuide);
   assert.equal(planner.split('<AppleCalendarGuide onExport={exportToICS} />').length, 2);
 });

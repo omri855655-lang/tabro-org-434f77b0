@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode, useState, useEffect, useRef } from "react";
 import BoardIconPicker from "@/components/BoardIconPicker";
+import { BoardViewPicker } from "@/components/BoardViewPicker";
+import { seedBoardView } from "@/hooks/useDashboardDisplay";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -108,6 +110,7 @@ const SettingsPanel = () => {
   const [newBoardDashboard, setNewBoardDashboard] = useState(false);
   const [boardTemplate, setBoardTemplate] = useState("custom");
   const [newBoardIcon, setNewBoardIcon] = useState("LayoutGrid");
+  const [newBoardView, setNewBoardView] = useState<"kanban" | "table" | "list" | "cards">("kanban");
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -332,7 +335,8 @@ const SettingsPanel = () => {
     const statuses = newBoardStatuses.split(",").map(s => s.trim()).filter(Boolean);
     if (statuses.length === 0) { toast.error(t("enterStatus" as any)); return; }
     try {
-      await addBoard(newBoardName.trim(), statuses, newBoardDashboard, newBoardIcon);
+      const boardId = await addBoard(newBoardName.trim(), statuses, newBoardDashboard, newBoardIcon);
+      if (boardId) seedBoardView(boardId, newBoardView);
       setNewBoardIcon("LayoutGrid");
       setShowAddBoard(false);
       setNewBoardName("");
@@ -683,7 +687,7 @@ const SettingsPanel = () => {
           {boards.length > 0 && (
             <div className="space-y-2">
               {boards.map((board) => (
-                <div key={board.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                <div key={board.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border bg-muted/30">
                   <div className="flex items-center gap-2 flex-1">
                     <BoardIconPicker value={board.icon} label={isEnglish ? "Dashboard icon" : "אייקון הדשבורד"} onChange={async icon => {
                       try { await updateBoard(board.id, { icon }); } catch { toast.error(isEnglish ? "Could not save icon" : "לא ניתן לשמור את האייקון"); }
@@ -705,6 +709,7 @@ const SettingsPanel = () => {
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">{t("displayedInDashboardBadge" as any)}</span>
                     )}
                   </div>
+                  <BoardViewPicker boardId={board.id} statusCount={board.statuses.length} />
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateBoard(board.id, { show_in_dashboard: !board.show_in_dashboard })}>
                       {board.show_in_dashboard ? <Eye className="h-4 w-4 text-primary" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
@@ -751,6 +756,15 @@ const SettingsPanel = () => {
                 <Label>{t("dashboardName" as any)}</Label>
                 <BoardIconPicker value={newBoardIcon} onChange={setNewBoardIcon} label={isEnglish ? "Dashboard icon" : "אייקון הדשבורד"} />
                 <Input placeholder={t("dashboardNamePlaceholder" as any)} value={newBoardName} onChange={(e) => setNewBoardName(e.target.value)} />
+                <label className="grid gap-1 text-sm">
+                  {isEnglish ? "Default view" : "תצוגת פתיחה"}
+                  <select className="rounded-md border bg-background p-2" value={newBoardView} onChange={event => setNewBoardView(event.target.value as typeof newBoardView)}>
+                    <option value="kanban">{isEnglish ? "Task board" : "לוח משימות"}</option>
+                    <option value="table">{isEnglish ? "Table" : "טבלה"}</option>
+                    <option value="list">{isEnglish ? "List" : "רשימה"}</option>
+                    <option value="cards">{isEnglish ? "Cards" : "כרטיסים"}</option>
+                  </select>
+                </label>
               </div>
               <div className="space-y-2">
                 <Label>{t("statuses" as any)}</Label>

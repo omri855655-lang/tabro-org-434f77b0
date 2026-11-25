@@ -94,6 +94,8 @@ const AdminDashboard = () => {
   // Mailbox state
   const [emailSearch, setEmailSearch] = useState("");
   const [emailStatusFilter, setEmailStatusFilter] = useState("all");
+  const [inboxSource, setInboxSource] = useState("all");
+  const [mailboxRefreshFailed, setMailboxRefreshFailed] = useState(false);
   const [emailTab, setEmailTab] = useState<"inbox" | "outbox">("inbox");
   const [composeTo, setComposeTo] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
@@ -130,16 +132,19 @@ const AdminDashboard = () => {
   }, [passInput]);
 
   const fetchMailbox = useCallback(async () => {
-    const { data: mailboxData, ok: mailOk } = await callAdminAnalytics({ action: "mailbox" });
-    if (!mailOk || mailboxData?.error) {
-      return;
+    try {
+      const { data: mailboxData, ok: mailOk } = await callAdminAnalytics({ action: "mailbox" });
+      if (!mailOk || mailboxData?.error) throw new Error("Mailbox refresh failed");
+      setMailbox({
+        mailboxAddress: mailboxData?.mailboxAddress || "info@tabro.org",
+        recentEmailLog: mailboxData?.recentEmailLog || [],
+        inboxCount: mailboxData?.inboxCount || 0,
+        outboxCount: mailboxData?.outboxCount || 0,
+      });
+      setMailboxRefreshFailed(false);
+    } catch {
+      setMailboxRefreshFailed(true);
     }
-    setMailbox({
-      mailboxAddress: mailboxData?.mailboxAddress || "info@tabro.org",
-      recentEmailLog: mailboxData?.recentEmailLog || [],
-      inboxCount: mailboxData?.inboxCount || 0,
-      outboxCount: mailboxData?.outboxCount || 0,
-    });
   }, [callAdminAnalytics]);
   const isHe = dir === "rtl";
   const parseMailRow = useCallback((row: Stats["recentEmailLog"][number]) => {
@@ -713,7 +718,15 @@ const AdminDashboard = () => {
             </div>
 
             {/* Search & Filter */}
+            {mailboxRefreshFailed && <p role="status" className="text-sm text-destructive">
+              {isHe ? "רענון התיבה נכשל. מוצגים הנתונים האחרונים שנטענו." : "Mailbox refresh failed. Showing the last loaded messages."}
+            </p>}
             <div className="flex flex-wrap gap-2">
+              {emailTab === "inbox" && <select className="h-10 rounded-md border bg-background px-2 text-sm" aria-label={isHe ? "מקור הפנייה" : "Inbox source"} value={inboxSource} onChange={event => setInboxSource(event.target.value)}>
+                <option value="all">{isHe ? "כל הפניות" : "All messages"}</option>
+                <option value="contact-form">{isHe ? "טפסי פנייה מהאתר" : "Website feedback forms"}</option>
+                <option value="inbound-email">{isHe ? "דואר נכנס" : "Inbound email"}</option>
+              </select>}
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input placeholder={isHe ? "חיפוש לפי נמען או תבנית..." : "Search by recipient or template..."} value={emailSearch} onChange={e => setEmailSearch(e.target.value)} className="pr-9" dir="ltr" />
@@ -736,7 +749,7 @@ const AdminDashboard = () => {
                 const filteredInbox = inboxEmails.filter(e => {
                   const matchSearch = !emailSearch || buildMailboxSearchText(e).includes(emailSearch.toLowerCase());
                   const matchStatus = emailStatusFilter === "all" || e.status === emailStatusFilter;
-                  return matchSearch && matchStatus;
+                  return matchSearch && matchStatus && (inboxSource === "all" || e.template_name === inboxSource);
                 });
                 return filteredInbox.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">

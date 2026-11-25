@@ -43,11 +43,12 @@ const OPTIONS: { key: keyof BriefingEmailSettings; label: string }[] = [
   { key: "attachPdf", label: "לצרף PDF להדפסה" },
 ];
 
-export default function DailyBriefingPreview({ newspaper = false, initialDate }: { newspaper?: boolean; initialDate?: string } = {}) {
+export default function DailyBriefingPreview({ initialDate }: { initialDate?: string } = {}) {
   const { user } = useAuth();
   const { lang } = useLanguage();
   const [edition, setEdition] = useState(() => normalizeEdition(null, lang));
   const [editionDate, setEditionDate] = useState(initialDate || israelDate(new Date()));
+  const [editionMode, setEditionMode] = useState<BriefingMode>("morning");
   const [busy, setBusy] = useState(false);
   const [settings, setSettings] = useState<BriefingEmailSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -149,21 +150,10 @@ export default function DailyBriefingPreview({ newspaper = false, initialDate }:
   ];
   const options = normalizeBriefingSettings(stored?.dailyBriefingEmail);
   const report = makeDailyBriefing(combinedTasks, events.data || [], mail.data || [], mode, now, stored?.emailTriage as Parameters<typeof makeDailyBriefing>[5], date ? {
-    includeTasks: options.includeTasks, includeEvents: options.includePlanner, includeMail: options.includeMail, includeDeliveries: true,
+    includeTasks: options.includeTasks, includeEvents: options.includePlanner, includeMail: options.includeMail && mode === "morning", includeDeliveries: true,
     includeSuggestions: options.includeSuggestions, language: normalizeEdition(null, lang).language,
   } : {});
     return report;
-  };
-  const preview = async (mode: BriefingMode) => {
-    if (!user || busy) return;
-    setBusy(true);
-    try {
-      const report = await currentReport(mode);
-      printDocument(report.title, ["סוג", "מה לעשות", "מועד", "אחראי / שולח / מיקום", "פרטים / הצעה לצעד הבא"], report.rows,
-        `${report.date} · שעון ישראל\n${report.summary}\n${report.recommendation}\nכולל משימות אישיות, עבודה, פרויקטים ומשימות קבועות להיום. ההמלצות הן הצעות בלבד. מיילים מסווגים לפי נושא ושולח בלבד, ללא אימות תוכנם.`, { lang: "he", dir: "rtl", emptyMessage: "אין משימות מתאימות או אירועים בטווח. אפשר לבדוק את כלל המשימות בלוח." });
-    } catch {
-      toast.error("לא הצלחנו לטעון את כל חלקי הסיכום. לא הופק דוח חלקי מטעה; נסה שוב.");
-    } finally { setBusy(false); }
   };
 
   const requestCoach = async () => {
@@ -184,13 +174,15 @@ export default function DailyBriefingPreview({ newspaper = false, initialDate }:
     if (!user || busy || !editionDate) return;
     setBusy(true);
     try {
+      const includeNews = editionMode === "morning" && edition.news && editionDate === israelDate(new Date());
       const [report, news] = await Promise.all([
-        currentReport("morning", editionDate),
-        edition.news && editionDate === israelDate(new Date())
+        currentReport(editionMode, editionDate),
+        includeNews
           ? supabase.functions.invoke("good-news").catch(() => null) : null,
       ]);
-      if (edition.news && editionDate === israelDate(new Date()) && (!news || news.error)) toast.info("מקורות החדשות אינם זמינים כרגע");
-      const paper = buildNewspaper(report, edition, selectEditionArticles(news?.data?.items, edition.topics));
+      if (includeNews && (!news || news.error)) toast.info("מקורות החדשות אינם זמינים כרגע");
+      const options = editionMode === "morning" ? edition : { ...edition, practice: false, habits: "" };
+      const paper = buildNewspaper(report, options, selectEditionArticles(news?.data?.items, edition.topics));
       printDocument(paper.title, [], [], `${paper.dateLabel} · ${paper.edition}`, {
         lang: paper.language, dir: paper.dir, newspaper: paper.sections, emptyMessage: paper.empty,
       });
@@ -199,10 +191,14 @@ export default function DailyBriefingPreview({ newspaper = false, initialDate }:
   };
 
   return <Card className="card-surface">
-    <CardHeader><CardTitle className="text-base">הסיכום היומי שלך</CardTitle></CardHeader>
+    <CardHeader><CardTitle className="text-base">תדריך יומי · מהדורת העיתון</CardTitle></CardHeader>
     <CardContent className="space-y-4">
-      {newspaper && <section className="space-y-3 rounded-xl border p-4">
+      <section className="space-y-3 rounded-xl border p-4">
         <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm">סוג התדריך<select className="rounded-md border bg-background p-2" value={editionMode} onChange={event => setEditionMode(event.target.value as BriefingMode)}>
+            <option value="morning">מהדורת בוקר מלאה</option>
+            <option value="urgent">דחופים להמשך היום</option>
+          </select></label>
           <label className="grid gap-1 text-sm">תאריך המהדורה<input className="rounded-md border bg-background p-2" type="date" value={editionDate} onChange={event => setEditionDate(event.target.value)} /></label>
           <label className="grid gap-1 text-sm">שם העיתון<input className="rounded-md border bg-background p-2" maxLength={100} value={edition.title} onChange={event => setEdition({ ...edition, title: event.target.value })} /></label>
           <label className="grid gap-1 text-sm">מה לומדים?<input className="rounded-md border bg-background p-2" maxLength={300} value={edition.study} onChange={event => setEdition({ ...edition, study: event.target.value })} /></label>
@@ -216,11 +212,9 @@ export default function DailyBriefingPreview({ newspaper = false, initialDate }:
           <Button disabled={!user || busy || !editionDate} onClick={() => void openNewspaper()}><Printer className="me-2 h-4 w-4" />פתח מהדורה להדפסה / PDF</Button>
           <Button variant="outline" disabled={!user || saving || !settings} onClick={() => void saveEdition()}>שמור העדפות מהדורה</Button>
         </div>
-      </section>}
+      </section>
       <p className="text-sm text-muted-foreground">משימות שהגיע מועדן או שסומנו כדחופות, לו״ז ומיילים חשובים פוטנציאליים. הדוח מתרחב לעמודים נוספים לפי הצורך.</p>
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={busy || !user} onClick={() => void preview("morning")} className="gap-2"><Printer className="h-4 w-4" />סיכום בוקר · הדפסה / PDF</Button>
-        <Button variant="outline" disabled={busy || !user} onClick={() => void preview("urgent")}>דחופים להמשך היום · הדפסה / PDF</Button>
         <Button variant="outline" disabled={coaching || !user} onClick={() => void requestCoach()}>{coaching ? "מכין ייעוץ…" : "ייעוץ AI לתכנון וללמידה"}</Button>
       </div>
       <p className="text-xs text-muted-foreground">הסיכומים האוטומטיים אינם מפעילים AI בתשלום. הייעוץ הנוסף מופעל רק בלחיצה ולאחר אישור שיתוף הנתונים; הוא טיוטה לבדיקה ולא משנה את הלוחות.</p>

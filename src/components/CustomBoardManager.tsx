@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useDashboardDisplay } from "@/hooks/useDashboardDisplay";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -131,7 +132,7 @@ const CustomBoardManager = ({ boardId, boardName, statuses, theme = "default", o
   const [newCategory, setNewCategory] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<BoardItem>>({});
-  const [viewMode, setViewMode] = useState<"table" | "kanban" | "list" | "cards" | "timeline" | "compact">(statuses.length >= 3 ? "kanban" : "table");
+  const { viewMode, setViewMode } = useDashboardDisplay(`custom-board:${boardId}`, undefined, statuses.length >= 3 ? "kanban" : "table");
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [activeSheet, setActiveSheet] = useState("ראשי");

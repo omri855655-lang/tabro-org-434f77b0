@@ -48,7 +48,7 @@ export default function FinanceWorkspace({ isRtl, activeTab, onTabChange, onImpo
       </div>
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-sky-200/60 pt-4 dark:border-sky-900/50">
         <Button size="sm" className="gap-1.5 rounded-xl" onClick={() => onTabChange("add")}><Plus className="h-4 w-4" aria-hidden="true" />{isRtl ? "הוספת תנועה" : "Add entry"}</Button>
-        <Button size="sm" variant="outline" className="gap-1.5 rounded-xl bg-background/80" onClick={onImport}><Upload className="h-4 w-4" aria-hidden="true" />{isRtl ? "ייבוא Amex" : "Import Amex"}</Button>
+        <Button size="sm" variant="outline" className="gap-1.5 rounded-xl bg-background/80" onClick={onImport}><Upload className="h-4 w-4" aria-hidden="true" />{isRtl ? "ייבוא דוח אקסל / CSV" : "Import Excel / CSV statement"}</Button>
         <span className="hidden flex-1 sm:block" />
         {exportControl}
       </div>

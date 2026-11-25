@@ -61,17 +61,18 @@ export function useCustomBoards() {
 
   const addBoard = async (name: string, statuses: string[], showInDashboard: boolean, icon = "LayoutGrid") => {
     if (!user) return;
-    const { error } = await supabase.from("custom_boards").insert({
+    const { data, error } = await supabase.from("custom_boards").insert({
       user_id: user.id,
       name,
       icon,
       statuses: JSON.stringify(statuses),
       show_in_dashboard: showInDashboard,
       sort_order: boards.length,
-    });
+    }).select("id").single();
     if (error) throw error;
     await fetchBoards();
     window.dispatchEvent(new Event('tabro-boards-changed'));
+    return data.id;
   };
 
   const deleteBoard = async (id: string) => {

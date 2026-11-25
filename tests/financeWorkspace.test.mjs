@@ -84,7 +84,7 @@ test("every finance capability keeps exactly one reachable tab panel", () => {
   const html = renderToStaticMarkup(React.createElement(Workspace, { isRtl: true, activeTab: "overview", onTabChange() {}, onImport() {}, monthControl: "month", exportControl: "export" }));
   for (const value of expectedPanels) assert.ok(html.includes(`trigger-${value}`), value);
   assert.match(html, /dir="rtl"/);
-  assert.match(html, /ייבוא Amex/);
+  assert.match(html, /ייבוא דוח אקסל/);
   assert.match(html, /הוספת תנועה/);
 });
 
