@@ -2,6 +2,7 @@
 // Only messages.list / messages.get(format=metadata) are called: no send, delete or
 // label changes. Raw provider bodies and tokens are never logged or returned.
 import { gmailMessageDate, saveSyncedEmail } from "./emailSyncStorage.ts";
+import { GMAIL_PRIMARY_QUERY } from "./gmailPrimary.ts";
 
 export const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -140,7 +141,11 @@ export async function syncGmailConnection(
     try {
       if (!res || !res.ok) { await res?.body?.cancel(); throw new Error("Gmail message rejected"); }
       const meta = parseGmailMetadata(await res.json());
+      const primary = opts.query.includes(GMAIL_PRIMARY_QUERY);
+      if (primary && meta.labels.some(label => ["CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_SOCIAL", "CATEGORY_FORUMS", "SPAM", "TRASH"].includes(label))) continue;
       const category = classifyEmail(meta.subject, meta.from, meta.labels);
+      const suggestedAction = category === "payment" ? { type: "add_expense", description: meta.subject }
+        : category === "task" ? { type: "create_task", description: meta.subject } : null;
       await saveSyncedEmail(store, {
         user_id: conn.user_id,
         connection_id: conn.id,
@@ -150,8 +155,7 @@ export async function syncGmailConnection(
         email_date: gmailMessageDate(meta.internalDate, meta.date),
         category,
         is_processed: true,
-        suggested_action: category === "payment" ? { type: "add_expense", description: meta.subject }
-          : category === "task" ? { type: "create_task", description: meta.subject } : null,
+        suggested_action: primary ? { ...suggestedAction, gmailFolder: "primary" } : suggestedAction,
       });
       result.processed++;
       result.newMessageIds.push(id);

@@ -532,6 +532,7 @@ export type Database = {
       }
       custom_boards: {
         Row: {
+          board_type: string
           created_at: string
           icon: string
           id: string
@@ -539,11 +540,13 @@ export type Database = {
           show_in_dashboard: boolean
           sort_order: number
           statuses: Json
+          task_items_migrated: boolean
           theme: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          board_type?: string
           created_at?: string
           icon?: string
           id?: string
@@ -551,11 +554,13 @@ export type Database = {
           show_in_dashboard?: boolean
           sort_order?: number
           statuses?: Json
+          task_items_migrated?: boolean
           theme?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          board_type?: string
           created_at?: string
           icon?: string
           id?: string
@@ -563,6 +568,7 @@ export type Database = {
           show_in_dashboard?: boolean
           sort_order?: number
           statuses?: Json
+          task_items_migrated?: boolean
           theme?: string
           updated_at?: string
           user_id?: string

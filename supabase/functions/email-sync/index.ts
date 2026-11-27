@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { syncGmailConnection } from "../_shared/gmailSync.ts";
+import { GMAIL_PRIMARY_QUERY } from "../_shared/gmailPrimary.ts";
 
 const corsH = {
   "Access-Control-Allow-Origin": "*",
@@ -46,7 +47,7 @@ Deno.serve(async (req) => {
     if (conn.provider !== "gmail") return new Response(JSON.stringify({ error: "Provider not supported" }), { status: 422, headers: jsonH });
     if (!conn.refresh_token) return new Response(JSON.stringify({ error: "Reconnect Gmail", needs_reconnect: true }), { status: 401, headers: jsonH });
 
-    const result = await syncGmailConnection(serviceClient, conn, { query: "newer_than:90d -in:spam -in:trash", maxResults: 100, onlyNew: false }, {
+    const result = await syncGmailConnection(serviceClient, conn, { query: `newer_than:90d ${GMAIL_PRIMARY_QUERY}`, maxResults: 100, onlyNew: false }, {
       clientId: Deno.env.get("GOOGLE_CLIENT_ID"),
       clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
     });

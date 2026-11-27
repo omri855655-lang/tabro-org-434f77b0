@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { CustomBoardType } from "@/lib/customBoardType";
 
 export type BoardTheme = "default" | "colorful" | "minimal" | "gradient" | "dark" | "pastel" | "ocean" | "forest" | "sunset" | "notion" | "trello" | "glass" | "status";
 
@@ -28,6 +29,7 @@ export interface CustomBoard {
   show_in_dashboard: boolean;
   sort_order: number;
   theme: BoardTheme;
+  board_type: CustomBoardType;
 }
 
 export function useCustomBoards() {
@@ -47,6 +49,7 @@ export function useCustomBoards() {
         ...b,
         statuses: Array.isArray(b.statuses) ? b.statuses : JSON.parse(b.statuses || "[]"),
         theme: b.theme || "default",
+        board_type: b.board_type === "tasks" ? "tasks" : "list",
       })));
     }
     setLoading(false);
@@ -59,7 +62,7 @@ export function useCustomBoards() {
     return () => window.removeEventListener('tabro-boards-changed', refresh);
   }, [fetchBoards]);
 
-  const addBoard = async (name: string, statuses: string[], showInDashboard: boolean, icon = "LayoutGrid") => {
+  const addBoard = async (name: string, statuses: string[], showInDashboard: boolean, icon = "LayoutGrid", boardType: CustomBoardType = "list") => {
     if (!user) return;
     const { data, error } = await supabase.from("custom_boards").insert({
       user_id: user.id,
@@ -68,6 +71,7 @@ export function useCustomBoards() {
       statuses: JSON.stringify(statuses),
       show_in_dashboard: showInDashboard,
       sort_order: boards.length,
+      ...(boardType === "tasks" ? { board_type: boardType } : {}),
     }).select("id").single();
     if (error) throw error;
     await fetchBoards();
@@ -76,9 +80,11 @@ export function useCustomBoards() {
   };
 
   const deleteBoard = async (id: string) => {
-    const { error } = await supabase.from("custom_boards").delete().eq("id", id);
+    if (!user) throw new Error('Sign in required');
+    const { error } = await supabase.from("custom_boards").delete().eq("id", id).eq("user_id", user.id);
     if (error) throw error;
     await fetchBoards();
+    window.dispatchEvent(new Event('tabro-boards-changed'));
   };
 
   const updateBoard = async (id: string, updates: Partial<CustomBoard>) => {

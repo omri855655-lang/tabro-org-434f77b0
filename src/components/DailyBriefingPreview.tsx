@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { israelDate, makeDailyBriefing, projectBriefingTasks, recurringBriefingTasks, type BriefingMode } from "@/lib/dailyBriefing";
+import { israelDate, type BriefingMode } from "@/lib/dailyBriefing";
 import { normalizeBriefingSettings, type BriefingEmailSettings, type BriefingSlot } from "../../supabase/functions/_shared/briefingSchedule.ts";
 import { printDocument } from "@/lib/printDocument";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { briefingCoachRequest } from "@/lib/briefingCoach";
 import { Mail, Printer, Send } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { buildNewspaper, normalizeEdition, selectEditionArticles } from "../../supabase/functions/_shared/newspaper.ts";
+import { buildReport } from "../../supabase/functions/daily-briefing-email/report.ts";
 
 type Delivery = { id: string; local_date: string; slot: string; kind: string; status: string; retryable: boolean; last_error: string | null; pdf_pages: number | null; created_at: string };
 
@@ -129,31 +130,14 @@ export default function DailyBriefingPreview({ initialDate }: { initialDate?: st
     finally { setSaving(false); }
   };
 
-   const currentReport = async (mode: BriefingMode, date?: string) => {
+  const currentReport = async (mode: BriefingMode, date?: string) => {
     if (!user) throw new Error("Login required");
-  const now = date && date !== israelDate(new Date()) ? new Date(`${date}T12:00:00Z`) : new Date();
-  const [tasks, events, mail, prefs, recurring, completions, projects] = await Promise.all([
-    supabase.from("tasks").select("id,description,status,status_notes,planned_end,urgent,overdue,archived,responsible,task_type,progress").eq("user_id", user.id).eq("archived", false).order("planned_end", { ascending: true }).limit(2000),
-    supabase.from("calendar_events").select("id,title,start_time,end_time,location,all_day,description").eq("user_id", user.id).gte("end_time", new Date(now.getTime() - 86400000).toISOString()).lte("start_time", new Date(now.getTime() + 86400000).toISOString()).order("start_time").limit(500),
-    (!date || settings?.includeMail !== false) ? supabase.from("email_analyses").select("email_subject,email_from,email_date,category").eq("user_id", user.id).gte("email_date", new Date(now.getTime() - 7 * 86400000).toISOString()).lte("email_date", now.toISOString()).order("email_date", { ascending: false }).limit(1000) : { data: [], error: null },
-    supabase.from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle(),
-    supabase.from("recurring_tasks").select("id,title,description,frequency,day_of_week,day_of_month,reminder_time").eq("user_id", user.id).limit(1000),
-    supabase.from("recurring_task_completions").select("recurring_task_id").eq("user_id", user.id).eq("completed_date", israelDate(now)).limit(1000),
-    supabase.from("project_tasks").select("id,title,status,due_date,urgent,completed,assigned_email,instructions,notes").eq("user_id", user.id).limit(2000),
-  ]);
-  for (const result of [tasks, events, mail, prefs, recurring, completions, projects]) if (result.error) throw result.error;
-  const stored = prefs.data?.notification_settings as Record<string, unknown> | null;
-  const combinedTasks = [
-    ...(tasks.data || []).map(task => ({ ...task, notes: task.status_notes })),
-    ...recurringBriefingTasks(recurring.data || [], (completions.data || []).map(row => row.recurring_task_id), now),
-    ...projectBriefingTasks(projects.data || []),
-  ];
-  const options = normalizeBriefingSettings(stored?.dailyBriefingEmail);
-  const report = makeDailyBriefing(combinedTasks, events.data || [], mail.data || [], mode, now, stored?.emailTriage as Parameters<typeof makeDailyBriefing>[5], date ? {
-    includeTasks: options.includeTasks, includeEvents: options.includePlanner, includeMail: options.includeMail && mode === "morning", includeDeliveries: true,
-    includeSuggestions: options.includeSuggestions, language: normalizeEdition(null, lang).language,
-  } : {});
-    return report;
+    const now = date && date !== israelDate(new Date()) ? new Date(`${date}T12:00:00Z`) : new Date();
+    const prefs = await supabase.from("user_preferences").select("notification_settings").eq("user_id", user.id).maybeSingle();
+    if (prefs.error) throw prefs.error;
+    const stored = (prefs.data?.notification_settings ?? {}) as Record<string, unknown>;
+    const options = normalizeBriefingSettings(stored.dailyBriefingEmail);
+    return buildReport(supabase, user.id, mode === "morning" ? "morning" : "afternoon", now, stored, options, normalizeEdition(stored.newspaperEdition, lang).language);
   };
 
   const requestCoach = async () => {

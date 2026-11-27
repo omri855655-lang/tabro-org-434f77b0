@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { isPrimaryInboxMail } from "../../supabase/functions/_shared/gmailPrimary";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -220,7 +221,7 @@ export function useEmailIntegration() {
     }
   }, [user, isHe]);
 
-  const categorySummary = analyses.reduce((acc, a) => {
+  const categorySummary = analyses.filter(isPrimaryInboxMail).reduce((acc, a) => {
     acc[a.category] = (acc[a.category] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);

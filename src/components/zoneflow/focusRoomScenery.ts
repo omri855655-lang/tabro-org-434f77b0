@@ -143,6 +143,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     }
   }
   let departure: THREE.Group | undefined, baggageTrain: THREE.Group | undefined;
+  let airfieldLights: THREE.MeshStandardMaterial[] = [];
   if (airport) {
     // A second aircraft climbs beyond the runway while the near aircraft taxis.
     departure = transit.clone(true); departure.name = 'departing-aircraft'; scene.add(departure);
@@ -150,6 +151,8 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     // Parked at the gate inside the window panorama; the jet bridge runs from the terminal facade to the forward door.
     const parked = transit.clone(true); parked.name = 'parked-gate-aircraft'; parked.position.set(GATE.x, 0, GATE.z); parked.scale.setScalar(GATE.scale); scene.add(parked);
     box(0xa7b0af, [-42, .02, -7], [56, .04, 18]);
+    for (let x = -66; x <= -16; x += 5) box(0x818e90, [x, .043, -7], [.045, .008, 17.5]);
+    for (const z of [-.5, -6, -11.5]) box(0x818e90, [-42, .044, z], [55, .008, .045]);
     for (let x = -60; x < -15; x += 10) box(0xd5c48c, [x, .06, -9], [.12, .03, 12]);
     const door = gateDoor(), bridgeFront = door.z + .05, bridgeBack = 9, bridgeLength = bridgeBack - bridgeFront;
     box(GATE_BRIDGE_COLOR, [door.x, door.y, (bridgeFront + bridgeBack) / 2], [2, 1.6, bridgeLength]);
@@ -160,12 +163,16 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
     box(0x526e7b, [-18.1, 1.3, -3.28], [.7, .6, .03]);
     box(0x59636b, [0, .02, -57], [350, .04, 10]);
     for (let x = -168; x < 175; x += 12) box(0xf4e7b3, [x, .06, -57], [5, .02, .18]);
-    for (let x = -80; x <= 80; x += 8) {
-      box(0xc4d1ac, [x, .15, -31], [.2, .2, .2]); box(0xc4d1ac, [x, .15, -15], [.2, .2, .2]);
+    for (let x = -84; x <= 84; x += 7) {
+      for (const z of [-30.7, -15.3]) box(0x79aeeb, [x, .12, z], [.23, .14, .23]);
     }
+    box(0xc4a86a, [-40, .045, -16.5], [53, .02, .13]);
+    box(0xc4a86a, [-13.5, .048, -20], [.13, .02, 7]);
     box(0xa5b2b6, [36, 6, -65], [9, 12, 9]); box(0x426372, [36, 13, -65], [13, 3, 12]);
     box(0x59636b, [36, 14.8, -65], [14, .55, 13]);
     box(0xa5b2b6, [36, 17, -65], [.22, 4.2, .22]);
+    box(0xffd498, [36, 13.1, -58.96], [9.8, .52, .12]);
+    box(0xffd498, [36, 19.14, -65], [.34, .22, .34]);
     for (let i = -7; i <= 7; i++) mesh(sphere, 0x778d91, [i * 26, -5, -119 - Math.cos(i) * 7], [33, 12 + 4 * Math.sin(i * 2), 12]);
     for (let i = 0; i < 5; i++) {
       const x = -48 + i * 18;
@@ -174,8 +181,13 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       box(0xa5b2b6, [x, 6.12, -76], [15.8, .35, 12.6]);
       for (const dx of [-3, 0, 3]) box(0xaeb8b9, [x + dx, 2, -69.85], [.12, 4, .08]);
     }
-    for (let x = -135; x <= 135; x += 9) for (const z of [-62, -52]) box(0xf4e7b3, [x, .13, z], [.38, .19, .24]);
-    material(0xf4e7b3).emissive.setHex(0x59471d);
+    for (let x = -135; x <= 135; x += 9) for (const z of [-61.7, -52.3]) box(0xfaf1d8, [x, .13, z], [.32, .13, .24]);
+    // Keep painted markings matte; only actual light fixtures illuminate at dusk.
+    airfieldLights = [0x79aeeb, 0xfaf1d8, 0xffd498].map(color => {
+      const lamp = material(color);
+      lamp.emissive.setHex(color);
+      return lamp;
+    });
     baggageTrain = new THREE.Group(); baggageTrain.name = 'apron-baggage-train'; scene.add(baggageTrain);
     box(0xd5c48c, [0, .48, 0], [1.8, .56, 1], baggageTrain);
     box(0x526e7b, [.48, 1, 0], [.72, .65, .86], baggageTrain);
@@ -283,6 +295,7 @@ export function createRoomScenery(renderer: THREE.WebGLRenderer, windows: THREE.
       sun.intensity = night ? .18 : wet ? .6 : sunset ? 2 : 2.5; sun.color.set(night ? 0x8eb8ea : sunset ? 0xff9f5a : 0xffedcc);
       sun.position.set(-20, night ? 30 : sunset ? 7 : 30, 15);
       lit.emissiveIntensity = night ? 1.6 : sunset ? .6 : 0;
+      airfieldLights.forEach(lamp => { lamp.emissiveIntensity = night ? 1.15 : wet ? .68 : sunset ? .45 : .03; });
       (ground.material as THREE.MeshStandardMaterial).roughness = wet ? .28 : .85;
       trees.rotation.z = Math.sin(motionClock * .28) * .006;
       clouds.position.x = Math.sin(motionClock * .012) * 10;

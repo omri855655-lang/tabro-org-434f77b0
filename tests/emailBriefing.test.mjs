@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { triageEmail } from '../supabase/functions/_shared/emailTriage.ts';
 import { makeDailyBriefing, israelDate, recurringBriefingTasks } from '../src/lib/dailyBriefing.ts';
+import { buildReport } from '../supabase/functions/daily-briefing-email/report.ts';
+import { DEFAULT_BRIEFING_EMAIL } from '../supabase/functions/_shared/briefingSchedule.ts';
 
 const mail = (subject, category = 'personal') => ({ email_subject: subject, email_from: 'Service <team@example.com>', category });
 test('urgent and security messages are not buried by promotional labels', () => {
@@ -42,6 +44,37 @@ test('includes due recurring tasks once and omits completed or not due occurrenc
   const tasks = recurringBriefingTasks([recurring('daily', 'daily'), recurring('done', 'daily'), recurring('sunday', 'weekly', 0), recurring('monday', 'weekly', 1), recurring('first', 'monthly', null, 1)], ['done'], now);
   assert.deepEqual(tasks.map(task => task.id), ['recurring:daily', 'recurring:sunday', 'recurring:first']);
   assert.ok(tasks.every(task => task.progress.includes('16:00')));
+});
+test('includes selected weekdays after Israel midnight, excluding skipped and completed tasks', () => {
+  const now = new Date('2026-11-07T22:30:00Z'); // Sunday in Israel, Saturday in UTC.
+  const item = (id, day_of_week) => ({ id, title: id, frequency: 'thrice_weekly', day_of_week, day_of_month: null, description: null, reminder_time: null });
+  const tasks = recurringBriefingTasks([item('weekdays', 0b0111111), item('saturday', 0b1000000), item('skipped', 1), item('completed', 1)], ['completed'], now, ['skipped']);
+  assert.deepEqual(tasks.map(task => [task.id, task.planned_end]), [['recurring:weekdays', '2026-11-08']]);
+});
+test('shared report only reads recent Primary mail for opted-in mornings, and excludes skipped routines', async () => {
+  const calls = [];
+  const rows = {
+    recurring_tasks: ['Due today', 'Skipped today'].map(title => ({
+      id: title, title, frequency: 'thrice_weekly', day_of_week: 1, day_of_month: null, description: null, reminder_time: null,
+    })),
+    recurring_task_skips: [{ recurring_task_id: 'Skipped today' }],
+  };
+  const client = { from(table) {
+    const call = { table, filters: [] }; calls.push(call);
+    const query = Object.fromEntries(['select', 'eq', 'or', 'filter', 'gte', 'lte', 'order', 'limit'].map(method => [
+      method, (...args) => { call.filters.push([method, ...args]); return query; },
+    ]));
+    query.then = resolve => resolve({ data: rows[table] ?? [], error: null });
+    return query;
+  }};
+  const date = new Date('2026-11-08T06:00:00Z');
+  const morning = await buildReport(client, 'owner', 'morning', date, {}, DEFAULT_BRIEFING_EMAIL, 'en');
+  assert.deepEqual(morning.items.map(item => item.title), ['Due today']);
+  for (const call of calls) assert.ok(call.filters.some(parts => parts.join(':') === 'eq:user_id:owner'));
+  assert.ok(calls.find(call => call.table === 'email_analyses').filters.some(parts => parts.join(':') === 'filter:suggested_action->>gmailFolder:eq:primary'));
+  calls.length = 0;
+  await buildReport(client, 'owner', 'morning', date, {}, { ...DEFAULT_BRIEFING_EMAIL, includeMail: false });
+  assert.ok(!calls.some(call => call.table === 'email_analyses'));
 });
 const task = (id, patch = {}) => ({ id, description: id, status: 'בטיפול', planned_end: '2026-11-01', urgent: false, overdue: false, archived: false, responsible: null, task_type: 'work', ...patch });
 const event = (id, start, end) => ({ id, title: id, start_time: start, end_time: end, location: null, all_day: false });

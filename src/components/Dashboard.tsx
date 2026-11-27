@@ -4,6 +4,7 @@ import { dashboardRefresh } from '@/lib/dashboardRefresh';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCustomBoards } from '@/hooks/useCustomBoards';
+import { customTaskSheetName } from '@/lib/customBoardType';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BookOpen, Tv, CheckCircle, Clock, Eye, TrendingUp, LayoutGrid, CalendarDays, Settings2, ChevronUp, ChevronDown, EyeOff, RotateCcw, BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon } from 'lucide-react';
@@ -112,14 +113,19 @@ const Dashboard = () => {
     if (!user) return;
     const dashboardBoards = customBoards.filter(b => b.show_in_dashboard);
     if (dashboardBoards.length === 0) { setCustomBoardStats({}); return; }
+    let active = true;
     Promise.all(dashboardBoards.map(async (board) => {
-      const { data } = await supabase.from("custom_board_items").select("status").eq("board_id", board.id).eq("user_id", user.id);
+      const isTaskBoard = board.board_type === "tasks";
+      const { data } = isTaskBoard
+        ? await supabase.from("tasks").select("status").eq("sheet_name", customTaskSheetName(board.id)).eq("task_type", "personal").eq("user_id", user.id).eq("archived", false)
+        : await supabase.from("custom_board_items").select("status").eq("board_id", board.id).eq("user_id", user.id);
       const items = data || [];
       const byStatus: Record<string, number> = {};
-      for (const s of board.statuses) byStatus[s] = 0;
-      items.forEach(i => { byStatus[i.status] = (byStatus[i.status] || 0) + 1; });
+      for (const s of isTaskBoard ? ["טרם החל", "בטיפול", "בוצע"] : board.statuses) byStatus[s] = 0;
+      items.forEach(i => { if (i.status) byStatus[i.status] = (byStatus[i.status] || 0) + 1; });
       return [board.id, { total: items.length, byStatus }] as const;
-    })).then(entries => setCustomBoardStats(Object.fromEntries(entries)));
+    })).then(entries => { if (active) setCustomBoardStats(Object.fromEntries(entries)); });
+    return () => { active = false; };
   }, [user, customBoards]);
 
   const { data: stats = emptyStats, isLoading: loading } = useQuery({

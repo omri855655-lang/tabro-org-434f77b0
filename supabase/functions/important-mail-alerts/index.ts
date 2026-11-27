@@ -6,6 +6,7 @@ const corsHeaders = {
 import { hasSchedulerToken } from "../_shared/schedulerAuth.ts";
 import { israelClock, israelDayStartUtc, isRetryableProviderStatus } from "../_shared/briefingSchedule.ts";
 import { syncGmailConnection } from "../_shared/gmailSync.ts";
+import { GMAIL_PRIMARY_QUERY } from "../_shared/gmailPrimary.ts";
 import {
   ALERT_MAX_AGE_MS, ALERT_MAX_ITEMS_PER_BATCH, alertItemKey, importantMailChannelPlan, importantMailDecision,
   importantMailPushPayload, normalizeImportantMailAlerts, normalizeMailPreferences,
@@ -79,7 +80,7 @@ async function processUser(admin: Admin, userId: string, settings: Record<string
     .select("id, user_id, provider, access_token, refresh_token, settings")
     .eq("user_id", userId).eq("provider", "gmail");
   for (const conn of conns || []) {
-    const result = await syncGmailConnection(admin, conn, { query: "newer_than:1d -in:spam -in:trash", maxResults: 25, onlyNew: true }, {
+    const result = await syncGmailConnection(admin, conn, { query: `newer_than:1d ${GMAIL_PRIMARY_QUERY}`, maxResults: 25, onlyNew: true }, {
       clientId: Deno.env.get("GOOGLE_CLIENT_ID"), clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
     });
     if (result.ok) {

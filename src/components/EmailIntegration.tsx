@@ -15,6 +15,7 @@ import { useDashboardChatHistory } from "@/hooks/useDashboardChatHistory";
 import AiChatPanel from "@/components/AiChatPanel";
 import { triageEmail } from "../../supabase/functions/_shared/emailTriage";
 import DailyBriefingPreview from "@/components/DailyBriefingPreview";
+import { isPrimaryInboxMail } from "../../supabase/functions/_shared/gmailPrimary";
 
 type SmartBucket = "action" | "finance" | "shopping" | "updates" | "personal" | "promotions" | "low";
 
@@ -210,7 +211,7 @@ const EmailIntegration = () => {
 
   const baseRecentEmails = useMemo(() => {
     return analyses.filter((a) => {
-      if (!a.email_date) return false;
+      if (!a.email_date || !isPrimaryInboxMail(a)) return false;
       const date = new Date(a.email_date);
       if (Number.isNaN(date.getTime())) return false;
       return historyDays === "all" || isAfter(date, subDays(new Date(), Number(historyDays)));
@@ -1092,28 +1093,13 @@ ${JSON.stringify(importantEmailContext.importantEmails, null, 2)}`;
         </Card>
       )}
 
-      {/* Old analyses */}
-      {analyses.length > 0 && recentEmails.length === 0 && categoryFilter === "all" && (
+      {connections.length > 0 && !loading && baseRecentEmails.length === 0 && (
         <Card className="card-surface">
           <CardHeader>
-            <CardTitle className="text-sm">{t("recentEmails" as any)}</CardTitle>
+            <CardTitle className="text-sm">{isHe ? "אין הודעות מאומתות מלשונית ראשי בטווח הנבחר" : "No verified Primary messages in this time range"}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              {analyses.slice(0, 20).map((a) => {
-                const Icon = CATEGORY_ICONS[a.category] || Mail;
-                return (
-                  <div key={a.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-sm">
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="flex-1 truncate">{a.email_subject || (isHe ? "(ללא נושא)" : "(No subject)")}</span>
-                    <span className="text-xs text-muted-foreground truncate max-w-[120px]">{a.email_from}</span>
-                    <Badge variant="outline" className={`text-[9px] ${CATEGORY_COLORS[a.category] || ""}`}>
-                      {getCategoryLabel(a.category)}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
+            <p className="text-sm text-muted-foreground">{isHe ? "סנכרן את Gmail כדי לעדכן את הלשונית הראשית. הודעות ישנות בלי שיוך מאומת נשמרות בחשבון." : "Sync Gmail to refresh Primary. Older messages without a verified folder remain stored."}</p>
           </CardContent>
         </Card>
       )}

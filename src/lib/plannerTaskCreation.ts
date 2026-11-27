@@ -3,7 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import type { CalendarEvent } from "@/hooks/useCalendarEvents";
 
 export type PlannerTaskDestination =
-  | { type: "personal" | "work" }
+  | { type: "personal" | "work"; sheetName?: string }
   | { type: "board"; id: string; status: string }
   | { type: "project"; id: string };
 
@@ -21,7 +21,7 @@ export async function createPlannerTask(client: SupabaseClient<Database>, event:
     ? await client.from("custom_board_items").insert({ ...common, board_id: destination.id, title: event.title.trim(), notes, category: event.category, status: destination.status, sheet_name: "ראשי" })
     : destination.type === "project"
       ? await client.from("project_tasks").insert({ ...common, project_id: destination.id, title: event.title.trim(), notes, due_date: due, status: "לא התחיל", completed: false })
-      : await client.from("tasks").insert({ ...common, description: event.title.trim(), category: event.category, status_notes: notes, planned_end: due, status: "טרם החל", task_type: destination.type, sheet_name: String(end.getFullYear()) });
+      : await client.from("tasks").insert({ ...common, description: event.title.trim(), category: event.category, status_notes: notes, planned_end: due, status: "טרם החל", task_type: destination.type, sheet_name: destination.sheetName ?? String(end.getFullYear()) });
   if (result.error) {
     if (result.error.code !== "23505") throw result.error;
     // Verify a uniqueness conflict is our own previous insert in this destination.
@@ -32,7 +32,8 @@ export async function createPlannerTask(client: SupabaseClient<Database>, event:
       const existing = await client.from("project_tasks").select("id").eq("id", event.id).eq("user_id", userId).eq("project_id", destination.id).maybeSingle();
       if (existing.error || !existing.data) throw result.error;
     } else {
-      const existing = await client.from("tasks").select("id").eq("id", event.id).eq("user_id", userId).eq("task_type", destination.type).maybeSingle();
+      const existing = await client.from("tasks").select("id").eq("id", event.id).eq("user_id", userId).eq("task_type", destination.type)
+        .eq("sheet_name", destination.sheetName ?? String(end.getFullYear())).maybeSingle();
       if (existing.error || !existing.data) throw result.error;
     }
   }

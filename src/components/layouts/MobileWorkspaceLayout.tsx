@@ -3,6 +3,7 @@ import { Menu, MoreHorizontal, Search } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { filterWorkspaceTabs, mobilePrimaryTabs } from '@/lib/responsiveWorkspace';
 import { mobileWorkspaceCopy } from '@/lib/mobileWorkspaceCopy';
+import { mobileShortcutCopy } from '@/lib/mobileShortcutCopy';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import type { DashboardTabGroup, DashboardTabItem } from './dashboardGrouping';
@@ -10,6 +11,7 @@ import type { DashboardTabGroup, DashboardTabItem } from './dashboardGrouping';
 interface Props {
   tabs: DashboardTabItem[];
   groups?: DashboardTabGroup[];
+  shortcuts?: readonly string[];
   activeTab: string;
   onTabChange: (id: string) => void;
   notification?: ReactNode;
@@ -17,12 +19,13 @@ interface Props {
   email?: string;
   children: ReactNode;
 }
-export default function MobileWorkspaceLayout({ tabs, groups = [], activeTab, onTabChange, notification, accountActions, email, children }: Props) {
+export default function MobileWorkspaceLayout({ tabs, groups = [], shortcuts, activeTab, onTabChange, notification, accountActions, email, children }: Props) {
   const { lang, dir } = useLanguage(), c = mobileWorkspaceCopy[lang];
   const [open, setOpen] = useState(false), [search, setSearch] = useState('');
   const contentRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const primary = mobilePrimaryTabs(tabs), current = tabs.find(tab => tab.id === activeTab);
+  const primary = mobilePrimaryTabs(tabs, shortcuts), current = tabs.find(tab => tab.id === activeTab);
+  const shortLabels = mobileShortcutCopy[lang].labels;
   const visible = filterWorkspaceTabs(tabs, search), primaryActive = primary.some(tab => tab.id === activeTab);
   useEffect(() => {
     const root = document.documentElement, viewport = window.visualViewport;
@@ -62,7 +65,7 @@ export default function MobileWorkspaceLayout({ tabs, groups = [], activeTab, on
       </header>
       <main id="mobile-workspace-content" ref={contentRef} className="mobile-workspace-content min-h-0 min-w-0 flex-1 overflow-auto" tabIndex={-1}>{children}</main>
       <nav className="mobile-workspace-nav grid shrink-0 border-t bg-card/95 px-1 pt-1 shadow-[0_-4px_24px_hsl(var(--foreground)/0.04)]" style={{ gridTemplateColumns: `repeat(${primary.length + 1},minmax(0,1fr))` }} aria-label={c.navigation}>
-        {primary.map(tab => { const Icon = tab.icon; return <button key={tab.id} type="button" aria-label={tab.label} aria-current={activeTab === tab.id ? 'page' : undefined} onClick={() => choose(tab.id)} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeTab === tab.id ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground'}`}><Icon className="h-5 w-5 shrink-0" /><span className="w-full truncate text-center">{tab.label}</span></button>; })}
+        {primary.map(tab => { const Icon = tab.icon; const label = shortLabels[tab.id] || tab.label; return <button key={tab.id} type="button" aria-label={label} aria-current={activeTab === tab.id ? 'page' : undefined} onClick={() => choose(tab.id)} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeTab === tab.id ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground'}`}><Icon className="h-5 w-5 shrink-0" /><span className="w-full truncate text-center">{label}</span></button>; })}
         <SheetTrigger asChild><button type="button" aria-label={c.menu} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${!primaryActive ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground'}`}><MoreHorizontal className="h-5 w-5" /><span>{c.more}</span></button></SheetTrigger>
       </nav>
       <SheetContent side={dir === 'rtl' ? 'right' : 'left'} className="mobile-workspace-menu flex w-[min(92vw,26rem)] max-w-none flex-col gap-0 p-0" dir={dir} onOpenAutoFocus={event => { event.preventDefault(); titleRef.current?.focus(); }}>

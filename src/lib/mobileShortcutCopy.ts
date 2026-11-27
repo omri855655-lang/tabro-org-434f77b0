@@ -1,0 +1,11 @@
+import type { AppLanguage } from './appLanguage';
+
+type Copy = { title: string; description: string; reset: string; slot: string; empty: string; unavailable: string; labels: Record<string, string> };
+export const mobileShortcutCopy: Record<AppLanguage, Copy> = {
+  he: { title: 'קיצורים בתחתית בנייד', description: 'בחר עד חמישה קיצורים למכשיר הזה. בחירה בקיצור שכבר קיים מחליפה מקומות. שאר המסכים נשארים תחת ״עוד״.', reset: 'שחזור ברירת המחדל', slot: 'קיצור', empty: 'ללא קיצור', unavailable: 'מסך לא זמין', labels: { dashboard: 'היום', tasks: 'משימות', planner: 'מתכנן', payments: 'כספים' } },
+  en: { title: 'Mobile bottom shortcuts', description: 'Choose up to five shortcuts for this device. Choosing an existing shortcut swaps its position. All other screens stay under More.', reset: 'Restore defaults', slot: 'Shortcut', empty: 'No shortcut', unavailable: 'Unavailable screen', labels: { dashboard: 'Today', tasks: 'Tasks', planner: 'Planner', payments: 'Finance' } },
+  ar: { title: 'اختصارات أسفل الشاشة', description: 'اختر حتى خمسة اختصارات لهذا الجهاز. اختيار اختصار موجود يبدّل موقعه. تبقى الشاشات الأخرى في «المزيد».', reset: 'استعادة الافتراضي', slot: 'اختصار', empty: 'بدون اختصار', unavailable: 'شاشة غير متاحة', labels: { dashboard: 'اليوم', tasks: 'المهام', planner: 'المخطط', payments: 'المالية' } },
+  es: { title: 'Accesos directos en móvil', description: 'Elige hasta cinco accesos para este dispositivo. Elegir uno existente intercambia su posición. El resto queda en Más.', reset: 'Restaurar valores', slot: 'Acceso', empty: 'Sin acceso', unavailable: 'Pantalla no disponible', labels: { dashboard: 'Hoy', tasks: 'Tareas', planner: 'Agenda', payments: 'Finanzas' } },
+  ru: { title: 'Ярлыки нижней панели', description: 'Выберите до пяти ярлыков для устройства. Выбор существующего ярлыка меняет его место. Другие экраны остаются в меню «Ещё».', reset: 'Восстановить', slot: 'Ярлык', empty: 'Без ярлыка', unavailable: 'Экран недоступен', labels: { dashboard: 'Сегодня', tasks: 'Задачи', planner: 'Планы', payments: 'Финансы' } },
+  zh: { title: '手机底部快捷方式', description: '为此设备选择最多五个快捷方式。选择已有的快捷方式可交换位置，其余页面仍可在“更多”中查看。', reset: '恢复默认', slot: '快捷方式', empty: '无快捷方式', unavailable: '页面不可用', labels: { dashboard: '今天', tasks: '任务', planner: '计划', payments: '财务' } },
+};

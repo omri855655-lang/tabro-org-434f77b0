@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardRefresh } from "@/lib/dashboardRefresh";
+import { CUSTOM_TASK_SHEET_PREFIX } from "@/lib/customBoardType";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -136,13 +137,14 @@ const mapTaskToDbInsert = (
 export function useTasks(
   taskType: "personal" | "work",
   sheetName?: string | null,
-  ownerId?: string
+  ownerId?: string,
+  excludeCustomSheets = false,
 ) {
   const { user } = useAuth();
   const { reportActivity } = useActivityEvents();
   const client = useQueryClient();
   const userId = user?.id;
-  const queryKey = useMemo(() => ["task-rows", userId, taskType, ownerId ?? null, sheetName ?? null], [userId, taskType, ownerId, sheetName]);
+  const queryKey = useMemo(() => ["task-rows", userId, taskType, ownerId ?? null, sheetName ?? null, excludeCustomSheets], [userId, taskType, ownerId, sheetName, excludeCustomSheets]);
   const { data: tasks = [], isLoading: loading, refetch, error: loadError } = useQuery({
     ...dashboardRefresh, queryKey, enabled: Boolean(userId),
     queryFn: async ({ signal }) => {
@@ -155,6 +157,8 @@ export function useTasks(
 
       if (sheetName !== null && sheetName !== undefined) {
         query = query.eq("sheet_name", sheetName);
+      } else if (excludeCustomSheets) {
+        query = query.or(`sheet_name.is.null,sheet_name.not.like.${CUSTOM_TASK_SHEET_PREFIX}*`);
       }
 
       if (ownerId) {
