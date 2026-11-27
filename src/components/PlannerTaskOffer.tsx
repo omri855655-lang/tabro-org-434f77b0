@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { CalendarEvent } from "@/hooks/useCalendarEvents";
 import type { CustomBoard } from "@/hooks/useCustomBoards";
 import { createPlannerTask, type PlannerTaskDestination } from "@/lib/plannerTaskCreation";
+import { customTaskSheetName } from "@/lib/customBoardType";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -37,7 +38,9 @@ export function PlannerTaskOffer({ event, userId, boards, onClose, onLinked }: {
     else if (destination.startsWith("board:")) {
       const board = boards.find(item => item.id === destination.slice(6));
       if (!board) return;
-      target = { type: "board", id: board.id, status: board.statuses[0] || "לביצוע" };
+      target = board.board_type === "tasks"
+        ? { type: "personal", sheetName: customTaskSheetName(board.id) }
+        : { type: "board", id: board.id, status: board.statuses[0] || "לביצוע" };
     } else {
       const project = projects.find(item => item.id === destination.slice(8));
       if (!project) return;

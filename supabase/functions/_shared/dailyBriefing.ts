@@ -51,10 +51,19 @@ export function israelDate(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
-export function recurringBriefingTasks(tasks: RecurringSource[], completedIds: string[], now = new Date()): BriefingTask[] {
+export function recurringBriefingTasks(tasks: RecurringSource[], completedIds: string[], now = new Date(), skippedIds: string[] = []): BriefingTask[] {
   const today = israelDate(now);
   const day = new Date(`${today}T12:00:00Z`);
-  return tasks.filter(task => !completedIds.includes(task.id) && (task.frequency === "daily" || (task.frequency === "weekly" && task.day_of_week === day.getUTCDay()) || (task.frequency === "monthly" && task.day_of_month === day.getUTCDate())))
+  const weekday = day.getUTCDay();
+  const excluded = new Set([...completedIds, ...skippedIds]);
+  return tasks.filter(task => !excluded.has(task.id) && (
+    task.frequency === "daily" ||
+    (task.frequency === "weekly" && task.day_of_week === weekday) ||
+    // The recurring-task editor stores selected weekdays as a bitmask (Sunday = bit 0).
+    (task.frequency === "thrice_weekly" && (task.day_of_week === null || Boolean(task.day_of_week & (1 << weekday)))) ||
+    (task.frequency === "monthly" && task.day_of_month === day.getUTCDate()) ||
+    (task.frequency === "yearly" && task.day_of_week === day.getUTCMonth() && task.day_of_month === day.getUTCDate())
+  ))
     .map(task => ({ id: `recurring:${task.id}`, description: task.title, status: null, planned_end: today, urgent: false, overdue: false, archived: false, responsible: null, task_type: "recurring", progress: [task.reminder_time ? `שעה מתוכננת: ${task.reminder_time}` : "", task.description].filter(Boolean).join(" · ") }));
 }
 

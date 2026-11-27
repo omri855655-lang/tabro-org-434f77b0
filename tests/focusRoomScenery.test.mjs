@@ -61,6 +61,26 @@ test('scenery preferences validate stored data and all six languages describe pe
   assert.equal(scenerySettings.sceneryTravel(1,4)-scenerySettings.sceneryTravel(0,4),4);
 });
 
+test('terminal lights respond to atmosphere without animating painted markings or paused aircraft', () => {
+  let scene;
+  const renderer = { capabilities: { maxTextureSize: 2048 }, getRenderTarget: () => null, setRenderTarget() {}, render(value) { scene = value; } };
+  const terminal = exports.createRoomScenery(renderer, [], 'airport', 'illustrated');
+  terminal.update(.1, 'day', 'clear', false);
+  const material = color => scene.children.find(object => object.isMesh && object.material.color?.getHex() === color)?.material;
+  const taxiLight = material(0x79aeeb), runwayLight = material(0xfaf1d8), marking = material(0xf4e7b3);
+  assert.ok(taxiLight && runwayLight && marking);
+  const aircraft = scene.getObjectByName('taxiing-aircraft'), position = aircraft.position.clone();
+  const day = taxiLight.emissiveIntensity;
+  terminal.update(.1, 'sunset', 'clear', false);
+  const dusk = taxiLight.emissiveIntensity;
+  terminal.update(.1, 'night', 'rain', false);
+  assert.ok(taxiLight.emissiveIntensity > dusk && dusk > day);
+  assert.equal(runwayLight.emissiveIntensity, taxiLight.emissiveIntensity);
+  assert.equal(marking.emissive.getHex(), 0);
+  assert.ok(aircraft.position.equals(position));
+  terminal.dispose();
+});
+
 test('outdoor views share a bounded target, freeze motion, react to lighting, and restore windows',async t=>{
   t.mock.method(RGBELoader.prototype,'loadAsync',async()=>{throw new Error('Offline fixture');});
   for (const kind of ['library','heritage-library','city-cafe','airport','office']) {

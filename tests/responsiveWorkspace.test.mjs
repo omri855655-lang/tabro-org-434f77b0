@@ -1,16 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { mobilePrimaryTabs, filterWorkspaceTabs, normalizeDisplayPrefs, workspaceView, COMPACT_WORKSPACE_QUERY } from '../src/lib/responsiveWorkspace.ts';
+import { mobilePrimaryTabs, normalizeMobileShortcuts, setMobileShortcut, filterWorkspaceTabs, normalizeDisplayPrefs, workspaceView, COMPACT_WORKSPACE_QUERY } from '../src/lib/responsiveWorkspace.ts';
 import { mobileWorkspaceCopy } from '../src/lib/mobileWorkspaceCopy.ts';
 
 test('mobile shortcuts retain visible dashboards only, with every other tab searchable', () => {
   const tabs = ['dashboard', 'work', 'planner', 'zoneflow', 'shared-1', 'board-1'].map(id => ({ id, label: id }));
-  assert.deepEqual(mobilePrimaryTabs(tabs).map(tab => tab.id), ['dashboard', 'planner']);
+  assert.deepEqual(mobilePrimaryTabs(tabs).map(tab => tab.id), ['dashboard', 'planner', 'zoneflow']);
   assert.equal(filterWorkspaceTabs(tabs, '').length, tabs.length);
   assert.deepEqual(filterWorkspaceTabs(tabs, '  SHARED-1 '), [tabs[4]]);
   assert.deepEqual(filterWorkspaceTabs([{ id: 'a', label: 'משימות עבודה' }, { id: 'b', label: 'תזונה ושינה' }], 'עבודה').map(tab => tab.id), ['a']);
   assert.equal(COMPACT_WORKSPACE_QUERY, '(max-width: 1023px)');
+});
+test('mobile shortcut preferences are capped, reorder by swapping, and hide unavailable boards without losing the setting', () => {
+  const defaults = normalizeMobileShortcuts(null);
+  assert.deepEqual(defaults, ['dashboard', 'tasks', 'planner', 'payments', 'zoneflow']);
+  const saved = setMobileShortcut(setMobileShortcut(defaults, 1, 'board-study'), 4, 'dashboard');
+  assert.deepEqual(saved, ['zoneflow', 'board-study', 'planner', 'payments', 'dashboard']);
+  const visible = [{ id: 'zoneflow' }, { id: 'dashboard' }, { id: 'planner' }];
+  assert.deepEqual(mobilePrimaryTabs(visible, saved).map(tab => tab.id), ['zoneflow', 'planner', 'dashboard']);
+  assert.equal(mobilePrimaryTabs([...visible, { id: 'board-study' }], saved)[1].id, 'board-study');
+  assert.deepEqual(normalizeMobileShortcuts(['tasks', 'tasks', 8, null, 'zoneflow', 'work']), ['tasks', '', '', '', 'zoneflow']);
+  assert.deepEqual(mobilePrimaryTabs(visible, normalizeMobileShortcuts([])), []);
 });
 test('phone view does not overwrite the desktop view, theme or legacy preferences', () => {
   const saved = normalizeDisplayPrefs({ viewMode: 'kanban', themeKey: 'forest' });

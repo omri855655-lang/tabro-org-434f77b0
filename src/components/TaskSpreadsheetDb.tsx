@@ -53,6 +53,7 @@ interface TaskSpreadsheetDbProps {
   readOnly?: boolean;
   showYearSelector?: boolean;
   fixedSheetName?: string | null;
+  displayId?: string;
   fixedSheetOwnerId?: string;
   ownerDisplayName?: string;
 }
@@ -404,7 +405,7 @@ const EditableCellInput = ({
   );
 };
 
-const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
+const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector = false, fixedSheetName, displayId, fixedSheetOwnerId, ownerDisplayName }: TaskSpreadsheetDbProps) => {
   const isSharedSheet = !!fixedSheetOwnerId;
   const [sharedCollapsed, setSharedCollapsed] = useState(false);
   const { user } = useAuth();
@@ -412,7 +413,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const { lang } = useLanguage();
   const mobileCopy = mobileWorkspaceCopy[lang];
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
-  const { viewMode: dashViewMode, themeKey: dashTheme, setViewMode: setDashViewMode, setTheme: setDashTheme } = useDashboardDisplay(`tasks-${taskType}`, 'list');
+  const { viewMode: dashViewMode, themeKey: dashTheme, setViewMode: setDashViewMode, setTheme: setDashTheme } = useDashboardDisplay(displayId ?? `tasks-${taskType}`, 'list');
   const currentYear = String(new Date().getFullYear());
   const MAIN_SHEET_NAME = "ראשי";
   const queryClient = useQueryClient();
@@ -423,7 +424,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const effectiveOwnerId = fixedSheetOwnerId ?? user?.id;
   const columnVisibility = useTaskColumnVisibility(taskColumnStorageKey(user?.id || "guest", effectiveOwnerId || "guest", taskType, effectiveSheet));
   const visibleColumns = TASK_TABLE_COLUMNS.filter(column => !columnVisibility.hidden.includes(column.key));
-  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId);
+  const { tasks, loading, addTask, updateTask, deleteTask, refetch } = useTasks(taskType, effectiveSheet, effectiveOwnerId, !displayId);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: string; field: keyof Task } | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -824,7 +825,7 @@ const TaskSpreadsheetDb = ({ title, taskType, readOnly = false, showYearSelector
   const handleAddTask = async () => {
     const defaultResponsible = taskType === "work" ? userProfileName : "";
     setActiveTaskTab("active");
-    const newTask = await addTask(selectedSheet ?? currentYear, { responsible: defaultResponsible });
+    const newTask = await addTask(effectiveSheet ?? currentYear, { responsible: defaultResponsible });
     if (!newTask) return;
     setSelectedRow(newTask.id);
     if (isMobile) { setDetailTask(newTask); return; }

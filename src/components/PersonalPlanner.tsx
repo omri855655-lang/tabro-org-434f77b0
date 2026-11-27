@@ -5,6 +5,7 @@ import { useCalendarEvents, CalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCustomCategories, COLOR_PALETTE } from "@/hooks/useCustomCategories";
 import { useRecurringTasks } from "@/hooks/useRecurringTasks";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
+import { CUSTOM_TASK_SHEET_PREFIX, customTaskSheetName } from "@/lib/customBoardType";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, addYears, subYears, startOfYear, endOfYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addHours, isSameDay, isSameMonth, addMonths, addWeeks, differenceInMinutes, setHours, setMinutes, addMinutes, eachDayOfInterval } from "date-fns";
 import { he } from "date-fns/locale";
@@ -370,9 +371,16 @@ const PersonalPlanner = () => {
   // Aggregate all tasks
   const allTasks = useMemo((): AggregatedTask[] => {
     const tasks: AggregatedTask[] = [];
+    const selectedTaskBoards = new Map(customBoards
+      .filter(board => board.board_type === "tasks" && selectedBoardIds.has(board.id))
+      .map(board => [customTaskSheetName(board.id), board.name]));
+    const selectedListBoards = new Set(customBoards
+      .filter(board => board.board_type === "list" && selectedBoardIds.has(board.id))
+      .map(board => board.id));
 
     personalTasks
-      .filter((t) => t.status !== "בוצע" && !t.archived)
+      .filter((t) => t.status !== "בוצע" && !t.archived &&
+        (!t.sheetName.startsWith(CUSTOM_TASK_SHEET_PREFIX) || selectedTaskBoards.has(t.sheetName)))
       .forEach((t) =>
         tasks.push({
           id: t.id,
@@ -383,7 +391,7 @@ const PersonalPlanner = () => {
           status: t.status,
           plannedEnd: t.plannedEnd,
           createdAt: t.createdAt,
-          category: t.category || "אישי",
+          category: t.category || selectedTaskBoards.get(t.sheetName) || "אישי",
         })
       );
 
@@ -452,9 +460,9 @@ const PersonalPlanner = () => {
     }
 
     // Custom board items (only selected boards)
-    if (selectedBoardIds.size > 0) {
+    if (selectedListBoards.size > 0) {
       customBoardItems
-        .filter((item: any) => selectedBoardIds.has(item.board_id) && item.status !== "הושלם")
+        .filter((item: any) => selectedListBoards.has(item.board_id) && item.status !== "הושלם")
         .forEach((item: any) =>
           tasks.push({
             id: item.id,
@@ -533,14 +541,14 @@ const PersonalPlanner = () => {
       if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
-  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, selectedBoardIds, courseLessons, showCoursesInPlanner, podcasts, showPodcastsInPlanner, books, showBooksInPlanner]);
+  }, [personalTasks, workTasks, projectTasks, recurringTasks, isTaskDueToday, isTaskCompletedToday, shows, showShowsInPlanner, customBoardItems, customBoards, selectedBoardIds, courseLessons, showCoursesInPlanner, podcasts, showPodcastsInPlanner, books, showBooksInPlanner]);
 
   const resolveTaskBySource = useCallback((sourceType?: string | null, sourceId?: string | null): Task | null => {
     if (!sourceType || !sourceId) return null;
-    if (sourceType === "personal_task") {
+    if (sourceType === "personal_task" || sourceType === "personal") {
       return personalTasks.find((task) => task.id === sourceId) || null;
     }
-    if (sourceType === "work_task") {
+    if (sourceType === "work_task" || sourceType === "work") {
       return workTasks.find((task) => task.id === sourceId) || null;
     }
     return null;

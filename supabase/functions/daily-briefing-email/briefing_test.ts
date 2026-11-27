@@ -18,7 +18,7 @@ function fakeAdmin(rows: Record<string, unknown[]>) {
       calls.push(call);
       const builder: Record<string, unknown> = {};
       const chain = (name: string) => (...args: unknown[]) => { call.filters.push(`${name}:${args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(",")}`); return builder; };
-      for (const name of ["select", "eq", "neq", "gte", "lte", "or", "order", "limit"]) builder[name] = chain(name);
+      for (const name of ["select", "eq", "neq", "gte", "lte", "or", "filter", "order", "limit"]) builder[name] = chain(name);
       builder.then = (resolve: (v: unknown) => void) => resolve({ data: rows[table] || [], error: null });
       return builder;
     },
@@ -28,7 +28,7 @@ function fakeAdmin(rows: Record<string, unknown[]>) {
 Deno.test("every data query is scoped to the requesting user", async () => {
   const admin = fakeAdmin({});
   await buildReport(admin, USER, "morning", new Date("2026-11-01T06:00:00Z"), {}, DEFAULT_BRIEFING_EMAIL);
-  assertEquals(admin.calls.map(c => c.table).sort(), ["calendar_events", "email_analyses", "project_tasks", "recurring_task_completions", "recurring_tasks", "tasks"]);
+  assertEquals(admin.calls.map(c => c.table).sort(), ["calendar_events", "email_analyses", "project_tasks", "recurring_task_completions", "recurring_task_skips", "recurring_tasks", "tasks"]);
   for (const call of admin.calls) assert(call.filters.includes(`eq:user_id,${USER}`), `${call.table} missing user filter`);
   assert(admin.calls.find(c => c.table === "tasks")!.filters.includes("eq:archived,false"));
   assert(admin.calls.find(c => c.table === "project_tasks")!.filters.includes("eq:completed,false"));
@@ -40,7 +40,7 @@ Deno.test("afternoon and mail opt-out never read email metadata", async () => {
   assert(!afternoon.calls.some(c => c.table === "email_analyses"));
   const optedOut = fakeAdmin({});
   await buildReport(optedOut, USER, "morning", new Date("2026-11-01T06:00:00Z"), {}, { ...DEFAULT_BRIEFING_EMAIL, includeMail: false, includePlanner: false });
-  assertEquals(optedOut.calls.map(c => c.table).sort(), ["project_tasks", "recurring_task_completions", "recurring_tasks", "tasks"]);
+  assertEquals(optedOut.calls.map(c => c.table).sort(), ["project_tasks", "recurring_task_completions", "recurring_task_skips", "recurring_tasks", "tasks"]);
 });
 
 Deno.test("report merges tasks, due recurring and open project tasks, excluding completed", async () => {

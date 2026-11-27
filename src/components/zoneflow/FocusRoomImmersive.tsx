@@ -327,8 +327,9 @@ export default function FocusRoomImmersive(props: Props) {
         else { const target = base.clone().add(new THREE.Vector3(0, 1.4, 0)); camera.position.copy(target).addScaledVector(direction, -3.7); camera.position.y = 3.1; camera.position.x = THREE.MathUtils.clamp(camera.position.x, -environment.width+.6, environment.width-.6); camera.position.z = THREE.MathUtils.clamp(camera.position.z, environment.front+.7, environment.back-.7); camera.lookAt(target); }
       } else { camera.position.set(0, 2.3, 6); camera.lookAt(0, 1.8, -3); }
       if(latest.current.mode==='overview'){
-        camera.position.set(0,flying?3.25:atmosphere==='grand'?4.7:3.5,environment.back-1.1);
-        camera.lookAt(-Math.sin(yaw)*environment.width*.65,THREE.MathUtils.clamp((flying?1.75:2)+(pitch+.12)*4,.8,4.5),environment.front+3);
+        const terminal = atmosphere === 'airport';
+        camera.position.set(0,flying?3.25:terminal?2.85:atmosphere==='grand'?4.7:3.5,environment.back-1.1);
+        camera.lookAt(-Math.sin(yaw)*environment.width*.65,THREE.MathUtils.clamp((flying?1.75:terminal?1.55:2)+(pitch+.12)*4,.8,4.5),environment.front+3);
       }
       renderer.render(scene, camera);
     };

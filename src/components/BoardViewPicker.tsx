@@ -7,7 +7,7 @@ export function BoardViewPicker({ boardId, statusCount }: { boardId: string; sta
   const he = lang === "he";
   const { viewMode, setViewMode } = useDashboardDisplay(`custom-board:${boardId}`, undefined, statusCount >= 3 ? "kanban" : "table");
   const views: [DashboardViewMode, string, string][] = [
-    ["kanban", "לוח משימות", "Task board"], ["table", "טבלה", "Table"],
+    ["kanban", "קנבן", "Kanban"], ["table", "טבלה", "Table"],
     ["list", "רשימה", "List"], ["cards", "כרטיסים", "Cards"],
     ["timeline", "ציר זמן", "Timeline"], ["compact", "קומפקטי", "Compact"],
   ];

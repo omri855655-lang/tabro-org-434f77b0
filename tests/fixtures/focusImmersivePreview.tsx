@@ -5,6 +5,7 @@ import { FocusRoomInterior, type FocusActivity, type FocusRoomParticipant } from
 import '../../src/index.css';
 
 function Preview() {
+  const airport = new URLSearchParams(location.search).get('scene') === 'airport';
   const [position, setPosition] = useState({x:50,y:74});
   const [seated,setSeated] = useState(false), [active,setActive] = useState(false);
   const [activity,setActivity] = useState<FocusActivity>('book');
@@ -16,6 +17,6 @@ function Preview() {
     { userId:'me',displayName:'You / אני',...position,isMe:true,avatarStyle:1,status:active?'focusing':'setting-up',seated,activity,durationMinutes:duration },
     ...(peer ? [{userId:'fictional-reader',displayName:'Demo reader',x:24,y:46,status:'focusing',seated:true,activity:'book',avatarStyle:2},{userId:'fictional-writer',displayName:'Demo writer',x:50,y:46,status:'focusing',seated:true,activity:'notebook',avatarStyle:3},{userId:'fictional-typist',displayName:'Demo typist',x:76,y:46,status:'focusing',seated:true,activity:'computer',avatarStyle:5}] as FocusRoomParticipant[] : []),
   ];
-  return <main className="mx-auto max-w-6xl p-3"><p className="mb-3">Local UI fixture. Fictional peers only, no account or cloud writes.</p><button className="mb-3 rounded border p-2" onClick={()=>setPeer(value=>!value)}>Toggle fictional peers</button><FocusRoomInterior scene="library" name="ספריית הריכוז" topic="לומדים יחד, בקצב שלך" participants={participants} timer={`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`} active={active} activity={activity} onActivityChange={setActivity} onToggle={()=>setActive(value=>!value)} onReset={()=>{setActive(false);setSeconds(duration*60);}} onDurationChange={minutes=>{setDuration(minutes);setSeconds(minutes*60);}} onMove={p=>{setSeated(false);setPosition(p);}} onSelectSeat={p=>{setPosition(p);setSeated(true);}}/></main>;
+  return <main className="mx-auto max-w-6xl p-3"><p className="mb-3">Local UI fixture. Fictional peers only, no account or cloud writes.</p><button className="mb-3 rounded border p-2" onClick={()=>setPeer(value=>!value)}>Toggle fictional peers</button><FocusRoomInterior scene={airport ? "airport" : "library"} name={airport ? "Astra · טרמינל ריכוז" : "ספריית הריכוז"} topic="לומדים יחד, בקצב שלך" participants={participants} timer={`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`} active={active} activity={activity} onActivityChange={setActivity} onToggle={()=>setActive(value=>!value)} onReset={()=>{setActive(false);setSeconds(duration*60);}} onDurationChange={minutes=>{setDuration(minutes);setSeconds(minutes*60);}} onMove={p=>{setSeated(false);setPosition(p);}} onSelectSeat={p=>{setPosition(p);setSeated(true);}}/></main>;
 }
 createRoot(document.getElementById('root')!).render(<LanguageProvider><Preview/></LanguageProvider>);

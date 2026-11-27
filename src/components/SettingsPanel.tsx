@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode, useState, useEffect, useRef } from "react";
 import BoardIconPicker from "@/components/BoardIconPicker";
 import { BoardViewPicker } from "@/components/BoardViewPicker";
+import { customBoardTypeCopy, type CustomBoardType } from "@/lib/customBoardType";
 import { seedBoardView } from "@/hooks/useDashboardDisplay";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,7 +87,7 @@ const ChangePasswordForm = () => {
   );
 };
 
-const SettingsPanel = () => {
+const SettingsPanel = ({ mobileNavigation }: { mobileNavigation?: React.ReactNode }) => {
   const { user, signOut } = useAuth();
   const navTo = useNavigate();
   const { toggleTab, isTabVisible } = useUserPreferences();
@@ -111,6 +112,10 @@ const SettingsPanel = () => {
   const [boardTemplate, setBoardTemplate] = useState("custom");
   const [newBoardIcon, setNewBoardIcon] = useState("LayoutGrid");
   const [newBoardView, setNewBoardView] = useState<"kanban" | "table" | "list" | "cards">("kanban");
+  const [newBoardType, setNewBoardType] = useState<CustomBoardType>("list");
+  const [savingBoard, setSavingBoard] = useState(false);
+  const [changingBoardType, setChangingBoardType] = useState<string | null>(null);
+  const boardTypeCopy = customBoardTypeCopy[lang];
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -331,13 +336,19 @@ const SettingsPanel = () => {
   };
 
   const handleAddBoard = async () => {
+    if (savingBoard) return;
     if (!newBoardName.trim()) { toast.error(t("enterName" as any)); return; }
-    const statuses = newBoardStatuses.split(",").map(s => s.trim()).filter(Boolean);
+    const statusText = newBoardType === "list" ? newBoardStatuses : getDefaultBoardStatuses("custom");
+    const statuses = statusText.split(",").map(s => s.trim()).filter(Boolean);
     if (statuses.length === 0) { toast.error(t("enterStatus" as any)); return; }
+    setSavingBoard(true);
     try {
-      const boardId = await addBoard(newBoardName.trim(), statuses, newBoardDashboard, newBoardIcon);
-      if (boardId) seedBoardView(boardId, newBoardView);
+      const boardId = await addBoard(newBoardName.trim(), statuses, newBoardDashboard, newBoardIcon, newBoardType);
+      if (boardId && newBoardType === "list") seedBoardView(boardId, newBoardView);
       setNewBoardIcon("LayoutGrid");
+      setNewBoardType("list");
+      setBoardTemplate("custom");
+      setNewBoardView("kanban");
       setShowAddBoard(false);
       setNewBoardName("");
       setNewBoardStatuses(getDefaultBoardStatuses("custom"));
@@ -345,6 +356,20 @@ const SettingsPanel = () => {
       toast.success(t("dashboardAdded" as any));
     } catch {
       toast.error(t("dashboardCreateError" as any));
+    } finally {
+      setSavingBoard(false);
+    }
+  };
+
+  const handleBoardTypeChange = async (id: string, type: CustomBoardType) => {
+    if (changingBoardType) return;
+    setChangingBoardType(id);
+    try {
+      await updateBoard(id, { board_type: type });
+    } catch {
+      toast.error(boardTypeCopy.error);
+    } finally {
+      setChangingBoardType(null);
     }
   };
 
@@ -489,6 +514,7 @@ const SettingsPanel = () => {
               );
             })}
           </div>
+          {mobileNavigation}
         </CardContent>
       </Card>
 
@@ -704,12 +730,26 @@ const SettingsPanel = () => {
                       }}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                     />
-                    <span className="text-xs text-muted-foreground">({board.statuses.join(", ")})</span>
+                    {board.board_type === "list" && <span className="text-xs text-muted-foreground">({board.statuses.join(", ")})</span>}
                     {board.show_in_dashboard && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">{t("displayedInDashboardBadge" as any)}</span>
                     )}
                   </div>
-                  <BoardViewPicker boardId={board.id} statusCount={board.statuses.length} />
+                  <label className="grid gap-1 text-xs text-muted-foreground">
+                    {boardTypeCopy.label}
+                    <select
+                      className="rounded-md border bg-background px-2 py-1.5 text-foreground"
+                      value={board.board_type}
+                      disabled={changingBoardType !== null}
+                      aria-label={`${boardTypeCopy.label}: ${board.name}`}
+                      title={boardTypeCopy.hint}
+                      onChange={event => void handleBoardTypeChange(board.id, event.target.value as CustomBoardType)}
+                    >
+                      <option value="list">{boardTypeCopy.list}</option>
+                      <option value="tasks">{boardTypeCopy.tasks}</option>
+                    </select>
+                  </label>
+                  {board.board_type === "list" && <BoardViewPicker boardId={board.id} statusCount={board.statuses.length} />}
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateBoard(board.id, { show_in_dashboard: !board.show_in_dashboard })}>
                       {board.show_in_dashboard ? <Eye className="h-4 w-4 text-primary" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
@@ -720,6 +760,7 @@ const SettingsPanel = () => {
                   </div>
                 </div>
               ))}
+              <p className="text-xs text-muted-foreground">{boardTypeCopy.hint}</p>
             </div>
           )}
           {showAddBoard ? (
@@ -728,7 +769,14 @@ const SettingsPanel = () => {
                 <Label className="text-base font-semibold">{t("newDashboard" as any)}</Label>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowAddBoard(false)}><X className="h-4 w-4" /></Button>
               </div>
-              <div className="space-y-2">
+              <label className="grid gap-1 text-sm">
+                {boardTypeCopy.label}
+                <select className="rounded-md border bg-background p-2" value={newBoardType} onChange={event => setNewBoardType(event.target.value as CustomBoardType)}>
+                  <option value="list">{boardTypeCopy.list}</option>
+                  <option value="tasks">{boardTypeCopy.tasks}</option>
+                </select>
+              </label>
+              {newBoardType === "list" && <div className="space-y-2">
                 <Label>{t("chooseTemplate" as any)}</Label>
                 <Select value={boardTemplate} onValueChange={(v) => {
                   setBoardTemplate(v);
@@ -751,31 +799,31 @@ const SettingsPanel = () => {
                     <SelectItem value="custom">{t("templateCustom" as any)}</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </div>}
               <div className="space-y-2">
                 <Label>{t("dashboardName" as any)}</Label>
                 <BoardIconPicker value={newBoardIcon} onChange={setNewBoardIcon} label={isEnglish ? "Dashboard icon" : "אייקון הדשבורד"} />
                 <Input placeholder={t("dashboardNamePlaceholder" as any)} value={newBoardName} onChange={(e) => setNewBoardName(e.target.value)} />
-                <label className="grid gap-1 text-sm">
+                {newBoardType === "list" && <label className="grid gap-1 text-sm">
                   {isEnglish ? "Default view" : "תצוגת פתיחה"}
                   <select className="rounded-md border bg-background p-2" value={newBoardView} onChange={event => setNewBoardView(event.target.value as typeof newBoardView)}>
-                    <option value="kanban">{isEnglish ? "Task board" : "לוח משימות"}</option>
+                    <option value="kanban">{isEnglish ? "Kanban" : "קנבן"}</option>
                     <option value="table">{isEnglish ? "Table" : "טבלה"}</option>
                     <option value="list">{isEnglish ? "List" : "רשימה"}</option>
                     <option value="cards">{isEnglish ? "Cards" : "כרטיסים"}</option>
                   </select>
-                </label>
+                </label>}
               </div>
-              <div className="space-y-2">
+              {newBoardType === "list" && <div className="space-y-2">
                 <Label>{t("statuses" as any)}</Label>
                 <Input placeholder="To Do, In Progress, Done" value={newBoardStatuses} onChange={(e) => setNewBoardStatuses(e.target.value)} />
                 <p className="text-xs text-muted-foreground">{t("statusesDesc" as any)}</p>
-              </div>
+              </div>}
               <div className="flex items-center gap-2">
                 <Switch checked={newBoardDashboard} onCheckedChange={setNewBoardDashboard} />
                 <Label>{t("showInMainDashboard" as any)}</Label>
               </div>
-              <Button onClick={handleAddBoard} className="w-full gap-2"><Plus className="h-4 w-4" />{t("createCategory" as any)}</Button>
+              <Button onClick={handleAddBoard} disabled={savingBoard} className="w-full gap-2"><Plus className="h-4 w-4" />{t("createCategory" as any)}</Button>
             </div>
           ) : (
             <Button variant="outline" onClick={() => setShowAddBoard(true)} className="w-full gap-2"><Plus className="h-4 w-4" />{t("addListDashboard" as any)}</Button>

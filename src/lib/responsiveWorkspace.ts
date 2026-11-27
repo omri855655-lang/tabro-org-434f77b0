@@ -1,9 +1,29 @@
 export const COMPACT_WORKSPACE_QUERY = '(max-width: 1023px)';
 export const PHONE_QUERY = '(max-width: 767px)';
-export const MOBILE_PRIMARY_TABS = ['dashboard', 'tasks', 'planner', 'payments'] as const;
+export const MOBILE_PRIMARY_TABS = ['dashboard', 'tasks', 'planner', 'payments', 'zoneflow'] as const;
 
-export function mobilePrimaryTabs<T extends { id: string }>(tabs: T[]): T[] {
-  return MOBILE_PRIMARY_TABS.flatMap(id => {
+export function normalizeMobileShortcuts(value: unknown): string[] {
+  if (!Array.isArray(value)) return [...MOBILE_PRIMARY_TABS];
+  const used = new Set<string>();
+  return MOBILE_PRIMARY_TABS.map((_, index) => {
+    const id = value[index];
+    if (typeof id !== 'string' || !id || used.has(id)) return '';
+    used.add(id);
+    return id;
+  });
+}
+
+export function setMobileShortcut(slots: readonly string[], position: number, id: string): string[] {
+  const next = normalizeMobileShortcuts(slots);
+  if (!Number.isInteger(position) || position < 0 || position >= next.length) return next;
+  const existing = id ? next.indexOf(id) : -1;
+  if (existing >= 0) next[existing] = next[position];
+  next[position] = id;
+  return next;
+}
+
+export function mobilePrimaryTabs<T extends { id: string }>(tabs: T[], shortcuts: readonly string[] = MOBILE_PRIMARY_TABS): T[] {
+  return shortcuts.flatMap(id => {
     const tab = tabs.find(item => item.id === id);
     return tab ? [tab] : [];
   });

@@ -5,10 +5,12 @@ import vm from "node:vm";
 import ts from "typescript";
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import * as refreshPolicy from '../src/lib/dashboardRefresh.ts';
+import * as boardTypes from '../src/lib/customBoardType.ts';
 
 const source = fs.readFileSync(new URL("../src/hooks/useTasks.ts", import.meta.url), "utf8");
-function setup(client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), userId = 'user') {
+function setup(client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), userId = 'user', sheet, excludeCustom = false) {
   const effects = [], requests = [];
+  const filters = [];
   let realtime, observer, unsubscribe;
   const fakeReact = {
     useMemo(fn) { return fn(); },
@@ -16,7 +18,7 @@ function setup(client = new QueryClient({ defaultOptions: { queries: { retry: fa
     useEffect(fn) { effects.push(fn); },
   };
   const chain = {
-    select() { return chain; }, eq() { return chain; }, order() { return chain; }, abortSignal() { return chain; },
+    select() { return chain; }, eq(...args) { filters.push(args); return chain; }, or(value) { filters.push(["or", value]); return chain; }, order() { return chain; }, abortSignal() { return chain; },
     then(resolve, reject) { return new Promise(done => requests.push(done)).then(resolve, reject); },
   };
   const channel = { on(_event, _filter, callback) { realtime = callback; return channel; }, subscribe() { return channel; } };
@@ -24,6 +26,7 @@ function setup(client = new QueryClient({ defaultOptions: { queries: { retry: fa
   const imports = {
     react: fakeReact,
     '@/lib/dashboardRefresh': refreshPolicy,
+    '@/lib/customBoardType': boardTypes,
     '@tanstack/react-query': {useQueryClient: () => client, useQuery(options) {
       observer = new QueryObserver(client, options); unsubscribe = observer.subscribe(() => {}); return observer.getCurrentResult();
     }},
@@ -34,10 +37,10 @@ function setup(client = new QueryClient({ defaultOptions: { queries: { retry: fa
   };
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   vm.runInNewContext(compiled, { exports, require: name => imports[name], console, Date });
-  const hook = exports.useTasks("personal");
+  const hook = exports.useTasks("personal", sheet, undefined, excludeCustom);
   const flush = () => new Promise(resolve => setImmediate(resolve));
   effects.forEach(effect => effect());
-  return { hook, result: () => observer.getCurrentResult(), client, unsubscribe, requests, flush, refresh: () => realtime() };
+  return { hook, result: () => observer.getCurrentResult(), client, unsubscribe, requests, filters, flush, refresh: () => realtime() };
 }
 
 test("realtime refresh retains the mounted task table instead of showing a loading screen", async () => {
@@ -85,4 +88,20 @@ test("cell editors have stable component identities and ignore blur after Enter 
   assert.ok(table.indexOf("const EditableCellInput =") < parent);
   assert.equal((table.slice(0, parent).match(/const settled = useRef\(false\)/g) || []).length, 2);
   assert.match(table, /key=\{\x60\$\{taskId\}:\$\{field\}\x60\}/);
+});
+
+test("custom task boards scope rows by exact sheet and account without mixing into the personal task list", async () => {
+  const sheet = boardTypes.customTaskSheetName("study");
+  const app = setup(undefined, "owner", sheet);
+  await app.flush();
+  assert.ok(app.filters.some(([field, value]) => field === "sheet_name" && value === sheet));
+  assert.ok(app.filters.some(([field, value]) => field === "user_id" && value === "owner"));
+  app.requests.shift()({ data: [{ id: "custom-task" }], error: null });
+  await app.flush();
+  const personal = setup(app.client, "owner", null, true);
+  await personal.flush();
+  assert.deepEqual(personal.filters.find(([field]) => field === "or"), ["or", "sheet_name.is.null,sheet_name.not.like.tabro-board-*"]);
+  assert.equal(personal.result().data, undefined);
+  personal.requests.shift()({ data: [], error: null });
+  app.unsubscribe(); personal.unsubscribe(); app.client.clear();
 });

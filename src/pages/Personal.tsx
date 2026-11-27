@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { BoardIcon, getBoardIcon } from "@/components/BoardIconPicker";
 import { useNavigate } from "react-router-dom";
+import { customTaskSheetName } from '@/lib/customBoardType';
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomBoards } from "@/hooks/useCustomBoards";
@@ -25,6 +26,8 @@ import HamburgerLayout from "@/components/layouts/HamburgerLayout";
 import DashboardCardsLayout from "@/components/layouts/DashboardCardsLayout";
 import SplitViewLayout from "@/components/layouts/SplitViewLayout";
 import MobileWorkspaceLayout from '@/components/layouts/MobileWorkspaceLayout';
+import { MobileShortcutSettings } from '@/components/layouts/MobileShortcutSettings';
+import { normalizeMobileShortcuts } from '@/lib/responsiveWorkspace';
 import { useCompactWorkspace } from '@/hooks/use-mobile';
 import { FileSpreadsheet, Moon, Sun, LogOut, BookOpen, Tv, LayoutDashboard, ListTodo, Briefcase, Download, Headphones, CalendarCheck, FolderKanban, GraduationCap, CalendarDays, Focus, Settings, LayoutGrid, Trophy, ChevronLeft, ChevronRight, Share2, Apple, Target, ShoppingCart, CreditCard, MessageSquare, StickyNote, Mail, Mic, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -114,6 +117,16 @@ const Personal = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [localShortcuts, setLocalShortcuts] = useState<{ key: string; slots: string[] }>();
+  const shortcutKey = `tabro-mobile-shortcuts:${user?.id ?? "guest"}`;
+  const shortcuts = localShortcuts?.key === shortcutKey ? localShortcuts.slots : (() => {
+    try { return normalizeMobileShortcuts(JSON.parse(localStorage.getItem(shortcutKey) ?? "null")); }
+    catch { return normalizeMobileShortcuts(null); }
+  })();
+  const updateShortcuts = (slots: string[]) => {
+    setLocalShortcuts({ key: shortcutKey, slots });
+    try { localStorage.setItem(shortcutKey, JSON.stringify(slots)); } catch { /* Keep settings for this session. */ }
+  };
   const [sharedSheets, setSharedSheets] = useState<SharedSheet[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(() => {
     try {
@@ -498,7 +511,7 @@ const Personal = () => {
       case "planner": return <PlannerErrorBoundary><PersonalPlanner /></PlannerErrorBoundary>;
       case "courses": return <CoursesManager />;
       case "zoneflow": return <ZoneFlowDashboard />;
-      case "settings": return <SettingsPanel />;
+      case "settings": return <SettingsPanel mobileNavigation={<MobileShortcutSettings tabs={flatTabItems} slots={shortcuts} onChange={updateShortcuts} />} />;
       case "challenges": return <ChallengesManager onNavigate={setActiveTab} />;
       case "nutrition": return <NutritionDashboard />;
       case "dreams": return <DreamRoadmapDashboard />;
@@ -531,6 +544,15 @@ const Personal = () => {
           const boardId = activeTab.replace("board-", "");
           const board = customBoards.find(b => b.id === boardId);
           if (!board) return null;
+          if (board.board_type === "tasks") {
+            return <TaskSpreadsheetDb
+              key={board.id}
+              title={board.name}
+              taskType="personal"
+              fixedSheetName={customTaskSheetName(board.id)}
+              displayId={`custom-task-board:${board.id}`}
+            />;
+          }
           return (
             <CustomBoardManager
               key={board.id}
@@ -578,7 +600,7 @@ const Personal = () => {
   if (compactWorkspace) {
     return <>
       {showOnboarding && <OnboardingWizard onComplete={() => window.location.reload()} />}
-      <MobileWorkspaceLayout tabs={flatTabItems} groups={groupingMode === 'grouped' ? groupedTabItems : []} activeTab={activeTab} onTabChange={setActiveTab} notification={<NotificationBell />} email={user.email} accountActions={<>
+      <MobileWorkspaceLayout tabs={flatTabItems} groups={groupingMode === 'grouped' ? groupedTabItems : []} shortcuts={shortcuts} activeTab={activeTab} onTabChange={setActiveTab} notification={<NotificationBell />} email={user.email} accountActions={<>
         <Button variant="outline" size="sm" onClick={() => navigate('/install')}><Download className="h-4 w-4" />{t('installApp')}</Button>
         <PushNotificationToggle />
         <Button variant="outline" size="sm" onClick={toggleMode}>{isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}{t(isDark ? 'lightMode' : 'darkMode')}</Button>

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { plannerStartNow, plannerScrollTop, hasMatchingPlannerTask, plannerTaskDraft } from "../src/lib/plannerDefaults.ts";
 import { createPlannerTask } from "../src/lib/plannerTaskCreation.ts";
+import { customTaskSheetName } from "../src/lib/customBoardType.ts";
 
 test("new activity uses today's local minute without mutating the clock", () => {
   const now = new Date(2026, 9, 26, 23, 58, 42, 101);
@@ -85,4 +86,14 @@ test("permission and network failures do not masquerade as success", async () =>
   await assert.rejects(createPlannerTask(client, event, "other-user", { type: "personal" }));
   await assert.rejects(createPlannerTask(client, { ...event, sourceId: "existing-task" }, "owner", { type: "personal" }));
   assert.equal(calls.length, 0);
+});
+
+test("a planner task added to a full custom board uses its sheet, including on retry", async () => {
+  const { client, calls } = clientMock({ code: "23505" });
+  const sheet = customTaskSheetName("study");
+  const link = await createPlannerTask(client, event, "owner", { type: "personal", sheetName: sheet });
+  assert.equal(calls[0].table, "tasks");
+  assert.equal(calls[0].row.sheet_name, sheet);
+  assert.ok(calls.some(call => call.field === "sheet_name" && call.value === sheet));
+  assert.equal(link.sourceType, "personal");
 });
